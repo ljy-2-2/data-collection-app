@@ -1,0 +1,376 @@
+robot_config:
+  /**:
+    ros__parameters:
+      battery_topic: ''
+      devices: '[]'
+      record_topics:
+      - /joint_states
+      - /device_ids
+      - /left_camera/camera_info
+      - /left_camera/image_raw/compressed
+      - /right_camera/camera_info
+      - /right_camera/image_raw/compressed
+      - /pico/hmd/state
+      - /pico/hmd/battery
+      - /pico/controller/left/state
+      - /pico/controller/left/joy
+      - /pico/controller/left/battery
+      - /pico/controller/left/tracked
+      - /pico/controller/left/valid
+      - /pico/controller/right/state
+      - /pico/controller/right/joy
+      - /pico/controller/right/battery
+      - /pico/controller/right/tracked
+      - /pico/controller/right/valid
+      - /galaxis/gripper/left/joint_state
+      - /galaxis/gripper/left/encoder_offset
+      - /galaxis/gripper/right/joint_state
+      - /galaxis/gripper/right/encoder_offset
+      - /galaxis/gripper/left/id
+      - /galaxis/gripper/right/id
+      - /footpedal_states
+      - /tf
+      - /tf_static
+      - /diagnostics
+      - /recording_gate/gate_level
+      - /parameter_events
+      - /rosout
+      - /center_camera/camera_info
+      - /center_camera/image_raw/compressed
+      - /portable_joy_command
+      - /galaxis/gripper/left/double_click_state
+      - /galaxis/gripper/right/double_click_state
+      rosbag_params:
+      - --storage
+      - mcap
+      record_format: rosbag
+      video_mp4_enabled: true
+      record_base_dir: /opt/data/rosbags
+      required_free_space: 10
+      upload_enabled: false
+      upload_targets_file: /root/ros2_ws/install/galaxis_core/share/galaxis_core/config/upload_targets.yaml
+      s3_endpoint: localhost:9000
+      s3_bucket: data
+      s3_access_key_id: ""
+      s3_secret_access_key: ""
+      s3_use_ssl: false
+      s3_prefix: ''
+      base_url: http://localhost:8000/api
+      api_key: ""
+      offline_mode: true
+      task_file: /opt/data/tasks.yaml
+      auto_repeat_episode: true
+      continuous_round_mode: true
+      use_sim_time: false
+      environment_type: real_world
+      site: ''
+      location: ''
+      teleop_interface: galaxis
+      teleop_interface_url: https://github.com/airoa-org/galaxis-sw
+      runner_organization: FIXME
+      use_recording_gate: true
+      recording_gate_config: /root/ros2_ws/install/galaxis_core/share/galaxis_core/config/recording_gate.yaml
+      status_interval_sec: 30.0
+      gate_throttle_sec: 2.0
+      robot_type: galaxis_portable
+recording_gate:
+  eval_rate: 4.0
+  settle_sec: 5.0
+  recovery_sec: 0.5
+  default_escalation: 2
+  groups:
+    health:
+      recovery_sec: 0.5
+      default_type: topic_condition
+      conditions:
+        left_camera_timeout_warn:
+          topic: /left_camera/camera_info
+          timeout_sec: 1.0
+          escalation: 1
+        left_camera_timeout_stop:
+          topic: /left_camera/camera_info
+          timeout_sec: 3.0
+          escalation: 2
+        right_camera_timeout_warn:
+          topic: /right_camera/camera_info
+          timeout_sec: 1.0
+          escalation: 1
+        right_camera_timeout_stop:
+          topic: /right_camera/camera_info
+          timeout_sec: 3.0
+          escalation: 2
+        left_gripper_joint_state_timeout_stop:
+          topic: /galaxis/gripper/left/joint_state
+          timeout_sec: 0.1
+          escalation: 2
+          reason: Left gripper joint_state stalled (> 0.1s)
+        right_gripper_joint_state_timeout_stop:
+          topic: /galaxis/gripper/right/joint_state
+          timeout_sec: 0.1
+          escalation: 2
+          reason: Right gripper joint_state stalled (> 0.1s)
+        left_camera_warn:
+          topic: /left_camera/camera_info
+          timeout_sec: 3.0
+          min_rate_hz: 10.0
+          rate_window_sec: 5.0
+          rate_escalation: 1
+          debounce_sec: 0.5
+          reason: Left hand camera frame rate below 10 Hz ({detail})
+        left_camera_stop:
+          topic: /left_camera/camera_info
+          timeout_sec: 3.0
+          min_rate_hz: 7.0
+          rate_window_sec: 5.0
+          rate_escalation: 2
+          debounce_sec: 0.5
+          reason: Left hand camera frame rate below 7 Hz ({detail})
+        right_camera_warn:
+          topic: /right_camera/camera_info
+          timeout_sec: 3.0
+          min_rate_hz: 10.0
+          rate_window_sec: 5.0
+          rate_escalation: 1
+          debounce_sec: 0.5
+          reason: Right hand camera frame rate below 10 Hz ({detail})
+        right_camera_stop:
+          topic: /right_camera/camera_info
+          timeout_sec: 3.0
+          min_rate_hz: 7.0
+          rate_window_sec: 5.0
+          rate_escalation: 2
+          debounce_sec: 0.5
+          reason: Right hand camera frame rate below 7 Hz ({detail})
+        head_camera_timeout_warn:
+          topic: /center_camera/camera_info
+          timeout_sec: 1.0
+          escalation: 1
+        head_camera_timeout_stop:
+          topic: /center_camera/camera_info
+          timeout_sec: 3.0
+          escalation: 2
+        head_camera_warn:
+          topic: /center_camera/camera_info
+          timeout_sec: 3.0
+          min_rate_hz: 15.0
+          rate_window_sec: 5.0
+          rate_escalation: 1
+          debounce_sec: 0.5
+          reason: Center (USB) camera frame rate below 15 Hz ({detail})
+        head_camera_stop:
+          topic: /center_camera/camera_info
+          timeout_sec: 3.0
+          min_rate_hz: 10.0
+          rate_window_sec: 5.0
+          rate_escalation: 2
+          debounce_sec: 0.5
+          reason: Center (USB) camera frame rate below 10 Hz ({detail})
+    tf:
+      recovery_sec: 0.5
+      default_type: tf_availability
+      conditions:
+        pico_hands_warn:
+          frames:
+          - source: pico_origin
+            target: left_hand_root
+            max_age_sec: 1.0
+          - source: pico_origin
+            target: right_hand_root
+            max_age_sec: 1.0
+          escalation: 1
+          reason: TF frames from PICO stale (> 0.5s)
+          timeout_sec: 0.5
+        pico_hands_stop:
+          frames:
+          - source: pico_origin
+            target: left_hand_root
+            max_age_sec: 5.0
+          - source: pico_origin
+            target: right_hand_root
+            max_age_sec: 5.0
+          escalation: 2
+          reason: TF frames from PICO stale (> 1s)
+          timeout_sec: 1.0
+    vr_tracking:
+      recovery_sec: 0.0
+      default_type: topic_condition
+      conditions:
+        left_tracked_warn:
+          topic: /pico/controller/left/tracked
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 1
+          debounce_sec: 0.5
+          reason: Left hand tracking lost
+        right_tracked_warn:
+          topic: /pico/controller/right/tracked
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 1
+          debounce_sec: 0.5
+          reason: Right hand tracking lost
+        left_valid_warn:
+          topic: /pico/controller/left/valid
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 1
+          debounce_sec: 0.5
+          reason: Left hand pose invalid
+        right_valid_warn:
+          topic: /pico/controller/right/valid
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 1
+          debounce_sec: 0.5
+          reason: Right hand pose invalid
+        left_tracked_stop:
+          topic: /pico/controller/left/tracked
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 2
+          debounce_sec: 1.0
+          reason: Left hand tracking lost
+        right_tracked_stop:
+          topic: /pico/controller/right/tracked
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 2
+          debounce_sec: 1.0
+          reason: Right hand tracking lost
+        left_valid_stop:
+          topic: /pico/controller/left/valid
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 2
+          debounce_sec: 1.0
+          reason: Left hand pose invalid
+        right_valid_stop:
+          topic: /pico/controller/right/valid
+          condition: msg.data
+          timeout_sec: 1.0
+          escalation: 2
+          debounce_sec: 1.0
+          reason: Right hand pose invalid
+    duration_limits:
+      default_type: topic_condition
+      conditions:
+        subtask_warn:
+          topic: /task_sequence_manager/subtask_elapsed_sec
+          condition: msg.data < 90.0
+          escalation: 1
+          timeout_sec: -1.0
+        subtask_limit:
+          topic: /task_sequence_manager/subtask_elapsed_sec
+          condition: msg.data < 120.0
+          escalation: 2
+          timeout_sec: -1.0
+upload_targets:
+  state_db: /opt/data/upload_state.db
+  delete_after_upload: false
+  local_retention_hours: 0
+galaxis_devices:
+  left_camera/usb_cam:
+    ros__parameters:
+      video_device: /dev/galaxis_left_camera
+      framerate: 30.0
+      image_width: 640
+      image_height: 480
+      pixel_format: yuyv2rgb
+      io_method: mmap
+      camera_name: left_camera
+      frame_id: left_camera_optical_frame
+  right_camera/usb_cam:
+    ros__parameters:
+      video_device: /dev/galaxis_right_camera
+      framerate: 30.0
+      image_width: 640
+      image_height: 480
+      pixel_format: yuyv2rgb
+      io_method: mmap
+      camera_name: right_camera
+      frame_id: right_camera_optical_frame
+  left_camera_brightness_controller:
+    ros__parameters:
+      video_device: /dev/galaxis_left_camera
+      brightness: 50
+      startup_delay_sec: 1.0
+      max_attempts: 10
+  right_camera_brightness_controller:
+    ros__parameters:
+      video_device: /dev/galaxis_right_camera
+      brightness: 50
+      startup_delay_sec: 1.0
+      max_attempts: 10
+  pico_bridge_node:
+    ros__parameters:
+      galaxis_listen_host: 0.0.0.0
+      galaxis_listen_port: 63901
+      parent_frame: pico_origin
+      hmd_frame: pico_hmd
+      left_frame: left_hand_root
+      right_frame: right_hand_root
+      left_controller_frame: pico_left_controller
+      right_controller_frame: pico_right_controller
+      diag_topic: /diagnostics
+      hmd_topic: /pico/hmd/state
+      hmd_battery_topic: /pico/hmd/battery
+      left_controller_topic: /pico/controller/left/state
+      right_controller_topic: /pico/controller/right/state
+      left_controller_tracked_topic: /pico/controller/left/tracked
+      right_controller_tracked_topic: /pico/controller/right/tracked
+      left_controller_valid_topic: /pico/controller/left/valid
+      right_controller_valid_topic: /pico/controller/right/valid
+      left_controller_joy_topic: /pico/controller/left/joy
+      right_controller_joy_topic: /pico/controller/right/joy
+      left_controller_battery_topic: /pico/controller/left/battery
+      right_controller_battery_topic: /pico/controller/right/battery
+      connect_retry_sec: 1.0
+      diag_period_sec: 0.5
+      battery_status_hz: 1.0
+  encoder_node:
+    ros__parameters:
+      left_port: /dev/galaxis_left_esp32c6
+      right_port: /dev/galaxis_right_esp32c6
+      baud: 115200
+      left_joint_name: left_left_finger_joint
+      right_joint_name: right_right_finger_joint
+      left_rotation_direction: -1
+      right_rotation_direction: 1
+  center_camera/usb_cam:
+    ros__parameters:
+      video_device: /dev/galaxis_center_camera
+      framerate: 30.0
+      image_width: 640
+      image_height: 480
+      pixel_format: yuyv2rgb
+      io_method: mmap
+      camera_name: center_camera
+      frame_id: center_camera_optical_frame
+  center_camera/g2_bridge:
+    ros__parameters:
+      host: 127.0.0.1
+      port: 64002
+      frame_id: center_camera_optical_frame
+      image_topic: /center_camera/image_raw_unflipped
+      camera_info_topic: /center_camera/camera_info_unflipped
+  center_camera_brightness_controller:
+    ros__parameters:
+      video_device: /dev/galaxis_center_camera
+      brightness: 0
+      startup_delay_sec: 1.0
+      max_attempts: 10
+  center_camera_flip_node:
+    ros__parameters:
+      vertical_flip: false
+      jpeg_quality: 90
+  task_command_dispatch_node:
+    ros__parameters:
+      joy_accept_button: 0
+      joy_reject_button: -1
+      joy_cancel_episode_button: -1
+      joy_next_round_button: 1
+      joy_rewind_button: -1
+  gripper_double_click_node:
+    ros__parameters: {}
+  portable_joy_command_node:
+    ros__parameters: {}

@@ -1,0 +1,83 @@
+{
+  "source": "TJ_FX_ROBOT_CONTRL_SDK-master",
+  "files": {
+    "CommonConfig/ccs_m6_40.MvKDCfg": "ce20b1a80974c3ed58cdac4973152625096c8ad93a779e5fd4108c26ce19bd52",
+    "LICENSE": "4f9da023eb0f5c4b776c06936fe257863620bd00a26d13225d4629b08144b1a9",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Base_L.STL": "f22c309ed8cacd2fc776e2f72a2fc5618d9da84315267377edd3205e91ebbcb5",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link1_L.STL": "d00097eec49600a4111ee5a124d6636f50ea09a7a1dc8486d98f4370dde7a932",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link2_L.STL": "4776a6a2086ddc61b1643aff93386e545baccef2751db29d863fe027a76f325e",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link3_L.STL": "d58f1039bd3eb2ccc1a1959b89d2de7ae714344ad8cb8b78ef97b92dcd317d26",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link4_L.STL": "77f18566339f38acac1785fae517b05ff1e5247b95404ce26536d215bbed9cd7",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link5_L.STL": "573f15ee62b0a9b2d62aceeb756800fd86969a685535e91416b73d51f1c57613",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link6_L.STL": "b6b7570d8ebf1d2acb01baf8941b892f5a5f72aaa05503ab8340da8a2a7b2c13",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/Link7_L.STL": "126cc7d41c37049ce34d2636bfe2d460c21e3429ed080877d1c5e983109ef798",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/Marvin M6-S-L-CCS-696-V4.0 urdf.urdf": "506269fd5a69e4101ab8085e4d27a37ab7175e8c464b142034b063af4b485507",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Base_R.STL": "f22c309ed8cacd2fc776e2f72a2fc5618d9da84315267377edd3205e91ebbcb5",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link1_R.STL": "fdb1075fe0b41e5c2cb7c2fe13c9d2e62ff4dd6eb540ea841b8603db28369dd0",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link2_R.STL": "53eb9fc69c939d2ebd4f32c1df341c1c42bc3d9d0911db0c9fcee70aa2701b34",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link3_R.STL": "122456d8fc3e81694f352fc1f29d0bc19066f7f3d7572857a1be1e7c030dec9c",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link4_R.STL": "77f18566339f38acac1785fae517b05ff1e5247b95404ce26536d215bbed9cd7",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link5_R.STL": "2de51a340695c89b2fd58b1171dfacc4d85aa4e6cd50879e021a2d0bde8599a8",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link6_R.STL": "49722d14b9ac34a84a41c95f49bd0b2a8859d4a05f66b247822bf36b0a703cd5",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/Link7_R.STL": "6eb75b059ff383e90a153be840bcce84b23d8f8afd074b1bc9dfec1b18c2351f",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/Marvin M6-S-R-CCS-696-V4.0 urdf.urdf": "d75d0bfad5cb8bf2cf5240c5bd5ffcc4b013c5e2e94e2ccbb0c18a7ee994a8bb",
+    "SDK_PYTHON/fx_kine.py": "c6603de2f315dfc0fc85369be07165af7da0118e3cc4006ca94f8787c04087c5",
+    "SDK_PYTHON/fx_robot.py": "fae947726ca67f9b5ea644710e12154c508015bc4534db9803048d323fc11a3d",
+    "SDK_PYTHON/libKine.so": "f2aec6ebc1f41302fe0126284076211c044d6c7e1c2276dc919767254e0c597f",
+    "SDK_PYTHON/libMarvinSDK.so": "dd6b7afdbda8de3bafb6797c6f94547302ae60bf285ee8daa9762de45be636d6",
+    "teleop/gripper/__init__.py": "5f5e180fd5d3b8d5270913ff1bc7fae44b8dd3365f2f5355061b66b83a2abb5c",
+    "teleop/gripper/compatibility.py": "a4ac641504171ed24102bd554abd4bd92d4001103ee47efbf6e0726dd51b212d",
+    "teleop/gripper/config.json": "3ad9cec06282f572546d204bbc9cd967ca97781cfccf200daf600823a086cdb7",
+    "teleop/gripper/config.py": "24bf1e8703b33e4ae21b0d0218d7d21d548d006e610e63f1181a42523ebe80dd",
+    "teleop/gripper/damiao.py": "7c7d68780a2965c128765a90ad9605bc5904536058b6d550f93c6905a33e1fd5",
+    "teleop/gripper/marvin_can.py": "730d3ca286a0d006b432057b1eb2774bcd7f85da3288f258f3123643ca2320b8",
+    "teleop/gripper/motion.py": "e3b6bf539065fe8b340af938947da70c2aa11fd7c2f1c1823987991406d92d9e",
+    "teleop/gripper/runtime.py": "29d02937460c114f404e1df9158020b1e21908bab15c0addf8802d4d9b79f6a7",
+    "teleop/gripper/sampling.py": "8ca65fbd733408d0ab0906c4d348f1c01538f7c2cfb1bff7e17f070adda642e1",
+    "teleop/marvin_teleop/__init__.py": "86678d9ec65792351cbdb5074c0d76502800b65cf161e0de81ff1beb5f1a2232",
+    "teleop/marvin_teleop/config.json": "957cf10e1c6daa834754ea2b2fddef960096d1d2d4c6a3be9af0cbf3fcedfe8a",
+    "teleop/marvin_teleop/constrained_ik.py": "4fd9513da89c7634e479c6830dd8c8b055eadc8c9d763b18b97606ed47030187",
+    "teleop/marvin_teleop/control.py": "394ed6aca404d2d37467c1c9555cbf9ff6a9070102c5400e39bb56e07061f66d",
+    "teleop/marvin_teleop/differential.py": "385e9edad132702a425a2ec54ba535765728b9df124bd2f27568eb4f565db942",
+    "teleop/marvin_teleop/geometry.py": "643a8ee72033ed65436eabca5ff41d865585ece5b1107ef0d74d345dc46ff7cd",
+    "teleop/marvin_teleop/installation.py": "d746f03d7e24064ed6ae811be3d3d8eca8884a50aad2f497c818652f069c36a3",
+    "teleop/marvin_teleop/launcher.py": "06968cc747034f7c71ef1626712a450c1eba06338397bd789bd5bc3ceafe880f",
+    "teleop/marvin_teleop/mapping.py": "7ee15dfc6801ef6d2c45e83dc66877b36e2c1d176a1b091198c94db61a271559",
+    "teleop/marvin_teleop/mirror.py": "0c9afcbdf2e436481aecfdb7a7b5d2cdc29e74b168156ef4e33c410408a01bbb",
+    "teleop/marvin_teleop/model.py": "d5de56d20c58f5bc0b8321e5bdb248a65b1c165a3c0d9955f87458daf488c4d5",
+    "teleop/marvin_teleop/motion.py": "f3d5957f089c9deeb65eb05d8c648b2b958a10e06fdf7485f2c78aafd5eded45",
+    "teleop/marvin_teleop/preparation.py": "c996701530d81013467e6db64ba8007aa35573dfffbdd4b58686a526361d5847",
+    "teleop/marvin_teleop/protocol.py": "6f5d7eb6e7c89a708c6d584fbe8e1b88e1a64e6a9f90071453b4d0cc0ef82781",
+    "teleop/marvin_teleop/robot.py": "4de851a1e0b8850ae0beeb5ee0d62bc24c103ff36d4c48a46ffdca57ed45b426",
+    "teleop/marvin_teleop/tool_frame.py": "9bc18e4d538778a054e47dfe079e793668fc9c5327f6dbd93ebb82aeb18b80f7",
+    "teleop/marvin_teleop/vendor_tracking.py": "ab9d3de956f27024550f4843b759276ef414d12e9d74facd0d79b7096040274c",
+    "teleop/marvin_teleop/xr_input.py": "15a84bf1644d2ad2b6e6185facf97ec588fb1072484761a21b118020826e043e",
+    "teleop/marvin_teleop/xr_worker.py": "e0ca817b1c45659b58846c1a1d528dd6306d95e65a94de60b93d9df259f0dc8b",
+    "双臂底座支架图纸260811/固定件/固定件urdf/Dual_arm_mount-m6/meshes/base_link.STL": "ebe81a0544c8ec20435e82ca988386ad5c498fa503e42e2c62ee6a07e3bd86ab",
+    "双臂底座支架图纸260811/固定件/固定件urdf/Dual_arm_mount-m6/urdf/Dual_arm_mount-m6.urdf": "789c02c70d88a97b201f4f5f16d0f85b71ee116b38b802685f697853329bf11e",
+    "双臂底座支架图纸260811/底座支架/底座支架urdf/base_m6/meshes/base_link.STL": "29f13fe1103a20a5849fcac0199a79c56ea2b9736acd6783547a396b7a52792d",
+    "双臂底座支架图纸260811/底座支架/底座支架urdf/base_m6/urdf/base_m6.urdf": "ab3cb047c0460fcd5ad68666f4d50ebce309d9ff1183c8ad324052e03169088e"
+  },
+  "adaptations": {
+    "teleop/marvin_teleop/control.py": "Selected arms own enables and commands; collision checks retain both arms.",
+    "teleop/marvin_teleop/configuration.py": "Only configuration() extracted from upstream __main__.py; collection CLI omitted."
+  },
+  "shared_clients": {
+    "fusion_camera_stream/fusion_camera/client.py": "ed63c11f1d0770294bd92389047f0db4334cffa3e7f2b57dafbd206144b18695",
+    "fusion_camera_stream/fusion_camera/stream.py": "113584bc6439dda0118075effa9fc037fbdea79cf93e0656f6f6fe510ba7b4d1"
+  },
+  "preview": {
+    "source": "dual_arm_sim/dual_arm_with_grippers.urdf",
+    "source_sha256": "891e4f526d340c7c032b7e4edee022cae3d2ac7ec61f6b2da552cbf7d31a0197",
+    "artifact": "public/tianji-model.json",
+    "method": "CAD mesh vertex clustering, URDF transforms and mimic joints retained"
+  },
+  "shared_collection": {
+    "fusion_data_collection/FusionDataCollector/collector.py": "745c69270ac6a9ec6bca76826f6aaa6881a87af8fca49f1244d47a4aac503947",
+    "fusion_data_collection/teleop_patch/marvin_teleop/collection_telemetry.py": "197918429dba8ad9ee303f2ef44bdd32cc6f1b2e43a22409218c2a9f4ddbcd59"
+  },
+  "collection_adaptations": "App camera handoff; selected gripper validation; actual joint command log; head/right/left naming; no native files; complete-only account-bound platform queue. Originals remain unchanged.",
+  "local_adaptations": {
+    "teleop/gripper/runtime.py": "Feedback timeout reports age, limit and phase. After sequential preflight, require fresh disabled feedback from all selected motors before starting the worker; existing 150 ms watchdog remains unchanged, with no enabling/position commands during refresh."
+  }
+}

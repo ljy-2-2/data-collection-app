@@ -1,0 +1,120 @@
+# =============================================================================
+# Storage Targets — Upload + GC Configuration
+# =============================================================================
+#
+# Defines S3-compatible storage targets for recording uploads and garbage
+# collection. Each target has its own credentials, path rule, upload
+# priority, and optional GC strategy.
+#
+# State is tracked in a local SQLite database so uploads survive restarts
+# and GC'd recordings are never re-uploaded.
+#
+# Secrets can be inlined or referenced via environment variables using
+# the `_env` suffix (e.g. access_key_env: "AWS_ACCESS_KEY_ID").
+#
+# =============================================================================
+
+# Path to the SQLite state database.
+state_db: "/var/lib/galaxis/upload_state.db"
+
+# Purge terminal-state rows (completed, gc_deleted) older than this (hours).
+# 0 = disabled.
+state_purge_age_hours: 720    # 30 days
+
+# Delete local recording after successful upload to all required targets.
+delete_after_upload: false
+
+# Hours to keep local recordings before age-based cleanup.
+# Only applies when delete_after_upload is false.
+local_retention_hours: 24
+
+# =============================================================================
+# Default values inherited by all targets (can be overridden per-target)
+# =============================================================================
+defaults:
+  use_ssl: false
+  verify_ssl: true      # set false to accept self-signed certificates
+  bucket: "data"
+  prefix: ""
+
+  # Path rule for S3 object keys:
+  #   "flat"      — {prefix}{dir_name}/{filename}
+  #   "canonical" — {prefix}{canonical_prefix}/{filename}
+  #                 canonical_prefix derived from meta.json:
+  #                 org={org}/site={site}/location={loc}/date={date}/
+  #                 robot_type={type}/robot_id={id}/ts={ts}/uuid={uuid}
+  path_rule: "flat"
+
+  # Upload priority:
+  #   "required"  — must succeed; blocks local deletion until completed
+  #   "preferred" — retried on failure; doesn't block local deletion
+  #   "optional"  — best effort, no retry
+  priority: "required"
+
+# =============================================================================
+# Targets
+# =============================================================================
+targets:
+
+  # ---------------------------------------------------------------------------
+  # Local MinIO — primary storage on the robot
+  # ---------------------------------------------------------------------------
+  local:
+    endpoint: "localhost:9000"
+    access_key: "minioadmin"
+    secret_key: "minioadmin"
+    path_rule: "flat"
+    priority: "required"
+
+    # GC configuration for this target.
+    # Omit or set to "none" to disable GC.
+    gc:
+      # Strategy: YAML list of conditions.
+      # Top-level list items are AND'd. Use `any_of` for OR.
+      # Conditions: marker, age, space
+      #   marker — .uploading_complete marker exists
+      #   age    — recording older than max_age_hours
+      #   space  — total storage exceeds max_storage_gb
+      strategy:
+        - marker
+        - any_of:
+            - age
+            - space
+      max_age_hours: 24.0
+      max_storage_gb: 100.0
+      orphan_age_hours: 1.0       # delete incomplete recordings after this
+      check_interval_sec: 300     # seconds between GC cycles
+      # completion_marker: ".recording_complete"   # default
+      # storage_marker: ".uploading_complete"      # default
+      # dry_run: false                             # default
+
+  # ---------------------------------------------------------------------------
+  # Remote archive — preferred, no GC
+  # ---------------------------------------------------------------------------
+  # heap:
+  #   endpoint: "x.x.x.x:8010"
+  #   access_key: "s3:xxx"
+  #   secret_key: "xxx"
+  #   path_rule: "canonical"
+  #   priority: "preferred"
+  #   gc: none
+
+  # ---------------------------------------------------------------------------
+  # Cloud S3 — optional, no GC
+  # ---------------------------------------------------------------------------
+  # cloud:
+  #   endpoint: "s3.amazonaws.com"
+  #   access_key_env: "AWS_ACCESS_KEY_ID"
+  #   secret_key_env: "AWS_SECRET_ACCESS_KEY"
+  #   use_ssl: true
+  #   bucket: "company-recordings"
+  #   path_rule: "canonical"
+  #   priority: "optional"
+  #   gc: none
+
+  # ---------------------------------------------------------------------------
+  # Disabled targets
+  # ---------------------------------------------------------------------------
+  # archive:
+  #   enabled: false
+  #   endpoint: "..."

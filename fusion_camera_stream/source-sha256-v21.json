@@ -1,0 +1,14 @@
+{
+  "controller/server.py": "46663fb5e4410cdc05661ac21c8cbf8f29b2feb83c04af4718d97b1ab0f37d80",
+  "controller/streaming.py": "445a006e8e4efe618447422673e37c233c3ca3eded7107517131308a1b051293",
+  "controller/joints.py": "690e68a2f4ac1ea24108ca62237380d4b990421c02e0512d96977805918755d5",
+  "fusion_camera/stream.py": "a57cf120f4376c2d3a788c3f1c32d26f552bc850b01d67779481ccb1e057ddde",
+  "fusion_camera/client.py": "ff30bc092bdd362b345e49c9bf5fa8795739020152ae901e212e2022159d46f3",
+  "fusion_camera/grippers.py": "3286abb8a7bf12c94ae02b477a1646bb8d1af607f24aabb384eddb07bbdbcfb0",
+  "fusion_camera/episode.py": "5fff1d83d006a7176f95a88daf7c91c315ccea1c9cac79d3684df8232ec31609",
+  "fusion_camera/__init__.py": "6ec1743afce1a544d3910561dc0c9675b51b061cebaf6007a36215a0d13eddc3",
+  "examples/record_episode.py": "eb7a019a0b994c4101274e23f44a13f06711f457b7be01d3150ce11de4be5208",
+  "tests/test_safety.py": "c38e90063a3381507fc8f8c6479e6797aa7ae2dedd8eb748ff8a2e91f11e4717",
+  "tests/test_stream.py": "ad6117f615899cfdd36b77e3692fb3fad6a32fe0d4f76c62df6df031e34171be",
+  "verify_episode.py": "b5cb8eaeb498b1d09e91331067da7120309f95255efc6b7323e1224bb9b47a5a"
+}

@@ -1,0 +1,245 @@
+digraph TeleoperationStatus {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    pad="0.24",
+    nodesep="0.38",
+    ranksep="0.52",
+    splines=ortho,
+    newrank=true,
+    fontname="Noto Sans CJK SC",
+    fontsize=18,
+    labelloc="t",
+    label="可扩展机器人遥操作总架构 · PICO + G2 受限冻结状态（2026-09-09）\n绿色＝已实现并完成所标范围验收　橙色＝部分能力/外部硬件限制/跨厂商待验证　灰色＝计划中/未实现　白色虚线＝旧代码参考\n只画主要前向流程；RobotState / FK 反馈写入所属节点，不再绘制跨区回线"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Noto Sans CJK SC",
+    fontsize=11,
+    margin="0.18,0.11",
+    color="#9CA3AF",
+    fillcolor="#F3F4F6",
+    fontcolor="#111827",
+    penwidth=1.6
+  ];
+
+  edge [
+    color="#64748B",
+    arrowsize=0.72,
+    penwidth=1.35
+  ];
+
+  subgraph cluster_input {
+    label="① PICO 输入统一为 XRFrame";
+    color="#CBD5E1";
+    style="rounded";
+    margin=18;
+
+    PICO [
+      label="PICO / Unity\n头显、左右手柄、按键\nTracking 约 90–100 Hz",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    BRIDGE [
+      label="PC 输入桥\nRoboticsServiceProcess\n+ XRoboToolkitInputAdapter",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    XRFRAME [
+      label="XRFrame\n统一、带时间戳的输入事实\n还不是机器人命令",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    { rank=same; PICO; BRIDGE; XRFRAME; }
+    PICO -> BRIDGE -> XRFRAME [color="#16A34A"];
+  }
+
+  subgraph cluster_control {
+    label="② 先生成机器人无关 Intent，再由 ControlRouter 分流";
+    color="#CBD5E1";
+    style="rounded";
+    margin=18;
+
+    CURRENT_INTENTS [
+      label="启动入口用 --mode 选择 Mapper / Retargeting（会话内固定）\njoint-jog → JointJogIntent\ndual-arm：RobotState / FK Grip 锚点 + 手柄相对运动\n→ EndEffectorPoseIntent → 末端工作空间限制\nTrigger → GripperIntent（独立，不经过末端工作空间限制）",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    HEAD_INTENT [
+      label="头部跟随（可选 --head-follow）\nHeadFollowMapper → HeadOrientationIntent\nG2HeadJointMapper + G2 起点 → JointPositionIntent\n左右 / 上下跟随；不跟随歪头和平移",
+      color="#16A34A", fillcolor="#DCFCE7"
+    ];
+
+    ROUTER [
+      label="ControlRouter\n只负责分流\n不选择模式或机器人",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+
+    JOINT [
+      label="单关节直控\nJointJogIntent / JointPositionIntent\n→ DirectJointBackend → JointCommand（不使用 IK）",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    GRIPPER [
+      label="左右夹爪\nGripperIntent → GripperBackend\n→ GripperCommand（不使用 IK）",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    HEAD_COMMAND [
+      label="头部直接关节控制\nDirectJointBackend → JointCommand\n角度 / 速率 / 时效 / 反馈检查\n不使用 IK；软件安全范围已冻结",
+      color="#16A34A", fillcolor="#DCFCE7"
+    ];
+    FUTURE_CONTROL [
+      label="全身姿态 / 行走（后续）\n需新增 Intent、Backend 与专用安全"
+    ];
+
+    ARM_IK [
+      label="双臂末端控制\n受限后的 EndEffectorPoseIntent → RobotAdapter.solve_ik()\n当前注入 G2URDFIKSolver → JointCommand",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+
+    SAFETY [
+      label="实时安全与连续控制\n关节/夹爪分别检查限位、变化量和时效；stale 当前帧不发送\n运行循环负责通道隔离、连续目标与异常恢复\nG2Adapter 在发送前复查厂商约束",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+
+    { rank=same; CURRENT_INTENTS; HEAD_INTENT; }
+    { rank=same; JOINT; ARM_IK; GRIPPER; HEAD_COMMAND; FUTURE_CONTROL; }
+    CURRENT_INTENTS -> HEAD_INTENT [style=invis, weight=10];
+    JOINT -> ARM_IK -> GRIPPER -> HEAD_COMMAND -> FUTURE_CONTROL [style=invis, weight=10];
+    CURRENT_INTENTS -> ROUTER [color="#16A34A"];
+    HEAD_INTENT -> ROUTER [color="#16A34A"];
+    ROUTER -> JOINT [color="#16A34A"];
+    ROUTER -> ARM_IK [color="#16A34A"];
+    ROUTER -> GRIPPER [color="#16A34A"];
+    ROUTER -> HEAD_COMMAND [color="#16A34A"];
+    ROUTER -> FUTURE_CONTROL [color="#9CA3AF", style=dashed];
+    JOINT -> SAFETY [color="#16A34A"];
+    ARM_IK -> SAFETY [color="#16A34A"];
+    GRIPPER -> SAFETY [color="#16A34A"];
+  }
+
+  XRFRAME -> CURRENT_INTENTS [color="#16A34A"];
+  XRFRAME -> HEAD_INTENT [color="#16A34A"];
+
+  subgraph cluster_adapter {
+    label="③ RobotAdapter：末端控制提供 IK；各路线安全检查后发送";
+    color="#CBD5E1";
+    style="rounded";
+    margin=18;
+
+    ADAPTER [
+      label="RobotAdapter 统一接口边界\nread_state / read_gripper_state / get_joint_schema / get_capabilities\n安全前：solve_ik　安全后：send_joint_command / send_gripper_command / stop\n末端控制启动时选择一种 IK；反馈回线省略\nG2 已使用，跨厂商能力待第二种真机验证",
+      color="#F97316",
+      fillcolor="#FFEDD5"
+    ];
+    subgraph cluster_local_urdf {
+      label="A. 双臂末端使用本地 URDF IK";
+      color="#CBD5E1";
+      style="rounded,dashed";
+      margin=14;
+
+      G2_LOCAL [
+        label="G2Adapter → agibot_gdk → G2\n双臂：G2URDFIKSolver（Pinocchio + URDF）\n单关节 / 双臂 / 双夹爪已验收",
+        color="#16A34A",
+        fillcolor="#DCFCE7"
+      ];
+      LEJU_LOCAL [
+        label="乐聚（计划）\nLejuAdapter + 乐聚专用 URDF IK\n→ 乐聚控制 SDK → 乐聚机器人\n尚未实现"
+      ];
+      G2_LOCAL -> LEJU_LOCAL [style=invis, weight=4];
+    }
+
+    subgraph cluster_native_ik {
+      label="B. 厂商原生 IK（官方提供且完成接入验证）";
+      color="#CBD5E1";
+      style="rounded,dashed";
+      margin=14;
+
+      VENDOR_NATIVE [
+        label="VendorAdapter + IKSolver(kind=native)\n封装厂商官方 IK / 控制 SDK\n→ 对应厂商机器人\n计划中，尚未实现"
+      ];
+    }
+
+    HEAD_EXEC [
+      label="头部专用状态的 G2Adapter\nG2NormalHeadSender → GDK 头部伺服\n受限范围真机链路已验证并冻结",
+      color="#16A34A", fillcolor="#DCFCE7"
+    ];
+    HEAD_HW_LIMIT [
+      shape=note,
+      label="G2 本体已知限制\n机器人本机操作也复现右转受阻 / 异常\n软件 yaw 暂限 [-8°, +45°]\n完整右转范围须由厂家检修后重验",
+      color="#F97316", fillcolor="#FFEDD5"
+    ];
+    { rank=same; G2_LOCAL; LEJU_LOCAL; VENDOR_NATIVE; HEAD_EXEC; HEAD_HW_LIMIT; }
+    ADAPTER -> G2_LOCAL [color="#16A34A"];
+    ADAPTER -> LEJU_LOCAL [color="#9CA3AF", style=dashed];
+    ADAPTER -> VENDOR_NATIVE [color="#9CA3AF", style=dashed];
+  }
+
+  SAFETY -> ADAPTER [color="#16A34A"];
+  HEAD_COMMAND -> HEAD_EXEC [color="#16A34A"];
+  HEAD_EXEC -> HEAD_HW_LIMIT [color="#F97316", style=dashed];
+
+  subgraph cluster_video {
+    label="④ 独立视频回传（不进入控制链路）";
+    color="#CBD5E1";
+    style="rounded";
+    margin=18;
+
+    VSOURCE [
+      label="G2 kHeadColor\nG2VideoSource / RobotVideoSource\n640×400 · 约 30 FPS",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    VHUB [
+      label="PC VideoHub\nTCP 63902 · 只保留最新帧",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    VCLIENT [
+      label="PICO + PC Viewer\n小窗 / 可拖动大屏 / 关闭清黑\n已支持同时观看",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+
+    { rank=same; VSOURCE; VHUB; VCLIENT; }
+    VSOURCE -> VHUB -> VCLIENT [color="#16A34A"];
+  }
+
+  subgraph cluster_support {
+    label="⑤ 启动管理与参考（不参与控制数据计算）";
+    color="#CBD5E1";
+    style="rounded,dashed";
+    margin=18;
+
+    SESSION [
+      label="run_teleoperation.sh / run_pico_g2_teleop.sh\n承担 SessionSupervisor 职责\n单关节或双臂/夹爪 + 视频已冻结\n可选头部在受限范围内已整合冻结",
+      color="#16A34A",
+      fillcolor="#DCFCE7"
+    ];
+    HEAD_SESSION [
+      label="run_pico_g2_head_follow.sh\n独立入口保留；不与统一会话并开\n异步 JSONL 诊断日志已实现",
+      color="#16A34A", fillcolor="#DCFCE7"
+    ];
+    SUPPORT_FUTURE [
+      label="集合平台 VideoClient\nPC 统一数据采集 Recorder / Monitor\n计划中，尚未实现"
+    ];
+    LEGACY [
+      shape=note,
+      label="test-teleop\n旧双臂映射与 URDF IK 参考\n不属于当前运行链路",
+      color="#94A3B8",
+      fillcolor="#FFFFFF",
+      style="filled,dashed"
+    ];
+
+    { rank=same; SESSION; HEAD_SESSION; SUPPORT_FUTURE; LEGACY; }
+  }
+
+  LEJU_LOCAL -> VSOURCE [style=invis, weight=5];
+  VCLIENT -> SESSION [style=invis, weight=5];
+}

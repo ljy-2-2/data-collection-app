@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data files
+data/
+minio_data/
+test_data/
+*.h5
+*.csv
+*.json
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Python tool caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+
+# Generated runtime configs (produced by build_runtime_configs.py / config-init)
+galaxis_bringup/config/_runtime/
+
+# Logs
+*.log
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

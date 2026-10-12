@@ -1,0 +1,185 @@
+# =============================================================================
+# Data Collection — Robot Configuration
+# =============================================================================
+#
+# Complete configuration for all data collection nodes.
+# Copy this file to your project as `robot_config.yaml` and customize.
+#
+# Parameter lifecycle annotations:
+#   [CONFIG]  — Set in this file, read once at startup, never changes
+#   [BACKEND] — Default "FIXME" is resolved from backend API at startup
+#
+# =============================================================================
+
+/**:
+  ros__parameters:
+
+    # =========================================================================
+    # Robot Identity
+    # =========================================================================
+
+    # [BACKEND] Unique robot type identifier.
+    # Set to "FIXME" to auto-resolve from backend /robot/me → model field.
+    # Used by: record_manager, robot_status
+    robot_type: "FIXME"
+
+    # [CONFIG] ROS topic publishing sensor_msgs/BatteryState.
+    # Leave empty to disable battery monitoring in status reports.
+    # Used by: robot_status
+    battery_topic: ""
+
+    # [CONFIG] JSON array of input devices attached to the robot.
+    # Each device: {"role": "controller"|"sensor", "type": "<type>", "id": "<id>"}
+    # Used by: record_manager (written to recording metadata)
+    devices: '[]'
+
+    # =========================================================================
+    # Recording — Topics
+    # =========================================================================
+
+    # [CONFIG] List of ROS topics to record in each rosbag.
+    # Used by: record_manager
+    record_topics:
+      - "/joint_states"
+      - "/tf"
+      - "/tf_static"
+      # - "/camera/color/image_raw/compressed"
+      # - "/camera/color/camera_info"
+      # - "/cmd_vel"
+      # - "/diagnostics"
+
+    # [CONFIG] Rosbag recorder CLI arguments.
+    # Used by: record_manager
+    rosbag_params:
+      - '--storage'
+      - 'mcap'
+
+    # [CONFIG] Recording backend: "rosbag" (MCAP, default) or "hdf5".
+    record_format: "rosbag"
+
+    # [CONFIG] Directory where rosbags are saved locally.
+    # Used by: record_manager, storage_node
+    record_base_dir: "/opt/data/rosbags"
+
+    # [CONFIG] Minimum free disk space (GB) required to start recording.
+    # Used by: record_manager
+    required_free_space: 50
+
+    # =========================================================================
+    # Upload — S3-Compatible Object Storage
+    # =========================================================================
+    #
+    # All S3 endpoints, buckets, credentials, retention, and garbage
+    # collection live in a separate upload_targets.yaml (one or more upload
+    # targets). See upload_targets.yaml.sample and docs/configuration.md.
+
+    # [CONFIG] Enable/disable automatic upload of completed recordings.
+    # Used by: storage_node
+    upload_enabled: true
+
+    # [CONFIG] Path to upload_targets.yaml describing the upload target(s).
+    # Required when upload_enabled is true. See upload_targets.yaml.sample.
+    # Used by: storage_node
+    upload_targets_file: ""
+
+    # =========================================================================
+    # Backend API
+    # =========================================================================
+
+    # [CONFIG] Backend API base URL.
+    # Used by: task_sequence_manager, record_manager, robot_status, task_receiver
+    base_url: "http://localhost:8000/api"
+
+    # [CONFIG] Backend API key (X-API-Key header).
+    # Used by: task_sequence_manager, record_manager, robot_status, task_receiver
+    api_key: ""
+
+    # [CONFIG] Run without a backend server. Tasks are loaded from task_file.
+    # Used by: task_sequence_manager, record_manager, task_receiver
+    offline_mode: false
+
+    # [CONFIG] Path to YAML task definitions for offline mode.
+    # Ignored when offline_mode is false. See task_file.yaml.sample.
+    # Used by: task_sequence_manager, record_manager, task_receiver
+    task_file: ""
+
+    # bridge_mode is a launch argument, not a YAML parameter.
+    # Pass bridge_mode:=true on the ros2 launch command line to skip
+    # task_receiver and let an external node (e.g. sim_bridge) provide tasks.
+
+    # [CONFIG] Auto-repeat last episode when operator accepts with no queued task.
+    # Used by: task_sequence_manager
+    auto_repeat_episode: true
+
+    # [CONFIG] Use simulation time from the /clock topic.
+    # When true, rosbag2 records with --use-sim-time and TSM timestamps
+    # use the ROS clock instead of wall time.
+    # Used by: record_manager, task_sequence_manager (via ROS built-in)
+    use_sim_time: false
+
+    # =========================================================================
+    # Deployment Metadata
+    # =========================================================================
+
+    # [CONFIG] Environment classification for recording metadata.
+    # Used by: record_manager
+    environment_type: "real_world"
+
+    # [CONFIG] Site identifier — physical location where the robot operates.
+    # Used by: record_manager (written to recording metadata)
+    site: ""
+
+    # [CONFIG] Sub-location within the site.
+    # Used by: record_manager (written to recording metadata)
+    location: ""
+
+    # [BACKEND] Organization that owns this robot.
+    # Set to "FIXME" to auto-resolve from backend /robot/me → organization_id.
+    # Used by: task_sequence_manager, record_manager
+    runner_organization: "FIXME"
+
+    # [CONFIG] Human-readable runner name. Falls back to the backend-provided
+    # operator identity when left empty.
+    # Used by: task_sequence_manager (written to recording metadata)
+    runner_name: ""
+
+    # =========================================================================
+    # Teleop Interface Provenance
+    # =========================================================================
+    #
+    # Optional git provenance of the teleoperation interface, recorded into
+    # each episode's metadata. All default to "unknown" when unset.
+    # Used by: record_manager (written to recording metadata)
+
+    teleop_interface: "unknown"          # interface name
+    teleop_interface_url: "unknown"      # git remote URL
+    teleop_interface_hash: "unknown"     # git commit hash
+    teleop_interface_branch: "unknown"   # git branch
+
+    # =========================================================================
+    # Recording Gate
+    # =========================================================================
+
+    # [CONFIG] Enable the recording gate safety/health system.
+    # When enabled, provide a recording_gate_config path below.
+    # Used by: task_sequence_manager
+    use_recording_gate: false
+
+    # [CONFIG] Path to recording gate YAML (see recording_gate.yaml.sample).
+    # Leave empty to disable the gate.
+    # Used by: recording_gate_node
+    recording_gate_config: ""
+
+    # =========================================================================
+    # Status Reporting
+    # =========================================================================
+
+    # [CONFIG] Interval (seconds) between periodic status reports to backend.
+    # Used by: robot_status
+    status_interval_sec: 30.0
+
+    # [CONFIG] Minimum interval (seconds) between reactive gate status reports.
+    # When gate conditions change (level transition or condition pass/fail),
+    # an immediate report is sent, throttled to at most once per this interval.
+    # Used by: robot_status
+    gate_throttle_sec: 2.0

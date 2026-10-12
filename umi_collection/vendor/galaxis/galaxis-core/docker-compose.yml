@@ -1,0 +1,101 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ${MINIO_DATA_PATH:-./minio_data}:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/data;
+      echo 'MinIO bucket created: data';
+      "
+    restart: "no"
+
+  galaxis-core:
+    image: galaxis-core:latest
+    container_name: galaxis-core
+    build:
+      context: ..
+      dockerfile: ./galaxis-core/docker/Dockerfile
+      args:
+        ROS_DISTRO: ${ROS_DISTRO:-jazzy}
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - ENV=production
+      - LOG_LEVEL=info
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///root/cyclonedds_profile.xml
+      - SENTRY_DSN=${SENTRY_DSN:-}
+    entrypoint: /root/ros_entrypoint.sh
+    command: ros2 launch galaxis_core leader_teleop.launch.py
+    volumes:
+      - ./galaxis-core:/root/ros2_ws/src/galaxis-core
+      - ./airoa_data_msgs:/root/ros2_ws/src/airoa_data_msgs
+      - /dev:/dev
+      - ./docker/cyclonedds_profile.xml:/root/cyclonedds_profile.xml
+      - ${DATA_MOUNT_PATH}:/opt/data
+    restart: unless-stopped
+
+  web_video_server:
+    image: galaxis-core:latest
+    container_name: web_video_server
+    network_mode: host
+    depends_on:
+      - galaxis-core
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///root/cyclonedds_profile.xml
+      - WEB_VIDEO_SERVER_PORT=${WEB_VIDEO_SERVER_PORT:-9091}
+    volumes:
+      - ./docker/cyclonedds_profile.xml:/root/cyclonedds_profile.xml
+    command: >
+      bash -c "
+        source /root/ros_entrypoint.sh &&
+        ros2 run web_video_server web_video_server --ros-args -p port:=$${WEB_VIDEO_SERVER_PORT}
+      "
+    restart: unless-stopped
+
+  lock_server:
+    image: galaxis-lock-server:latest
+    build:
+      context: ./lock_server
+    container_name: lock_server
+    ports:
+      - "127.0.0.1:28080:28080"
+    volumes:
+      - ./lock_server/config.json:/app/config.json:ro
+    restart: unless-stopped

@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Tiny upstream documentation fixture, not a collected recording.
+!dummy.bag

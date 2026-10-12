@@ -243,3 +243,9 @@ PYTHONPATH=teleop_control/src python3 -m pytest tests
 本工程是采集电脑本地应用，不发布到公共网站；公开托管页面无法直接、安全地拥有本机 USB/VR 设备。
 # data-collection-app
 # data-collection-app
+
+## GitHub 仓库内容
+
+仓库包含前后端源码、Qt 界面、UMI 采集程序、传感器固件、机器人模型与 SDK、测试、配置模板，以及构建和安装脚本。构建方式见 [打包与分发](打包与分发.md)。
+
+`.build-cache`、`node_modules`、`.venv`、`dist-packages`、运行日志、采集记录和本机授权文件不提交到 Git。克隆仓库后需要按构建说明准备依赖；GitHub 源码仓库不等同于已包含所有运行环境的离线安装包。平台地址从 `.env.example` 配置，账号、API 密钥和相机授权应在各自电脑上单独设置，不要提交到仓库。

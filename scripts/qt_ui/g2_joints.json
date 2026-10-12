@@ -1,0 +1,149 @@
+[
+  {
+    "name": "idx21_arm_l_joint1",
+    "label": "左臂 J1",
+    "default": -0.163557,
+    "minimum": -3.071796,
+    "maximum": 3.071796
+  },
+  {
+    "name": "idx22_arm_l_joint2",
+    "label": "左臂 J2",
+    "default": -0.530748,
+    "minimum": -2.059505,
+    "maximum": 2.059505
+  },
+  {
+    "name": "idx23_arm_l_joint3",
+    "label": "左臂 J3",
+    "default": 0.934962,
+    "minimum": -3.071796,
+    "maximum": 3.071796
+  },
+  {
+    "name": "idx24_arm_l_joint4",
+    "label": "左臂 J4",
+    "default": -0.941735,
+    "minimum": -2.495838,
+    "maximum": 1.012308
+  },
+  {
+    "name": "idx25_arm_l_joint5",
+    "label": "左臂 J5",
+    "default": 1.036588,
+    "minimum": -3.071796,
+    "maximum": 3.071796
+  },
+  {
+    "name": "idx26_arm_l_joint6",
+    "label": "左臂 J6",
+    "default": -0.45063,
+    "minimum": -1.012308,
+    "maximum": 1.012308
+  },
+  {
+    "name": "idx27_arm_l_joint7",
+    "label": "左臂 J7",
+    "default": 1.369374,
+    "minimum": -1.535907,
+    "maximum": 1.535907
+  },
+  {
+    "name": "idx31_gripper_l_inner_joint1",
+    "label": "左夹爪",
+    "default": -0.785,
+    "minimum": -0.785,
+    "maximum": 0.0
+  },
+  {
+    "name": "idx01_body_joint1",
+    "label": "升降 J1",
+    "default": 0.0,
+    "minimum": -1.082104,
+    "maximum": 0.000174
+  },
+  {
+    "name": "idx02_body_joint2",
+    "label": "升降 J2",
+    "default": 0.0,
+    "minimum": -0.000174,
+    "maximum": 2.6529
+  },
+  {
+    "name": "idx03_body_joint3",
+    "label": "腰部俯仰",
+    "default": 0.0,
+    "minimum": -1.919862,
+    "maximum": 1.57097
+  },
+  {
+    "name": "idx04_body_joint4",
+    "label": "腰部侧倾",
+    "default": 0.0,
+    "minimum": -0.436332,
+    "maximum": 0.436332
+  },
+  {
+    "name": "idx05_body_joint5",
+    "label": "腰部旋转",
+    "default": 0.0,
+    "minimum": -3.045599,
+    "maximum": 3.045599
+  },
+  {
+    "name": "idx61_arm_r_joint1",
+    "label": "右臂 J1",
+    "default": 2.5383,
+    "minimum": -3.071796,
+    "maximum": 3.071796
+  },
+  {
+    "name": "idx62_arm_r_joint2",
+    "label": "右臂 J2",
+    "default": 0.1937,
+    "minimum": -2.059505,
+    "maximum": 2.059505
+  },
+  {
+    "name": "idx63_arm_r_joint3",
+    "label": "右臂 J3",
+    "default": -2.9588,
+    "minimum": -3.071796,
+    "maximum": 3.071796
+  },
+  {
+    "name": "idx64_arm_r_joint4",
+    "label": "右臂 J4",
+    "default": -1.8983,
+    "minimum": -2.495838,
+    "maximum": 1.012308
+  },
+  {
+    "name": "idx65_arm_r_joint5",
+    "label": "右臂 J5",
+    "default": -0.8024,
+    "minimum": -3.071796,
+    "maximum": 3.071796
+  },
+  {
+    "name": "idx66_arm_r_joint6",
+    "label": "右臂 J6",
+    "default": -0.7667,
+    "minimum": -1.012308,
+    "maximum": 1.012308
+  },
+  {
+    "name": "idx67_arm_r_joint7",
+    "label": "右臂 J7",
+    "default": -0.0627,
+    "minimum": -1.535907,
+    "maximum": 1.535907
+  },
+  {
+    "name": "idx71_gripper_r_inner_joint1",
+    "label": "右夹爪",
+    "default": -0.7836,
+    "minimum": -0.785,
+    "maximum": 0.0
+  }
+]

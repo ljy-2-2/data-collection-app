@@ -1,0 +1,90 @@
+08048000-08095000 r-xp 00000000 08:01 262333     /home/FUSION/bin/FXPSI
+08095000-08096000 r--p 0004c000 08:01 262333     /home/FUSION/bin/FXPSI
+08096000-08097000 rw-p 0004d000 08:01 262333     /home/FUSION/bin/FXPSI
+08097000-0809b000 rw-p 00000000 00:00 0 
+09bf6000-09c38000 rw-p 00000000 00:00 0          [heap]
+b49ff000-b4a00000 ---p 00000000 00:00 0 
+b4a00000-b5200000 rw-p 00000000 00:00 0          [stack:2027]
+b5200000-b5221000 rw-p 00000000 00:00 0 
+b5221000-b5300000 ---p 00000000 00:00 0 
+b53c6000-b53c7000 ---p 00000000 00:00 0 
+b53c7000-b5414000 rw-p 00000000 00:00 0          [stack:2026]
+b5414000-b5417000 rw-s fa371000 00:05 1152       /dev/rtheap
+b5417000-b541a000 rw-s fa36d000 00:05 1152       /dev/rtheap
+b541a000-b541d000 rw-s fa369000 00:05 1152       /dev/rtheap
+b541d000-b5420000 rw-s fa365000 00:05 1152       /dev/rtheap
+b5420000-b5522000 rw-s fa25a000 00:05 1152       /dev/rtheap
+b5522000-b552d000 rw-s 00000000 00:05 8663       /dev/FXCfgConfig
+b552d000-b5f2e000 rw-s 00000000 00:04 0          /SYSV07010af1 (deleted)
+b5f2e000-b5f2f000 ---p 00000000 00:00 0 
+b5f2f000-b672f000 rw-p 00000000 00:00 0          [stack:2025]
+b672f000-b673f000 rw-s 00000000 00:05 8665       /dev/FXLogSI
+b673f000-b7140000 rw-s 00000000 00:04 0          /SYSV07010af1 (deleted)
+b7140000-b7173000 rw-s 00000000 00:05 8662       /dev/FXSysInfo
+b7173000-b729f000 rw-s f8422000 00:05 1152       /dev/rtheap
+b729f000-b73cb000 rw-s fa44a000 00:05 1152       /dev/rtheap
+b73cb000-b73ce000 rw-p 00000000 00:00 0 
+b73ce000-b73d5000 r-xp 00000000 08:01 131967     /lib/i386-linux-gnu/librt-2.19.so
+b73d5000-b73d6000 r--p 00006000 08:01 131967     /lib/i386-linux-gnu/librt-2.19.so
+b73d6000-b73d7000 rw-p 00007000 08:01 131967     /lib/i386-linux-gnu/librt-2.19.so
+b73d7000-b7582000 r-xp 00000000 08:01 131839     /lib/i386-linux-gnu/libc-2.19.so
+b7582000-b7584000 r--p 001aa000 08:01 131839     /lib/i386-linux-gnu/libc-2.19.so
+b7584000-b7585000 rw-p 001ac000 08:01 131839     /lib/i386-linux-gnu/libc-2.19.so
+b7585000-b7588000 rw-p 00000000 00:00 0 
+b7588000-b75a4000 r-xp 00000000 08:01 131866     /lib/i386-linux-gnu/libgcc_s.so.1
+b75a4000-b75a5000 rw-p 0001b000 08:01 131866     /lib/i386-linux-gnu/libgcc_s.so.1
+b75a5000-b75a6000 rw-p 00000000 00:00 0 
+b75a6000-b75ea000 r-xp 00000000 08:01 131889     /lib/i386-linux-gnu/libm-2.19.so
+b75ea000-b75eb000 r--p 00043000 08:01 131889     /lib/i386-linux-gnu/libm-2.19.so
+b75eb000-b75ec000 rw-p 00044000 08:01 131889     /lib/i386-linux-gnu/libm-2.19.so
+b75ec000-b76c8000 r-xp 00000000 08:01 397135     /usr/lib/i386-linux-gnu/libstdc++.so.6.0.19
+b76c8000-b76cc000 r--p 000dc000 08:01 397135     /usr/lib/i386-linux-gnu/libstdc++.so.6.0.19
+b76cc000-b76cd000 rw-p 000e0000 08:01 397135     /usr/lib/i386-linux-gnu/libstdc++.so.6.0.19
+b76cd000-b76d4000 rw-p 00000000 00:00 0 
+b76d4000-b76e0000 r-xp 00000000 08:01 263269     /home/FUSION/lib/libmodbus.so
+b76e0000-b76e1000 r--p 0000b000 08:01 263269     /home/FUSION/lib/libmodbus.so
+b76e1000-b76e2000 rw-p 0000c000 08:01 263269     /home/FUSION/lib/libmodbus.so
+b76e2000-b76e3000 r-xp 00000000 08:01 263265     /home/FUSION/lib/libFXVar.so
+b76e3000-b76e4000 r--p 00000000 08:01 263265     /home/FUSION/lib/libFXVar.so
+b76e4000-b76e5000 rw-p 00001000 08:01 263265     /home/FUSION/lib/libFXVar.so
+b76e5000-b76e8000 r-xp 00000000 08:01 262660     /home/FUSION/lib/libFXRtShm.so
+b76e8000-b76e9000 r--p 00002000 08:01 262660     /home/FUSION/lib/libFXRtShm.so
+b76e9000-b76ea000 rw-p 00003000 08:01 262660     /home/FUSION/lib/libFXRtShm.so
+b76ea000-b76eb000 rw-p 00000000 00:00 0 
+b76eb000-b76f2000 r-xp 00000000 08:01 262662     /home/FUSION/lib/libFXShm.so
+b76f2000-b76f3000 r--p 00006000 08:01 262662     /home/FUSION/lib/libFXShm.so
+b76f3000-b76f4000 rw-p 00007000 08:01 262662     /home/FUSION/lib/libFXShm.so
+b76f4000-b76fa000 r-xp 00000000 08:01 525487     /usr/xenomai/lib/libxenomai.so.0.0.0
+b76fa000-b76fb000 r--p 00005000 08:01 525487     /usr/xenomai/lib/libxenomai.so.0.0.0
+b76fb000-b76fc000 rw-p 00006000 08:01 525487     /usr/xenomai/lib/libxenomai.so.0.0.0
+b76fc000-b7704000 r-xp 00000000 08:01 525495     /usr/xenomai/lib/libnative.so.3.0.0
+b7704000-b7705000 r--p 00007000 08:01 525495     /usr/xenomai/lib/libnative.so.3.0.0
+b7705000-b7706000 rw-p 00008000 08:01 525495     /usr/xenomai/lib/libnative.so.3.0.0
+b7706000-b771e000 r-xp 00000000 08:01 131959     /lib/i386-linux-gnu/libpthread-2.19.so
+b771e000-b771f000 r--p 00018000 08:01 131959     /lib/i386-linux-gnu/libpthread-2.19.so
+b771f000-b7720000 rw-p 00019000 08:01 131959     /lib/i386-linux-gnu/libpthread-2.19.so
+b7720000-b7722000 rw-p 00000000 00:00 0 
+b7723000-b7724000 rw-p 00000000 00:00 0 
+b7724000-b7727000 rw-s fa361000 00:05 1152       /dev/rtheap
+b7727000-b772a000 rw-s fa35d000 00:05 1152       /dev/rtheap
+b772a000-b772b000 rw-s 00000000 00:05 8664       /dev/FXDcss
+b772b000-b772c000 rw-p 00000000 00:00 0 
+b772c000-b772d000 ---p 00000000 00:00 0 
+b772d000-b7734000 rw-p 00000000 00:00 0          [stack:2000]
+b7734000-b7735000 r-xs f8409000 00:05 1152       /dev/rtheap
+b7735000-b7736000 rw-p 00000000 00:00 0 
+b7736000-b7756000 r-xp 00000000 08:01 131813     /lib/i386-linux-gnu/ld-2.19.so
+b7756000-b7757000 r--p 0001f000 08:01 131813     /lib/i386-linux-gnu/ld-2.19.so
+b7757000-b7758000 rw-p 00020000 08:01 131813     /lib/i386-linux-gnu/ld-2.19.so
+bfcf5000-bfd16000 rw-p 00000000 00:00 0          [stack]
+ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+udp        0      0 0.0.0.0:2204            0.0.0.0:*                           1872/FXProducer 
+udp        0      0 0.0.0.0:5353            0.0.0.0:*                           1401/avahi-daemon: 
+udp        0      0 0.0.0.0:42865           0.0.0.0:*                           1989/FXPSI      
+udp        0      0 0.0.0.0:47524           0.0.0.0:*                           1401/avahi-daemon: 
+udp        0      0 0.0.0.0:631             0.0.0.0:*                           1438/cups-browsed
+udp        0      0 0.0.0.0:4729            0.0.0.0:*                           1989/FXPSI      
+udp6       0      0 :::5353                 :::*                                1401/avahi-daemon: 
+udp6       0      0 :::60370                :::*                                1401/avahi-daemon: 

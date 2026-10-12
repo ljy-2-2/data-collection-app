@@ -1,0 +1,46 @@
+{
+  "transport": "marvin_can",
+  "tx_id_bytes": 4,
+  "rx_id_bytes": 4,
+  "endpoint_verified": true,
+  "motors": {
+    "left": {
+      "motor_id": 1,
+      "master_id": 0,
+      "control_mode": 4,
+      "kp": 80.0,
+      "kd": 2.0,
+      "watchdog_ticks": 4000,
+      "commissioned": true,
+      "open_rad": -0.7,
+      "closed_rad": 0.75,
+      "speed_rad_s": 10.0,
+      "accel_rad_s2": 20.0,
+      "current_fraction": 0.1,
+      "feedback_timeout_s": 0.15,
+      "max_temperature_c": 60,
+      "expected_can_bitrate_code": 9,
+      "travel_margin_rad": 0.02,
+      "max_current_a": 2.5
+    },
+    "right": {
+      "motor_id": 1,
+      "master_id": 0,
+      "control_mode": 4,
+      "kp": 80.0,
+      "kd": 2.0,
+      "watchdog_ticks": 4000,
+      "commissioned": true,
+      "open_rad": 0.16,
+      "closed_rad": 1.65,
+      "speed_rad_s": 10.0,
+      "accel_rad_s2": 20.0,
+      "current_fraction": 0.1,
+      "feedback_timeout_s": 0.15,
+      "max_temperature_c": 60,
+      "expected_can_bitrate_code": 9,
+      "travel_margin_rad": 0.02,
+      "max_current_a": 2.5
+    }
+  }
+}

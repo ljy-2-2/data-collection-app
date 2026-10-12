@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <profiles>
+        <participant profile_name="default_profile" is_default_profile="true">
+            <rtps>
+                <builtin>
+                    <readerHistoryMemoryPolicy>PREALLOCATED_WITH_REALLOC</readerHistoryMemoryPolicy>
+                    <writerHistoryMemoryPolicy>PREALLOCATED_WITH_REALLOC</writerHistoryMemoryPolicy>
+                    <readerPayloadSize>2097152</readerPayloadSize>
+                    <writerPayloadSize>2097152</writerPayloadSize>
+                </builtin>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>

@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>galaxis_core</name>
+  <version>0.0.0</version>
+  <description>ROS 2 package for managing task recordings.</description>
+  <maintainer email="okubo.takuya@airoa.org">Takuya Okubo</maintainer>
+  <license>Apache License 2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>airoa_data_msgs</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <exec_depend>python3-requests</exec_depend>
+  <exec_depend>python3-jsonschema</exec_depend>
+  <exec_depend>python3-h5py</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

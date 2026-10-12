@@ -1,0 +1,186 @@
+services:
+  config-init:
+    image: python:3.12-slim
+    container_name: config-init
+    working_dir: /work
+    volumes:
+      - ./:/work
+      - /etc/galaxis:/etc/galaxis:ro
+    command:
+      - sh
+      - -c
+      - "pip install --quiet pyyaml && python /work/galaxis_bringup/tools/build_runtime_configs.py --single-config /work/galaxis_bringup/config/galaxis_config.yaml --profile-file /etc/galaxis/collection_profile.yaml"
+    restart: "no"
+
+  galaxis:
+    image: galaxis:latest
+    container_name: galaxis
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile
+      args:
+        ROS_DISTRO: ${ROS_DISTRO:-jazzy}
+        GALAXIS_GIT_HASH: ${GALAXIS_GIT_HASH:-unknown}
+        GALAXIS_GIT_BRANCH: ${GALAXIS_GIT_BRANCH:-unknown}
+        # Portable USB/G2 collection does not require the optional RealSense
+        # wrapper, so its build remains independent from GitHub availability.
+        INCLUDE_REALSENSE: ${INCLUDE_REALSENSE:-0}
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    env_file:
+      - .env
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///root/cyclonedds_profile.xml
+      - ROBOT_VARIANT=${ROBOT_VARIANT:-stationary}
+    entrypoint: /root/ros_entrypoint.sh
+    command: ros2 launch galaxis_bringup galaxis_data_collection.launch.py
+    volumes:
+      # Source overlays for live edits — these directories are also COPYed into
+      # the image at build time, so the container runs from the image when
+      # the host directory is missing. Mounting them here lets developers
+      # edit Python sources on the host and re-run `colcon build` inside the
+      # container without rebuilding the image.
+      - ./galaxis-core/galaxis-core:/root/ros2_ws/src/galaxis-core
+      - ./galaxis_bringup/:/root/ros2_ws/src/galaxis_bringup/
+      - ./galaxis_bringup/config/_runtime/single/galaxis_devices.yaml:/root/ros2_ws/install/galaxis_bringup/share/galaxis_bringup/config/runtime_galaxis_devices.yaml:ro
+      - ./galaxis_description/:/root/ros2_ws/src/galaxis_description/
+      - ./galaxis_pico/:/root/ros2_ws/src/galaxis_pico/
+      - /etc/galaxis:/etc/galaxis:ro
+      - ${DATA_MOUNT_PATH:-~/galaxis_data}:/opt/data
+      - ./runtime-camera-selection:/opt/camera-selection:ro
+      - /dev/:/dev/
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ./galaxis_bringup/docker/cyclonedds_profile.xml:/root/cyclonedds_profile.xml
+    restart: unless-stopped
+
+  galaxis_core_builder:
+    image: galaxis-core:latest
+    build:
+      # Build from the repository root so galaxis_core can install the custom
+      # galaxis_pico_msgs interfaces needed by its rosbag recorder.
+      context: .
+      dockerfile: ./galaxis-core/docker/Dockerfile
+      args:
+        ROS_DISTRO: ${ROS_DISTRO:-jazzy}
+        GIT_HASH: ${ADC_GIT_HASH:-unknown}
+        GIT_BRANCH: ${ADC_GIT_BRANCH:-unknown}
+    profiles: ["build-only"]
+
+  galaxis_core:
+    image: galaxis-core:latest
+    container_name: galaxis_core
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    depends_on:
+      config-init:
+        condition: service_completed_successfully
+      galaxis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - ENV=production
+      - LOG_LEVEL=info
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///root/cyclonedds_profile.xml
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - ROBOT_VARIANT=${ROBOT_VARIANT:-stationary}
+      # Files written below the host data mount are normalized to the
+      # operator's identity. galaxis_collection.py supplies these values.
+      - GALAXIS_DATA_UID=${GALAXIS_DATA_UID:-1000}
+      - GALAXIS_DATA_GID=${GALAXIS_DATA_GID:-1000}
+    entrypoint: /root/ros_entrypoint.sh
+    # The recorder runs `ros2 bag` in this container.  Ensure it can resolve
+    # the custom PICO 6DoF interfaces even when the base image was not rebuilt
+    # yet (the source is bind-mounted for live development).
+    command: >
+      bash -lc '
+        source /root/ros_entrypoint.sh &&
+        cd /root/ros2_ws &&
+        colcon build --base-paths src/galaxis_core src/galaxis_pico \
+          --packages-select galaxis_pico_msgs galaxis_core --symlink-install &&
+        exec ros2 launch galaxis_core leader_teleop.launch.py
+      '
+    volumes:
+      # Source overlays for live edits — also COPYed into the image at build
+      # time. See the same block in the `galaxis` service above for rationale.
+      - ./galaxis-core/galaxis-core:/root/ros2_ws/src/galaxis_core
+      - ./galaxis-core/airoa_data_msgs:/root/ros2_ws/src/airoa_data_msgs
+      - ./galaxis_pico:/root/ros2_ws/src/galaxis_pico
+      - /dev:/dev
+      - ./runtime-camera-selection:/opt/camera-selection:ro
+      - ./galaxis_bringup/docker/cyclonedds_profile.xml:/root/cyclonedds_profile.xml
+      - ${DATA_MOUNT_PATH:-~/galaxis_data}:/opt/data
+      - ./galaxis_bringup/config/_runtime/single/robot_config.yaml:/root/ros2_ws/install/galaxis_core/share/galaxis_core/config/robot_config.yaml
+      - ./galaxis_bringup/config/_runtime/single/recording_gate.yaml:/root/ros2_ws/install/galaxis_core/share/galaxis_core/config/recording_gate.yaml
+      - ./galaxis_bringup/config/_runtime/single/upload_targets.yaml:/root/ros2_ws/install/galaxis_core/share/galaxis_core/config/upload_targets.yaml
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket:ro
+    restart: unless-stopped
+
+  web_video_server:
+    image: galaxis-core:latest
+    container_name: web_video_server
+    network_mode: host
+    privileged: true
+    depends_on:
+      - galaxis_core
+    env_file:
+      - .env
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///root/cyclonedds_profile.xml
+      - WEB_VIDEO_SERVER_PORT=${WEB_VIDEO_SERVER_PORT:-9090}
+    volumes:
+      - ./galaxis_bringup/docker/cyclonedds_profile.xml:/root/cyclonedds_profile.xml
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket:ro
+    command: >
+      bash -c "
+        source /root/ros_entrypoint.sh &&
+        ros2 run web_video_server web_video_server --ros-args -p port:=$${WEB_VIDEO_SERVER_PORT}
+      "
+    restart: unless-stopped
+
+  lock_server:
+    image: galaxis_lock_server:latest
+    build:
+      context: ./galaxis-core/lock_server
+    container_name: lock_server
+    ports:
+      - "127.0.0.1:28080:28080"
+    volumes:
+      - ./galaxis-core/lock_server/config.json:/app/config.json:ro
+    restart: unless-stopped
+
+  galaxis_monitor:
+    image: galaxis_monitor:latest
+    container_name: galaxis_monitor
+    build:
+      context: .
+      dockerfile: ./monitor/docker/Dockerfile
+    network_mode: host
+    privileged: true
+    depends_on:
+      - galaxis_core
+      - web_video_server
+    env_file:
+      - .env
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///root/cyclonedds_profile.xml
+      - STUDIO_VIDEO_PORT=${WEB_VIDEO_SERVER_PORT:-9091}
+      - STUDIO_ENABLE_CONTROL=${STUDIO_ENABLE_CONTROL:-1}
+    volumes:
+      - ./monitor:/app/monitor:ro
+      - /etc/galaxis:/etc/galaxis:ro
+      - ./galaxis_bringup/docker/cyclonedds_profile.xml:/root/cyclonedds_profile.xml
+    restart: unless-stopped

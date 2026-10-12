@@ -1,0 +1,4 @@
+[submodule "galaxis-core"]
+	path = galaxis-core
+	url = https://github.com/airoa-org/yubi-core.git
+	branch = main

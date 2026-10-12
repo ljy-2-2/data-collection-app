@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+saved_images/
+python3.10.INFO
+python3.10.log.INFO.*
+*.log.INFO.*

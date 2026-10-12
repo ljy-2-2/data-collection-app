@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "idle": true,
+  "fault": null,
+  "version": "2.1.0",
+  "supported_joint_hz": [
+    30,
+    100
+  ],
+  "last_stream": {
+    "ok": true,
+    "error": null,
+    "joint_hz": 100,
+    "joint_samples": 6000,
+    "joint_skipped_ticks": 0,
+    "frames": [
+      1797,
+      1789,
+      1788
+    ],
+    "native_exit": 0
+  }
+}
