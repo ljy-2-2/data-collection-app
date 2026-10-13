@@ -121,6 +121,7 @@ class Driver:
         self.original_modes = {}
         self.current_limits = {}
         self.current_limit_reports = {}
+        self.last_position_commands = {}
         self.received_feedback = FeedbackBuffer(motors)
 
     def drain_feedback(self):
@@ -286,7 +287,12 @@ class Driver:
             raise ValueError("gripper: travel smaller than protocol resolution")
         code = max(low_code, min(high_code, int.from_bytes(payload[:2], "big")))
         payload[:2] = code.to_bytes(2, "big")
-        self.bus.send(mode_offset(m) + m["motor_id"], bytes(payload))
+        can_id=mode_offset(m)+m["motor_id"]
+        self.bus.send(can_id, bytes(payload))
+        self.last_position_commands[side]=dict(accepted_at=time.monotonic(),
+            transport_channel=getattr(self.bus,'channel',None),can_id=can_id,control_mode=1,
+            payload_hex=bytes(payload).hex(' '),position_rad=code*(2*pmax/65535)-pmax,
+            acceptance='transport send returned successfully; not motor position acknowledgement')
 
     def send(self, side, p):
         """Force-position (mode 4) frame with driver-enforced speed/current limits."""
@@ -298,7 +304,14 @@ class Driver:
         if "max_current_a" in m and side not in self.current_limits:
             raise RuntimeError(f"{side}: current limit preflight required")
         current = self.current_limits.get(side, m["current_fraction"])
-        self.bus.send(0x300 + m["motor_id"], command(p, m["speed_rad_s"], current))
+        payload=command(p,m["speed_rad_s"],current);can_id=0x300+m["motor_id"]
+        self.bus.send(can_id,payload)
+        wire_position,wire_speed,wire_current=struct.unpack('<fHH',payload)
+        self.last_position_commands[side]=dict(accepted_at=time.monotonic(),
+            transport_channel=getattr(self.bus,'channel',None),can_id=can_id,control_mode=4,
+            payload_hex=payload.hex(' '),position_rad=wire_position,
+            speed_rad_s=wire_speed/100,current_fraction=wire_current/10000,
+            acceptance='transport send returned successfully; not motor position acknowledgement')
 
     def send_position(self, side, p):
         """Dispatch the position command for the configured control mode."""

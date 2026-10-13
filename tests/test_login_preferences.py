@@ -105,6 +105,50 @@ def test_unchecking_remember_on_next_login_deletes_previous_secret(login):
     assert login.store.token()
 
 
+def test_auto_login_reuses_saved_secret_without_new_write_or_delete(login, monkeypatch):
+    login.login('collector', 'synthetic-password', auto_login=True)
+    saved = login.preferences.read()
+    original = login.preferences.keyring.call
+    calls = []
+
+    def read_only_keyring(operation, *args):
+        calls.append(operation)
+        if operation != 'lookup':
+            raise CredentialError('An existing secret should only need reading')
+        return original(operation, *args)
+
+    monkeypatch.setattr(login.preferences.keyring, 'call', read_only_keyring)
+    login.store.clear()
+    assert login.login('collector', '', use_saved_password=True, auto_login=True)['authenticated']
+    assert calls == ['lookup']
+    assert login.preferences.read() == saved
+    assert login.preferences.keyring.secrets
+
+
+def test_remembered_login_can_disable_auto_login_without_replacing_secret(login):
+    login.login('collector', 'synthetic-password', auto_login=True)
+    credential_id = login.preferences.read()['credential_id']
+    login.login('collector', '', use_saved_password=True, remember_password=True)
+    assert login.preferences.read()['credential_id'] == credential_id
+    assert not login.preferences.public()['auto_login']
+    assert login.preferences.password('collector') == 'synthetic-password'
+
+
+def test_failed_token_write_does_not_delete_reused_password(login, monkeypatch):
+    login.login('collector', 'synthetic-password', auto_login=True)
+    saved = login.preferences.read()
+    login.store.clear()
+
+    def failed_write(**kwargs):
+        raise OSError('synthetic disk failure')
+
+    monkeypatch.setattr(login.store, 'write', failed_write)
+    with pytest.raises(OSError):
+        login.login('collector', '', use_saved_password=True, auto_login=True)
+    assert login.preferences.read() == saved
+    assert login.preferences.password('collector') == 'synthetic-password'
+
+
 def test_logout_clears_credentials_before_unreachable_cloud(login, monkeypatch):
     login.login('collector', 'synthetic-password', auto_login=True)
     def offline(url, **kwargs):
@@ -159,7 +203,10 @@ def test_invalid_saved_password_disables_future_auto_login(login, monkeypatch):
     assert not login.preferences.public()['auto_login']
 
 
-def test_logout_wins_over_inflight_login(login, monkeypatch):
+@pytest.mark.parametrize('saved_password', [False, True])
+def test_logout_wins_over_inflight_login(login, monkeypatch, saved_password):
+    if saved_password:
+        login.login('collector', 'synthetic-password', auto_login=True)
     entered, resume = threading.Event(), threading.Event()
     original = httpx.post
     failures = []
@@ -171,7 +218,8 @@ def test_logout_wins_over_inflight_login(login, monkeypatch):
     monkeypatch.setattr(httpx, 'post', delayed)
     def run():
         try:
-            login.login('collector', 'synthetic-password', auto_login=True)
+            login.login('collector', '' if saved_password else 'synthetic-password',
+                        use_saved_password=saved_password, auto_login=True)
         except CredentialError as exc:
             failures.append(str(exc))
     thread = threading.Thread(target=run)

@@ -159,32 +159,42 @@ def main():
                 actual=camera.frame.pixelColor(20,20);expected=QColor(camera_colors[camera_id])
                 assert max(abs(actual.red()-expected.red()),abs(actual.green()-expected.green()),abs(actual.blue()-expected.blue()))<=4
             tiles=[item('teleopCameraTile-'+role) for role in roles]
-            assert tiles[0].x()<tiles[1].x()<tiles[2].x()
+            left,main,right=tiles
+            assert main.x()==0 and left.x()==right.x()>main.x()+main.width()
+            assert main.y()==left.y()==0 and right.y()>left.height()
+            assert main.width()>left.width() and main.height()>left.height()
+            assert abs(right.y()+right.height()-main.height())<.01
             sources=[camera.source for camera in cameras]
+            geometry=[(t.x(),t.y(),t.width(),t.height()) for t in tiles]
             bridge.setValue(robot+'CameraLayout','right-center-left');wait()
-            assert tiles[2].x()<tiles[1].x()<tiles[0].x()
+            assert [(t.x(),t.y(),t.width(),t.height()) for t in tiles]==geometry
             assert [camera.source for camera in cameras]==sources
-            assert bridge.settings.value(robot+'CameraLayout')=='right-center-left'
             assert item('teleopCameraCard').height()==373 and item('teleopCameraImages').height()==302
-            bridge.setValue(robot+'CameraLayout','left-center-right');wait()
+            for name in ('teleopCameraLayout','teleopCameraImport','teleopCameraFileDialog'):
+                assert window.findChild(QObject,name) is None,name
             scroll=item('pageScroll');card=item('teleopCameraCard')
             scroll.setProperty('contentY',scroll.property('contentY')+card.mapToScene(QPointF(0,0)).y()-180)
             wait();snap(robot+'-three-cameras')
-            if robot=='tianji':
-                click('teleopCameraImport')
-                dialog=item('teleopCameraFileDialog')
-                wait(lambda:dialog.property('visible'))
-                dialog.setProperty('visible',False);wait()
-                bridge.importTianjiCameraCredentials(QUrl.fromLocalFile('/tmp/fixture-camera.json'))
-                wait(lambda:not bridge.state['busy'])
-                assert requests[-1]==('/tianji/camera-credentials',{'path':'/tmp/fixture-camera.json'})
             scroll.setProperty('contentY',0);wait()
-            print('PASS '+robot+' three simultaneous camera identities, labels, colors and display-only swapping',flush=True)
+            print('PASS '+robot+' three camera identities, main-left/wrists-right layout and removed settings',flush=True)
         print("Qt fixture loaded",flush=True)
         bridge.serviceReady();wait();snap('login')
         item('loginUsername').setProperty('text','operator');item('loginPassword').setProperty('text','fixture-password')
         click('loginSubmit');wait(lambda:bridge.state['authenticated']);snap('setup')
+        # Exercise user selection, then a state notification/poll before advancing.
+        robot_type=item('robotType');robot_type.forceActiveFocus()
+        QTest.keyClick(window,Qt.Key_Home)
+        wait(lambda:bridge.state['robot']=='agibot-g2')
+        bridge.update(notice='型号选择刷新检查');QTest.qWait(500)
+        assert robot_type.property('currentIndex')==0
+        QTest.keyClick(window,Qt.Key_End)
+        wait(lambda:bridge.state['robot']=='tianji')
+        bridge.update(notice='');wait()
+        assert robot_type.property('currentIndex')==1
         click('teleopNext');wait(lambda:bridge.state['paramSaved']);snap('tianji')
+        bridge.setValue('robot','agibot-g2')
+        assert bridge.state['robot']=='tianji', 'Do not switch the active workspace from the setup selector'
+
         click('otherParameters');snap('params');item('parameterDialog').setProperty('visible',False)
         bridge.setParameter('left_gripper_speed',8.5);wait(lambda:bridge.state['paramSaved']);assert requests[-1][0]=='/tianji/parameters'
         click('teleopCheck');wait(lambda:bridge.can_move())
@@ -205,7 +215,16 @@ def main():
         old=[part.matrix.copy() for part in scene.parts_value];scene.update_pose({'joints':{'left':[30,0,0,0,0,0,0]}})
         assert any(not (a==b.matrix).all() for a,b in zip(old,scene.parts_value))
         bridge.returnTeleop();wait(lambda:bridge.state['teleopStep']==1)
-        bridge.configureTeleop('G2 采集','agibot-g2');click('teleopCheck');wait(lambda:bridge.can_move())
+        robot_type=item('robotType');robot_type.forceActiveFocus()
+        QTest.keyClick(window,Qt.Key_Home)
+        wait(lambda:bridge.state['robot']=='agibot-g2')
+        bridge.update(notice='刷新后保持 G2');QTest.qWait(500)
+        assert robot_type.property('currentIndex')==0
+        bridge.update(notice='');wait()
+        click('teleopNext');wait(lambda:bridge.state['teleopStep']==2)
+        assert bridge.state['robot']=='agibot-g2'
+        print('PASS robot selection survives state refresh and Next preserves G2',flush=True)
+        click('teleopCheck');wait(lambda:bridge.can_move())
         verify_three_cameras('g2')
         bridge.jogG2(G2_JOINTS[0]['name'],1);wait(lambda:not bridge.state['busy']);assert requests[-1][0]=='/move'
         click('teleopStartStop');wait(lambda:bridge.state['g2']['session']['state']=='running')

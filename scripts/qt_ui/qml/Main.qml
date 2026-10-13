@@ -14,7 +14,7 @@ ApplicationWindow {
     property var s: backend.state
     property bool narrow: width<780
     // The desktop window manager owns the single native title bar.
-    property bool recordKeyBlocked: guide.visible || umiPanel.recordDialogOpen
+    property bool recordKeyBlocked: usageGuide.previewVisible || umiPanel.recordDialogOpen
     onClosing: close=>{close.accepted=s.closing;if(!close.accepted)backend.closeRequested()}
     Backdrop {anchors.fill: parent;dark: Theme.dark;login: !s.authenticated}
     Startup {objectName: "startupPage";anchors.fill: parent;visible: !s.ready}
@@ -48,12 +48,13 @@ ApplicationWindow {
         Card {
             id: sidebar;x: 0;y: header.height+12;width: app.narrow?parent.width:148;height: app.narrow?48:parent.height-y;radius: 10
             Grid {x: 6;y: 6;width: parent.width-12;columns: app.narrow?3:1;spacing: 2
-                Repeater {model: ["遥操作采集","UMI 采集","Ego 采集"]
-                    Button {required property string modelData;required property int index;property string page: ["teleop","umi","ego"][index];width: app.narrow?(sidebar.width-16)/3:sidebar.width-12;height: 34;hoverEnabled: true
+                Repeater {model: backend.umiOnly ? ["UMI 采集"] : ["遥操作采集","UMI 采集","Ego 采集"]
+                    Button {id: navButton;required property string modelData;required property int index;property string page: backend.umiOnly ? "umi" : ["teleop","umi","ego"][index];width: app.narrow?(sidebar.width-16)/(backend.umiOnly?1:3):sidebar.width-12;height: 34;hoverEnabled: true
+                        padding: 0;leftPadding: 9;rightPadding: 9
                         background: Rectangle {radius: 7;color: s.page===parent.page?Theme.accentSoft:parent.hovered?Theme.muted:"transparent";border.color: s.page===parent.page?"#30f4c520":"transparent"}
-                        contentItem: Row {x: 9;spacing: 7
-                            Image {anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon(["Gamepad2","Camera","Glasses"][index],s.page===page?"accent":"")}
-                            Txt {height: 34;text: modelData;font.pixelSize: 13;color: s.page===page?Theme.accentStrong:Theme.inkMuted;font.weight: s.page===page?Font.Medium:Font.Normal}
+                        contentItem: Item {
+                            Image {id: navIcon;objectName: "navIcon-"+navButton.page;anchors.left: parent.left;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon(backend.umiOnly ? "Camera" : ["Gamepad2","Camera","Glasses"][navButton.index],s.page===navButton.page?"accent":"")}
+                            Txt {objectName: "navText-"+navButton.page;anchors.left: navIcon.right;anchors.leftMargin: 7;anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;text: navButton.modelData;font.pixelSize: 13;color: s.page===navButton.page?Theme.accentStrong:Theme.inkMuted;font.weight: s.page===navButton.page?Font.Medium:Font.Normal;wrapMode: Text.NoWrap}
                         }
                         onClicked: backend.navigate(page)
                     }
@@ -90,7 +91,7 @@ ApplicationWindow {
             Column {
                 id: page;width: scroll.width;spacing: 12
                 Item {width: parent.width;height: s.page==="ego"?0:24;visible: s.page!=="ego"
-                    Btn {anchors.right: parent.right;text: "使用说明";glyph: "HelpCircle";ghost: true;textSize: 12;height: 30;onClicked: guide.open()}
+                    UsageGuide {id: usageGuide;objectName: "usageGuide";anchors.right: parent.right;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}
                 }
                 Rectangle {visible: !!s.error;width: parent.width;height: error.implicitHeight+20;color: Theme.redSoft;radius: 8;border.color: Theme.line
                     Txt {id: error;x: 10;y: 10;width: parent.width-45;text: s.error;font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
@@ -106,18 +107,6 @@ ApplicationWindow {
             }
         }
         Connections {target: backend;property string lastPage: "teleop";function onChanged(){if(lastPage!==backend.state.page){scroll.contentY=0;lastPage=backend.state.page}}}
-    }
-    Dialog {
-        id: guide;parent: Overlay.overlay;anchors.centerIn: parent;width: Math.min(app.width-48,1050);height: Math.min(app.height-48,730);modal: true;padding: 16
-        background: Rectangle {color: Theme.surface;radius: 12;border.color: Theme.line}
-        Overlay.modal: Rectangle {color: "#80000000"}
-        contentItem: ColumnLayout {spacing: 10
-            RowLayout {Layout.fillWidth: true
-                Txt {text: "使用说明";font.pixelSize: 16;Layout.fillWidth: true;font.weight: Font.DemiBold}
-                Btn {glyph: "X";width: 30;height: 30;ghost: true;onClicked: guide.close()}
-            }
-            Image {Layout.fillWidth: true;Layout.fillHeight: true;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png");fillMode: Image.PreserveAspectFit;mipmap: true}
-        }
     }
     Rectangle {anchors.fill: parent;visible: s.closing;color: "#99000000";z: 100
         Card {anchors.centerIn: parent;width: Math.min(420,parent.width-32);height: 120

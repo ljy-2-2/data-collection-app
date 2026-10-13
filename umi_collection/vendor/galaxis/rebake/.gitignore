@@ -41,10 +41,6 @@ site/
 # README / docs images (e.g. assets/hero.png)
 !assets/**
 
-# Fixture allowlists must not include generated Python bytecode.
-__pycache__/
-*.py[cod]
-
 # data
 /dataset
 /hsr2
@@ -52,3 +48,7 @@ __pycache__/
 /measure
 /orchestrator_work
 /video_cache
+
+# Fixture allowlists must not include generated Python bytecode.
+__pycache__/
+*.py[cod]

@@ -6,6 +6,7 @@ from pathlib import Path
 
 def configuration(path):
     c = dict(path) if isinstance(path, dict) else json.loads(Path(path).read_text())
+    source_dir = Path(__file__).resolve().parent if isinstance(path, dict) else Path(path).resolve().parent
     retired = {"following_error_soft_deg", "max_following_error_deg"} & c.keys()
     if retired:
         raise ValueError(
@@ -15,7 +16,8 @@ def configuration(path):
         )
     from .tool_frame import validate_tool_config
 
-    c["tool_tcp"] = validate_tool_config(c)
+    c["tool_tcp_source"] = c.get("tool_tcp")
+    c["tool_tcp"] = validate_tool_config(c, source_dir)
     # Reject old empirical reflections rather than silently reverse a physical axis.
     if (
         c.get("operator_translation_signs", [1, 1, 1]) != [1, 1, 1]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repack a cloud deb with private libraries/tools, without host package deps."""
+"""Repack with private libraries/tools and the host desktop keyring service."""
 from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
@@ -114,6 +114,68 @@ def executable(path, text):
     path.chmod(0o755)
 
 
+def write_private_container_runtime(stage):
+    """Write relocatable package inputs without rebuilding/copying the sysroot.
+
+    Keep the previous dockerd-managed containerd root and namespace so existing
+    layers remain visible. An explicit socket prevents dockerd from choosing the
+    host's containerd depending on service startup order.
+    """
+    stage = Path(stage)
+    package = stage / str(PREFIX).lstrip("/")
+    runtime = package / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    socket = "/run/xiaokai-collection/exec/containerd/containerd.sock"
+    (runtime / "docker-daemon.json").write_text(json.dumps({
+        "hosts": ["unix:///run/xiaokai-collection/docker.sock"], "group": "xiaokai-collection",
+        "data-root": "/var/lib/xiaokai-lab-data-collection/docker", "exec-root": "/run/xiaokai-collection/exec",
+        "containerd": socket,
+        "containerd-namespace": "moby", "containerd-plugins-namespace": "plugins.moby",
+        "pidfile": "/run/xiaokai-collection/docker.pid", "bridge": "none", "iptables": False,
+        "ip6tables": False, "ip-forward": False, "ip-masq": False, "userland-proxy": False,
+        "runtimes": {"xiaokai-runc": {"path": str(PREFIX / "runtime/bin/runc")}},
+        "default-runtime": "xiaokai-runc", "log-driver": "local",
+    }, indent=2))
+    # Match Docker's managed containerd layout and disabled CRI plugin. Avoid
+    # importing the host's /etc/containerd configuration into this private store.
+    (runtime / "containerd.toml").write_text(
+        'version = 2\n'
+        'root = "/var/lib/xiaokai-lab-data-collection/docker/containerd/daemon"\n'
+        'state = "/run/xiaokai-collection/exec/containerd/daemon"\n'
+        'imports = []\n'
+        'disabled_plugins = ["io.containerd.grpc.v1.cri"]\n'
+        '[grpc]\n'
+        f'  address = "{socket}"\n'
+        '  max_recv_message_size = 16777216\n'
+        '  max_send_message_size = 16777216\n')
+    units = stage / "usr/lib/systemd/system"
+    units.mkdir(parents=True, exist_ok=True)
+    common = f"Environment=PATH={PREFIX}/runtime/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"
+    (units / "xiaokai-collection-containerd.service").write_text(
+        "[Unit]\nDescription=Xiaokai private collection containerd\nAfter=local-fs.target\n"
+        "Before=xiaokai-collection-docker.service\n"
+        "[Service]\nType=notify\n" + common +
+        f"ExecStart={PREFIX}/runtime/bin/containerd --config {PREFIX}/runtime/containerd.toml\n"
+        # Only containerd owns this parent. A dockerd-only restart must never
+        # remove its socket or shim state; preserve them for containerd recovery.
+        "RuntimeDirectory=xiaokai-collection\nRuntimeDirectoryMode=0755\n"
+        "RuntimeDirectoryPreserve=yes\nDelegate=yes\nKillMode=process\n"
+        "Restart=always\nRestartSec=2\nTimeoutStartSec=120\nTimeoutStopSec=60\n"
+        "[Install]\nWantedBy=multi-user.target\n")
+    (units / "xiaokai-collection-docker.service").write_text(
+        "[Unit]\nDescription=Xiaokai private collection container runtime\n"
+        "Requires=xiaokai-collection-containerd.service\n"
+        "After=network.target xiaokai-collection-containerd.service\n"
+        "[Service]\nType=notify\nNotifyAccess=all\n" + common +
+        f"ExecStart={PREFIX}/runtime/bin/dockerd --config-file={PREFIX}/runtime/docker-daemon.json\n"
+        f"ExecStartPost={PREFIX}/runtime/python/bin/python3.12 {PREFIX}/scripts/setup_self_contained.py --load-image\n"
+        "Delegate=yes\nKillMode=process\nRestart=on-failure\nTimeoutStartSec=600\nTimeoutStopSec=60\n"
+        "[Install]\nWantedBy=multi-user.target\n")
+    executable(stage / "DEBIAN/postinst", f'#!/bin/sh\nset -eu\nif [ "$1" = configure ]; then\n. {PREFIX}/runtime/env.sh\n{PREFIX}/runtime/python/bin/python3.12 {PREFIX}/scripts/setup_self_contained.py\nfi\n')
+    executable(stage / "DEBIAN/prerm", '#!/bin/sh\nset -eu\nif [ "$1" = remove ] || [ "$1" = upgrade ]; then\nif [ -d /run/systemd/system ]; then\nsystemctl stop xiaokai-collection-docker.service xiaokai-collection-containerd.service xiaokai-collection-avahi.service\nfi\nfi\n')
+    executable(stage / "DEBIAN/postrm", '#!/bin/sh\nset -eu\nif [ "$1" = remove ] || [ "$1" = purge ]; then\nrm -f /etc/systemd/system/multi-user.target.wants/xiaokai-collection-docker.service /etc/systemd/system/multi-user.target.wants/xiaokai-collection-containerd.service /etc/systemd/system/multi-user.target.wants/xiaokai-collection-avahi.service\nif [ -d /run/systemd/system ]; then systemctl daemon-reload; fi\nfi\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("deb", type=Path)
@@ -225,14 +287,7 @@ def main():
     cli = package / "runtime/docker-cli"
     cli.mkdir()
     (cli / "config.json").write_text(json.dumps({"cliPluginsExtraDirs": [str(PREFIX / "runtime/sysroot/usr/libexec/docker/cli-plugins")]}))
-    (package / "runtime/docker-daemon.json").write_text(json.dumps({
-        "hosts": ["unix:///run/xiaokai-collection/docker.sock"], "group": "xiaokai-collection",
-        "data-root": "/var/lib/xiaokai-lab-data-collection/docker", "exec-root": "/run/xiaokai-collection/exec",
-        "pidfile": "/run/xiaokai-collection/docker.pid", "bridge": "none", "iptables": False,
-        "ip6tables": False, "ip-forward": False, "ip-masq": False, "userland-proxy": False,
-        "runtimes": {"xiaokai-runc": {"path": str(PREFIX / "runtime/bin/runc")}},
-        "default-runtime": "xiaokai-runc", "log-driver": "local",
-    }, indent=2))
+    write_private_container_runtime(stage)
     (package / "runtime/avahi-daemon.conf").write_text("[server]\nenable-dbus=no\n[wide-area]\nenable-wide-area=no\n")
     (package / "runtime/fonts.conf").write_text('<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>' + str(PREFIX / 'runtime/sysroot/usr/share/fonts') + '</dir><dir>/usr/share/fonts</dir><cachedir prefix="xdg">fontconfig</cachedir></fontconfig>')
     compose_path = package / "app/umi_collection/vendor/galaxis/docker-compose.yml"
@@ -245,14 +300,6 @@ def main():
     units = stage / "usr/lib/systemd/system"
     units.mkdir(parents=True, exist_ok=True)
     common = f"Environment=PATH={PREFIX}/runtime/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"
-    (units / "xiaokai-collection-docker.service").write_text(
-        "[Unit]\nDescription=Xiaokai private collection container runtime\nAfter=network.target\n"
-        "[Service]\nType=notify\nNotifyAccess=all\n" + common +
-        f"ExecStart={PREFIX}/runtime/bin/dockerd --config-file={PREFIX}/runtime/docker-daemon.json\n"
-        f"ExecStartPost={PREFIX}/runtime/python/bin/python3.12 {PREFIX}/scripts/setup_self_contained.py --load-image\n"
-        "RuntimeDirectory=xiaokai-collection\nRuntimeDirectoryMode=0755\nDelegate=yes\n"
-        "KillMode=process\nRestart=on-failure\nTimeoutStartSec=600\nTimeoutStopSec=60\n"
-        "[Install]\nWantedBy=multi-user.target\n")
     (units / "xiaokai-collection-avahi.service").write_text(
         "[Unit]\nDescription=Xiaokai collection mDNS discovery\nAfter=network.target\n"
         "[Service]\nType=simple\n" + common +
@@ -260,13 +307,11 @@ def main():
         "Restart=on-failure\n[Install]\nWantedBy=multi-user.target\n")
     executable(stage / "usr/bin" / APP,
                f'#!/bin/sh\n. {PREFIX}/runtime/env.sh\nexec {PREFIX}/runtime/python/bin/python3.12 {PREFIX}/scripts/package_launcher.py "$@"\n')
-    executable(stage / "DEBIAN/postinst", f'#!/bin/sh\nset -eu\nif [ "$1" = configure ]; then\n. {PREFIX}/runtime/env.sh\n{PREFIX}/runtime/python/bin/python3.12 {PREFIX}/scripts/setup_self_contained.py\nfi\n')
-    executable(stage / "DEBIAN/prerm", '#!/bin/sh\nset -eu\nif [ "$1" = remove ] || [ "$1" = upgrade ]; then\nif [ -d /run/systemd/system ]; then\nsystemctl stop xiaokai-collection-docker.service xiaokai-collection-avahi.service\nfi\nfi\n')
-    executable(stage / "DEBIAN/postrm", '#!/bin/sh\nset -eu\nif [ "$1" = remove ] || [ "$1" = purge ]; then\nrm -f /etc/systemd/system/multi-user.target.wants/xiaokai-collection-docker.service /etc/systemd/system/multi-user.target.wants/xiaokai-collection-avahi.service\nif [ -d /run/systemd/system ]; then systemctl daemon-reload; fi\nfi\n')
     size = sum(p.stat().st_size for p in package.rglob("*") if p.is_file()) // 1024
     (stage / "DEBIAN/control").write_text(
         f"Package: {APP}\nVersion: {args.version}\nSection: utils\nPriority: optional\nArchitecture: amd64\n"
         f"Maintainer: Xiaokai Lab <support@localhost>\nInstalled-Size: {size}\n"
+        "Depends: gnome-keyring, libpam-gnome-keyring, dbus-user-session\n"
         "Description: Xiaokai self-contained cloud data collection desktop\n"
         " Private Python, Qt, graphics libraries, device tools and collection daemon.\n")
     # A source deb may contain generated checksums that no longer describe this repack.

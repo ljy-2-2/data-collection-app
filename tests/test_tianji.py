@@ -244,7 +244,7 @@ def test_defaults_match_updated_sdk():
     p = TianjiParameters()
     c = json.loads((ROOT / "teleop/marvin_teleop/config.json").read_text())
     g = json.loads((ROOT / "teleop/gripper/config.json").read_text())
-    assert p.right_gripper_speed == 10
+    assert p.right_gripper_speed == g["motors"]["right"]["speed_rad_s"]
     assert p.scale == c["scale"]
     assert p.left_gripper_speed == g["motors"]["left"]["speed_rad_s"]
     # Calibrated endpoint coordinates can be positive or negative. Validate
@@ -252,7 +252,8 @@ def test_defaults_match_updated_sdk():
     from gripper.config import load as load_gripper_config
     validated = load_gripper_config(ROOT / "teleop/gripper/config.json", live=True)
     assert validated["motors"]["right"]["open_rad"] == g["motors"]["right"]["open_rad"]
-    assert g["motors"]["left"]["accel_rad_s2"] == 20
+    assert p.kp == g["motors"]["left"]["kp"] == g["motors"]["right"]["kp"]
+    assert p.kd == g["motors"]["left"]["kd"] == g["motors"]["right"]["kd"]
 
 
 @pytest.mark.parametrize("upload_mode", ["left", "right", "dual"])

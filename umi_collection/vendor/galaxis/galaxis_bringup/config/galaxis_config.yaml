@@ -73,6 +73,7 @@ robot_config:
       status_interval_sec: 30.0
       gate_throttle_sec: 2.0
       robot_type: galaxis_portable
+      collection_gate_file: /opt/data/.collection-platform.json
 recording_gate:
   eval_rate: 4.0
   settle_sec: 5.0

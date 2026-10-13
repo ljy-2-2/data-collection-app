@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 import uuid
 from urllib.parse import quote
-from .grippers import endpoints, closure
+from .grippers import endpoints, closure, parameter_defaults
 from .umi_telemetry import UmiTelemetry
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSettings
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -19,11 +19,14 @@ FIELDS = [
     dict(key='scale',label='比例',unit='×',min=.01,max=1,step=.01,default=1),
     dict(key='max_joint_speed_deg_s',label='关节速度上限',unit='°/s',min=.1,max=180,step=.1,default=180),
     dict(key='max_joint_accel_deg_s2',label='关节加速度上限',unit='°/s²',min=1,max=450,step=1,default=450),
-    dict(key='left_gripper_speed',label='左夹爪速度',unit='rad/s',min=.01,max=100,step=.1,default=10),
-    dict(key='right_gripper_speed',label='右夹爪速度',unit='rad/s',min=.01,max=100,step=.1,default=10),
-    dict(key='kp',label='电机 Kp',unit='',min=0,max=500,step=1,default=80),
-    dict(key='kd',label='电机 Kd',unit='',min=.01,max=5,step=.1,default=2),
+    dict(key='left_gripper_speed',label='左夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
+    dict(key='right_gripper_speed',label='右夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
+    dict(key='kp',label='电机 Kp',unit='',min=0,max=500,step=1),
+    dict(key='kd',label='电机 Kd',unit='',min=.01,max=5,step=.1),
 ]
+_PARAMETER_DEFAULTS = parameter_defaults()
+for field in FIELDS:
+    field['default'] = _PARAMETER_DEFAULTS[field['key']]
 G2_JOINTS=json.loads((Path(__file__).with_name('g2_joints.json')).read_text())
 LIMITS=[[-170,170],[-120,120],[-170,170],[-144.99,60],[-170,170],[-60,60],[-90,90]]
 CAMERAS=[dict(id=k,label=v) for k,v in [('head_color','头部彩色'),('head_stereo_left','头部左目'),('head_stereo_right','头部右目'),('head_back_fisheye','头部后鱼眼'),('head_left_fisheye','头部左鱼眼'),('head_right_fisheye','头部右鱼眼'),('hand_left_color','左手彩色'),('hand_right_color','右手彩色'),('head_depth','头部深度'),('hand_left_depth','左手深度'),('hand_right_depth','右手深度')]]
@@ -37,7 +40,7 @@ def devices(robot):
 def initial_state():
     return dict(ready=False, startupError='', authenticated=False, username='', error='', notice='', busy='', closing=False,
         page='teleop',teleopStep=1,umiStep=1,robot='tianji',task='遥操作数据采集',umiTask='UMI 数据采集',profile='dual',
-        parameters={f['key']:f['default'] for f in FIELDS},paramSaved=False,paramSaving=False,
+        parameters=parameter_defaults(),paramSaved=False,paramSaving=False,
         uploadMode='dual',g2Scale=.5,g2Speed=.5,extraCameras=[],g2Camera='head_color',tianjiCamera='usb_1',
         tianjiCameraLayout='left-center-right',g2CameraLayout='left-center-right',
         tianji=dict(state='idle',devices=devices('Tianji'),joints={},cameras=[],collection={}),
@@ -63,6 +66,7 @@ class Bridge(QObject):
         self.network=QNetworkAccessManager(self)
         self.demo=demo
         self._state=initial_state()
+        if self.umiOnly:self._state['page']='umi'
         self._camera_brightness={}
         self._camera_resolution={}
         self._camera_role_identities={}
@@ -88,6 +92,10 @@ class Bridge(QObject):
 
     @Property('QVariantMap',notify=changed)
     def state(self): return self._state
+    @Property(bool,constant=True)
+    def umiOnly(self): return self.values.get('APP_COLLECTION_MODE') == 'umi'
+    @Property(bool,constant=True)
+    def tianjiOnly(self): return self.values.get('APP_COLLECTION_MODE') == 'umi-tianji'
     @Property('QVariantMap',notify=umiTelemetryChanged)
     def umiTelemetry(self): return self.telemetry.value
     @Property('QVariantMap',notify=umiTelemetryChanged)
@@ -189,7 +197,7 @@ class Bridge(QObject):
             self.update(preferences=value)
             if value.get('auto_login') and value.get('has_saved_password'):
                 self.login(value.get('username',''),'',True,True,True)
-        self.request('/platform/auth/preferences',done=preferences,timeout=40000)
+        self.request('/platform/auth/preferences',done=preferences,timeout=125000)
 
     def serviceFailed(self, message):
         # Ignore pending login/actions from a service that has exited.
@@ -208,17 +216,20 @@ class Bridge(QObject):
             if not value.get('authenticated') or not value.get('user'):
                 self.fail('登录状态无效');return
             self.update(authenticated=True,username=value['user']['username'],preferences={},notice=value.get('warning',''))
-        self.action('login','/platform/auth/login',dict(username=username,password=password,remember_password=remember or auto,auto_login=auto,use_saved_password=saved),logged_in,timeout=40000)
+        self.action('login','/platform/auth/login',dict(username=username,password=password,remember_password=remember or auto,auto_login=auto,use_saved_password=saved),logged_in,timeout=125000)
 
     @Slot(str,'QVariant')
     def setValue(self,key,value):
-        allowed={'task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','theme'}
+        allowed={'robot','task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','theme'}
         if key not in allowed or self._state['closing']:return
         if hasattr(value,'toVariant'):value=value.toVariant()
         if key in ('g2Scale','g2Speed'):
             try:value=float(value)
             except (ValueError,TypeError):return
             if not math.isfinite(value) or not .1<=value<=1:return
+        if key=='robot':
+            if value not in ('tianji','agibot-g2') or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
+            if self.umiOnly or (self.tianjiOnly and value!='tianji'):return
         if key=='profile':
             if value not in ('dual','single-left','single-right') or self._state['umi'].get('state') not in ('idle','error'):return
             self.update(minima={},cameraRoles={},cameraLive={},checkedProfile='',encoders={},encoderHistory=dict(left=[],right=[]))
@@ -239,16 +250,21 @@ class Bridge(QObject):
 
     @Slot(str)
     def navigate(self,page):
+        if self.umiOnly and page != 'umi':return
         if page in ('teleop','umi','ego'):
             self.update(page=page,error='');self.last_poll.clear();self.poll()
 
     @Slot(str,str)
     def configureTeleop(self,task,robot):
+        if self.umiOnly:
+            self.fail('此安装包用于 UMI 采集；机器人遥操需要对应 ARM64 SDK');return
+        if self.tianjiOnly and robot != 'tianji':
+            self.fail('此开发板安装包支持 UMI 和天机采集');return
         if not self.valid_task(task) or robot not in ('tianji','agibot-g2'):return
         self.update(task=task.strip(),robot=robot,teleopStep=2,error='',selectedPose='zero' if robot=='tianji' else '')
         self.load_poses()
         if robot=='tianji':
-            self.update(parameters={f['key']:f['default'] for f in FIELDS},paramSaved=False)
+            self.update(parameters=parameter_defaults(),paramSaved=False)
             self.save_timer.start()
         self.last_poll.clear();self.poll()
 
@@ -606,7 +622,9 @@ class Bridge(QObject):
             self.epoch+=1;self.pending.clear();self.last_poll.clear()
             self.reset_camera_brightness()
             appearance={key:self._state[key] for key in ('theme','tianjiCameraLayout','g2CameraLayout')}
-            self._state=initial_state();self.update(ready=True,**appearance)
+            self._state=initial_state()
+            if self.umiOnly:self._state['page']='umi'
+            self.update(ready=True,**appearance)
         self.save_timer.stop()
         def clear_login(_):self.action('logout','/platform/auth/logout',done=done,timeout=30000)
         self.action('close','/tianji/close',done=clear_login)

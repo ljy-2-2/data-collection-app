@@ -34,5 +34,18 @@
   "site_verified": true,
   "input": "sdk",
   "service_dir": "/opt/apps/roboticsservice",
-  "resume_gap_s": 0.6
+  "resume_gap_s": 0.6,
+  "tool_tcp": {
+    "left": {
+      "urdf": "../../Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
+      "flange_link": "flange_L",
+      "tcp_link": "grasp_center_L"
+    },
+    "right": {
+      "urdf": "../../Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf",
+      "flange_link": "flange_R",
+      "tcp_link": "grasp_center_R"
+    }
+  },
+  "tool_tcp_note": "URDF is the geometry source of truth. Fixed midpoint of rubber-pad OBB centers at URDF full opening; nominal CAD reference, NOT measured physical calibration. Reload App/replay after changes."
 }

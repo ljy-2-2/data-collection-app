@@ -172,6 +172,7 @@ class Control:
                     current_fraction=self.motors[side]["current_fraction"],
                     max_current_a=self.motors[side].get("max_current_a"),
                     current_limit=getattr(self.driver, "current_limit_reports", {}).get(side),
+                    last_position_tx=getattr(self.driver, "last_position_commands", {}).get(side),
                     feedback=self.driver.feedback[side].status()
                     if side in self.driver.feedback
                     else None,

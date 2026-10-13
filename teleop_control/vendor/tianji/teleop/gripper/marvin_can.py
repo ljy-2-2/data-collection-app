@@ -143,6 +143,10 @@ class RoutedDriver:
         return {s: d.feedback[s] for s, d in self.drivers.items() if s in d.feedback}
 
     @property
+    def last_position_commands(self):
+        return {s:d.last_position_commands[s] for s,d in self.drivers.items() if s in d.last_position_commands}
+
+    @property
     def current_limit_reports(self):
         return {s: d.current_limit_reports[s] for s, d in self.drivers.items()
                 if s in d.current_limit_reports}

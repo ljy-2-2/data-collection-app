@@ -619,6 +619,8 @@ def test_umi_pico_ensure_only_launches_when_not_running(already_running):
                 command, 0 if already_running else 1,
                 "1234\n" if already_running else "", ""
             )
+        if command[-2:] == ["reverse", "--list"]:
+            return subprocess.CompletedProcess(command, 0, "PICO123 tcp:63901 tcp:63901\n", "")
         return subprocess.CompletedProcess(command, 0, "", "")
 
     headset = GalaxisHeadsetSetup(run_command=run)

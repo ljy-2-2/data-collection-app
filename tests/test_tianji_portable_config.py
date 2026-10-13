@@ -28,6 +28,9 @@ def isolated_settings(monkeypatch):
 @pytest.fixture
 def settings_file(tmp_path, monkeypatch):
     config = json.loads(tianji_config.DEFAULT_CONFIG.read_text())
+    for tool in config.get("tool_tcp", {}).values():
+        if isinstance(tool, dict) and "urdf" in tool:
+            tool["urdf"] = str((tianji_config.DEFAULT_CONFIG.parent / tool["urdf"]).resolve())
     config["robot_ip"] = "192.168.80.25"
     path = tmp_path / "tianji.json"
     path.write_text(json.dumps(config))
@@ -123,6 +126,7 @@ def test_xr_service_overrides_are_shared_with_worker(
 def test_launch_uses_portable_python_and_same_service_root(
     monkeypatch, settings_file, explicit, shared, bundled, expected
 ):
+    monkeypatch.setenv("ADB_SERVER_SOCKET", "tcp:15037")
     if explicit:
         monkeypatch.setenv("TIANJI_PYTHON", explicit)
     if shared:
@@ -141,3 +145,4 @@ def test_launch_uses_portable_python_and_same_service_root(
     manager._launch()
     assert process.call_args.args[0] == [expected, "-u", "-m", "teleop_control.tianji_worker"]
     assert runtime_env.call_args.args[1] == "/relocated/runtime/robot/xr/runService.sh"
+    assert process.call_args.kwargs["env"]["ADB_SERVER_SOCKET"] == "tcp:15037"

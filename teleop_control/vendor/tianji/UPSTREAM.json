@@ -79,5 +79,14 @@
   "collection_adaptations": "App camera handoff; selected gripper validation; actual joint command log; head/right/left naming; no native files; complete-only account-bound platform queue. Originals remain unchanged.",
   "local_adaptations": {
     "teleop/gripper/runtime.py": "Feedback timeout reports age, limit and phase. After sequential preflight, require fresh disabled feedback from all selected motors before starting the worker; existing 150 ms watchdog remains unchanged, with no enabling/position commands during refresh."
+  },
+  "tool_frames": {
+    "definition": "description/grasp_center.txt",
+    "source": "CAD rubber-pad OBB centers at URDF full opening; fixed, nominal, not measured calibration",
+    "links": [
+      "grasp_center_L",
+      "grasp_center_R"
+    ],
+    "local_geometry_report": "outputs/gripper-tcp/tcp_geometry.json"
   }
 }

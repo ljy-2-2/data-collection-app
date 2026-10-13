@@ -9,7 +9,6 @@ Item {
     property bool editable: true
     property var details: backend.umiCameraResolution[cameraKey] || {}
     property var choices: details.options || []
-    property string connectionLabel: details.connection ? details.connection.label || "" : ""
     implicitHeight: 58
     function refresh() { if (available && cameraKey) backend.loadCameraResolution(cameraKey) }
     onCameraKeyChanged: refresh()
@@ -33,10 +32,10 @@ Item {
             enabled: root.available && !root.details.busy;onClicked: root.refresh()}
     }
     Txt {x: 8;y: 36;width: parent.width-16;height: 16;font.pixelSize: 10
-        text: root.details.busy?"正在读取 / 验证实际画面…":root.details.error?"分辨率操作失败，请刷新":!root.available?"等待相机连接":root.connectionLabel?root.connectionLabel+(root.editable?" · 采集前验证帧率":" · 采集期间锁定"):root.editable?"按所选分辨率录制 · 采集前验证帧率":"采集期间锁定；返回检查硬件可修改"
+        text: root.details.busy?"正在读取 / 验证实际画面…":root.details.error?"分辨率操作失败，请刷新":!root.available?"等待相机连接":root.editable?"按所选分辨率录制 · 采集前验证帧率":"采集期间锁定；返回检查硬件可修改"
         color: root.details.error?Theme.red:Theme.inkSoft
         HoverHandler {id: hover}
-        ToolTip.visible: hover.hovered && (!!root.details.error || !!root.connectionLabel)
-        ToolTip.text: root.details.error || (root.connectionLabel+"；这是当前链路速度，不代表相机支持的最高速度。按所选分辨率录制；预览单独优化，不影响保存画质。")
+        ToolTip.visible: hover.hovered && !!root.details.error
+        ToolTip.text: root.details.error || ""
     }
 }

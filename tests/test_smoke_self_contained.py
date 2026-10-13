@@ -116,12 +116,17 @@ def test_robot_dependencies_must_be_loaded_from_the_packaged_runtime(tmp_path):
         CHECKS['check_private_module'](module,package)
 
 
-def test_both_brightness_routes_are_required():
-    path = '/umi/camera-controls/{camera_key}/brightness'
-    for route in ({}, {'get': {}}, {'post': {}}):
-        with pytest.raises(AssertionError, match='GET/POST'):
-            CHECKS['check_brightness_routes']({'paths': {path: route}})
-    CHECKS['check_brightness_routes']({'paths': {path: {'get': {}, 'post': {}}}})
+@pytest.mark.parametrize('setting', ['brightness', 'resolution'])
+@pytest.mark.parametrize('route', [{}, {'get': {}}, {'post': {}}])
+def test_camera_controls_require_both_read_and_write_routes(setting, route):
+    paths = {
+        f'/umi/camera-controls/{{camera_key}}/{name}': {'get': {}, 'post': {}}
+        for name in ('brightness', 'resolution')
+    }
+    CHECKS['check_brightness_routes']({'paths': paths})
+    paths[f'/umi/camera-controls/{{camera_key}}/{setting}'] = route
+    with pytest.raises(AssertionError, match='GET/POST'):
+        CHECKS['check_brightness_routes']({'paths': paths})
 
 
 @pytest.mark.parametrize('output', [

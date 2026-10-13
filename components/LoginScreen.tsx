@@ -41,7 +41,8 @@ export function LoginScreen({
     if (forgetSaved) return;
     let active = true;
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 40000);
+    // First desktop use may require creating/unlocking the system keyring.
+    const timeout = window.setTimeout(() => controller.abort(), 125000);
     async function restore() {
       try {
         // If logout could not reach the service last time, finish clearing it

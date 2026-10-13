@@ -1,0 +1,31 @@
+左右夹爪固定工具坐标 grasp_center_L / grasp_center_R
+
+正式几何定义在以下 URDF 的 grasp_center_fixed_L/R 固定关节中：
+../Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf
+../Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf
+
+父节点 gripper_L/R，子节点 grasp_center_L/R。
+<origin xyz="-0.009175 0.009190 0.202453" rpy="0 -1.5707963267948966 -0.7853981633974483"/>
+URDF 单位：米、弧度。工具 +X 沿指尖伸出（法兰 +Z）；+Y 沿两指张开（法兰 +Y）；+Z 为右手法向（法兰 -X）。
+
+相对 flange_L/R 的合成结果：
+xyz ≈ (-12.986, +0.011, 202.453) mm；rpy ≈ (0,-90,0) 度。
+注意：上面的 URDF xyz 在夹爪根坐标表达；法兰数据是在法兰坐标表达，不能互相直接替换。
+
+几何依据：URDF 全开时两块黑色夹持垫（STL part_18 / part_19），各取其唯一顶点的 PCA 定向包围盒中心，再取两个中心的中点。
+使用原始 STL 顶点计算，不使用简化显示网格计算中心。坐标保留到 1 微米只为文件数值稳定，不表示实际标定精度。
+参考开度：两个手指关节角 +0.5083435505396878 / -0.5083435505396878 rad，约 ±29.125°。
+对应 URDF drive_L=1.0760578316929892 rad，drive_R=1.2921362630655375 rad；这些不是控制器电机反馈开合端点。
+
+这是固定 CAD 名义点，不是实测 TCP，也不是随开合更新的实时夹持垫中点。
+工具轴采用与手柄 ROS 坐标相同的前/左/上语义；不再继承 CAD 根部轴。未调整采集端手柄到实体夹爪的安装轴向。
+如需改到特定接触面或实际夹持深度，应修改同一固定关节 origin 并记录测量依据。
+
+运行时：teleop/marvin_teleop/config.json 的 tool_tcp 只选择 urdf / flange_link / tcp_link。
+configuration() 从配置文件所在目录解析相对 URDF 路径，并计算 flange→TCP 固定链。
+App 源码、桌面回放和预览使用这一入口。修改 URDF 后重新加载程序即可；不热更新运行中的控制器。
+旧版 xyz_mm/rpy_deg 数值配置仍兼容，但默认不再复制一份独立数值。
+public/tianji-model.json 的显示节点是同一变换的导出副本；修改后需同步导出显示节点。
+已经安装的 deb 若包含独立程序副本，需要重新打包/更新；本次未替换正在运行的安装版。
+
+溯源、计算脚本和标注图：项目 outputs/gripper-tcp/。

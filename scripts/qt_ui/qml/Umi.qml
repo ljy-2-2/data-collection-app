@@ -72,13 +72,12 @@ Column {
                     Sensor {Layout.fillWidth: true;side: "right";active: root.sides.indexOf(side)>=0}
                 }
             }
-            Txt {visible: !!root.check.hardware_ready && !root.canStart;width: parent.width;text: "需所有相机出图、编码器有实时数据、PICO 已连接，并逐一确认夹爪已闭合到最小值。";font.pixelSize: 12;color: Theme.inkMuted;wrapMode: Text.Wrap;elide: Text.ElideNone}
             Txt {visible: !!root.check.stack_occupied;width: parent.width;text: "其他 Galaxis 服务正在占用相机和编码器。请先结束该服务，再重新检测。";font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
             Txt {visible: !!root.check.pico_detail && !root.check.pico_ready;width: parent.width;text: root.check.pico_detail||"";font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
             RowLayout {width: parent.width;spacing: 8
                 Btn {text: "返回配置";ghost: true;enabled: !s.busy;onClicked: backend.umiBack()}
                 Item {Layout.fillWidth: true}
-                Btn {objectName: "umiStart";text: "确认设备并进入监控";primary: true;iconAfter: true;glyph: "ArrowRight";enabled: root.canStart;busy: ["configure-umi","start-umi"].indexOf(s.busy)>=0;onClicked: backend.startUmi()}
+                Btn {objectName: "umiStart";text: root.canStart ? "进入监控" : "确认并勾选";primary: true;iconAfter: true;glyph: "ArrowRight";enabled: root.canStart;busy: ["configure-umi","start-umi"].indexOf(s.busy)>=0;onClicked: backend.startUmi()}
             }
         }
     }
@@ -93,11 +92,10 @@ Column {
                 }
                 Txt {text: "● "+(root.recording?"录制中":root.ready?"已就绪":root.active?"启动中":"未启动");font.pixelSize: 12;color: root.recording?Theme.red:root.ready?Theme.green:Theme.inkMuted}
             }
-            Txt {objectName: "umiProblemNotice";visible: !!text;text: root.status.message||"";width: parent.width;wrapMode: Text.Wrap;elide: Text.ElideNone;color: Theme.red;font.pixelSize: 12}
             GridLayout {width: parent.width;columns: app.width<780?1:3;columnSpacing: 9;rowSpacing: 9
                 Repeater {model: 3
                     Rectangle {required property int index;property string role: root.roles[index];property bool active: role==="center" || root.sides.indexOf(role)>=0
-                        Layout.fillWidth: true;Layout.preferredHeight: width*.75+34+monitorControls.height;radius: 9;border.color: Theme.line;color: Theme.muted;opacity: active?1:.55
+                        Layout.fillWidth: true;Layout.preferredHeight: width*.75+34;radius: 9;border.color: Theme.line;color: Theme.muted;opacity: active?1:.55
                         RowLayout {x: 9;y: 3;width: parent.width-55;height: 28;spacing: 6
                             Txt {text: root.titles[index];color: Theme.accentStrong;font.pixelSize: 12;font.weight: Font.DemiBold}
                             Select {objectName: "umiLiveCameraSelect";Layout.fillWidth: true;height: 26;font.pixelSize: 10
@@ -108,15 +106,12 @@ Column {
                             }
                         }
                         Txt {anchors.right: parent.right;anchors.rightMargin: 9;y: 9;text: liveCamera.online?"LIVE":"--";font.pixelSize: 10;color: liveCamera.online?Theme.green:Theme.inkSoft}
-                        Rectangle {x: 1;y: 34;width: parent.width-2;height: parent.height-35-monitorControls.height;color: Theme.dark?"#15202a":"#f5f6fc"
+                        Rectangle {x: 1;y: 34;width: parent.width-2;height: parent.height-35;color: Theme.dark?"#15202a":"#f5f6fc"
                             CameraItem {id: liveCamera;anchors.fill: parent;source: root.visible && s.page==="umi" && s.umiStep===3 && root.active && parent.parent.active && s.busy!=="stop-umi" ? backend.baseUrl+"/umi/cameras/"+role : ""}
                             Rectangle {anchors.fill: parent;visible: !liveCamera.online && liveCamera.hasFrame;color: "#99000000"}
                             Txt {visible: !liveCamera.online;anchors.centerIn: parent;text: !parent.parent.active?"未启用":liveCamera.hasFrame?"画面中断，正在重连…":"等待视频流";font.pixelSize: 11;color: liveCamera.hasFrame?"white":Theme.inkSoft}
                         }
-                        Column {id: monitorControls;anchors.bottom: parent.bottom;width: parent.width
-                            CameraResolution {width: parent.width;height: implicitHeight;cameraKey: role;cameraName: root.titles[index];editable: false;available: root.visible && s.page==="umi" && s.umiStep===3 && root.status.monitor_connected && (root.ready || root.recording) && parent.parent.active}
-                            CameraBrightness {id: monitorBrightness;width: parent.width;height: implicitHeight;cameraKey: role;cameraName: root.titles[index];active: parent.parent.active;available: root.visible && s.page==="umi" && s.umiStep===3 && root.status.monitor_connected && ["ready","recording"].indexOf(root.status.state)>=0 && s.busy!=="stop-umi" && active && liveCamera.online}
-                        }
+
                     }
                 }
             }

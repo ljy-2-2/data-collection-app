@@ -21,6 +21,16 @@ def robot_configuration() -> dict:
     config = json.loads(path.read_text())
     if not isinstance(config, dict):
         raise ValueError("天机配置必须为 JSON 对象")
+    # Preserve named URDF TCPs when passing an in-memory config to the worker.
+    # Resolve against the selected JSON, not the current working directory.
+    tools = config.get("tool_tcp")
+    if isinstance(tools, dict):
+        for definition in tools.values():
+            if isinstance(definition, dict) and isinstance(definition.get("urdf"), str):
+                urdf = Path(definition["urdf"]).expanduser()
+                if not urdf.is_absolute():
+                    urdf = path.resolve().parent / urdf
+                definition["urdf"] = str(urdf.resolve())
     address = os.environ.get("TIANJI_ROBOT_IP") or config.get("robot_ip")
     try:
         if not isinstance(address, str):

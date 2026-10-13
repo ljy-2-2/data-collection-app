@@ -58,17 +58,17 @@ class ModelPart(QObject):
 
 class RobotScene(QObject):
     cameraChanged=Signal()
-    def __init__(self,root,parent=None):
+    def __init__(self,root,parent=None,*,load_model=True):
         super().__init__(parent)
         self.calibration=endpoints(root)
-        self.model=json.loads((root/'public/tianji-model.json').read_text())
+        self.model=json.loads((root/'public/tianji-model.json').read_text()) if load_model else dict(meshes={},links=[],joints=[])
         self.geometries={key:MeshGeometry(mesh) for key,mesh in self.model['meshes'].items()}
         self.parts_value=[];self.by_link=[]
         for link in self.model['links']:
             for visual in link['visuals']:
                 part=ModelPart(self.geometries[visual['mesh']],visual,self);self.parts_value.append(part);self.by_link.append((link['name'],part))
         self.yaw=-.08;self.pitch=.03;self.zoom=1.
-        self.camera_matrix=np.eye(4);self.update_camera();self.update_pose({})
+        self.camera_matrix=np.eye(4);self._pose_angles=None;self.update_camera();self.update_pose({})
     @Property('QVariantList',constant=True)
     def parts(self):return self.parts_value
     @Property(QVector3D,notify=cameraChanged)
@@ -97,6 +97,9 @@ class RobotScene(QObject):
             if amount is None:amount=.5
             drive=next((j for j in self.model['joints'] if j['name']==f'gripper_drive_{letter}'),{})
             angles[f'gripper_drive_{letter}']=(1-amount)*float((drive.get('limit') or {}).get('upper',1))
+        # Status polling includes camera and upload changes. Avoid recalculating
+        # every CAD transform when the actual pose has not changed on the board.
+        if angles==self._pose_angles:return
         matrices={'stand':np.eye(4)};pending=self.model['joints'][:]
         while pending:
             remaining=[]
@@ -111,6 +114,7 @@ class RobotScene(QObject):
             if len(remaining)==len(pending):raise ValueError('模型关节结构不完整')
             pending=remaining
         for link,part in self.by_link:part.update_matrix(matrices.get(link,np.eye(4))@transform(part.visual['xyz'],part.visual['rpy']))
+        self._pose_angles=angles
 
 
 class CameraItem(QQuickPaintedItem):

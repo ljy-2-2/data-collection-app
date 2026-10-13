@@ -89,6 +89,7 @@ def step(
     joint_limit_reserve_deg=0.0,
     joint_limit_escape_speed_deg_s=0.0,
     shoulder_motion_weight=1.0,
+    position_only=False,
 ):
     q = np.asarray(reference, dtype=float)
     target = np.asarray(target, dtype=float)
@@ -122,7 +123,7 @@ def step(
     # above remains an independent audit; its rounded pi/2 origins can amplify
     # left/right differences when active limit faces change near a singularity.
     raw_jacobian = arm.world_jacobian(q, current)
-    singular_values = np.linalg.svd(raw_jacobian, compute_uv=False)
+    singular_values = np.linalg.svd(raw_jacobian[:3] if position_only else raw_jacobian, compute_uv=False)
     sigma_min = float(singular_values[-1])
     singular_blend = float(
         np.clip(
@@ -149,6 +150,8 @@ def step(
     rotation_weight = singular_rotation_weight_m + quality_blend * (
         rotation_weight_m - singular_rotation_weight_m
     )
+    if position_only:
+        rotation_weight = 0.0
     weight = np.array([1.0] * 3 + [rotation_weight] * 3)
     j = weight[:, None] * raw_jacobian
     # Equal joint weights by default. An optional shoulder preference uses

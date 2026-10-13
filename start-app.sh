@@ -9,7 +9,8 @@ APP_PYTHON="$APP_ROOT/.runtime/python/bin/python3.12"
 if [[ ! -x "$APP_PYTHON" ]]; then APP_PYTHON="$APP_ROOT/.venv/bin/python"; fi
 if [[ ! -x "$APP_PYTHON" ]] || ! "$APP_PYTHON" -c 'import PySide6, fastapi' 2>/dev/null; then
   shopt -s nullglob
-  APP_CACHED_PYTHONS=("$APP_ROOT"/.build-cache/python/cpython-3.12.*-linux-x86_64-gnu/bin/python3.12)
+  APP_MACHINE=$(uname -m)
+  APP_CACHED_PYTHONS=("$APP_ROOT"/.build-cache/python/cpython-3.12.*-linux-"$APP_MACHINE"-gnu/bin/python3.12)
   shopt -u nullglob
   if (( ${#APP_CACHED_PYTHONS[@]} > 0 )); then APP_PYTHON="${APP_CACHED_PYTHONS[-1]}"; fi
 fi

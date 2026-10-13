@@ -128,6 +128,7 @@ class PlatformLogin:
         with self._lock:
             self._generation += 1
             generation = self._generation
+            saved_record = self.preferences.read() if use_saved_password else {}
         if use_saved_password:
             password = self.preferences.password(username)
         if not username or not password:
@@ -147,9 +148,17 @@ class PlatformLogin:
         payload = response.json()
         remember_password = remember_password or auto_login
         prepared = {}
+        created_secret = False
         try:
             if remember_password:
-                prepared = self.preferences.prepare(username, password, auto_login)
+                if saved_record:
+                    # Reauthenticating with an existing secret does not need a
+                    # second keyring write/unlock prompt on every App launch.
+                    prepared = {**saved_record, "auto_login": auto_login,
+                                "password_length": len(password)}
+                else:
+                    prepared = self.preferences.prepare(username, password, auto_login)
+                    created_secret = True
             with self._lock:
                 if generation != self._generation:
                     raise CredentialError("登录已取消，请重新登录。")
@@ -165,12 +174,14 @@ class PlatformLogin:
                 )
         except Exception:
             with self._lock:
-                if prepared and self.preferences.raw().get("credential_id") == prepared.get("credential_id"):
+                if created_secret and self.preferences.raw().get("credential_id") == prepared.get("credential_id"):
                     self.preferences.clear()
-            self.preferences.delete_secret(prepared)
+            if created_secret:
+                self.preferences.delete_secret(prepared)
             self._revoke(str(payload.get("access_token", "")))
             raise
-        warning = self.preferences.delete_secret(previous)
+        warning = (self.preferences.delete_secret(previous)
+                   if previous.get("credential_id") != prepared.get("credential_id") else "")
         return {"authenticated": True, "user": payload["user"], "warning": warning}
 
     def logout(self) -> dict[str, object]:

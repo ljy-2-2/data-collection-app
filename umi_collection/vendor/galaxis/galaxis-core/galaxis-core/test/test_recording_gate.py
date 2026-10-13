@@ -572,7 +572,7 @@ class TestReSettle:
     """Verify that conditions must hold for recovery_sec after recovery."""
 
     def _make_gate(self, gate_module, checkers, *, settle_sec=0.0, recovery_sec=0.5):
-        from test.conftest import make_test_gate
+        from conftest import make_test_gate
 
         return make_test_gate(
             gate_module, checkers, settle_sec=settle_sec, recovery_sec=recovery_sec
@@ -675,7 +675,7 @@ class TestSettleExempt:
     """Verify that settle_exempt conditions bypass the settle timer."""
 
     def _make_gate(self, gate_module, checkers, *, settle_sec=10.0, recovery_sec=10.0):
-        from test.conftest import make_test_gate
+        from conftest import make_test_gate
 
         return make_test_gate(
             gate_module, checkers, settle_sec=settle_sec, recovery_sec=recovery_sec
@@ -769,7 +769,7 @@ class TestEscalationLevels:
     """Verify per-condition escalation behaviour."""
 
     def _make_gate(self, gate_module, checkers, *, settle_sec=0.0, recovery_sec=0.0):
-        from test.conftest import make_test_gate
+        from conftest import make_test_gate
 
         return make_test_gate(
             gate_module, checkers, settle_sec=settle_sec, recovery_sec=recovery_sec

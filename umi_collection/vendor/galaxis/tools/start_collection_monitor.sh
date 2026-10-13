@@ -21,8 +21,7 @@ echo "Starting ROS collection services, local MinIO and Galaxis Monitor…"
 # Compose reuses this project's existing containers and reports any foreign
 # name conflict explicitly. Force-removing every named container on each
 # launch was expensive and could interrupt another checkout's recording.
-docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d \
-  galaxis galaxis_core web_video_server galaxis_monitor
+python3 "$SCRIPT_DIR/start_compose_services.py" "$PROJECT_DIR/docker-compose.yml"
 
 # Wait for the monitor bridge to become healthy before opening a browser.
 for _ in $(seq 1 30); do

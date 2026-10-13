@@ -1,19 +1,21 @@
 """Tianji-only requests. Joint units follow the vendor SDK (degrees)."""
 
 from typing import Literal
+from functools import partial
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .tianji_gripper_config import gripper_parameter_default
 
 
 class TianjiParameters(BaseModel):
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, validate_default=True)
     scale: float = Field(default=1, ge=0.01, le=1)
     max_joint_speed_deg_s: float = Field(default=180, ge=0.1, le=180)
     max_joint_accel_deg_s2: float = Field(default=450, ge=1, le=450)
-    left_gripper_speed: float = Field(default=10, ge=0.01, le=100)
-    right_gripper_speed: float = Field(default=10, ge=0.01, le=100)
-    kp: float = Field(default=80, ge=0, le=500)
-    kd: float = Field(default=2, gt=0, le=5)
+    left_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_speed'), ge=0.01, le=100)
+    right_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_speed'), ge=0.01, le=100)
+    kp: float = Field(default_factory=partial(gripper_parameter_default, 'kp'), ge=0, le=500)
+    kd: float = Field(default_factory=partial(gripper_parameter_default, 'kd'), gt=0, le=5)
 
 
 class TianjiStart(BaseModel):

@@ -23,6 +23,7 @@ from .runtime_paths import resolve_robot_python
 from .tianji_config import camera_host, robot_configuration
 from .tianji_camera_credentials import import_credentials, resolve_credentials
 from .tianji_models import TianjiMove, TianjiParameters, TianjiStart
+from .tianji_gripper_config import stored_parameters, parameter_storage
 from .tianji_collection import TianjiCollection
 from .tianji_camera_session import CameraSession
 from .tianji_camera_recovery import restart_local_preview
@@ -297,7 +298,7 @@ class TianjiManager:
     def parameters(self):
         path = RUNTIME / "parameters.json"
         try:
-            return TianjiParameters.model_validate_json(path.read_text())
+            return TianjiParameters.model_validate(stored_parameters(json.loads(path.read_text())))
         except (OSError, ValueError):
             return TianjiParameters()
 
@@ -306,7 +307,7 @@ class TianjiManager:
             raise ValueError("请先停止控制后保存参数")
         RUNTIME.mkdir(parents=True, exist_ok=True)
         temporary = RUNTIME / "parameters.tmp"
-        temporary.write_text(parameters.model_dump_json(indent=2))
+        temporary.write_text(json.dumps(parameter_storage(parameters.model_dump()), indent=2))
         temporary.replace(RUNTIME / "parameters.json")
         return parameters
 

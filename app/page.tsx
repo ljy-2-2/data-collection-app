@@ -156,10 +156,10 @@ function secondsText(value?: number) {
 
 function UsageGuide({ image, alt }: { image: string; alt: string }) {
   return (
-    <button type="button" className="usage-guide">
+    <div className="usage-guide" tabIndex={0}>
       <span className="usage-guide-label"><CircleHelp size={19} aria-hidden="true" />使用说明</span>
       <figure className="usage-guide-popover"><img src={image} alt={alt} /></figure>
-    </button>
+    </div>
   );
 }
 
@@ -651,11 +651,10 @@ function UmiPanel({
                 </div>
               </div>
             ) : null}
-            {deviceCheck?.hardware_ready && !canEnterMonitor ? <div className="info-line"><Settings2 size={16} /><span>需所有相机出图、编码器有实时数据、PICO 已连接，并逐一确认夹爪已闭合到最小值。</span></div> : null}
             {deviceCheck?.stack_occupied ? <div className="inline-alert"><WifiOff size={16} /><span>其他 Galaxis 服务正在占用相机和编码器。请先结束该服务，再重新检测。</span></div> : null}
             {error ? <div className="inline-alert"><WifiOff size={16} /><span>{error}</span></div> : null}
             {deviceCheck?.pico_ready === false ? <div className="inline-alert"><Glasses size={16} /><span>{deviceCheck.pico_detail}</span></div> : null}
-            <div className="stage-actions split"><ActionButton kind="ghost" onClick={() => setStep(1)}>返回配置</ActionButton><ActionButton onClick={enterMonitor} busy={action === 'start-umi'} disabled={!canEnterMonitor}>确认设备并进入监控 <ArrowRight size={16} /></ActionButton></div>
+            <div className="stage-actions split"><ActionButton kind="ghost" onClick={() => setStep(1)}>返回配置</ActionButton><ActionButton onClick={enterMonitor} busy={action === 'start-umi'} disabled={!canEnterMonitor}>{canEnterMonitor ? '进入监控' : '确认并勾选'} <ArrowRight size={16} /></ActionButton></div>
           </div>
         </section>
       ) : null}
@@ -666,8 +665,6 @@ function UmiPanel({
             <div><span className="eyebrow">STEP 03</span><h3>采集监控</h3><p>{task} · {profile === 'dual' ? '双臂' : profile === 'single-left' ? '仅左臂' : '仅右臂'}</p></div>
             <div className="compact-status"><StatusDot online={Boolean(sessionActive && status?.monitor_connected)} pulse={Boolean(status?.recording)} />{status?.recording ? '录制中' : recordReady ? '已就绪' : status?.state === 'error' ? '启动失败' : sessionActive ? '启动中' : '未启动'}</div>
           </div>
-          {status?.message ? <div className="info-line"><Activity size={15} /><span>{status.message}</span></div> : null}
-          {error ? <div className="inline-alert"><WifiOff size={16} /><span>{error}</span></div> : null}
 
           <div className="umi-live-camera-grid" aria-label="UMI 相机监控区">
             {UMI_CAMERA_ROLES.map((role) => {
@@ -678,8 +675,6 @@ function UmiPanel({
                 <article className={classNames('umi-live-camera-card', !enabled && 'is-placeholder')} key={role}>
                   <header><strong>{umiCameraLabel(role)}</strong><span className={live ? 'is-live' : ''}>{live ? 'LIVE' : '--'}</span></header>
                   <div>{live ? <UmiCameraStream src={`${baseUrl}/umi/cameras/${encodeURIComponent(role)}`} alt={`${umiCameraLabel(role)}实时画面`} /> : <span className="umi-camera-slot-wait">{enabled ? '等待视频流' : '未启用'}</span>}</div>
-                  {enabled ? <CameraResolution baseUrl={baseUrl} cameraKey={role} label={umiCameraLabel(role)} active={live} editable={false} /> : null}
-                  {enabled ? <CameraBrightness baseUrl={baseUrl} cameraKey={role} label={umiCameraLabel(role)} active={live && (status?.state === 'ready' || status?.state === 'recording')} /> : null}
                 </article>
               );
             })}

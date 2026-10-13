@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/XR-Robotics/XRoboToolkit-PC-Service-Pybind",
+  "commit": "c64ccf6acd577a333e03b66fafe8efeeceb511b1",
+  "sha256": {
+    "LICENSE": "d5f3ff3a0bfd3d623c27003f3b9280fab5516365d7347f648f8046847b768edb",
+    "bindings/py_bindings.cpp": "6ac9d11613ac0790c59abca6faa16c022d822ba167667a83de8481c2759ded95",
+    "include/PXREARobotSDK.h": "4665952f6505d721fadff1c442fbed7fb3d0cc97637f3f18bdb75dac838f3dae",
+    "include/nlohmann/json.hpp": "9bea4c8066ef4a1c206b2be5a36302f8926f7fdc6087af5d20b417d0cf103ea6",
+    "include/nlohmann/json_fwd.hpp": "5cefbba751baf5243033fd894c70be9b37103d64b3d3a959e4173197d71137b9"
+  }
+}

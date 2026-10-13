@@ -331,13 +331,130 @@ def finalizer_cpu_budget() -> int:
     return max(1, min(6, available // 2))
 
 
+_FINALIZER_LABEL = "cn.xiaokai.umi.finalizer"
+_FINALIZER_COMMAND = ["-m", "galaxis_core.mp4_worker", "--root", "/opt/data/rosbags"]
+
+
+def _finalizer_docker(*args: str) -> subprocess.CompletedProcess[str]:
+    try:
+        timeout = 60 if args and args[0] in {"run", "start"} else 30
+        return subprocess.run(["docker", *args], capture_output=True, text=True,
+                              check=False, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise CollectionError("后台处理 Docker 操作超时；未强制删除容器，原始采集文件及待处理回合已保留") from exc
+    except OSError as exc:
+        raise CollectionError(f"后台处理服务无法执行 Docker：{exc}") from exc
+
+
+def _finalizer_error(result: subprocess.CompletedProcess[str]) -> str:
+    return (result.stderr or result.stdout or f"Docker 退出码 {result.returncode}").strip()[-3000:]
+
+
+def _inspect_finalizer(identity: str, *, allow_missing: bool = False) -> dict[str, Any] | None:
+    result = _finalizer_docker("inspect", identity)
+    if result.returncode:
+        reason = _finalizer_error(result)
+        if allow_missing and any(marker in reason.lower() for marker in ("no such object", "no such container")):
+            return None
+        raise CollectionError(f"读取后台处理容器状态失败：{reason}")
+    try:
+        records = json.loads(result.stdout)
+        if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+            raise ValueError("unexpected inspect result")
+        return records[0]
+    except (ValueError, TypeError) as exc:
+        raise CollectionError("Docker 返回了无效的后台处理容器状态；未修改容器") from exc
+
+
+def _validate_finalizer(container: dict[str, Any], root: Path) -> str:
+    """Prove ownership before starting, stopping or removing any container."""
+    config = container.get("Config") or {}
+    labels = config.get("Labels") or {}
+    host = container.get("HostConfig") or {}
+    mounts = container.get("Mounts") or []
+    identity = str(container.get("Id", ""))
+    version = str(labels.get(_FINALIZER_LABEL + ".version", ""))
+    version_parts = version.rsplit(":", 2)
+    data = next((mount for mount in mounts if mount.get("Destination") == "/opt/data"), {})
+    source = next((mount for mount in mounts if mount.get("Destination") == "/processing-src"), {})
+    source_path = Path(str(source.get("Source", "")))
+    owned = (
+        re.fullmatch(r"[a-f0-9]{64}", identity)
+        and labels.get(_FINALIZER_LABEL) == str(root)
+        and len(version_parts) == 3 and config.get("Image") == version_parts[0]
+        and re.fullmatch(r"[a-f0-9]{64}", version_parts[1])
+        and re.fullmatch(r"cpu[1-9][0-9]*", version_parts[2])
+        and config.get("Entrypoint") == ["python3"]
+        and config.get("Cmd") == _FINALIZER_COMMAND
+        and host.get("NetworkMode") == "none" and not host.get("Privileged")
+        and len(mounts) == 2
+        and data.get("Type") == "bind" and data.get("RW") is True
+        and Path(str(data.get("Source", ""))).resolve() == root
+        and source.get("Type") == "bind" and source.get("RW") is False
+        and source_path.is_absolute() and source_path.parts[-2:] == ("galaxis-core", "galaxis-core")
+    )
+    if not owned:
+        raise CollectionError("后台处理容器名称冲突或配置异常，无法确认归属；未修改容器或采集数据")
+    return identity
+
+
+def _finalizer_running(container: dict[str, Any]) -> bool:
+    state = container.get("State") or {}
+    return bool(state.get("Running") and not state.get("Paused") and not state.get("Restarting"))
+
+
+def _finalizer_require_running(identity: str, root: Path) -> None:
+    # Detached docker run can succeed even if Python immediately fails.
+    time.sleep(1.0)
+    container = _inspect_finalizer(identity)
+    if _validate_finalizer(container, root) != identity:
+        raise CollectionError("后台处理容器身份已变化；请重新检测")
+    if _finalizer_running(container):
+        return
+    state = container.get("State") or {}
+    logs = _finalizer_docker("logs", "--tail", "20", identity)
+    detail = (logs.stderr or "") + (logs.stdout or "")
+    raise CollectionError(
+        f"后台处理服务未正常运行（状态 {state.get('Status', 'unknown')}，"
+        f"退出码 {state.get('ExitCode', 'unknown')}）：{state.get('Error') or ''}\n"
+        f"{detail.strip()[-3000:]}\n原始采集文件及待处理回合已保留"
+    )
+
+
+def _remove_stopped_finalizer(identity: str, root: Path) -> None:
+    # Re-read by immutable ID. Docker rm without -f is the final race guard.
+    container = _inspect_finalizer(identity)
+    if _validate_finalizer(container, root) != identity:
+        raise CollectionError("后台处理容器身份已变化；未删除容器")
+    state = container.get("State") or {}
+    if (state.get("Running") is not False or state.get("Restarting") or state.get("Paused")
+            or state.get("Status") not in {"created", "exited", "dead"}):
+        raise CollectionError("后台处理容器正在运行或状态变化中；未删除容器，请稍后重试")
+    result = _finalizer_docker("rm", identity)
+    if result.returncode:
+        raise CollectionError(f"清理失效后台处理容器失败：{_finalizer_error(result)}；采集数据未删除")
+
+
+def _can_recreate_finalizer(reason: str) -> bool:
+    # Permissions, a busy runtime or an outage cannot be fixed by replacement.
+    # Other startup faults on a verified stopped worker can be retried with
+    # fresh metadata and identical durable data mounts.
+    lower = reason.lower()
+    return not any(marker in lower for marker in (
+        "permission denied", "operation not permitted", "access denied", "unauthorized",
+        "cannot connect", "is the docker daemon running", "connection refused", "connection reset",
+        "context deadline", "timed out", "timeout", "busy", "already running", "in progress",
+        "no space left", "out of space", "disk quota exceeded",
+    ))
+
+
 def ensure_background_finalizer() -> None:
     """Own one offline worker per data root, outside the camera/ROS lifecycle."""
     root = DATA_DIR.resolve()
     (root / "rosbags").mkdir(parents=True, exist_ok=True)
     manifest = PROJECT_DIR / "umi-runtime.json"
     image = json.loads(manifest.read_text())["image"] if manifest.is_file() else "galaxis-core:latest"
-    source = PROJECT_DIR / "galaxis-core/galaxis-core"
+    source = (PROJECT_DIR / "galaxis-core/galaxis-core").resolve()
     # A source digest restarts only this worker on software updates. Its queue
     # lives in the mounted data folder, so interrupted work is recoverable.
     digest = hashlib.sha256()
@@ -346,20 +463,35 @@ def ensure_background_finalizer() -> None:
     cpu_budget = finalizer_cpu_budget()
     version = image + ":" + digest.hexdigest() + f":cpu{cpu_budget}"
     name = "xiaokai-umi-finalizer-" + hashlib.sha256(str(root).encode()).hexdigest()[:12]
-    label = "cn.xiaokai.umi.finalizer"
-    old = subprocess.run(["docker", "inspect", name], capture_output=True, text=True)
-    if old.returncode == 0:
-        container = json.loads(old.stdout)[0]
-        labels = container.get("Config", {}).get("Labels", {}) or {}
-        if labels.get(label) != str(root):
-            raise CollectionError("后台处理容器名称冲突，无法确认归属")
-        if labels.get(label + ".version") == version:
-            if not container.get("State", {}).get("Running"):
-                run_checked(["docker", "start", name], quiet=True)
+    label = _FINALIZER_LABEL
+    container = _inspect_finalizer(name, allow_missing=True)
+    startup_error = ""
+    if container is not None:
+        identity = _validate_finalizer(container, root)
+        labels = container["Config"]["Labels"]
+        mounted_source = next(mount["Source"] for mount in container["Mounts"]
+                              if mount["Destination"] == "/processing-src")
+        current = labels[label + ".version"] == version and Path(mounted_source).resolve() == source
+        if current and _finalizer_running(container):
             return
-        run_checked(["docker", "stop", "--time", "10", name], quiet=True)
-        run_checked(["docker", "rm", name], quiet=True)
-    run_checked([
+        state = container.get("State") or {}
+        if state.get("Paused") or state.get("Restarting") or state.get("Status") == "removing":
+            raise CollectionError("后台处理容器正忙或正在重启；未修改容器，请稍后重试")
+        if current:
+            started = _finalizer_docker("start", identity)
+            if started.returncode == 0:
+                _finalizer_require_running(identity, root)
+                return
+            startup_error = _finalizer_error(started)
+            if not _can_recreate_finalizer(startup_error):
+                raise CollectionError(f"启动后台处理服务失败：{startup_error}；原容器和采集数据已保留")
+        elif state.get("Running"):
+            # SIGTERM preserves original bags and pending jobs during updates.
+            stopped = _finalizer_docker("stop", "--time", "10", identity)
+            if stopped.returncode:
+                raise CollectionError(f"更新后台处理服务失败：{_finalizer_error(stopped)}；未删除容器")
+        _remove_stopped_finalizer(identity, root)
+    command = [
         "docker", "run", "--detach", "--name", name,
         "--label", label + "=" + str(root), "--label", label + ".version=" + version,
         "--restart", "unless-stopped", "--network", "none", "--cpus", str(cpu_budget),
@@ -369,8 +501,16 @@ def ensure_background_finalizer() -> None:
         "--env", "GALAXIS_DATA_UID=" + os.environ.get("SUDO_UID", str(os.getuid())),
         "--env", "GALAXIS_DATA_GID=" + os.environ.get("SUDO_GID", str(os.getgid())),
         "--entrypoint", "python3", image,
-        "-m", "galaxis_core.mp4_worker", "--root", "/opt/data/rosbags",
-    ], quiet=True)
+        *_FINALIZER_COMMAND,
+    ]
+    result = _finalizer_docker(*command[1:])
+    if result.returncode:
+        previous = f"原启动错误：{startup_error}\n" if startup_error else ""
+        raise CollectionError(f"{previous}创建后台处理服务失败：{_finalizer_error(result)}；原始采集文件及待处理回合已保留")
+    created = result.stdout.strip()
+    if not re.fullmatch(r"[a-f0-9]{64}", created):
+        raise CollectionError("Docker 未返回有效后台处理容器 ID；请重新检测，原始采集文件已保留")
+    _finalizer_require_running(created, root)
 
 
 def create_episode_for_task(
@@ -548,11 +688,14 @@ def run_checked(
         cwd=PROJECT_DIR,
         env=command_env,
         stdout=subprocess.DEVNULL if quiet else None,
-        stderr=subprocess.DEVNULL if quiet else None,
+        stderr=subprocess.PIPE if quiet else None,
+        text=True,
         check=False,
     )
     if result.returncode != 0:
-        raise CollectionError(f"Command failed ({result.returncode}): {' '.join(command)}")
+        detail = (getattr(result, "stderr", "") or "").strip()[-3000:]
+        raise CollectionError(f"Command failed ({result.returncode}): {' '.join(command)}"
+                              + (f"\n{detail}" if detail else ""))
 
 
 def compose_command(compose_file: Path, *arguments: str) -> list[str]:
@@ -856,7 +999,7 @@ def discover_pico_serial(requested_serial: str | None = None) -> str:
     devices: dict[str, str] = {}
     for line in result.stdout.splitlines()[1:]:
         fields = line.split()
-        if len(fields) >= 2:
+        if len(fields) >= 2 and not fields[0].startswith("emulator-"):
             devices[fields[0]] = fields[1]
     if requested_serial:
         state = devices.get(requested_serial)

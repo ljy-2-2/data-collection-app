@@ -19,6 +19,7 @@ setup(
         "jsonschema",
         "requests",
         "mcap>=1.2.2,<2",
+        "pillow>=10",
         "minio",
         ],
     zip_safe=True,

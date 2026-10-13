@@ -66,6 +66,16 @@ def load_configuration():
     return configuration(robot_configuration())
 
 
+def gripper_configuration(parameters, selected, *, path=None):
+    """Build the actual driver settings, retaining calibrated travel/limits."""
+    gc = load_grippers(path or ROOT / "teleop/gripper/config.json", live=True)
+    params = TianjiParameters.model_validate(parameters)
+    gc["motors"] = {side: motor for side, motor in gc["motors"].items() if side in selected}
+    for side, motor in gc["motors"].items():
+        motor.update(speed_rad_s=getattr(params, side + "_gripper_speed"), kp=params.kp, kd=params.kd)
+    return gc
+
+
 def manual_plan(models, measured, request, config):
     """Validate the entire path before enabling; keep the other arm in collision checks."""
     selected = sides(request.mode)
@@ -88,29 +98,9 @@ def manual_plan(models, measured, request, config):
             goal[s] = values
     else:
         raise ValueError("无效的机械臂动作")
-    delta = {s: goal[s] - measured[s] for s in goal}
-    largest = max(float(np.max(np.abs(d))) for d in delta.values())
-    for u in np.linspace(0, 1, max(2, math.ceil(largest / 0.5) + 1)):
-        q = {s: measured[s] + u * delta[s] for s in goal}
-        if any(not models.arms[s].valid_joints(q[s]) for s in q):
-            raise ValueError("动作超出厂家关节限位")
-        reason = models.collision_reason(q, config["collision_margin_m"])
-        if reason:
-            raise ValueError("路径存在干涉：" + reason)
-    speed = min(10.0, config["max_joint_speed_deg_s"])
-    accel = min(5.0 if request.kind == "zero" else 4.0, config["max_joint_accel_deg_s2"])
-    duration = 1.05 * max(
-        1, 1.875 * largest / speed, math.sqrt(10 / math.sqrt(3) * largest / accel)
-    )
-    return dict(
-        start=measured,
-        goal=goal,
-        delta=delta,
-        sides=selected,
-        duration=duration,
-        elapsed=0.0,
-        enabled_at=time.monotonic(),
-    )
+    from marvin_teleop.point_to_point import pose_plan
+    return pose_plan(models, measured, goal, selected, config,
+                     acceleration=5.0 if request.kind == "zero" else 4.0)
 
 
 def main():
@@ -203,11 +193,7 @@ def main():
             raise RuntimeError("; ".join(errors))
 
     def setup_grippers(selected):
-        gc = load_grippers(ROOT / "teleop/gripper/config.json", live=True)
-        params = TianjiParameters.model_validate(config.get("app_parameters", {}))
-        gc["motors"] = {s: m for s, m in gc["motors"].items() if s in selected}
-        for s, m in gc["motors"].items():
-            m.update(speed_rad_s=getattr(params, s + "_gripper_speed"), kp=params.kp, kd=params.kd)
+        gc = gripper_configuration(config.get("app_parameters", {}), selected)
         return Grippers(gc, True, config["vr_timeout_s"], robot=robot, rate_hz=config["rate_hz"])
 
     try:
@@ -361,9 +347,10 @@ def main():
                     else:
                         motion["elapsed"] += min(0.02, max(0.0, now - last_tick))
                         u = min(1.0, motion["elapsed"] / motion["duration"])
-                        f = 10 * u**3 - 15 * u**4 + 6 * u**5
+                        from marvin_teleop.point_to_point import pose_at
+                        planned = pose_at(motion, motion["elapsed"])
                         target = {
-                            s: motion["start"][s] + f * motion["delta"][s]
+                            s: planned[s]
                             if s in motion["sides"]
                             else measured[s]
                             for s in measured

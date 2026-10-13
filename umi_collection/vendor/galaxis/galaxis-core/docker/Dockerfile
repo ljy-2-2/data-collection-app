@@ -41,7 +41,8 @@ RUN apt-get update -y && \
 
 # install packages for galaxis_core
 RUN pip install --ignore-installed pip
-RUN pip install "airoa_metadata @ git+https://github.com/airoa-org/airoa-metadata.git@development" minio sentry-sdk "mcap>=1.2.2,<2"
+RUN pip install "airoa_metadata @ git+https://github.com/airoa-org/airoa-metadata.git@development" minio sentry-sdk "mcap>=1.2.2,<2" "pillow>=10"
+RUN python3 -c 'from io import BytesIO; from PIL import Image; data = BytesIO(); Image.new("RGB", (8, 8)).save(data, format="JPEG"); data.seek(0); Image.open(data).load()'
 
 # data-backend package (pure Python: GC, upload, state tracking)
 COPY ./galaxis-core/data-backend /root/ros2_ws/src/data-backend

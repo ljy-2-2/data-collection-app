@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { requestJson } from '../lib/http';
 
 type Mode = { id: string; label: string; width: number; height: number; fps: number };
-type Resolution = { options: Mode[]; selected: Mode | null; editable: boolean; connection?: {label?: string} };
+type Resolution = { options: Mode[]; selected: Mode | null; editable: boolean };
 export function CameraResolution({baseUrl, cameraKey, label, active, editable = true, onBusyChange}: {
   baseUrl: string; cameraKey: string; label: string; active: boolean; editable?: boolean;
   onBusyChange?: (busy: boolean) => void;
@@ -52,7 +52,7 @@ export function CameraResolution({baseUrl, cameraKey, label, active, editable = 
       <button type="button" disabled={!active || busy} onClick={() => setRetry(n => n+1)}>刷新</button>
     </div>
     <p className={error ? 'umi-camera-brightness-error' : 'umi-camera-brightness-message'} role={error ? 'alert' : 'status'}>
-      {error || (busy ? '正在读取 / 验证实际画面…' : value?.connection?.label ? `${value.connection.label} · ${editable ? '采集前验证帧率' : '采集期间锁定'}` : editable ? '按所选分辨率录制 · 采集前验证帧率' : '采集期间锁定；返回检查硬件可修改')}
+      {error || (busy ? '正在读取 / 验证实际画面…' : editable ? '按所选分辨率录制 · 采集前验证帧率' : '采集期间锁定；返回检查硬件可修改')}
     </p>
   </section>;
 }

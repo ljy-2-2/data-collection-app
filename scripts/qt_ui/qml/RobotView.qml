@@ -31,7 +31,9 @@ Item {
         }
     }
     MouseArea {
+        objectName: "tianjiOrbitArea"
         anchors.fill: parent
+        preventStealing: true
         property real lastX: 0;property real lastY: 0
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         onPressed: mouse=>{lastX=mouse.x;lastY=mouse.y}

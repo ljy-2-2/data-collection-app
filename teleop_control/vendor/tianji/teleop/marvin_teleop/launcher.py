@@ -1,6 +1,7 @@
 """Connect and launch the installed, unchanged Galaxis application. No APK writes."""
 
 import os
+import platform
 from pathlib import Path
 import socket
 import subprocess
@@ -28,11 +29,12 @@ def ensure_service(config):
     if not executable.exists():
         raise RuntimeError(f"RoboticsService not found: {executable}")
     env = os.environ.copy()
+    sdk_arch = "arm64" if platform.machine().lower() in {"aarch64", "arm64"} else "x64"
     env["LD_LIBRARY_PATH"] = ":".join(
         [
             str(directory),
             str(directory / "lib"),
-            str(directory / "SDK/x64"),
+            str(directory / "SDK" / sdk_arch),
             env.get("LD_LIBRARY_PATH", ""),
         ]
     )
@@ -82,6 +84,7 @@ class PicoLauncher:
         lines = [line.split() for line in result.splitlines()[1:] if line.strip()]
         authorized = [
             line[0] for line in lines if len(line) > 1 and line[1] == "device"
+            and not line[0].startswith("emulator-")
         ]
         requested = self.cfg["serial"]
         if requested:

@@ -1557,7 +1557,7 @@ class UmiManager:
 
         helper = self.project_root / "tools" / "web_device_config.py"
         if not helper.is_file():
-            raise RuntimeError(f"网页设备配置程序不存在: {helper}")
+            raise RuntimeError(f"UMI 设备配置程序不存在: {helper}。若运行期间移动或重命名了 App 文件夹，请从新目录重新启动 App。")
         # Carry the hardware settings seen/adjusted in preview into the existing
         # ROS brightness controllers, which otherwise reset every camera to 0.
         camera_brightness = {}

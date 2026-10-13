@@ -473,10 +473,11 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
                 (source / name).write_text('# fixture')
             (project / 'umi-runtime.json').write_text(json.dumps({'image': 'offline-test:1'}))
             with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
-                 patch.object(gc.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), \
-                 patch.object(gc, 'run_checked') as run:
+                 patch.object(gc, '_inspect_finalizer', return_value=None), \
+                 patch.object(gc, '_finalizer_require_running'), \
+                 patch.object(gc, '_finalizer_docker', return_value=SimpleNamespace(returncode=0, stdout='a' * 64)) as run:
                 gc.ensure_background_finalizer()
-            command = run.call_args.args[0]
+            command = ['docker', *run.call_args.args]
             assert command[:3] == ['docker', 'run', '--detach']
             assert command[command.index('--network') + 1] == 'none'
             assert command[command.index('--restart') + 1] == 'unless-stopped'

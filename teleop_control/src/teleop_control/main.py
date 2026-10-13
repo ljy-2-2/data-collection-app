@@ -153,7 +153,8 @@ def prepare_umi_device_check(
         "pico_detail": (
             "PICO 已连接，Galaxis VR 已打开"
             if pico_ready
-            else "请连接并解锁 PICO、允许 USB 调试，并在头显中打开 Galaxis VR"
+            else (getattr(headset_setup, "last_error", "")
+                  or "请连接并解锁 PICO、允许 USB 调试，并在头显中打开 Galaxis VR")
         ),
     }
 
@@ -337,6 +338,8 @@ def build_preview(args: argparse.Namespace) -> GdkPreview | None:
 
 
 def main() -> None:
+    from .adb_runtime import configure_adb_environment
+    configure_adb_environment()
     args = parse_args()
     # The collector must recognize this exact bridge when handing PICO from
     # robot teleoperation back to UMI, including a private packaged runtime.

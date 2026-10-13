@@ -81,7 +81,7 @@ Column {
                 x: 10;y: 61;width: parent.width-20;height: 302;radius: 10;border.color: Theme.line;color: Theme.stage;clip: true
                 Loader {anchors.fill: parent;anchors.margins: 1;active: root.tianji;source: "RobotView.qml"}
                 G2View {id: g2;visible: !root.tianji;anchors.fill: parent;anchors.margins: 1;dark: Theme.dark;live: root.live;values: {let v={};backend.g2Joints.forEach(j=>v[j.name]=s.preview.joint_positions[j.name]===undefined?j.default:s.preview.joint_positions[j.name]);return v}}
-                MouseArea {anchors.fill: parent;enabled: !root.tianji;property real px: 0;property real py: 0;cursorShape: pressed?Qt.ClosedHandCursor:Qt.OpenHandCursor;onPressed: m=>{px=m.x;py=m.y};onPositionChanged: m=>{if(pressed){g2.drag(m.x-px,m.y-py);px=m.x;py=m.y}};onWheel: w=>g2.changeZoom(w.angleDelta.y>0?1.12:.88)}
+                MouseArea {objectName: "g2OrbitArea";anchors.fill: parent;enabled: !root.tianji;preventStealing: true;property real px: 0;property real py: 0;cursorShape: pressed?Qt.ClosedHandCursor:Qt.OpenHandCursor;onPressed: m=>{px=m.x;py=m.y};onPositionChanged: m=>{if(pressed){g2.drag(m.x-px,m.y-py);px=m.x;py=m.y}};onWheel: w=>g2.changeZoom(w.angleDelta.y>0?1.12:.88)}
                 Row {visible: !root.tianji;anchors.right: parent.right;anchors.top: parent.top;anchors.margins: 8;spacing: 1
                     Btn {text: "−";width: 28;height: 28;onClicked: g2.changeZoom(.88)}
                     Btn {text: "+";width: 28;height: 28;onClicked: g2.changeZoom(1.12)}

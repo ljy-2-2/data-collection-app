@@ -21,6 +21,7 @@ from generate_runtime_config import ROOT, platform_urls, read_env
 
 sys.path.insert(0, str(ROOT / "teleop_control" / "src"))
 from teleop_control.platform_auth import PlatformTokenStore  # noqa: E402
+from teleop_control.adb_runtime import configure_adb_environment  # noqa: E402
 
 
 def port_is_open(host: str, port: int) -> bool:
@@ -85,6 +86,28 @@ def stop_previous_umi(control_host: str, control_port: int) -> None:
         raise RuntimeError(f"无法连接本机采集服务以停止 UMI：{exc}") from exc
 
 
+def request_shutdown(signum: int, _frame: object) -> None:
+    """Honor desktop/terminal shutdown even when the parent ignored SIGINT."""
+    raise KeyboardInterrupt
+
+
+def stop_process_group(process: subprocess.Popen[bytes], timeout: float = 6.0) -> None:
+    """Reap our session leader and stop its children if graceful exit stalls."""
+    if process.poll() is not None:
+        return
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=timeout)
+            return
+        except subprocess.TimeoutExpired:
+            if sig == signal.SIGKILL:
+                raise
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Robot data collection console")
     parser.add_argument("--mock", action="store_true", help="start without robot hardware")
@@ -96,6 +119,7 @@ def main() -> int:
     values.update(platform_urls(values))
     env = os.environ.copy()
     env.update(values)
+    configure_adb_environment(env)
     # A native camera/serial crash bypasses Python exceptions. Keep the fatal
     # thread traceback in the desktop launch log instead of a silent API loss.
     env["PYTHONFAULTHANDLER"] = "1"
@@ -148,6 +172,13 @@ def main() -> int:
         frontend_command = [node_bin, str(ROOT / "scripts/serve_app.mjs"), app_host, str(app_port)]
     processes: list[subprocess.Popen[bytes]] = []
     umi_initialized = False
+    # A background shell/nohup may pass SIG_IGN through exec. Python preserves
+    # that disposition, so relying on its default KeyboardInterrupt handler
+    # leaves independently started backend sessions alive on desktop shutdown.
+    previous_handlers = {
+        sig: signal.signal(sig, request_shutdown)
+        for sig in (signal.SIGINT, signal.SIGTERM)
+    }
     try:
         processes.append(subprocess.Popen(control_command, cwd=ROOT, env=env, start_new_session=True))
         require_process_started(processes[-1], "本机采集服务")
@@ -165,58 +196,64 @@ def main() -> int:
                 webbrowser.open(app_url)
         print("NATIVE_SERVICE_READY", flush=True)
         recent_restarts: list[list[float]] = [[], []]
-        try:
-            while True:
-                time.sleep(0.5)
-                for index, (label, command) in enumerate(commands):
-                    exited = processes[index]
-                    if exited.poll() is None:
-                        continue
-                    now = time.monotonic()
-                    recent_restarts[index] = [
-                        instant for instant in recent_restarts[index] if now - instant < 60
-                    ]
-                    if len(recent_restarts[index]) >= 3:
-                        raise RuntimeError(
-                            f"{label}在一分钟内连续退出，已停止自动恢复；退出码 {exited.returncode}"
-                        )
-                    recent_restarts[index].append(now)
-                    print(
-                        f"WARNING: {label}意外退出（退出码 {exited.returncode}），正在自动恢复"
-                        f"（{len(recent_restarts[index])}/3）",
-                        file=sys.stderr,
-                        flush=True,
+        while True:
+            time.sleep(0.5)
+            for index, (label, command) in enumerate(commands):
+                exited = processes[index]
+                if exited.poll() is None:
+                    continue
+                now = time.monotonic()
+                recent_restarts[index] = [
+                    instant for instant in recent_restarts[index] if now - instant < 60
+                ]
+                if len(recent_restarts[index]) >= 3:
+                    raise RuntimeError(
+                        f"{label}在一分钟内连续退出，已停止自动恢复；退出码 {exited.returncode}"
                     )
-                    replacement = subprocess.Popen(
-                        command, cwd=ROOT, env=env, start_new_session=True
-                    )
-                    processes[index] = replacement
-                    require_process_started(replacement, label)
-                    if index == 0:
-                        # A crashed control process may leave a still-running
-                        # collector. The new service restores its saved PID;
-                        # never call app-shutdown during an automatic restart.
-                        wait_for_control_service(replacement, control_host, control_port)
-                    print(f"{label}已恢复", flush=True)
-        except KeyboardInterrupt:
-            return 0
+                recent_restarts[index].append(now)
+                print(
+                    f"WARNING: {label}意外退出（退出码 {exited.returncode}），正在自动恢复"
+                    f"（{len(recent_restarts[index])}/3）",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                replacement = subprocess.Popen(
+                    command, cwd=ROOT, env=env, start_new_session=True
+                )
+                processes[index] = replacement
+                require_process_started(replacement, label)
+                if index == 0:
+                    # A crashed control process may leave a still-running
+                    # collector. The new service restores its saved PID;
+                    # never call app-shutdown during an automatic restart.
+                    wait_for_control_service(replacement, control_host, control_port)
+                print(f"{label}已恢复", flush=True)
+    except KeyboardInterrupt:
+        # Closing during startup must follow the same cleanup as a ready App.
+        return 0
     except (OSError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     finally:
+        # A second close request must not interrupt saving/stopping a recording
+        # or prevent us from waiting for the independently spawned services.
+        for sig in previous_handlers:
+            signal.signal(sig, signal.SIG_IGN)
         if umi_initialized and processes and processes[0].poll() is None:
             try:
                 stop_previous_umi(control_host, control_port)
             except RuntimeError as exc:
                 print(f"WARNING: {exc}", file=sys.stderr)
         for process in reversed(processes):
-            if process.poll() is None:
-                try:
-                    os.killpg(process.pid, signal.SIGINT)
-                    process.wait(timeout=6)
-                except (OSError, subprocess.TimeoutExpired):
-                    process.terminate()
-        clear_previous_app_login(values)
+            try:
+                stop_process_group(process)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                print(f"WARNING: 无法停止本机服务 {process.pid}：{exc}", file=sys.stderr)
+        try:
+            clear_previous_app_login(values)
+        finally:
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
 
 
 if __name__ == "__main__":
