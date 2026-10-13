@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">Galaxis 双夹爪镜像关系</title>
+  <desc id="desc">左侧显示单只夹爪局部坐标中主动指和从动指，右侧显示左右 Pico controller 相对于各自 hand_root 的镜像放置。Xacro 未固定两只 hand_root 在 pico_origin 中的实际位姿。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" fill="#334155"/></marker>
+    <marker id="orangeArrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" fill="#d97706"/></marker>
+    <style>
+      text{font-family:Arial,'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#172033}.h{font-size:22px;font-weight:700}.s{font-size:16px}.tiny{font-size:14px}.axis{stroke:#334155;stroke-width:2;marker-end:url(#arrow)}.joint{fill:#d97706;stroke:#92400e;stroke-width:2}.passive{fill:#64748b;stroke:#334155;stroke-width:2}.palm{fill:#dbeafe;stroke:#2563eb;stroke-width:2}.finger{fill:#f8fafc;stroke:#475569;stroke-width:2}.dash{fill:none;stroke:#94a3b8;stroke-width:2;stroke-dasharray:7 6}.guide{stroke:#cbd5e1;stroke-width:1.5}.mountR{fill:#dbeafe;stroke:#2563eb;stroke-width:2}.mountL{fill:#fce7f3;stroke:#db2777;stroke-width:2}.orange{stroke:#d97706;stroke-width:3;marker-end:url(#orangeArrow)}</style>
+  </defs>
+  <rect width="1120" height="620" fill="#ffffff"/>
+  <text x="40" y="42" class="h">A. 单只夹爪（无论 hand_prefix 为 right 或 left，局部定义相同）</text>
+  <rect x="38" y="70" width="470" height="450" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="72" y="107" class="s">hand_root 局部俯视图：+x 向前，+y 向左</text>
+  <line x1="155" y1="295" x2="260" y2="295" class="axis"/><text x="238" y="283" class="tiny">+x</text>
+  <line x1="155" y1="295" x2="155" y2="190" class="axis"/><text x="166" y="205" class="tiny">+y</text>
+  <rect x="190" y="235" width="130" height="120" rx="8" class="palm"/><text x="214" y="300" class="s">hand_root</text>
+  <rect x="316" y="175" width="126" height="42" rx="12" class="finger"/><rect x="316" y="373" width="126" height="42" rx="12" class="finger"/>
+  <circle cx="300" cy="197" r="12" class="passive"/><circle cx="300" cy="394" r="12" class="joint"/>
+  <line x1="300" y1="394" x2="350" y2="444" class="orange"/>
+  <text x="355" y="461" class="tiny" fill="#92400e">axis = (0,0,-1)</text>
+  <text x="80" y="385" class="s" fill="#92400e">主动指 / 编码器轴</text><text x="80" y="408" class="tiny">right_finger_joint</text><text x="80" y="430" class="tiny">局部 y = -20 mm，q ∈ [0, 0.66]</text>
+  <text x="80" y="153" class="s">从动指</text><text x="80" y="176" class="tiny">left_finger_joint</text><text x="80" y="198" class="tiny">局部 y = +20 mm，q_left = −q_right</text>
+  <path d="M300 197 C365 244 365 347 300 394" class="dash" marker-end="url(#arrow)"/>
+  <text x="184" y="485" class="tiny">两根手指关于局部 y=0 对称；主动/从动并不对称。</text>
+  <text x="570" y="42" class="h">B. 手柄相对各自夹爪 root 的镜像放置（俯视）</text>
+  <rect x="558" y="70" width="522" height="450" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="590" y="107" class="s">+Y 指向图上方；单位：mm；仅展示 hand_root→controller 的 XY 投影</text>
+  <line x1="815" y1="457" x2="950" y2="457" class="axis"/><text x="931" y="443" class="tiny">+X</text>
+  <line x1="815" y1="457" x2="815" y2="322" class="axis"/><text x="826" y="340" class="tiny">+Y</text>
+  <circle cx="815" cy="457" r="6" fill="#172033"/><text x="826" y="479" class="tiny">仅作读图参考</text>
+  <g transform="translate(705 380) rotate(-45)"><rect x="-63" y="-28" width="126" height="56" rx="8" class="mountR"/><line x1="0" y1="0" x2="57" y2="0" class="axis"/><text x="-35" y="6" class="tiny">右手 root</text></g>
+  <g transform="translate(925 270) rotate(45)"><rect x="-63" y="-28" width="126" height="56" rx="8" class="mountL"/><line x1="0" y1="0" x2="57" y2="0" class="axis"/><text x="-35" y="6" class="tiny">左手 root</text></g>
+  <circle cx="705" cy="380" r="10" class="joint"/><circle cx="925" cy="270" r="10" class="joint"/>
+  <text x="586" y="477" class="tiny">右：controller 相对 root</text><text x="586" y="496" class="tiny">(-63, -30.5, 52.5)</text>
+  <text x="844" y="280" class="tiny">左：controller 相对 root</text><text x="844" y="299" class="tiny">(-63, +30.5, 52.5)</text>
+  <path d="M705 380 C752 350 878 300 925 270" class="dash"/>
+  <text x="640" y="142" class="s">位置：右 y=-30.5 mm，左 y=+30.5 mm（x、z 相同）</text>
+  <text x="640" y="168" class="s">姿态：两者 pitch=-45°；yaw 分别为 -45° / +45°</text>
+  <text x="590" y="552" class="tiny">结论：controller 的相对安装互为镜像；hand_root 的全局位姿由 floating joint 在运行时给出。</text>
+</svg>

@@ -1,0 +1,285 @@
+# Summary of fields referenced in this file
+# This model matches the Galaxis portable rig: PICO, two MT7V0 grippers,
+# and left/right/center USB cameras. It intentionally has no footpedal feature.
+#
+# Observations (states):
+#   /tf_chain (each frame exposes transform / delta_transform / is_fresh)
+#     - /pico_origin/pico_hmd                             : PICO HMD pose
+#     - /pico_origin/pico_{left, right}_controller        : PICO controller pose
+#     - /pico_origin/{left, right}_hand_root              : hand root pose
+#     - /pico_origin/{left, right}_hand_cam_link          : hand camera link pose
+#     - /pico_origin/{left, right}_{left, right}_finger_tip_link
+#                                                         : finger tip pose
+#                                                           (outer = hand side, inner = finger side)
+#     - /left_hand_root/right_hand_root                   : right hand pose relative to left hand
+#   /joint_states (each field exposes position / is_fresh)
+#     - /position                                         : finger joint positions
+#                                                           [left_left_finger_joint, right_right_finger_joint]
+#     - /is_fresh                                         : freshness flag for the joint positions
+#
+#   For each pose above:
+#     transform       -> absolute pose       [x, y, z, qx, qy, qz, qw]
+#     delta_transform -> per-step delta pose [dx, dy, dz, dqx, dqy, dqz, dqw]
+#     is_fresh        -> freshness flag for the absolute transform
+#
+# Observations (images):
+#   /{left, right}_camera/image_raw/compressed         : side cameras (Video + /is_fresh)
+#   /center_camera/image_raw/compressed                : center camera (Video + /is_fresh)
+#
+# Actions:
+#   /tf_chain            /pico_origin/pico_{left, right}_controller/delta_transform + is_fresh
+#                                                      : controller delta action
+#   /joint_states/action /position + is_fresh         : finger joint position action
+#                                                        [left_left_finger_joint, right_right_finger_joint]
+
+# Observations (states)
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_hmd/transform
+  feature: observation.pose.hmd.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_hmd/delta_transform
+  feature: observation.pose.hmd.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_hmd/is_fresh
+  feature: observation.pose.hmd.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_left_controller/transform
+  feature: observation.pose.left_controller.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_left_controller/delta_transform
+  feature: observation.pose.left_controller.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_left_controller/is_fresh
+  feature: observation.pose.left_controller.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_right_controller/transform
+  feature: observation.pose.right_controller.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_right_controller/delta_transform
+  feature: observation.pose.right_controller.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_right_controller/is_fresh
+  feature: observation.pose.right_controller.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_root/transform
+  feature: observation.pose.left_hand_root.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_root/delta_transform
+  feature: observation.pose.left_hand_root.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_root/is_fresh
+  feature: observation.pose.left_hand_root.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_root/transform
+  feature: observation.pose.right_hand_root.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_root/delta_transform
+  feature: observation.pose.right_hand_root.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_root/is_fresh
+  feature: observation.pose.right_hand_root.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_cam_link/transform
+  feature: observation.pose.left_hand_cam.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_cam_link/delta_transform
+  feature: observation.pose.left_hand_cam.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_cam_link/is_fresh
+  feature: observation.pose.left_hand_cam.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_cam_link/transform
+  feature: observation.pose.right_hand_cam.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_cam_link/delta_transform
+  feature: observation.pose.right_hand_cam.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_cam_link/is_fresh
+  feature: observation.pose.right_hand_cam.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_left_finger_tip_link/transform
+  feature: observation.pose.left_left_finger_tip.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_left_finger_tip_link/delta_transform
+  feature: observation.pose.left_left_finger_tip.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_left_finger_tip_link/is_fresh
+  feature: observation.pose.left_left_finger_tip.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_right_finger_tip_link/transform
+  feature: observation.pose.left_right_finger_tip.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_right_finger_tip_link/delta_transform
+  feature: observation.pose.left_right_finger_tip.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_right_finger_tip_link/is_fresh
+  feature: observation.pose.left_right_finger_tip.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_left_finger_tip_link/transform
+  feature: observation.pose.right_left_finger_tip.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_left_finger_tip_link/delta_transform
+  feature: observation.pose.right_left_finger_tip.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_left_finger_tip_link/is_fresh
+  feature: observation.pose.right_left_finger_tip.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_right_finger_tip_link/transform
+  feature: observation.pose.right_right_finger_tip.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_right_finger_tip_link/delta_transform
+  feature: observation.pose.right_right_finger_tip.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_right_finger_tip_link/is_fresh
+  feature: observation.pose.right_right_finger_tip.absolute.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /left_hand_root/right_hand_root/transform
+  feature: observation.pose.left_hand_root_to_right_hand_root.absolute
+  names: [x, y, z, qx, qy, qz, qw]
+- type: Parquet
+  topic: /tf_chain
+  field: /left_hand_root/right_hand_root/delta_transform
+  feature: observation.pose.left_hand_to_right_hand.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /left_hand_root/right_hand_root/is_fresh
+  feature: observation.pose.left_hand_root_to_right_hand_root.absolute.is_fresh
+- type: Parquet
+  topic: /joint_states
+  field: /position
+  feature: observation.joint_states
+  names: [left_left_finger_joint, right_right_finger_joint]
+- type: Parquet
+  topic: /joint_states
+  field: /is_fresh
+  feature: observation.joint_states.is_fresh
+  names: [left_left_finger_joint, right_right_finger_joint]
+
+# Observations (images)
+- type: Parquet
+  topic: /left_camera/image_raw/compressed
+  field: /is_fresh
+  feature: observation.image.left.is_fresh
+- type: Parquet
+  topic: /right_camera/image_raw/compressed
+  field: /is_fresh
+  feature: observation.image.right.is_fresh
+- type: Parquet
+  topic: /center_camera/image_raw/compressed
+  field: /is_fresh
+  feature: observation.image.center.is_fresh
+- type: Video
+  topic: /left_camera/image_raw/compressed
+  feature: observation.image.left
+  names: [height, width, channel]
+- type: Video
+  topic: /right_camera/image_raw/compressed
+  feature: observation.image.right
+  names: [height, width, channel]
+- type: Video
+  topic: /center_camera/image_raw/compressed
+  feature: observation.image.center
+  names: [height, width, channel]
+# Actions
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_left_controller/delta_transform
+  feature: action.left_controller.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_left_controller/is_fresh
+  feature: action.left_controller.relative.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_right_controller/delta_transform
+  feature: action.right_controller.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/pico_right_controller/is_fresh
+  feature: action.right_controller.relative.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_root/delta_transform
+  feature: action.pose.left_hand_root.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/left_hand_root/is_fresh
+  feature: action.pose.left_hand_root.relative.is_fresh
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_root/delta_transform
+  feature: action.pose.right_hand_root.relative
+  names: [dx, dy, dz, dqx, dqy, dqz, dqw]
+- type: Parquet
+  topic: /tf_chain
+  field: /pico_origin/right_hand_root/is_fresh
+  feature: action.pose.right_hand_root.relative.is_fresh
+- type: Parquet
+  topic: /joint_states/action
+  field: /position
+  feature: action.joint_states
+  names: [left_left_finger_joint, right_right_finger_joint]
+- type: Parquet
+  topic: /joint_states/action
+  field: /is_fresh
+  feature: action.joint_states.is_fresh

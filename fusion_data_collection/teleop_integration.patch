@@ -1,0 +1,63 @@
+--- Marvin-VR-Teleop/marvin_teleop/__main__.py
++++ Marvin-VR-Teleop/marvin_teleop/__main__.py
+@@ -170,6 +170,8 @@
+     parser = argparse.ArgumentParser(
+         description="Marvin M6 CCS 双臂 PICO 遥操：默认仿真，--live 实机"
+     )
++    parser.add_argument("--collection-telemetry", action="store_true",
++                        help="向本机采集脚本发布只读反馈和 A/B 按键；保留原 B/Y 急停")
+     parser.add_argument(
+         "--config", default=str(Path(__file__).with_name("config.json"))
+     )
+@@ -451,6 +453,11 @@
+         stack.callback(vr.close)
+         status = Status(c["status_port"])
+         stack.callback(status.close)
++        collection_publisher = None
++        if args.collection_telemetry:
++            from .collection_telemetry import Publisher
++            collection_publisher = Publisher()
++            stack.callback(collection_publisher.close)
+         observer = None
+         if args.viewer:
+             from .visualization import Observer
+@@ -719,6 +726,8 @@
+             value["loop_ms"] = round((time.monotonic() - now) * 1000, 2)
+             with status.lock:
+                 status.value = value
++            if collection_publisher is not None:
++                collection_publisher.submit(value, frame, connected)
+             control_state = (
+                 tuple((s, a.mode, a.preparing, a.pause_count) for s, a in ctrl.arms.items()),
+                 value["grippers"]["fault"] if value["grippers"] else "",
+--- Marvin-VR-Teleop/marvin_teleop/protocol.py
++++ Marvin-VR-Teleop/marvin_teleop/protocol.py
+@@ -78,6 +78,7 @@
+     release_epochs: dict = field(default_factory=lambda: {"left": 0, "right": 0})
+     control_grips: dict | None = None
+     triggers: dict = field(default_factory=dict)
++    buttons: dict = field(default_factory=dict)
+ 
+ 
+ def parse_frame(data, session, received):
+@@ -119,6 +120,8 @@
+         grips,
+         any(controls[s].get("secondaryButton") is True for s in hands),
+         triggers=triggers,
++        buttons={"A": controls["right"].get("primaryButton"),
++                 "B": controls["right"].get("secondaryButton")},
+     )
+ 
+ 
+--- Marvin-VR-Teleop/marvin_teleop/xr_worker.py
++++ Marvin-VR-Teleop/marvin_teleop/xr_worker.py
+@@ -38,6 +38,9 @@
+                         "trigger": float(getattr(sdk, f"get_{side}_trigger")()),
+                         "secondaryButton": bool(getattr(sdk, f"get_{button}_button")()),
+                     }
++                    primary = getattr(sdk, "get_A_button" if side == "right" else "get_X_button", None)
++                    if primary is not None:
++                        data["Controller"][side]["primaryButton"] = bool(primary())
+                 # Reject a mixture of frames if the shared service updated during reads.
+                 if int(sdk.get_time_stamp_ns()) == stamp:
+                     print("MARVIN_XR " + json.dumps(data, allow_nan=False), flush=True)

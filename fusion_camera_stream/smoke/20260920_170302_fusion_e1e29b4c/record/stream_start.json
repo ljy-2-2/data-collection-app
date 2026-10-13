@@ -1,0 +1,25 @@
+{
+  "hz": 30,
+  "ok": true,
+  "joint_hz": 100,
+  "timestamp_clock": "FUSION CLOCK_MONOTONIC",
+  "bytes": 0,
+  "cameras": [
+    "usb-1",
+    "usb-2",
+    "usb-4"
+  ],
+  "native_size": [
+    1024,
+    768
+  ],
+  "controller_unix_ns": 1789923814501532160,
+  "joint_source": "/dev/FXDcss PROT_READ",
+  "seconds": 5,
+  "version": "2.1.0",
+  "controller_monotonic_ns": 20642501524154,
+  "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+  "type": "start",
+  "pc_recv_ns": 1789894982649045325,
+  "pc_recv_monotonic_ns": 29357646453841
+}

@@ -1,0 +1,30 @@
+# Right-arm-only raw collection for Diffusion Policy training.
+robot_type: agibot_g2
+output_root: ~/agibot_episodes/right_arm
+poll_hz: 100
+fetch_workers: 2
+queue_depth: 8
+clock_offset_hz: 1.0
+jpeg_passthrough: true
+depth_png: false
+
+bundle:
+  record_all: true
+  essential_keys: [state__joint__position, state__right_effector__position]
+
+cameras:
+  - name: head_color
+    essential: true
+    staleness_budget_ms: 50
+  - name: hand_right_color
+    essential: true
+    staleness_budget_ms: 50
+    # The 1280x1056 hand JPEG commonly arrives after the bundle and later than
+    # the smaller head image. Keep exact timestamp matching, but allow up to
+    # 24 ms for the referenced frame while preview and inference read in parallel.
+    retries: 6
+    retry_sleep_ms: 4
+
+imus: []
+lidars: []
+ultrasonic: false

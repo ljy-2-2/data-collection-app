@@ -1,0 +1,52 @@
+{
+  "saved_format_verified": true,
+  "gripper_samples": 166,
+  "per_side": {
+    "left": {
+      "count": 166,
+      "span_s": 5.501429473,
+      "actual_hz": 29.992204900524406,
+      "interval_ms": {
+        "p50": 33.27461,
+        "p95": 34.845648,
+        "p99": 52.569498,
+        "max": 53.5901
+      }
+    },
+    "right": {
+      "count": 166,
+      "span_s": 5.489875709,
+      "actual_hz": 30.05532524707291,
+      "interval_ms": {
+        "p50": 33.017388,
+        "p95": 37.673016,
+        "p99": 47.385734,
+        "max": 49.275409
+      }
+    }
+  },
+  "within_joint_recording_window": {
+    "count": 150,
+    "span_s": 4.970810403,
+    "actual_hz": 29.974991584888254,
+    "interval_ms": {
+      "p50": 33.052183,
+      "p95": 38.062183,
+      "p99": 48.350288,
+      "max": 49.275409
+    }
+  },
+  "scheduled_ticks_skipped": 0,
+  "two_sides_query_span_ms": {
+    "p50": 25.264836,
+    "p95": 28.041,
+    "p99": 39.432975,
+    "max": 42.294118
+  },
+  "all_bundles_have_both_grippers": true,
+  "clock_mapping_arithmetic_verified": true,
+  "whitelisted_read_requests": 688,
+  "duplicate_old_register_replies": 299,
+  "physical_calibration_valid": false,
+  "feedback_hardware_sampling_time_or_freshness_proven": false
+}

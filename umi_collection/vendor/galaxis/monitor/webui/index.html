@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>采集监看 · Galaxis Monitor</title>
+  <script>
+    // 提前应用主题与语言,避免刷新闪变
+    (function () {
+      try {
+        var theme = localStorage.getItem("galaxis-theme") || "dark";
+        document.documentElement.setAttribute("data-theme", theme);
+        var lang = localStorage.getItem("galaxis-lang") || "zh";
+        document.documentElement.setAttribute("data-lang", lang);
+      } catch (e) { /* 忽略存储限制 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="css/studio.css?v=20260820x" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e13'/%3E%3Ccircle cx='11' cy='11' r='4' fill='%2334d5c5'/%3E%3Ccircle cx='21' cy='11' r='4' fill='%2334d5c5' opacity='.55'/%3E%3Ccircle cx='16' cy='21' r='4' fill='%237c8cff' opacity='.8'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <!-- ======================= Header ======================= -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="4.2" fill="var(--accent)"/>
+        <circle cx="21.5" cy="10.5" r="4.2" fill="var(--accent)" opacity=".5"/>
+        <circle cx="16" cy="21.5" r="4.2" fill="var(--accent-2)" opacity=".85"/>
+      </svg>
+      <span class="brand-name">Galaxis<em>Monitor</em></span>
+      <span class="brand-tag">COLLECT</span>
+    </div>
+
+    <div class="topbar-right">
+      <button class="icon-btn header-btn" id="btn-theme" title="切换主题 / Theme">☀</button>
+      <button class="icon-btn header-btn" id="btn-lang" title="中文 / English">EN</button>
+      <span class="chip" id="chip-mode" title="桥接运行模式">MOCK</span>
+      <span class="chip" id="chip-ros" title="ROS 连接状态">
+        <i class="dot"></i><span>ROS 未连接</span>
+      </span>
+      <span class="chip" id="chip-record" title="录制状态">
+        <i class="dot"></i><span>未录制</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- ======================= Main ======================= -->
+  <main class="layout">
+    <!-- 相机区域(数量自适应,由桥接按采集 profile 决定) -->
+    <section class="camera-grid" id="camera-grid" aria-label="相机监控区">
+      <!-- 相机卡片由 js/streams.js 根据 /api/state 动态生成 -->
+    </section>
+
+    <!-- 设备状态区:VR 与磁编码器,位于画面下方 -->
+    <section class="device-strip" aria-label="设备状态区">
+      <section class="card vr-card">
+        <header class="card-head"><h2 data-i18n="vrStatus">VR 状态</h2></header>
+        <div class="vr-grid">
+          <div class="vr-cell" data-device="hmd">
+            <div class="vr-top">
+              <span class="vr-name" data-i18n="hmd">头显</span>
+              <span class="vr-state offline">离线</span>
+              <span class="hz-badge" data-field="hz">-- Hz</span>
+            </div>
+            <div class="vr-pos"><span class="pose-label" data-i18n="position">位置</span><span class="pose-value" data-field="pos">--</span></div>
+            <div class="vr-rot"><span class="pose-label" data-i18n="rotation">姿态</span><span class="pose-value" data-field="rot">--</span></div>
+          </div>
+          <div class="vr-cell" data-device="left">
+            <div class="vr-top">
+              <span class="vr-name" data-i18n="leftCtrl">左手柄</span>
+              <span class="vr-state offline">离线</span>
+              <span class="hz-badge" data-field="hz">-- Hz</span>
+            </div>
+            <div class="vr-pos"><span class="pose-label" data-i18n="position">位置</span><span class="pose-value" data-field="pos">--</span></div>
+            <div class="vr-rot"><span class="pose-label" data-i18n="rotation">姿态</span><span class="pose-value" data-field="rot">--</span></div>
+          </div>
+          <div class="vr-cell" data-device="right">
+            <div class="vr-top">
+              <span class="vr-name" data-i18n="rightCtrl">右手柄</span>
+              <span class="vr-state offline">离线</span>
+              <span class="hz-badge" data-field="hz">-- Hz</span>
+            </div>
+            <div class="vr-pos"><span class="pose-label" data-i18n="position">位置</span><span class="pose-value" data-field="pos">--</span></div>
+            <div class="vr-rot"><span class="pose-label" data-i18n="rotation">姿态</span><span class="pose-value" data-field="rot">--</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card encoder-card">
+        <header class="card-head"><h2 data-i18n="encoders">磁编码器</h2></header>
+        <div class="encoder-grid">
+          <div class="encoder-row" data-side="left">
+            <div class="encoder-top">
+              <span class="encoder-name" data-i18n="left">左手</span>
+              <span class="encoder-id" data-field="id">--</span>
+              <span class="hz-badge" data-field="hz">-- Hz</span>
+            </div>
+            <div class="encoder-bottom">
+              <span class="encoder-value" data-field="value">--</span>
+            </div>
+          </div>
+          <div class="encoder-row" data-side="right">
+            <div class="encoder-top">
+              <span class="encoder-name" data-i18n="right">右手</span>
+              <span class="encoder-id" data-field="id">--</span>
+              <span class="hz-badge" data-field="hz">-- Hz</span>
+            </div>
+            <div class="encoder-bottom">
+              <span class="encoder-value" data-field="value">--</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- 采集统计与事件日志合并卡片 -->
+    <section class="card stats-log-card" aria-label="采集统计与日志">
+      <div class="stats-part">
+        <header class="card-head">
+          <h2 data-i18n="stats">采集统计</h2>
+          <span class="badge" id="badge-status">待机</span>
+        </header>
+        <div class="task-row">
+          <span class="task-kind-label" data-i18n="taskKind">任务种类</span>
+          <span class="task-kind" id="task-kind">未确认</span>
+        </div>
+        <div class="episode-count">
+          <span class="count" id="episode-count">0</span>
+          <span class="count-unit" data-i18n="episodes">个 Episode</span>
+          <span class="episode-label" id="episode-label">当前回合: —</span>
+        </div>
+        <dl class="episode-meta">
+          <div><dt data-i18n="episodeElapsed">Episode 计时</dt><dd id="episode-elapsed">00:00</dd></div>
+          <div><dt data-i18n="subtaskElapsed">子任务计时</dt><dd id="subtask-elapsed">00:00</dd></div>
+        </dl>
+      </div>
+      <div class="logs-part">
+        <header class="card-head">
+          <h2 data-i18n="logs">事件日志</h2>
+          <button class="icon-btn" id="log-clear" title="清空">⌫</button>
+        </header>
+        <div class="log-scroll" id="log-scroll" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======================= 底部操作栏 ======================= -->
+  <footer class="bottombar">
+    <div class="bottombar-summary">
+      <span class="chip plain" id="footer-state">等待桥接连接…</span>
+      <span class="chip plain" id="footer-video">相机: --</span>
+    </div>    <div class="bottombar-actions" id="control-actions" hidden>
+      <button class="btn btn-primary" id="btn-start" data-i18n="startRecording">开始录制</button>
+      <button class="btn btn-danger" id="btn-stop" data-i18n="stopRecording">停止录制</button>
+      <button class="btn" id="btn-cancel" data-i18n="cancelRecording">取消录制</button>
+    </div>
+    <div class="bottombar-right">
+      <span class="storage-tiny" id="storage-tiny">存储 --</span>
+      <span class="bottombar-version">Galaxis Monitor · v0.1.0</span>
+    </div>
+  </footer>
+
+  <script src="js/i18n.js?v=20260820x"></script>
+  <script src="js/api.js?v=20260820x"></script>
+  <script src="js/streams.js?v=20260821d"></script>
+  <script src="js/monitor.js?v=20260820x"></script>
+</body>
+</html>

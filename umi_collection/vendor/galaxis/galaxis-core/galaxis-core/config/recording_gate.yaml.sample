@@ -1,0 +1,220 @@
+# =============================================================================
+# Recording Gate — Configuration
+# =============================================================================
+#
+# Controls whether recording is allowed, blocked, or hard-stopped based on
+# configurable conditions. Copy this file and customize for your robot.
+#
+# All parameters are [CONFIG] — set once, read at node startup.
+#
+# Spec: docs/recording_gate_v2_spec.md
+#
+# =============================================================================
+
+# Evaluation frequency (Hz). All groups evaluated on each tick.
+eval_rate: 2.0
+
+# Startup settle: all conditions in a group must pass continuously for this
+# duration before the group clears. Prevents false-OK on sensor warm-up.
+settle_sec: 20.0
+
+# Recovery hold: after gate was open and a condition fails, all conditions
+# must hold for this duration before re-opening. Prevents flapping.
+recovery_sec: 5.0
+
+# Default escalation level for conditions that don't specify one.
+#   0 = OK (condition failure is informational only)
+#   1 = BLOCK_START (cannot start new recording, ongoing continues)
+#   2 = HARD_STOP (ongoing recording must be stopped)
+default_escalation: 2
+
+# Global default for transient-local (latched) QoS on subscriptions.
+# Per-condition `latch:` overrides this. Defaults to true for single_shot.
+latch: false
+
+# =============================================================================
+# Condition Groups
+# =============================================================================
+#
+# Each group has independent settle/recovery timing and contains conditions
+# that share a default checker type and escalation.
+#
+# Group-level settings (all optional, inherit from global defaults):
+#   settle_sec          — override startup settle for this group
+#   recovery_sec        — override recovery hold for this group
+#   default_type        — checker type for conditions (unless overridden per condition)
+#   default_escalation  — escalation for conditions (unless overridden per condition)
+#   default_debounce_sec — debounce for conditions (unless overridden per condition)
+#   enabled             — disable entire group (default: true)
+#
+# Condition-level settings (all optional, inherit from group defaults):
+#   type          — checker type (overrides group default_type)
+#   escalation    — escalation level (overrides group default_escalation)
+#   debounce_sec  — condition must stay true this long before counting (default: 0)
+#   enabled       — disable individual condition (default: true)
+#   topic         — ROS topic to monitor (required for most types)
+#
+# topic_condition extras (all optional):
+#   absence_timeout_sec — grace period (sec) a topic may stay unadvertised
+#                         before it counts as failing (default: 0.0 = fail as
+#                         soon as it is absent, subject to settle/inactive-safe)
+#   absence_escalation  — escalation level to apply specifically when the
+#                         topic is absent/unadvertised (default: escalation)
+#
+# =============================================================================
+
+groups:
+
+  # ---------------------------------------------------------------------------
+  # Safety — emergency stops, safety PLCs
+  # ---------------------------------------------------------------------------
+  # Fast settle (5s) and fast recovery (2s) — safety signals are clean,
+  # should respond quickly.
+  safety:
+    settle_sec: 5.0
+    recovery_sec: 2.0
+    default_type: topic_condition
+    conditions:
+
+      # E-stop button: std_msgs/Bool, false = not pressed = safe.
+      # Use `condition` expression to check message content.
+      # Optional `reason` template for human-readable failure messages.
+      # Variables: {msg.*}, {condition}, {name}, {detail}
+      # If omitted, auto-generates with actual values from the message.
+      estop:
+        enabled: false
+        topic: /runstop_button
+        condition: "not msg.data"
+        timeout_sec: 5.0
+        # reason: "E-stop is pressed (raw={msg.data})"
+
+      # Wireless stop: same pattern as estop.
+      # wireless_stop:
+      #   topic: /wireless_stop
+      #   condition: "not msg.data"
+      #   timeout_sec: 5.0
+
+  # ---------------------------------------------------------------------------
+  # Health — topic presence, freshness, and message rate
+  # ---------------------------------------------------------------------------
+  # Longer settle (20s) for sensor warm-up. Longer recovery (10s) to avoid
+  # flapping on brief network dropouts.
+  health:
+    settle_sec: 20.0
+    recovery_sec: 10.0
+    default_type: topic_condition
+    conditions:
+
+      # Joint states heartbeat: verifies the topic is publishing.
+      # No `condition` field — just checks presence and freshness.
+      joint_states:
+        enabled: false
+        topic: /joint_states
+        timeout_sec: 5.0
+        expected_type: "sensor_msgs/msg/JointState"
+
+      # Single-shot / latched topic: requires one message, then always passes.
+      # Useful for latched topics like /robot_description.
+      # single_shot bypasses settle (settle only applies to periodic conditions).
+      # latch: true (default when single_shot) uses transient-local QoS so the
+      # subscription receives the retained message even after late discovery.
+      # robot_description:
+      #   topic: /robot_description
+      #   single_shot: true
+      #   latch: true          # default for single_shot, can be set independently
+
+      # Camera feed with rate check: blocks if frame rate drops.
+      # `rate_escalation: 1` means low rate blocks new recordings
+      # but doesn't hard-stop an ongoing one.
+      # head_camera:
+      #   topic: /camera/color/image_raw/compressed
+      #   timeout_sec: 3.0
+      #   min_rate_hz: 25.0
+      #   rate_window_sec: 5.0
+      #   rate_escalation: 1
+      #   debounce_sec: 2.0
+      #   reason: "Camera frame rate too low ({detail})"
+
+      # Topic with content expression: checks message field values.
+      # Expression is AST-validated at startup — only attribute access,
+      # comparisons, boolean ops, and basic arithmetic are allowed.
+      # joint_limits:
+      #   topic: /joint_states
+      #   condition: "msg.position[0] > -1.5 and msg.position[0] < 1.5"
+      #   timeout_sec: 2.0
+
+  # ---------------------------------------------------------------------------
+  # Diagnostics — error rate monitoring
+  # ---------------------------------------------------------------------------
+  # Counts ERROR-level entries in DiagnosticArray over a sliding window.
+  diagnostics:
+    settle_sec: 10.0
+    default_type: diagnostics_error_rate
+    conditions:
+
+      # Warn level: blocks new recordings after 3 errors in 10s.
+      errors_warn:
+        enabled: false
+        topic: /diagnostics_agg
+        max_errors: 3
+        window_sec: 10.0
+        escalation: 1
+        name_filter: ""           # empty = count all diagnostic names
+
+      # Critical level: hard-stops recording after 5 errors in 30s.
+      errors_critical:
+        enabled: false
+        topic: /diagnostics_agg
+        max_errors: 5
+        window_sec: 30.0
+
+  # ---------------------------------------------------------------------------
+  # TF — transform availability
+  # ---------------------------------------------------------------------------
+  # Verifies specific TF frames are available (and optionally fresh).
+  # tf:
+  #   default_type: tf_availability
+  #   conditions:
+  #     base_link:
+  #       frames:
+  #         - source: "odom"
+  #           target: "base_link"
+  #           max_age_sec: -1.0   # -1 = no age check, just availability
+  #       timeout_sec: 5.0
+
+  # ---------------------------------------------------------------------------
+  # Duration Limits — episode/subtask time caps
+  # ---------------------------------------------------------------------------
+  # Monitors elapsed time topics published by task_sequence_manager.
+  # Designed as inactive-safe: timeout_sec=-1.0 means no message = PASS
+  # (topic only exists during recording).
+  duration_limits:
+    default_type: topic_condition
+    conditions:
+
+      # Warn level: blocks new recordings after 90s subtask.
+      subtask_warn:
+        enabled: false
+        topic: /task_sequence_manager/subtask_elapsed_sec
+        condition: "msg.data < 90.0"
+        escalation: 1
+        timeout_sec: -1.0
+
+      # Hard limit: hard-stops recording after 120s subtask.
+      subtask_limit:
+        enabled: false
+        topic: /task_sequence_manager/subtask_elapsed_sec
+        condition: "msg.data < 120.0"
+        timeout_sec: -1.0
+
+  # ---------------------------------------------------------------------------
+  # Custom — Python checker class
+  # ---------------------------------------------------------------------------
+  # Set `type` to a Python import path: "module.path:ClassName"
+  # Class must subclass ConditionChecker and implement setup() + evaluate().
+  # custom:
+  #   conditions:
+  #     my_check:
+  #       type: "my_package.checks:BatteryTempChecker"
+  #       topic: /battery_state
+  #       max_temp: 45.0

@@ -1,0 +1,828 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="marvin_r_with_gripper">
+  <link name="Base_R">
+    <inertial>
+      <origin xyz="0.00032267 4.798E-05 0.04066353" rpy="0 0 0" />
+      <mass value="1.1962" />
+      <inertia ixx="0.00107329" ixy="-1.68E-06" ixz="-1.05E-05" iyy="0.00107003" iyz="-3.43E-06" izz="0.00127315" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Base_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Base_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Link1_R">
+    <inertial>
+      <origin xyz="0.00002347 0.00557150 -0.03075998" rpy="0 0 0" />
+      <mass value="1.9705" />
+      <inertia ixx="0.00492293" ixy="0.00000550" ixz="0.00000193" iyy="0.00526513" iyz="0.00033232" izz="0.00188107" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link1_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link1_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint1_R" type="revolute">
+    <origin xyz="0 0 0.1745" rpy="0 0 0" />
+    <parent link="Base_R" />
+    <child link="Link1_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.1067" upper="3.1067" effort="108" velocity="3.1416" />
+  </joint>
+  <link name="Link2_R">
+    <inertial>
+      <origin xyz="0.00013483 0.06170460 0.00950639" rpy="0 0 0" />
+      <mass value="2.24398" />
+      <inertia ixx="0.01194933" ixy="0.00000336" ixz="0.00000091" iyy="0.00361581" iyz="-0.00132804" izz="0.01098356" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link2_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link2_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint2_R" type="revolute">
+    <origin xyz="0 0 0" rpy="1.5708 0 0" />
+    <parent link="Link1_R" />
+    <child link="Link2_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.0944" upper="2.0944" effort="108" velocity="3.1416" />
+  </joint>
+  <link name="Link3_R">
+    <inertial>
+      <origin xyz="0.00968562 0.00246599 -0.04627302" rpy="0 0 0" />
+      <mass value="1.9242" />
+      <inertia ixx="0.00718224" ixy="0.00004413" ixz="0.00089552" iyy="0.00762563" iyz="0.00022096" izz="0.00178597" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link3_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link3_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint3_R" type="revolute">
+    <origin xyz="0 0.287 0" rpy="-1.5708 0 0" />
+    <parent link="Link2_R" />
+    <child link="Link3_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.1067" upper="3.1067" effort="66" velocity="3.1416" />
+  </joint>
+  <link name="Link4_R">
+    <inertial>
+      <origin xyz="0.00850411 -0.04718223 0.00941509" rpy="0 0 0" />
+      <mass value="1.6085" />
+      <inertia ixx="0.00580480" ixy="-0.00066669" ixz="-0.00012722" iyy="0.00223807" iyz="0.00070523" izz="0.00533060" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link4_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link4_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint4_R" type="revolute">
+    <origin xyz="0.018 0 0" rpy="-1.5708 0 3.1416" />
+    <parent link="Link3_R" />
+    <child link="Link4_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.5307" upper="1.0472" effort="66" velocity="3.1416" />
+  </joint>
+  <link name="Link5_R">
+    <inertial>
+      <origin xyz="-0.00051127 -0.00101064 -0.11271739" rpy="0 0 0" />
+      <mass value="2.0883" />
+      <inertia ixx="0.00626603" ixy="0.00004009" ixz="-0.00005338" iyy="0.00564387" iyz="0.00006193" izz="0.00243632" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link5_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link5_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint5_R" type="revolute">
+    <origin xyz="0.018 -0.314 0" rpy="-1.5708 0 3.1416" />
+    <parent link="Link4_R" />
+    <child link="Link5_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.1067" upper="3.1067" effort="18" velocity="3.1416" />
+  </joint>
+  <link name="Link6_R">
+    <inertial>
+      <origin xyz="0.00032659 -0.00531336 0.00030182" rpy="0 0 0" />
+      <mass value="0.72496" />
+      <inertia ixx="0.00046040" ixy="-0.00000189" ixz="-0.00000083" iyy="0.00051716" iyz="-0.00000346" izz="0.00042521" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link6_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link6_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint6_R" type="revolute">
+    <origin xyz="0 0 0" rpy="1.5708 -1.5708 0" />
+    <parent link="Link5_R" />
+    <child link="Link6_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.0472" upper="1.0472" effort="18" velocity="3.1416" />
+  </joint>
+  <link name="Link7_R">
+    <inertial>
+      <origin xyz="-0.00009108 -0.03153255 0.00889371" rpy="0 0 0" />
+      <mass value="0.68606" />
+      <inertia ixx="0.00173687" ixy="-0.00000345" ixz="-0.00000116" iyy="0.00089035" iyz="0.00030680" izz="0.00139406" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link7_R.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.84 0.87 0.91 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/Link7_R.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="Joint7_R" type="revolute">
+    <origin xyz="0 0 0" rpy="1.5708 -1.5708 0" />
+    <parent link="Link6_R" />
+    <child link="Link7_R" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5708" upper="1.5708" effort="18" velocity="3.1416" />
+  </joint>
+  <mujoco>
+    <compiler discardvisual="false" fusestatic="false" strippath="false" />
+  </mujoco>
+  <link name="flange_R" />
+  <joint name="flange_fixed_R" type="fixed">
+    <parent link="Link7_R" />
+    <child link="flange_R" />
+    <origin xyz="0 -0.095 0" rpy="1.57079632679 -1.57079632679 0" />
+  </joint>
+  <link name="gripper_R">
+    <visual name="gR_00">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_00.stl" />
+      </geometry>
+      <material name="gR_00_mat">
+        <color rgba="0.79 0.82 0.86 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_00">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_00.stl" />
+      </geometry>
+    </collision>
+    <visual name="gR_02">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_02.stl" />
+      </geometry>
+      <material name="gR_02_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_03">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_03.stl" />
+      </geometry>
+      <material name="gR_03_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_04">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_04.stl" />
+      </geometry>
+      <material name="gR_04_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_05">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_05.stl" />
+      </geometry>
+      <material name="gR_05_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_06">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_06.stl" />
+      </geometry>
+      <material name="gR_06_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_07">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_07.stl" />
+      </geometry>
+      <material name="gR_07_mat">
+        <color rgba="0.79 0.82 0.86 1" />
+      </material>
+    </visual>
+    <visual name="gR_08">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_08.stl" />
+      </geometry>
+      <material name="gR_08_mat">
+        <color rgba="0.1 0.12 0.15 1" />
+      </material>
+    </visual>
+    <visual name="gR_09">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_09.stl" />
+      </geometry>
+      <material name="gR_09_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_10">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_10.stl" />
+      </geometry>
+      <material name="gR_10_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_11">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_11.stl" />
+      </geometry>
+      <material name="gR_11_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_12">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_12.stl" />
+      </geometry>
+      <material name="gR_12_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_13">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_13.stl" />
+      </geometry>
+      <material name="gR_13_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_14">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_14.stl" />
+      </geometry>
+      <material name="gR_14_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_15">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_15.stl" />
+      </geometry>
+      <material name="gR_15_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_16">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_16.stl" />
+      </geometry>
+      <material name="gR_16_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_20">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_20.stl" />
+      </geometry>
+      <material name="gR_20_mat">
+        <color rgba="0.79 0.82 0.86 1" />
+      </material>
+    </visual>
+    <visual name="gR_22">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_22.stl" />
+      </geometry>
+      <material name="gR_22_mat">
+        <color rgba="0.79 0.82 0.86 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_22">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_22.stl" />
+      </geometry>
+    </collision>
+    <visual name="gR_23">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_23.stl" />
+      </geometry>
+      <material name="gR_23_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_24">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_24.stl" />
+      </geometry>
+      <material name="gR_24_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_25">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_25.stl" />
+      </geometry>
+      <material name="gR_25_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_26">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_26.stl" />
+      </geometry>
+      <material name="gR_26_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_27">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_27.stl" />
+      </geometry>
+      <material name="gR_27_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_28">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_28.stl" />
+      </geometry>
+      <material name="gR_28_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_29">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_29.stl" />
+      </geometry>
+      <material name="gR_29_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_30">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_30.stl" />
+      </geometry>
+      <material name="gR_30_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_31">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_31.stl" />
+      </geometry>
+      <material name="gR_31_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_32">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_32.stl" />
+      </geometry>
+      <material name="gR_32_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_33">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_33.stl" />
+      </geometry>
+      <material name="gR_33_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_34">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_34.stl" />
+      </geometry>
+      <material name="gR_34_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_35">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_35.stl" />
+      </geometry>
+      <material name="gR_35_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_36">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_36.stl" />
+      </geometry>
+      <material name="gR_36_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_37">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_37.stl" />
+      </geometry>
+      <material name="gR_37_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_38">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_38.stl" />
+      </geometry>
+      <material name="gR_38_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_39">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_39.stl" />
+      </geometry>
+      <material name="gR_39_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_40">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_40.stl" />
+      </geometry>
+      <material name="gR_40_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_41">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_41.stl" />
+      </geometry>
+      <material name="gR_41_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_42">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_42.stl" />
+      </geometry>
+      <material name="gR_42_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_43">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_43.stl" />
+      </geometry>
+      <material name="gR_43_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_44">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_44.stl" />
+      </geometry>
+      <material name="gR_44_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_45">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_45.stl" />
+      </geometry>
+      <material name="gR_45_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_46">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_46.stl" />
+      </geometry>
+      <material name="gR_46_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_47">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_47.stl" />
+      </geometry>
+      <material name="gR_47_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_48">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_48.stl" />
+      </geometry>
+      <material name="gR_48_mat">
+        <color rgba="0.23 0.25 0.29 1" />
+      </material>
+    </visual>
+    <visual name="gR_51">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_51.stl" />
+      </geometry>
+      <material name="gR_51_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_53">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_53.stl" />
+      </geometry>
+      <material name="gR_53_mat">
+        <color rgba="0.72 0.75 0.8 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_53">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_53.stl" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.0173978487962 -0.0173985527421 0.0879018604755" rpy="0 0 0" />
+      <mass value="0.5599999999999999" />
+      <inertia ixx="0.002279585654318638" iyy="0.00227957296689104" izz="0.0016745101131867824" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+  </link>
+  <link name="gripper_R_shaft">
+    <visual name="gR_21">
+      <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_21.stl" />
+      </geometry>
+      <material name="gR_21_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <visual name="gR_52">
+      <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_52.stl" />
+      </geometry>
+      <material name="gR_52_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <inertial>
+      <origin xyz="0 0 0.0222999959052" rpy="0 0 0" />
+      <mass value="0.08000000000000002" />
+      <inertia ixx="3.8087871309740615e-05" iyy="3.809107795905756e-05" izz="1.6325626265346687e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+  </link>
+  <link name="gripper_R_1">
+    <visual name="gR_01">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_01.stl" />
+      </geometry>
+      <material name="gR_01_mat">
+        <color rgba="0.79 0.82 0.86 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_01">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="gR_18">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_18.stl" />
+      </geometry>
+      <material name="gR_18_mat">
+        <color rgba="0.12 0.14 0.16 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_18">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_18.stl" />
+      </geometry>
+    </collision>
+    <visual name="gR_49">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_49.stl" />
+      </geometry>
+      <material name="gR_49_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <inertial>
+      <origin xyz="0.00609649628609 -0.00743152875382 0.0388951395498" rpy="0 0 0" />
+      <mass value="0.08000000000000002" />
+      <inertia ixx="9.842353058535354e-05" iyy="0.00010140583011828495" izz="4.556528629881749e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+  </link>
+  <link name="gripper_R_17">
+    <visual name="gR_17">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_17.stl" />
+      </geometry>
+      <material name="gR_17_mat">
+        <color rgba="0.79 0.82 0.86 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_17">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_17.stl" />
+      </geometry>
+    </collision>
+    <visual name="gR_19">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_19.stl" />
+      </geometry>
+      <material name="gR_19_mat">
+        <color rgba="0.12 0.14 0.16 1" />
+      </material>
+    </visual>
+    <collision name="gripper_collision_R_19">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_19.stl" />
+      </geometry>
+    </collision>
+    <visual name="gR_50">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="../meshes/gripper/part_50.stl" />
+      </geometry>
+      <material name="gR_50_mat">
+        <color rgba="0.55 0.59 0.64 1" />
+      </material>
+    </visual>
+    <inertial>
+      <origin xyz="0.00932866686431 0.00192968675112 0.0388951440536" rpy="0 0 0" />
+      <mass value="0.08000000000000002" />
+      <inertia ixx="9.888106375838761e-05" iyy="9.648394838028121e-05" izz="4.1100970061134626e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+  </link>
+  <joint name="gripper_drive_R" type="revolute">
+    <parent link="gripper_R" />
+    <child link="gripper_R_shaft" />
+    <origin xyz="0 0 0.1084" rpy="0 0 0" />
+    <axis xyz="0 0 -1" />
+    <limit lower="0" upper="1.2921362630655375" effort="2" velocity="7" />
+  </joint>
+  <joint name="gripper_jaw_1_R" type="revolute">
+    <parent link="gripper_R" />
+    <child link="gripper_R_1" />
+    <origin xyz="-0.0267808527242 -0.00133343247549 0.142209847021" rpy="0 0 -0.233752984275" />
+    <axis xyz="0.851657354998 -0.524098261908 0.000872664524251" />
+    <limit lower="0" upper="0.5083435505396878" effort="2" velocity="7" />
+    <mimic joint="gripper_drive_R" multiplier="0.39341326845333224" offset="0" />
+  </joint>
+  <joint name="gripper_jaw_17_R" type="revolute">
+    <parent link="gripper_R" />
+    <child link="gripper_R_17" />
+    <origin xyz="0.00133402270615 0.0267808233307 0.14220984702" rpy="0 0 -0.233752984275" />
+    <axis xyz="0.851657354998 -0.524098261908 0.000872664524251" />
+    <limit lower="-0.5083435505396878" upper="0" effort="2" velocity="7" />
+    <mimic joint="gripper_drive_R" multiplier="-0.39341326845333224" offset="0" />
+  </joint>
+  <joint name="gripper_mount_R" type="fixed">
+    <parent link="flange_R" />
+    <child link="gripper_R" />
+    <origin xyz="0 0 0" rpy="0 0 0.785398163397" />
+  </joint>
+  <!-- Nominal fixed TCP: midpoint of two rubber-pad OBB centers at URDF full opening; NOT physical calibration. xyz in metres; tool X=finger approach, Y=jaw opening, Z=right-handed normal. See description/grasp_center.txt. -->
+  <link name="grasp_center_R" />
+  <joint name="grasp_center_fixed_R" type="fixed">
+    <parent link="gripper_R" />
+    <child link="grasp_center_R" />
+    <origin xyz="-0.009175 0.009190 0.202453" rpy="0 -1.5707963267948966 -0.7853981633974483" />
+  </joint>
+</robot>

@@ -1,0 +1,12 @@
+{
+  "verified": true,
+  "scaled_jpegs_fully_decoded": 5374,
+  "native_jpegs_hash_verified": 5374,
+  "joint_samples": 1800,
+  "joint_dimensions": 14,
+  "bundles": 1777,
+  "no_duplicate_camera_references": true,
+  "all_indexes_and_bundle_timestamps_consistent": true,
+  "robot_audit_unchanged": true,
+  "rt_mode_switch_and_page_fault_counts": 0
+}

@@ -1,0 +1,53 @@
+# =============================================================================
+# Task File — Offline / Bridge Mode Task Definitions
+# =============================================================================
+#
+# Provides robot identity and (optionally) pre-defined tasks when running
+# without a backend server.  Referenced by the `task_file` parameter in
+# robot_config.yaml.
+#
+# Two usage patterns:
+#
+#   1. Offline mode (offline_mode: true, bridge_mode: false)
+#      Define robot, user, and one or more tasks with subtasks below.
+#      The system creates episodes from these tasks automatically.
+#
+#   2. Bridge mode (offline_mode: true, bridge_mode: true)
+#      Define robot and user only; leave tasks: [].
+#      An external node (e.g. sim_bridge) registers episodes at runtime
+#      via the register_episode() backend call.
+#
+# =============================================================================
+
+# --- Robot identity (required) -----------------------------------------------
+robot:
+  id: "my-robot-001"
+  name: "My Robot"
+
+# --- Operator identity (optional, defaults to unknown_operator) --------------
+user:
+  id: "operator-001"
+  display_name: "Operator Name"
+
+# --- Task definitions --------------------------------------------------------
+# Leave empty ([]) for bridge mode.
+# Each task must have a unique id and at least one subtask.
+tasks:
+  - id: "task-example"
+    name: "example_task"
+    description: "Example task scenario"
+    subtasks:
+      - id: "subtask-step-1"
+        name: "step_one"
+        order_index: 0
+      - id: "subtask-step-2"
+        name: "step_two"
+        order_index: 1
+
+  # - id: "task-another"
+  #   name: "another_task"
+  #   description: "Another task"
+  #   subtasks:
+  #     - id: "subtask-a"
+  #       name: "do_a"
+  #       order_index: 0

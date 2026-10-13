@@ -1,0 +1,319 @@
+"""Native Qt camera/plots and complete articulated Tianji CAD geometry."""
+from __future__ import annotations
+import json
+import math
+from pathlib import Path
+import numpy as np
+from .grippers import endpoints, closure
+from PySide6.QtCore import QObject,Property,Signal,Slot,QTimer,QUrl,QRectF,QPointF,Qt,QByteArray,QBuffer,QIODevice,QSize
+from PySide6.QtGui import QImage,QImageReader,QPainter,QPen,QColor,QFont,QPainterPath,QVector3D,QQuaternion,QMatrix3x3,QRadialGradient
+from PySide6.QtNetwork import QNetworkAccessManager,QNetworkRequest,QNetworkReply
+from PySide6.QtQuick import QQuickPaintedItem
+from PySide6.QtQuick3D import QQuick3DGeometry
+
+
+def rotation(axis,angle):
+    x,y,z=np.asarray(axis)/ (np.linalg.norm(axis) or 1);c,s,t=math.cos(angle),math.sin(angle),1-math.cos(angle)
+    return np.array([[t*x*x+c,t*x*y-s*z,t*x*z+s*y,0],[t*x*y+s*z,t*y*y+c,t*y*z-s*x,0],[t*x*z-s*y,t*y*z+s*x,t*z*z+c,0],[0,0,0,1]],dtype=float)
+
+
+def transform(xyz,rpy=(0,0,0)):
+    out=rotation((0,0,1),rpy[2])@rotation((0,1,0),rpy[1])@rotation((1,0,0),rpy[0]);out[:3,3]=xyz;return out
+
+
+def quat(matrix):return QQuaternion.fromRotationMatrix(QMatrix3x3(matrix[:3,:3].reshape(-1).tolist()))
+
+
+class MeshGeometry(QQuick3DGeometry):
+    def __init__(self,mesh):
+        super().__init__()
+        vertices=np.asarray(mesh['vertices'],dtype=np.float32)[np.asarray(mesh['faces'],dtype=np.int32)]
+        normals=np.cross(vertices[:,1]-vertices[:,0],vertices[:,2]-vertices[:,0]);normals/=np.maximum(np.linalg.norm(normals,axis=1,keepdims=True),1e-9)
+        data=np.concatenate((vertices,np.repeat(normals[:,None,:],3,axis=1)),axis=2).astype(np.float32).reshape(-1,6)
+        self.setVertexData(QByteArray(data.tobytes()));self.setStride(24)
+        self.setPrimitiveType(QQuick3DGeometry.PrimitiveType.Triangles)
+        self.addAttribute(QQuick3DGeometry.Attribute.Semantic.PositionSemantic,0,QQuick3DGeometry.Attribute.ComponentType.F32Type)
+        self.addAttribute(QQuick3DGeometry.Attribute.Semantic.NormalSemantic,12,QQuick3DGeometry.Attribute.ComponentType.F32Type)
+        self.setBounds(QVector3D(*vertices.min(axis=(0,1)).tolist()),QVector3D(*vertices.max(axis=(0,1)).tolist()))
+
+
+class ModelPart(QObject):
+    moved=Signal()
+    def __init__(self,geometry,visual,parent):
+        super().__init__(parent);self.geometry_value=geometry;self.visual=visual
+        self.matrix=np.eye(4)
+    @Property(QObject,constant=True)
+    def mesh(self):return self.geometry_value
+    @Property(QVector3D,constant=True)
+    def size(self):return QVector3D(*self.visual['scale'])
+    @Property(QVector3D,constant=True)
+    def tint(self):return QVector3D(*self.visual['color'][:3])
+    @Property(QVector3D,notify=moved)
+    def position(self):return QVector3D(*self.matrix[:3,3].tolist())
+    @Property(QQuaternion,notify=moved)
+    def orientation(self):return quat(self.matrix)
+    def update_matrix(self,matrix):
+        if not np.allclose(matrix,self.matrix,atol=1e-7):self.matrix=matrix;self.moved.emit()
+
+
+class RobotScene(QObject):
+    cameraChanged=Signal()
+    def __init__(self,root,parent=None):
+        super().__init__(parent)
+        self.calibration=endpoints(root)
+        self.model=json.loads((root/'public/tianji-model.json').read_text())
+        self.geometries={key:MeshGeometry(mesh) for key,mesh in self.model['meshes'].items()}
+        self.parts_value=[];self.by_link=[]
+        for link in self.model['links']:
+            for visual in link['visuals']:
+                part=ModelPart(self.geometries[visual['mesh']],visual,self);self.parts_value.append(part);self.by_link.append((link['name'],part))
+        self.yaw=-.08;self.pitch=.03;self.zoom=1.
+        self.camera_matrix=np.eye(4);self.update_camera();self.update_pose({})
+    @Property('QVariantList',constant=True)
+    def parts(self):return self.parts_value
+    @Property(QVector3D,notify=cameraChanged)
+    def cameraPosition(self):return QVector3D(*self.camera_matrix[:3,3].tolist())
+    @Property(QQuaternion,notify=cameraChanged)
+    def cameraOrientation(self):return quat(self.camera_matrix)
+    @Property(float,notify=cameraChanged)
+    def zoomValue(self):return self.zoom
+    def update_camera(self):
+        upright=np.array([[0,-1,0,0],[0,0,1,0],[-1,0,0,0],[0,0,0,1]])
+        view=rotation((1,0,0),self.pitch)@upright@rotation((0,0,1),self.yaw)@transform((0,0,-.85))
+        self.camera_matrix=np.linalg.inv(view)@transform((0,0,4))
+        self.cameraChanged.emit()
+    @Slot(float,float)
+    def drag(self,dx,dy):
+        self.yaw+=dx*.008;self.pitch=max(-.9,min(.9,self.pitch+dy*.006));self.update_camera()
+    @Slot(float)
+    def changeZoom(self,factor):self.zoom=max(.5,min(2.2,self.zoom*factor));self.update_camera()
+    @Slot()
+    def resetView(self):self.yaw=-.08;self.pitch=.03;self.zoom=1;self.update_camera()
+    @Slot('QVariantMap')
+    def update_pose(self,status):
+        angles={f'Joint{i+1}_{letter}':math.radians(v) for side,letter in [('left','L'),('right','R')] for i,v in enumerate(status.get('joints',{}).get(side,[])) if math.isfinite(v)}
+        for side,letter in [('left','L'),('right','R')]:
+            amount=closure(status,side,self.calibration)
+            if amount is None:amount=.5
+            drive=next((j for j in self.model['joints'] if j['name']==f'gripper_drive_{letter}'),{})
+            angles[f'gripper_drive_{letter}']=(1-amount)*float((drive.get('limit') or {}).get('upper',1))
+        matrices={'stand':np.eye(4)};pending=self.model['joints'][:]
+        while pending:
+            remaining=[]
+            for j in pending:
+                if j['parent'] not in matrices:remaining.append(j);continue
+                angle=angles.get(j['name'],0)
+                if j['mimic']:
+                    mimic=j['mimic'];angle=angles.get(mimic['joint'],0)*float(mimic['multiplier'])+float(mimic['offset'])
+                matrix=matrices[j['parent']]@transform(j['xyz'],j['rpy'])
+                if j['type'] in ('revolute','continuous'):matrix=matrix@rotation(j['axis'],angle)
+                matrices[j['child']]=matrix
+            if len(remaining)==len(pending):raise ValueError('模型关节结构不完整')
+            pending=remaining
+        for link,part in self.by_link:part.update_matrix(matrices.get(link,np.eye(4))@transform(part.visual['xyz'],part.visual['rpy']))
+
+
+class CameraItem(QQuickPaintedItem):
+    sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal()
+    def __init__(self,parent=None):
+        super().__init__(parent);self._source='';self._online=False;self.frame=QImage();self.buffer=b'';self.reply=None;self.sequence=0
+        self.network=QNetworkAccessManager(self);self.retry=QTimer(self);self.retry.setSingleShot(True);self.retry.timeout.connect(self.connect_stream)
+        self.stale=QTimer(self);self.stale.setInterval(2500);self.stale.setSingleShot(True);self.stale.timeout.connect(self.stream_stalled)
+        self.setAntialiasing(True)
+    @Property(str,notify=sourceChanged)
+    def source(self):return self._source
+    @source.setter
+    def source(self,value):
+        if value==self._source:return
+        self.sequence+=1;self._source=value;self.retry.stop();self.stale.stop();self.buffer=b''
+        if self.reply:self.reply.abort();self.reply=None
+        self.frame=QImage();self.frameChanged.emit()
+        self.offline();self.sourceChanged.emit()
+        if value:self.connect_stream()
+    @Property(bool,notify=onlineChanged)
+    def online(self):return self._online
+    @Property(bool,notify=frameChanged)
+    def hasFrame(self):return not self.frame.isNull()
+    def offline(self):
+        # Keep the last frame on transient transport failures. The QML overlay
+        # explicitly marks a stalled image, so it can never masquerade as live.
+        self.update()
+        if self._online:self._online=False;self.onlineChanged.emit()
+    def stream_stalled(self):
+        self.offline()
+        if self.reply:self.reply.abort()
+    def connect_stream(self):
+        if not self._source or self.reply is not None:return
+        sequence=self.sequence;request=QNetworkRequest(QUrl(self._source));request.setTransferTimeout(5000)
+        reply=self.network.get(request);self.reply=reply;self.buffer=b''
+        frame_endpoint='/frame' in self._source
+        def accept(data):
+            # JPEG's scaled decode avoids expanding all three HD frames on the
+            # UI thread only to shrink them again when painting small cards.
+            # This only changes display pixels; the recorded JPEG stays intact.
+            encoded=QBuffer();encoded.setData(QByteArray(data));encoded.open(QIODevice.ReadOnly)
+            reader=QImageReader(encoded,b'JPEG')
+            size=reader.size()
+            ratio=self.window().devicePixelRatio() if self.window() else 1.0
+            target=QSize(max(1,round(self.width()*ratio)),max(1,round(self.height()*ratio)))
+            if self.width()>0 and self.height()>0 and size.isValid():
+                fitted=size.scaled(target,Qt.KeepAspectRatio)
+                if fitted.width()<size.width():reader.setScaledSize(fitted)
+            image=reader.read()
+            if not image.isNull():
+                first=self.frame.isNull()
+                self.frame=image;self.update();self.stale.start()
+                if first:self.frameChanged.emit()
+                if not self._online:self._online=True;self.onlineChanged.emit()
+        def read():
+            if sequence!=self.sequence:return
+            latest=None
+            # A delayed UI callback may receive many valid HD frames (>8 MB).
+            # Drain bounded chunks and parse before limiting an incomplete frame;
+            # the previous readAll limit repeatedly aborted healthy HD streams.
+            while reply.bytesAvailable():
+                self.buffer+=bytes(reply.read(65536))
+                if not frame_endpoint:
+                    while True:
+                        start=self.buffer.find(b'\xff\xd8');end=self.buffer.find(b'\xff\xd9',start+2) if start>=0 else -1
+                        if end<0:break
+                        latest=self.buffer[start:end+2];self.buffer=self.buffer[end+2:]
+                if len(self.buffer)>8*1024*1024:
+                    self.buffer=b'';reply.abort();return
+            if latest:accept(latest)
+        def finished():
+            if sequence==self.sequence:
+                read()
+                if frame_endpoint and reply.error()==QNetworkReply.NoError:accept(self.buffer)
+                # Reconnect without blanking a fresh frame; the frame-age timer
+                # still declares a real outage after 2.5 s, even with incoming junk.
+                self.reply=None
+                self.retry.start(80 if frame_endpoint else 600)
+            reply.deleteLater()
+        reply.readyRead.connect(read);reply.finished.connect(finished)
+    def paint(self,painter):
+        if self.frame.isNull():return
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        size=self.frame.size();size.scale(int(self.width()),int(self.height()),Qt.KeepAspectRatio)
+        painter.drawImage(QRectF((self.width()-size.width())/2,(self.height()-size.height())/2,size.width(),size.height()),self.frame)
+
+
+class CurveItem(QQuickPaintedItem):
+    """UMI encoder plot: retain input radians and render a degree axis."""
+    changed=Signal()
+    def __init__(self,parent=None):super().__init__(parent);self._values=[];self._dark=False;self._zero_based=False;self.setAntialiasing(True)
+    @Property('QVariantList',notify=changed)
+    def values(self):return self._values
+    @values.setter
+    def values(self,value):self._values=value;self.update();self.changed.emit()
+    @Property(bool,notify=changed)
+    def dark(self):return self._dark
+    @dark.setter
+    def dark(self,v):self._dark=v;self.update();self.changed.emit()
+    @Property(bool,notify=changed)
+    def zeroBased(self):return self._zero_based
+    @zeroBased.setter
+    def zeroBased(self,v):self._zero_based=v;self.update();self.changed.emit()
+    def paint(self,p):
+        samples=[math.degrees(v) if isinstance(v,(int,float)) and math.isfinite(v) else None for v in self._values]
+        w,h=self.width(),self.height();values=[v for v in samples if v is not None]
+        lo,hi=(min(values),max(values)) if values else (0,1);pad=max((hi-lo)*.12,math.degrees(.0005));lo-=pad;hi+=pad
+        if self._zero_based:lo=max(0,lo);hi=max(hi,lo+1e-9)
+        p.setPen(QPen(QColor('#444850' if self._dark else '#cbd0db'),1))
+        for frac in (0,.5,1):p.drawLine(QPointF(52,12+frac*(h-32)),QPointF(w-12,12+frac*(h-32)))
+        p.setFont(QFont('monospace',7));p.setPen(QColor('#b2b2b2' if self._dark else '#686868'))
+        for frac in (0,.5,1):
+            rounded=f'{hi-frac*(hi-lo):.2f}'
+            p.drawText(QRectF(1,4+frac*(h-32),47,16),Qt.AlignRight,('0.00' if rounded=='-0.00' else rounded)+'°')
+        path=QPainterPath();drawing=False
+        for i,value in enumerate(samples):
+            if value is None:drawing=False;continue
+            pos=QPointF(52+i/max(1,len(samples)-1)*(w-64),12+(hi-value)/(hi-lo)*(h-32))
+            if drawing:path.lineTo(pos)
+            else:path.moveTo(pos)
+            drawing=True
+        p.setPen(QPen(QColor('#8fb1ff' if self._dark else '#4f6df5'),2,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.drawPath(path)
+
+
+class Backdrop(QQuickPaintedItem):
+    loginChanged=Signal()
+    _login=True
+    @Property(bool,notify=loginChanged)
+    def login(self):return self._login
+    @login.setter
+    def login(self,value):self._login=value;self.update();self.loginChanged.emit()
+    darkChanged=Signal()
+    def __init__(self,parent=None):super().__init__(parent);self._dark=False
+    @Property(bool,notify=darkChanged)
+    def dark(self):return self._dark
+    @dark.setter
+    def dark(self,value):self._dark=value;self.update();self.darkChanged.emit()
+    def paint(self,p):
+        p.fillRect(self.boundingRect(),QColor('#111111' if self._dark else '#f5f5f5'))
+        gradient=QRadialGradient(QPointF(self.width()/2,0) if self._login else QPointF(self.width()*.12,-self.height()*.08),512 if self._login else 480)
+        gradient.setColorAt(0,QColor('#b3362f13' if self._dark else '#b3fff7d1'));gradient.setColorAt(1,QColor('transparent'))
+        p.fillRect(self.boundingRect(),gradient)
+
+
+def g2_skeleton(values):
+    points={'base_center':(0,0,.12),'base_fl':(.27,.22,.12),'base_fr':(.27,-.22,.12),'base_bl':(-.27,.22,.12),'base_br':(-.27,-.22,.12),'wheel_fl':(.27,.27,.05),'wheel_fr':(.27,-.27,.05),'wheel_bl':(-.27,.27,.05),'wheel_br':(-.27,-.27,.05),'body_root':(0,0,.12)}
+    links=[(a,b,'base') for a,b in [('base_fl','base_fr'),('base_fr','base_br'),('base_br','base_bl'),('base_bl','base_fl'),('base_fl','wheel_fl'),('base_fr','wheel_fr'),('base_bl','wheel_bl'),('base_br','wheel_br'),('base_center','base_fl'),('base_center','base_fr'),('base_center','base_bl'),('base_center','base_br')]]
+    def put(parent,matrix,name,xyz,rpy,axis,group):
+        angle=values.get(name,0);angle=angle if isinstance(angle,(int,float)) and math.isfinite(angle) else 0
+        matrix=matrix@transform(xyz,rpy)@rotation(axis,angle);points[name]=matrix[:3,3];links.append((parent,name,group));return matrix
+    body=transform((0,0,.12));prior='body_root'
+    for i,(xyz,axis) in enumerate([((.102,0,.144),(0,1,0)),((0,0,.36),(0,1,0)),((0,0,.38),(0,1,0)),((0,0,0),(1,0,0)),((0,0,.149),(0,0,1))]):
+        name=f'idx0{i+1}_body_joint{i+1}';body=put(prior,body,name,xyz,(0,0,0),axis,'body');prior=name
+    head=body
+    for i,(xyz,axis) in enumerate([((-.013,0,.496),(0,0,1)),((.03335,0,.07),(1,0,0)),((-.03035,0,0),(0,1,0))]):
+        name=f'idx1{i+1}_head_joint{i+1}';head=put(prior,head,name,xyz,(0,0,0),axis,'head');prior=name
+    points['head_tip']=(head@transform((0,0,.15)))[:3,3];links.append((prior,'head_tip','head'))
+    p=math.pi;arm=body@transform((0,0,.3085),(-p/2,0,0))
+    origins=[((0,0,.069),(0,0,0)),((0,0,.1745),(p/2,0,0)),((0,0,0),(-p/2,0,0)),((.018,0,.287),(p/2,0,0)),((-.018,0,0),(-p/2,0,0)),((0,0,.314),(p/2,0,0)),((0,0,0),(p/2,0,p/2))]
+    for side,prefix,letter in [('left','2','l'),('right','6','r')]:
+        matrix=arm;prior='idx05_body_joint5'
+        for i,(xyz,rpy) in enumerate(origins):
+            if side=='right' and i==0:xyz,rpy=(0,0,-.069),(p,0,0)
+            name=f'idx{prefix}{i+1}_arm_{letter}_joint{i+1}';matrix=put(prior,matrix,name,xyz,rpy,(0,0,1),side);prior=name
+        end=side+'_end_effector';points[end]=(matrix@transform((.088,0,0)))[:3,3];links.append((prior,end,side))
+    return [(points[a],points[b],group) for a,b,group in links]
+
+
+class G2View(QQuickPaintedItem):
+    changed=Signal()
+    def __init__(self,parent=None):
+        super().__init__(parent);self._values={};self._dark=False;self._live=False;self.yaw=-.65;self.pitch=.28;self.zoom=1.;self.setAntialiasing(True)
+    @Property('QVariantMap',notify=changed)
+    def values(self):return self._values
+    @values.setter
+    def values(self,value):self._values=value;self.update();self.changed.emit()
+    @Property(bool,notify=changed)
+    def dark(self):return self._dark
+    @dark.setter
+    def dark(self,v):self._dark=v;self.update();self.changed.emit()
+    @Property(bool,notify=changed)
+    def live(self):return self._live
+    @live.setter
+    def live(self,v):self._live=v;self.update();self.changed.emit()
+    @Slot(float,float)
+    def drag(self,dx,dy):self.yaw+=dx*.008;self.pitch=max(-.5,min(.8,self.pitch+dy*.006));self.update()
+    @Slot(float)
+    def changeZoom(self,factor):self.zoom=max(.65,min(1.65,self.zoom*factor));self.update()
+    def paint(self,p):
+        colors=dict(zip(('base','body','head','left','right'),['#b8c5d3','#8fc7f2','#c1b6ea','#79d8c6','#f2b28c'] if self._dark else ['#8d9cad','#72a7d1','#9b91c8','#59bbaa','#df9874']))
+        cy,sy,cp,sp=math.cos(self.yaw),math.sin(self.yaw),math.cos(self.pitch),math.sin(self.pitch)
+        def project(point):
+            x,y,z=point;x1=cy*x-sy*y;y1=sy*x+cy*y
+            return QPointF(self.width()/2+x1*155*self.zoom,self.height()*.86-(sp*y1+cp*z)*155*self.zoom),cp*y1-sp*z
+        p.setPen(QPen(QColor('#1fCDD8E6' if self._dark else '#245c6c80'),1))
+        for i in range(-4,5):
+            for a,b in [((i*.2,-.8,0),(i*.2,.8,0)),((-.8,i*.2,0),(.8,i*.2,0))]:p.drawLine(project(a)[0],project(b)[0])
+        rendered=sorted([(project(a),project(b),group) for a,b,group in g2_skeleton(self._values)],key=lambda v:v[0][1]+v[1][1])
+        for a,b,group in rendered:
+            p.setPen(QPen(QColor('#7a0a0f18' if self._dark else '#dbffffff'),6 if group=='base' else 9,Qt.SolidLine,Qt.RoundCap));p.drawLine(a[0],b[0])
+        for a,b,group in rendered:
+            p.setPen(QPen(QColor(colors[group]),3.5 if group=='base' else 5.5,Qt.SolidLine,Qt.RoundCap));p.drawLine(a[0],b[0])
+        for _,b,group in rendered:
+            p.setPen(QPen(QColor('#8f0f1622' if self._dark else '#e6ffffff'),1.5));p.setBrush(QColor(colors[group]));r=3 if group=='base' else 4.5;p.drawEllipse(b[0],r,r)
+        color=QColor(('#79d8ad' if self._dark else '#3c9f78') if self._live else ('#aebdce' if self._dark else '#76879a'))
+        p.setPen(Qt.NoPen);p.setBrush(color);p.drawEllipse(QPointF(18,19),4,4);p.setPen(color);font=QFont('Ubuntu');font.setPixelSize(11);font.setWeight(QFont.DemiBold);p.setFont(font);p.drawText(QPointF(29,23),'LIVE' if self._live else 'TARGET')

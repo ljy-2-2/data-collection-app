@@ -1,0 +1,45 @@
+{
+  "offset_ns": -8715126988092,
+  "rtt_ns": 35549247,
+  "uncertainty_ns": 17774623,
+  "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+  "pc_midpoint_ns": 29357443146010,
+  "measurements": [
+    {
+      "offset_ns": -8715126664166,
+      "rtt_ns": 36165987,
+      "uncertainty_ns": 18082993,
+      "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+      "pc_midpoint_ns": 29357299586799
+    },
+    {
+      "offset_ns": -8715126842816,
+      "rtt_ns": 35840437,
+      "uncertainty_ns": 17920218,
+      "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+      "pc_midpoint_ns": 29357335595942
+    },
+    {
+      "offset_ns": -8715126704372,
+      "rtt_ns": 36087660,
+      "uncertainty_ns": 18043830,
+      "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+      "pc_midpoint_ns": 29357371569584
+    },
+    {
+      "offset_ns": -8715126829676,
+      "rtt_ns": 35750127,
+      "uncertainty_ns": 17875063,
+      "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+      "pc_midpoint_ns": 29357407493557
+    },
+    {
+      "offset_ns": -8715126988092,
+      "rtt_ns": 35549247,
+      "uncertainty_ns": 17774623,
+      "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+      "pc_midpoint_ns": 29357443146010
+    }
+  ],
+  "method": "minimum_RTT_midpoint_estimate"
+}

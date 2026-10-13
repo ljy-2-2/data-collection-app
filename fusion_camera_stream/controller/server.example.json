@@ -1,0 +1,42 @@
+{
+  "host": "192.168.1.190",
+  "port": 57491,
+  "token": "REPLACE_WITH_64_HEX_CHARACTERS",
+  "cooldown_seconds": 2,
+  "cameras": [
+    {
+      "id": "usb-1",
+      "usb_path": "1-1",
+      "vid": "0bda",
+      "pid": "5883",
+      "serial": "20000001",
+      "format": "yuyv",
+      "width": 640,
+      "height": 480,
+      "fps": 30
+    },
+    {
+      "id": "usb-2",
+      "usb_path": "1-2",
+      "vid": "32e4",
+      "pid": "9230",
+      "format": "mjpeg",
+      "width": 1024,
+      "height": 768,
+      "fps": 30
+    },
+    {
+      "id": "usb-4",
+      "usb_path": "1-4",
+      "vid": "32e4",
+      "pid": "9230",
+      "format": "mjpeg",
+      "width": 1024,
+      "height": 768,
+      "fps": 30
+    }
+  ],
+  "helper": "/mnt/fusion-camera/capture",
+  "certificate": "/mnt/fusion-camera/server.crt",
+  "private_key": "/mnt/fusion-camera/server.key"
+}

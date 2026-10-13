@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-backend"
+version = "0.1.0"
+description = "S3 storage utilities: garbage collection, upload, state tracking"
+license = { text = "Apache-2.0" }
+classifiers = ["License :: OSI Approved :: Apache Software License"]
+requires-python = ">=3.10"
+dependencies = ["minio>=7.0.0", "pyyaml>=6.0"]
+# Note: data-backend is a working name. This package will grow to include
+# recording logic (rosbag management, metadata) in the future.
+
+[project.optional-dependencies]
+test = ["pytest", "sentry-sdk"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

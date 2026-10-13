@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="galaxis_hands">
+  <!-- Collection-only kinematics: metres/radians, X forward, Y left, Z up.
+       Gear-axis spacing is measured as 33 mm; other values await calibration.
+       See docs/galaxis_hand_mirror_analysis_zh.md for calibration instructions.
+       Visual/collision geometry is omitted; all recorded TF frames are retained. -->
+  <!-- Half the measured 33 mm axis spacing. Root lies midway between axes
+       on a chosen common Z=0 datum plane; the physical datum must be recorded. -->
+  <xacro:property name="finger_offset_y" value="0.0165"/>
+  <!-- Right finger contact point relative to its axis at q=0 (signed Y). -->
+  <xacro:property name="finger_tip_offset_x" value="0.09145"/>
+  <xacro:property name="finger_tip_offset_y" value="0.0"/>
+  <xacro:property name="finger_tip_offset_z" value="0.0"/>
+
+  <!-- Identical root -> camera transform on both hands; no camera mirroring. -->
+  <xacro:property name="camera_x" value="0.02182"/>
+  <xacro:property name="camera_y" value="0.0"/>
+  <xacro:property name="camera_z" value="0.06"/>
+  <xacro:property name="camera_roll" value="0.0"/>
+  <xacro:property name="camera_pitch" value="0.0"/>
+  <xacro:property name="camera_yaw" value="0.0"/>
+  <!-- Right-hand root -> PICO tracking reference, NOT the controller shell.
+       Edit only this right-hand reference; the left mount mirrors it across XZ:
+       xyz=(x,-y,z), rpy=(-roll,pitch,-yaw). Both frames remain right-handed.
+       Forward-facing convention: PICO tracking axes aligned with hand_root.
+       Verify tracking-frame alignment against the physical controller. -->
+  <xacro:property name="mount_x" value="-0.07"/>
+  <xacro:property name="mount_y" value="-0.0309"/>
+  <xacro:property name="mount_z" value="0.0525"/>
+  <xacro:property name="mount_roll" value="0.0"/>
+  <xacro:property name="mount_pitch" value="0.0"/>
+  <xacro:property name="mount_yaw" value="0.0"/>
+
+  <!-- continuous expresses encoder-driven rotation without model limits.
+       This collection model does not describe physical travel stops. -->
+  <xacro:macro name="finger" params="hand_prefix finger_side side_sign hand_sign active_side">
+    <joint name="${hand_prefix}_${finger_side}_finger_joint" type="continuous">
+      <origin xyz="0 ${side_sign * finger_offset_y} 0" rpy="0 0 0"/>
+      <parent link="${hand_prefix}_hand_root"/>
+      <child link="${hand_prefix}_${finger_side}_finger_link"/>
+      <!-- Mirrored axes: both right-hand joints -Z, both left-hand joints +Z.
+           Active q increases on opening; the passive joint has q_passive=-q. -->
+      <axis xyz="0 0 ${hand_sign}"/>
+      <xacro:unless value="${finger_side == active_side}">
+        <mimic joint="${hand_prefix}_${active_side}_finger_joint" multiplier="-1" offset="0"/>
+      </xacro:unless>
+    </joint>
+    <link name="${hand_prefix}_${finger_side}_finger_link"/>
+    <joint name="${hand_prefix}_${finger_side}_finger_tip_joint" type="fixed">
+      <origin xyz="${finger_tip_offset_x} ${-side_sign * finger_tip_offset_y} ${finger_tip_offset_z}" rpy="0 0 0"/>
+      <parent link="${hand_prefix}_${finger_side}_finger_link"/>
+      <child link="${hand_prefix}_${finger_side}_finger_tip_link"/>
+    </joint>
+    <link name="${hand_prefix}_${finger_side}_finger_tip_link"/>
+  </xacro:macro>
+
+  <xacro:macro name="galaxis_hand" params="hand_prefix hand_sign active_side">
+    <link name="${hand_prefix}_hand_root"/>
+    <joint name="${hand_prefix}_camera_joint" type="fixed">
+      <origin xyz="${camera_x} ${camera_y} ${camera_z}"
+              rpy="${camera_roll} ${camera_pitch} ${camera_yaw}"/>
+      <parent link="${hand_prefix}_hand_root"/>
+      <child link="${hand_prefix}_hand_cam_link"/>
+    </joint>
+    <link name="${hand_prefix}_hand_cam_link"/>
+    <xacro:finger hand_prefix="${hand_prefix}" finger_side="right" side_sign="${-1}"
+                  hand_sign="${hand_sign}" active_side="${active_side}"/>
+    <xacro:finger hand_prefix="${hand_prefix}" finger_side="left" side_sign="${1}"
+                  hand_sign="${hand_sign}" active_side="${active_side}"/>
+    <joint name="pico_origin_to_${hand_prefix}" type="floating">
+      <parent link="pico_origin"/>
+      <child link="${hand_prefix}_hand_root"/>
+    </joint>
+    <joint name="${hand_prefix}_mount_joint" type="fixed">
+      <origin xyz="${mount_x} ${-hand_sign * mount_y} ${mount_z}"
+              rpy="${-hand_sign * mount_roll} ${mount_pitch} ${-hand_sign * mount_yaw}"/>
+      <parent link="${hand_prefix}_hand_root"/>
+      <child link="pico_${hand_prefix}_controller"/>
+    </joint>
+    <link name="pico_${hand_prefix}_controller"/>
+  </xacro:macro>
+
+  <link name="pico_origin"/>
+  <xacro:galaxis_hand hand_prefix="right" hand_sign="${-1}" active_side="right"/>
+  <xacro:galaxis_hand hand_prefix="left" hand_sign="${1}" active_side="left"/>
+</robot>

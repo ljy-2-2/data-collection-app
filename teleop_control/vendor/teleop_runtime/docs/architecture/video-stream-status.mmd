@@ -1,0 +1,40 @@
+flowchart LR
+    subgraph ROBOT["① 可替换的机器人相机端"]
+        G2["G2CameraSource<br/>agibot_gdk · kHeadColor<br/>640×400 · 约30 FPS 已验证"]
+        LEJU["LejuCameraSource<br/>乐聚 SDK"]
+        SOURCE["RobotAdapter 的 RobotVideoSource 接口<br/>相机列表 / 能力 / 读取最新帧"]
+        G2 --> SOURCE
+        LEJU --> SOURCE
+    end
+
+    subgraph PC["② PC 统一视频核心"]
+        FRAME["统一 VideoFrame<br/>图像 + 尺寸 + 序号 + 时间戳"]
+        HUB["VideoHub<br/>只保留最新帧 · 多观看者互不阻塞"]
+        FRAME --> HUB
+    end
+
+    subgraph OUTPUT["③ 可替换的输出通道"]
+        TCP["TCP/JPEG 63902<br/>第一版：原图直传"]
+        PLATFORM["集合平台接口<br/>按平台技术接入"]
+        BROWSER["PC 浏览器<br/>只用于诊断"]
+    end
+
+    subgraph HEADSET["④ 可替换的头显显示端"]
+        CLIENT["HeadsetVideoClient 统一接口<br/>连接 / 收包 / 重连 / 最新帧<br/>已完成"]
+        PICO["PicoVideoClient<br/>Unity 小窗 / 可拖动大屏 / 关闭清黑<br/>PICO 肉眼验收完成"]
+        OTHER["其他头显 Client"]
+        CLIENT --> PICO
+        CLIENT --> OTHER
+    end
+
+    SOURCE --> FRAME
+    HUB --> TCP
+    HUB --> PLATFORM
+    HUB --> BROWSER
+    TCP --> CLIENT
+
+    classDef done fill:#dcfce7,stroke:#16a34a,color:#111827,stroke-width:2px;
+    classDef doing fill:#ffedd5,stroke:#f97316,color:#111827,stroke-width:2px;
+    classDef todo fill:#f3f4f6,stroke:#9ca3af,color:#111827,stroke-width:2px;
+    class G2,SOURCE,FRAME,HUB,TCP,BROWSER,CLIENT,PICO done;
+    class LEJU,PLATFORM,OTHER todo;

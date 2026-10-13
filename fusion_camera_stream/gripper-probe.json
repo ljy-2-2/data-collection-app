@@ -1,0 +1,102 @@
+{
+  "type": "grippers",
+  "motors": {
+    "left": {
+      "fields": {
+        "position_rad": {
+          "value": -2.1290013790130615,
+          "pc_query_start_ns": 29106450308054,
+          "pc_reply_ns": 29106457827634,
+          "register": 80,
+          "source": "DM register read 0x33",
+          "valid": true
+        },
+        "output_encoder_rad": {
+          "value": -1.93741774559021,
+          "pc_query_start_ns": 29106457841159,
+          "pc_reply_ns": 29106463143317,
+          "register": 81,
+          "source": "DM register read 0x33",
+          "valid": true
+        },
+        "driver_temperature_c": {
+          "value": 0.0,
+          "pc_query_start_ns": 29106463149567,
+          "pc_reply_ns": 29106470578040,
+          "register": 61,
+          "source": "DM register read 0x33",
+          "valid": true
+        },
+        "motor_temperature_c": {
+          "value": 0.0,
+          "pc_query_start_ns": 29106470581969,
+          "pc_reply_ns": 29106476969681,
+          "register": 62,
+          "source": "DM register read 0x33",
+          "valid": true
+        }
+      },
+      "closure_fraction": null,
+      "closure_fraction_unclipped": -3.4253991493620974,
+      "within_calibrated_travel": false,
+      "calibration": {
+        "open_rad": 1.6939421683070108,
+        "closed_rad": 2.81
+      },
+      "velocity_rad_s": null,
+      "torque_nm": null,
+      "measured_width_m": null,
+      "missing_fields_reason": "Not provided by these read-only registers; not inferred from commands"
+    },
+    "right": {
+      "fields": {
+        "position_rad": {
+          "value": 1.8288253545761108,
+          "pc_query_start_ns": 29106476986413,
+          "pc_reply_ns": 29106483483365,
+          "register": 80,
+          "source": "DM register read 0x33",
+          "valid": true
+        },
+        "output_encoder_rad": {
+          "value": 1.7529962062835693,
+          "pc_query_start_ns": 29106483495990,
+          "pc_reply_ns": 29106489951328,
+          "register": 81,
+          "source": "DM register read 0x33",
+          "valid": true
+        },
+        "driver_temperature_c": {
+          "value": 34.56903076171875,
+          "pc_query_start_ns": 29106489969035,
+          "pc_reply_ns": 29106497419515,
+          "register": 61,
+          "source": "DM register read 0x33",
+          "valid": true
+        },
+        "motor_temperature_c": {
+          "value": 31.89505958557129,
+          "pc_query_start_ns": 29106497431046,
+          "pc_reply_ns": 29106503834617,
+          "register": 62,
+          "source": "DM register read 0x33",
+          "valid": true
+        }
+      },
+      "closure_fraction": 0.24844426716530718,
+      "closure_fraction_unclipped": 0.24844426716530718,
+      "within_calibrated_travel": true,
+      "calibration": {
+        "open_rad": 1.4978637369344625,
+        "closed_rad": 2.83
+      },
+      "velocity_rad_s": null,
+      "torque_nm": null,
+      "measured_width_m": null,
+      "missing_fields_reason": "Not provided by these read-only registers; not inferred from commands"
+    }
+  },
+  "pc_sample_end_ns": 29106503849478,
+  "timestamp_kind": "laptop_monotonic_CAN_reply",
+  "query_only": true
+}

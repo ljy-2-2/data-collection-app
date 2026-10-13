@@ -1,0 +1,64 @@
+%% 2026-09-09：绿色=已完成所标范围验收；橙色=部分能力/外部硬件限制/跨厂商待验证；灰色=未实现。
+flowchart LR
+    subgraph INPUT["① PICO 输入统一为 XRFrame"]
+        PICO["PICO / Unity"] --> BRIDGE["PC 输入桥"] --> XR["XRFrame"]
+    end
+
+    subgraph CONTROL["② Mapper 先生成 Intent，Router 再分流"]
+        CURRENT["启动入口用 --mode 选择 Mapper / Retargeting（会话内固定）<br/>单关节 → JointJogIntent<br/>双臂 FK 锚点 + 相对运动 → EndEffectorPoseIntent → 工作空间限制<br/>夹爪 → GripperIntent（独立）"]
+        HEADIN["可选头部跟随<br/>HeadFollowMapper → HeadOrientationIntent<br/>G2HeadJointMapper + G2 起点 → JointPositionIntent<br/>左右 / 上下跟随，不跟随歪头"]
+        ROUTER["ControlRouter"]
+        JOINT["单关节直控<br/>JointJogIntent / JointPositionIntent；不使用 IK"]
+        ARM["双臂末端<br/>受限后的 EndEffectorPoseIntent<br/>→ RobotAdapter.solve_ik() → JointCommand"]
+        GRIP["左右夹爪<br/>不使用 IK"]
+        HEADCMD["头部直接关节控制<br/>DirectJointBackend → JointCommand<br/>角度 / 速率 / 时效 / 反馈检查<br/>不使用 IK；软件安全范围已冻结"]
+        FUTURE["全身 / 行走<br/>未实现"]
+        SAFE["实时安全与连续控制"]
+        CURRENT --> ROUTER
+        HEADIN --> ROUTER
+        ROUTER --> JOINT --> SAFE
+        ROUTER --> ARM --> SAFE
+        ROUTER --> GRIP --> SAFE
+        ROUTER --> HEADCMD
+        ROUTER -.-> FUTURE
+    end
+
+    subgraph ADAPTER["③ 同一个 RobotAdapter：安全前 IK，安全后发送"]
+        API["RobotAdapter 统一边界<br/>安全前 solve_ik；安全后 send<br/>跨厂商待第二种真机验证"]
+        G2LOCAL["G2Adapter → agibot_gdk → G2<br/>双臂：G2URDFIKSolver<br/>单关节 / 双臂 / 双夹爪已验收"]
+        LEJULOCAL["A 本地 URDF IK · 乐聚<br/>LejuAdapter + 乐聚专用 URDF IK<br/>未实现"]
+        NATIVEVENDOR["B 厂商原生 IK<br/>官方 IK 完成接入验证后使用<br/>未实现"]
+        HEADEXEC["头部专用状态的 G2Adapter<br/>G2NormalHeadSender → GDK 头部伺服<br/>受限范围真机链路已验证并冻结"]
+        HEADLIMIT["G2 本体已知限制<br/>本机操作也复现右转受阻 / 异常<br/>yaw 暂限 [-8°, +45°]<br/>完整右转范围须厂家检修后重验"]
+        API --> G2LOCAL
+        API -.-> LEJULOCAL
+        API -.-> NATIVEVENDOR
+        HEADEXEC -.-> HEADLIMIT
+    end
+
+    HEADCMD --> HEADEXEC
+
+    subgraph VIDEO["④ 独立视频"]
+        VS["G2 RobotVideoSource"] --> VH["PC VideoHub"] --> VC["PICO + PC Viewer"]
+    end
+
+    subgraph SUPPORT["⑤ 管理与参考"]
+        SESSION["统一启动脚本<br/>单关节或双臂/夹爪 + 视频已冻结<br/>可选头部在受限范围内已整合冻结"]
+        HEADSESSION["独立头部入口保留<br/>不与统一会话并开；异步诊断日志"]
+        TODO["平台 / Recorder / Monitor<br/>未实现"]
+        LEGACY["test-teleop<br/>旧实现参考"]
+    end
+
+    XR --> CURRENT
+    XR --> HEADIN
+    SAFE -->|仅发送已验证命令| API
+
+    classDef done fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:2px;
+    classDef partial fill:#FFEDD5,stroke:#F97316,color:#7C2D12,stroke-width:2px;
+    classDef todo fill:#F3F4F6,stroke:#9CA3AF,color:#374151,stroke-width:1.5px;
+    classDef legacy fill:#FFFFFF,stroke:#94A3B8,color:#475569,stroke-width:1.5px,stroke-dasharray:5 5;
+    class PICO,BRIDGE,XR,CURRENT,ROUTER,JOINT,ARM,GRIP,SAFE,G2LOCAL,VS,VH,VC done;
+    class API,HEADLIMIT partial;
+    class HEADIN,HEADCMD,HEADEXEC,HEADSESSION,SESSION done;
+    class FUTURE,LEJULOCAL,NATIVEVENDOR,TODO todo;
+    class LEGACY legacy;

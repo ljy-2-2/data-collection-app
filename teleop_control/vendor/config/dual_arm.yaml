@@ -1,0 +1,28 @@
+# Dual-arm raw collection for policy training.
+robot_type: agibot_g2
+output_root: ~/agibot_episodes/dual_arm
+poll_hz: 100
+fetch_workers: 2
+queue_depth: 8
+clock_offset_hz: 1.0
+jpeg_passthrough: true
+depth_png: true
+
+bundle:
+  record_all: true
+  essential_keys: [state__joint__position]
+
+cameras:
+  - name: head_color
+    essential: true
+    staleness_budget_ms: 50
+  - name: hand_left_color
+    essential: true
+    staleness_budget_ms: 50
+  - name: hand_right_color
+    essential: true
+    staleness_budget_ms: 50
+
+imus: []
+lidars: []
+ultrasonic: false

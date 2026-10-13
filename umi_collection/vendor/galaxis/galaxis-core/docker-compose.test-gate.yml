@@ -1,0 +1,19 @@
+services:
+  gate-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      ROS_DOMAIN_ID: 99
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+    command: >
+      bash -c "
+        source /opt/ros/$${ROS_DISTRO}/setup.bash &&
+        source /root/ros2_ws/install/setup.bash &&
+        export RMW_IMPLEMENTATION=$${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp} &&
+        export ROS_DOMAIN_ID=99 &&
+        cd /root/ros2_ws/src/galaxis-core &&
+        pip install -q pytest pyyaml &&
+        echo \"Running with RMW: $${RMW_IMPLEMENTATION}\" &&
+        python3 -m pytest test/test_integration_gate.py -v -m integration
+      "

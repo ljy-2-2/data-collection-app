@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=小凯实验室数采平台
+Comment=遥操作与 UMI 数据采集
+Exec=/bin/sh -c "exec \\"\\$HOME/.local/bin/xiaokai-lab-data-collection\\""
+Icon=xiaokai-lab-data-collection
+Terminal=false
+StartupNotify=true
+StartupWMClass=xiaokai-lab-data-collection
+Categories=Utility;

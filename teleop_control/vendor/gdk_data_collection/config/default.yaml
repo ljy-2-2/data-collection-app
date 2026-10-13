@@ -1,0 +1,44 @@
+# Sensor selection for GDK-only data collection (AgiBot G2).
+# Camera names are the snake_case names used in the bundle's
+# timestamp__camera__<cam> keys; they map 1:1 to agibot_gdk.CameraType
+# (head_color -> kHeadColor). Verified available on this robot 2026-07-16:
+#   hand_left_color, hand_right_color, head_color, head_depth,
+#   head_stereo_left, head_stereo_right
+
+robot_type: agibot_g2
+output_root: ~/agibot_episodes
+poll_hz: 100          # bundle poll rate (bundles arrive ~30 Hz; poll faster, act on new ts)
+fetch_workers: 3      # camera fetch threads; each owns its own GDK Camera handle
+queue_depth: 8        # per-worker backlog before frames are dropped (and counted)
+clock_offset_hz: 1.0  # robot-ts <-> PC-ts pair logging
+jpeg_passthrough: true  # cameras deliver JPEG; store payload bytes verbatim
+depth_png: true         # Z16 depth -> lossless 16-bit PNG
+
+bundle:
+  record_all: true    # record every bundle_info tensor (incl. teleop__action__* when present)
+  # keys: []          # explicit allowlist, used when record_all: false
+  essential_keys: [state__joint__position]   # frame rejected if missing
+
+cameras:
+  - name: head_color
+    essential: true
+    staleness_budget_ms: 50
+  - name: hand_left_color
+    essential: true
+    staleness_budget_ms: 50
+  - name: hand_right_color
+    essential: true
+    staleness_budget_ms: 50
+  - name: head_depth
+    essential: false          # missing depth marks the camera, not the frame
+  # Stereo pair: large frames (1920x1536 ~320 KB); enable if the task needs it.
+  # - name: head_stereo_left
+  #   essential: false
+  #   retries: 4              # stereo arrives late more often; retry harder
+  # - name: head_stereo_right
+  #   essential: false
+  #   retries: 4
+
+imus: []              # e.g. [front, back, chassis] - sampled nearest per bundle frame
+lidars: []            # e.g. [{name: front, every_n_frames: 3}] - heavy; off by default
+ultrasonic: false

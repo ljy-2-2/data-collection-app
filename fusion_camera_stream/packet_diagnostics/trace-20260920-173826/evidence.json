@@ -1,0 +1,82 @@
+{
+  "origin_confirmed": "FUSION FXPSI UDP output, left terminal/CAN channel",
+  "udp_owner": {
+    "pid": 1989,
+    "exe": "/home/FUSION/bin/FXPSI",
+    "source_port": 42865
+  },
+  "request": {
+    "ts": 1789925960.880722,
+    "src": "192.168.1.100",
+    "dst": "192.168.1.190",
+    "sport": 48461,
+    "dport": 4729,
+    "ch": 1,
+    "sub": 1,
+    "serial": 67,
+    "size": 8,
+    "payload": "ff0700000100333e",
+    "udp_payload_length": 274
+  },
+  "unexpected": {
+    "ts": 1789925960.884221,
+    "src": "192.168.1.190",
+    "dst": "192.168.1.100",
+    "sport": 42865,
+    "dport": 4730,
+    "ch": 1,
+    "sub": 1,
+    "serial": 4786,
+    "size": 12,
+    "payload": "000000000100330000007041",
+    "udp_payload_length": 274
+  },
+  "subsequent_expected_reply": {
+    "ts": 1789925960.885337,
+    "src": "192.168.1.190",
+    "dst": "192.168.1.100",
+    "sport": 42865,
+    "dport": 4730,
+    "ch": 1,
+    "sub": 1,
+    "serial": 4787,
+    "size": 12,
+    "payload": "000000000100333e00000000",
+    "udp_payload_length": 274
+  },
+  "unexpected_after_query_ms": 3.499031,
+  "expected_after_unexpected_ms": 1.116037,
+  "captured_unique_incoming_queries": 63,
+  "captured_query_registers": [
+    61,
+    62,
+    80,
+    81
+  ],
+  "capture_limit": "Capture window only; does not rule out older/internal requests or isolate physical CAN versus terminal queue firmware.",
+  "deeper_root_cause_confirmed": false,
+  "realtime_counts": {
+    "before": {
+      "RTPSI": {
+        "mode_switches": 0,
+        "page_faults": 0
+      },
+      "FX_RtTask": {
+        "mode_switches": 0,
+        "page_faults": 0
+      }
+    },
+    "after": {
+      "RTPSI": {
+        "mode_switches": 0,
+        "page_faults": 0
+      },
+      "FX_RtTask": {
+        "mode_switches": 0,
+        "page_faults": 0
+      }
+    }
+  },
+  "pcap_sha256": "2d590240772fc02a3551f435917ae8c84f52274faa527bbe652f1275052ae55e",
+  "FXPSI_reference_sha256": "c1acf978937557681695322156c6117527ae99fb3a087ae4a5e62898a9dda503"
+}

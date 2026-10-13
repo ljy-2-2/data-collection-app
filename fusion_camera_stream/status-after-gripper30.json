@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "idle": true,
+  "fault": null,
+  "version": "2.1.0",
+  "last_stream": {
+    "ok": false,
+    "joint_max_lateness_ns": 4703476,
+    "joint_samples": 814,
+    "native_exit": 1,
+    "joint_hz": 100,
+    "error": "Client stopped stream",
+    "frames": [
+      242,
+      243,
+      242
+    ],
+    "joint_skipped_ticks": 0,
+    "type": "end"
+  }
+}

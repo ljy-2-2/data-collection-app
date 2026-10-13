@@ -1,0 +1,14 @@
+{
+  "native_size": [
+    1024,
+    768
+  ],
+  "stored_size": [
+    640,
+    480
+  ],
+  "method": "Pillow BILINEAR resize on laptop",
+  "output": "JPEG quality95 subsampling0",
+  "native_jpeg_retained": true,
+  "physical_camera_roles": "USB port labels, mounting roles not assumed"
+}

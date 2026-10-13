@@ -1,0 +1,613 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# tools/galaxis_pico_dhcp_setup.sh
+#
+# Turn this PC into a DHCP server for a directly-connected Galaxis PICO over a
+# USB-Ethernet adapter. Subcommands: setup / remove / restart / status.
+# See `--help` for full usage.
+# ---------------------------------------------------------------------------
+
+DEFAULT_SERVER_IP="10.0.0.1"
+DEFAULT_SUBNET="10.0.0.0/24"
+DEFAULT_RANGE_START="10.0.0.100"
+DEFAULT_RANGE_END="10.0.0.200"
+DEFAULT_DNS="8.8.8.8,1.1.1.1"
+DEFAULT_LEASE_TIME=600
+DEFAULT_MAX_LEASE_TIME=7200
+
+NETPLAN_FILE="/etc/netplan/99-galaxis-dhcp.yaml"
+UDEV_RULE_FILE="/etc/udev/rules.d/99-galaxis-dhcp.rules"
+NM_DISPATCHER_FILE="/etc/NetworkManager/dispatcher.d/99-galaxis-dhcp"
+ISC_DEFAULTS_FILE="/etc/default/isc-dhcp-server"
+DHCPD_CONF_FILE="/etc/dhcp/dhcpd.conf"
+SERVICE_NAME="isc-dhcp-server"
+NM_CON_NAME="galaxis-dhcp"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  sudo ./tools/galaxis_pico_dhcp_setup.sh setup <nic> [options]
+  sudo ./tools/galaxis_pico_dhcp_setup.sh remove
+  sudo ./tools/galaxis_pico_dhcp_setup.sh restart
+  sudo ./tools/galaxis_pico_dhcp_setup.sh status
+  ./tools/galaxis_pico_dhcp_setup.sh -h | --help
+
+Subcommands:
+  setup     Configure netplan, isc-dhcp-server, and a udev auto-restart rule
+            so this PC serves DHCP to clients on <nic>. Re-run with new
+            options to update.
+  remove    Undo setup. Stops & disables isc-dhcp-server, removes the
+            managed netplan/udev files, and restores the latest *.bak of
+            /etc/default/isc-dhcp-server and /etc/dhcp/dhcpd.conf. The
+            isc-dhcp-server package itself is NOT removed.
+  restart   Restart isc-dhcp-server. Use after a NIC unplug if the udev
+            rule did not fire (fallback path).
+  status    Show service status, DHCP listener socket, and recent leases.
+
+Options (setup):
+  --server-ip <ip>          IP to assign to <nic> (default: 10.0.0.1)
+  --subnet <cidr>           DHCP subnet (default: 10.0.0.0/24)
+  --range-start <ip>        Lease range start (default: 10.0.0.100)
+  --range-end <ip>          Lease range end (default: 10.0.0.200)
+  --dns <a,b,...>           DNS servers (default: 8.8.8.8,1.1.1.1)
+  --lease-time <sec>        default-lease-time (default: 600)
+  --max-lease-time <sec>    max-lease-time (default: 7200)
+  --pico-mac <mac>          MAC address of the PICO's USB-Ethernet adapter.
+                            Must be given together with --pico-ip.
+  --pico-ip <ip>            Fixed IP for the PICO. Must be given together
+                            with --pico-mac. Recommended OUTSIDE
+                            [--range-start, --range-end].
+
+Notes:
+  - Auto-restart on NIC re-plug uses two hooks so dhcpd reliably re-binds:
+      * /etc/udev/rules.d/99-galaxis-dhcp.rules (kernel-level, all backends)
+      * /etc/NetworkManager/dispatcher.d/99-galaxis-dhcp (NM-only; fires
+        AFTER NM has reassigned the static IP, avoiding a bind race)
+    If neither fires, fall back to `sudo ./tools/galaxis_pico_dhcp_setup.sh restart`.
+  - The static IP on <nic> is assigned via whichever backend is already
+    running on the host:
+      * NetworkManager active -> a single nmcli connection profile named
+        "galaxis-dhcp" is created (or updated). No netplan files are written.
+      * Otherwise -> a managed netplan file
+        /etc/netplan/99-galaxis-dhcp.yaml is written with renderer: networkd.
+    `remove` cleans up whichever path was used.
+  - setup overwrites /etc/default/isc-dhcp-server and /etc/dhcp/dhcpd.conf
+    after taking timestamped *.bak backups. Hand edits to those files will
+    be replaced on the next setup run.
+  - --pico-mac is the MAC of the USB-Ethernet adapter plugged into the
+    PICO, NOT the PICO's built-in Wi-Fi MAC. In the Galaxis app, connect to
+    this PC's --server-ip; --pico-ip only reserves a stable headset address.
+USAGE
+}
+
+# --- helpers ---------------------------------------------------------------
+
+require() {
+  command -v "$1" >/dev/null 2>&1 \
+    || { echo "ERROR: missing command: $1" >&2; exit 2; }
+}
+
+ensure_root() {
+  if [[ $EUID -ne 0 ]]; then
+    echo "ERROR: this subcommand requires root. Re-run with sudo." >&2
+    exit 1
+  fi
+}
+
+APT_UPDATED=0
+apt_install() {
+  local pkg="$1"
+  if dpkg -s "$pkg" >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! command -v apt-get >/dev/null 2>&1; then
+    echo "ERROR: apt-get not available to install $pkg" >&2
+    return 1
+  fi
+  if [[ $APT_UPDATED -eq 0 ]]; then
+    apt-get update
+    APT_UPDATED=1
+  fi
+  DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg"
+}
+
+backup_if_exists() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    # Skip backup if the file is already a managed copy; otherwise re-running
+    # setup would clobber the only backup of the user's pre-script state with
+    # our own managed content, making `remove` unable to restore the original.
+    if grep -q "Auto-generated by tools/galaxis_pico_dhcp_setup.sh" "$path" 2>/dev/null; then
+      echo "(skip backup) $path already managed by this script"
+      return 0
+    fi
+    local ts
+    ts="$(date +%Y%m%d_%H%M%S)"
+    cp -a "$path" "${path}.${ts}.bak"
+    echo "Backed up: $path -> ${path}.${ts}.bak"
+  fi
+}
+
+restore_latest_bak() {
+  local path="$1"
+  local latest
+  latest="$(ls -1t "${path}".*.bak 2>/dev/null | head -1 || true)"
+  if [[ -n "$latest" ]]; then
+    cp -a "$latest" "$path"
+    echo "Restored: $path <- $latest"
+  else
+    echo "WARN: no backup found for $path; current content left as-is." >&2
+  fi
+}
+
+valid_ip()   { [[ "$1" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; }
+valid_cidr() { [[ "$1" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; }
+valid_mac()  { [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]; }
+
+detect_backend() {
+  # Use a live D-Bus probe via nmcli — `systemctl is-active` can report a
+  # stale 'active' even when the NM daemon is unresponsive (we've seen this
+  # after `netplan apply` with renderer:networkd nudges NM out of the way).
+  if command -v nmcli >/dev/null 2>&1 && nmcli general status >/dev/null 2>&1; then
+    echo "NetworkManager"; return
+  fi
+  echo "networkd"
+}
+
+apply_static_ip_nm() {
+  local nic="$1" server_ip="$2" prefix="$3"
+  require nmcli
+  local addr="${server_ip}/${prefix}"
+  if nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$NM_CON_NAME"; then
+    echo "Updating NM connection: ${NM_CON_NAME} -> ${nic} ${addr}"
+    nmcli connection modify "$NM_CON_NAME" \
+      connection.interface-name "$nic" \
+      ipv4.method manual \
+      ipv4.addresses "$addr" \
+      ipv4.gateway "" \
+      ipv6.method ignore \
+      connection.autoconnect yes
+  else
+    echo "Creating NM connection: ${NM_CON_NAME} -> ${nic} ${addr}"
+    nmcli connection add type ethernet \
+      con-name "$NM_CON_NAME" \
+      ifname "$nic" \
+      ipv4.method manual \
+      ipv4.addresses "$addr" \
+      ipv6.method ignore \
+      connection.autoconnect yes >/dev/null
+  fi
+  nmcli connection up "$NM_CON_NAME" >/dev/null || \
+    echo "WARN: nmcli connection up failed; the NIC may not be plugged in yet." >&2
+}
+
+remove_static_ip_nm() {
+  if ! command -v nmcli >/dev/null 2>&1; then
+    return 0
+  fi
+  if nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$NM_CON_NAME"; then
+    echo "Deleting NM connection: ${NM_CON_NAME}"
+    nmcli connection delete "$NM_CON_NAME" >/dev/null || true
+  fi
+}
+
+write_nm_dispatcher() {
+  # The udev rule alone races with NM's activation of the static IP on a
+  # re-plug: dhcpd may try to bind before NM has assigned 10.0.0.1, which
+  # leaves the service in `failed`. NM's dispatcher fires AFTER the
+  # connection comes up, so restarting from here is timing-safe.
+  mkdir -p "$(dirname "$NM_DISPATCHER_FILE")"
+  cat > "$NM_DISPATCHER_FILE" <<EOF
+#!/bin/sh
+# Auto-generated by tools/galaxis_pico_dhcp_setup.sh
+# Restart ${SERVICE_NAME} when the ${NM_CON_NAME} connection transitions to
+# 'up' so dhcpd re-binds after a NIC re-plug.
+IFACE="\$1"
+ACTION="\$2"
+if [ "\$CONNECTION_ID" = "${NM_CON_NAME}" ] && [ "\$ACTION" = "up" ]; then
+    /bin/systemctl --no-block restart ${SERVICE_NAME}.service
+fi
+EOF
+  chmod 755 "$NM_DISPATCHER_FILE"
+  echo "Wrote: $NM_DISPATCHER_FILE"
+}
+
+remove_nm_dispatcher() {
+  if [[ -f "$NM_DISPATCHER_FILE" ]]; then
+    rm -f "$NM_DISPATCHER_FILE"
+    echo "Removed: $NM_DISPATCHER_FILE"
+  fi
+}
+
+apply_static_ip_netplan() {
+  local nic="$1" server_ip="$2" prefix="$3"
+  backup_if_exists "$NETPLAN_FILE"
+  cat > "$NETPLAN_FILE" <<EOF
+# Auto-generated by tools/galaxis_pico_dhcp_setup.sh on $(date --iso-8601=seconds)
+# Static IP for the PC-side of the wired PICO link.
+# Managed file -- safe to remove via: sudo ./tools/galaxis_pico_dhcp_setup.sh remove
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ${nic}:
+      dhcp4: false
+      addresses:
+        - ${server_ip}/${prefix}
+EOF
+  chmod 600 "$NETPLAN_FILE"
+  echo "Wrote: $NETPLAN_FILE"
+  echo "Applying netplan..."
+  netplan apply
+}
+
+remove_static_ip_netplan() {
+  if [[ -f "$NETPLAN_FILE" ]]; then
+    rm -f "$NETPLAN_FILE"
+    echo "Removed: $NETPLAN_FILE"
+    if command -v netplan >/dev/null 2>&1; then
+      echo "Applying netplan to drop the static IP..."
+      netplan apply || true
+    fi
+  fi
+}
+
+cidr_to_netmask() {
+  local prefix="${1#*/}"
+  local -a octets=(0 0 0 0)
+  local i bits
+  for ((i = 0; i < 4; i++)); do
+    bits=$(( prefix - i * 8 ))
+    if   (( bits >= 8 )); then octets[i]=255
+    elif (( bits <= 0 )); then octets[i]=0
+    else octets[i]=$(( 256 - (1 << (8 - bits)) ))
+    fi
+  done
+  echo "${octets[0]}.${octets[1]}.${octets[2]}.${octets[3]}"
+}
+
+cidr_network_address() {
+  local cidr="$1"
+  local ip="${cidr%/*}"
+  local prefix="${cidr#*/}"
+  local a b c d
+  IFS=. read -r a b c d <<<"$ip"
+  local ip_int=$(( (a << 24) | (b << 16) | (c << 8) | d ))
+  local mask=$(( prefix == 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF ))
+  local net=$(( ip_int & mask ))
+  printf '%d.%d.%d.%d\n' \
+    $(( (net >> 24) & 0xFF )) $(( (net >> 16) & 0xFF )) \
+    $(( (net >>  8) & 0xFF )) $((  net        & 0xFF ))
+}
+
+cidr_broadcast() {
+  local cidr="$1"
+  local ip="${cidr%/*}"
+  local prefix="${cidr#*/}"
+  local a b c d
+  IFS=. read -r a b c d <<<"$ip"
+  local ip_int=$(( (a << 24) | (b << 16) | (c << 8) | d ))
+  local mask=$(( prefix == 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF ))
+  local net=$(( ip_int & mask ))
+  local bcast=$(( net | ((~mask) & 0xFFFFFFFF) ))
+  printf '%d.%d.%d.%d\n' \
+    $(( (bcast >> 24) & 0xFF )) $(( (bcast >> 16) & 0xFF )) \
+    $(( (bcast >>  8) & 0xFF )) $((  bcast        & 0xFF ))
+}
+
+# --- subcommands -----------------------------------------------------------
+
+cmd_setup() {
+  ensure_root
+  require ip
+  require systemctl
+  require udevadm
+
+  local NIC=""
+  local server_ip="$DEFAULT_SERVER_IP"
+  local subnet="$DEFAULT_SUBNET"
+  local range_start="$DEFAULT_RANGE_START"
+  local range_end="$DEFAULT_RANGE_END"
+  local dns="$DEFAULT_DNS"
+  local lease_time="$DEFAULT_LEASE_TIME"
+  local max_lease_time="$DEFAULT_MAX_LEASE_TIME"
+  local pico_mac=""
+  local pico_ip=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --server-ip)        server_ip="$2"; shift 2 ;;
+      --server-ip=*)      server_ip="${1#*=}"; shift ;;
+      --subnet)           subnet="$2"; shift 2 ;;
+      --subnet=*)         subnet="${1#*=}"; shift ;;
+      --range-start)      range_start="$2"; shift 2 ;;
+      --range-start=*)    range_start="${1#*=}"; shift ;;
+      --range-end)        range_end="$2"; shift 2 ;;
+      --range-end=*)      range_end="${1#*=}"; shift ;;
+      --dns)              dns="$2"; shift 2 ;;
+      --dns=*)            dns="${1#*=}"; shift ;;
+      --lease-time)       lease_time="$2"; shift 2 ;;
+      --lease-time=*)     lease_time="${1#*=}"; shift ;;
+      --max-lease-time)   max_lease_time="$2"; shift 2 ;;
+      --max-lease-time=*) max_lease_time="${1#*=}"; shift ;;
+      --pico-mac)        pico_mac="$2"; shift 2 ;;
+      --pico-mac=*)      pico_mac="${1#*=}"; shift ;;
+      --pico-ip)         pico_ip="$2"; shift 2 ;;
+      --pico-ip=*)       pico_ip="${1#*=}"; shift ;;
+      -h|--help)          usage; exit 0 ;;
+      --)                 shift; break ;;
+      -*)
+        echo "ERROR: unknown option for setup: $1" >&2
+        exit 2
+        ;;
+      *)
+        if [[ -z "$NIC" ]]; then
+          NIC="$1"; shift
+        else
+          echo "ERROR: unexpected positional argument: $1" >&2
+          exit 2
+        fi
+        ;;
+    esac
+  done
+
+  if [[ -z "$NIC" ]]; then
+    echo "ERROR: setup requires <nic> positional argument" >&2
+    usage >&2
+    exit 2
+  fi
+
+  if [[ ! -d "/sys/class/net/$NIC" ]]; then
+    echo "ERROR: NIC not found: $NIC" >&2
+    echo "Available NICs:" >&2
+    ip -o link | awk -F': ' '{print "  " $2}' >&2
+    exit 2
+  fi
+
+  valid_ip   "$server_ip"   || { echo "ERROR: invalid --server-ip: $server_ip" >&2; exit 2; }
+  valid_cidr "$subnet"      || { echo "ERROR: invalid --subnet (need x.x.x.x/N): $subnet" >&2; exit 2; }
+  valid_ip   "$range_start" || { echo "ERROR: invalid --range-start: $range_start" >&2; exit 2; }
+  valid_ip   "$range_end"   || { echo "ERROR: invalid --range-end: $range_end" >&2; exit 2; }
+  [[ "$lease_time"     =~ ^[0-9]+$ ]] || { echo "ERROR: invalid --lease-time: $lease_time" >&2; exit 2; }
+  [[ "$max_lease_time" =~ ^[0-9]+$ ]] || { echo "ERROR: invalid --max-lease-time: $max_lease_time" >&2; exit 2; }
+
+  if { [[ -n "$pico_mac" ]] && [[ -z "$pico_ip" ]]; } \
+     || { [[ -z "$pico_mac" ]] && [[ -n "$pico_ip" ]]; }; then
+    echo "ERROR: --pico-mac and --pico-ip must be specified together (or both omitted)." >&2
+    exit 2
+  fi
+  if [[ -n "$pico_mac" ]]; then
+    valid_mac "$pico_mac" || { echo "ERROR: invalid --pico-mac (xx:xx:xx:xx:xx:xx): $pico_mac" >&2; exit 2; }
+    valid_ip  "$pico_ip"  || { echo "ERROR: invalid --pico-ip: $pico_ip" >&2; exit 2; }
+  fi
+
+  local backend
+  backend="$(detect_backend)"
+  echo "Active network backend: ${backend}"
+
+  echo "Installing ${SERVICE_NAME} (if needed)..."
+  apt_install "$SERVICE_NAME"
+
+  local netmask broadcast network_addr prefix
+  netmask="$(cidr_to_netmask "$subnet")"
+  broadcast="$(cidr_broadcast "$subnet")"
+  network_addr="$(cidr_network_address "$subnet")"
+  prefix="${subnet#*/}"
+
+  # 1) static IP — branch on the active backend so we don't fight whatever
+  # is already managing networking on this host.
+  if [[ "$backend" == "NetworkManager" ]]; then
+    # If a stale netplan file from a previous run still exists, clear it so
+    # the two backends don't fight on the next boot.
+    if [[ -f "$NETPLAN_FILE" ]]; then
+      echo "Removing stale netplan file: $NETPLAN_FILE"
+      rm -f "$NETPLAN_FILE"
+      command -v netplan >/dev/null 2>&1 && netplan apply || true
+    fi
+    apply_static_ip_nm "$NIC" "$server_ip" "$prefix"
+  else
+    command -v netplan >/dev/null 2>&1 \
+      || { echo "ERROR: neither NetworkManager nor netplan available." >&2; exit 2; }
+    # Clean up any stale NM connection from a previous run on a different host
+    remove_static_ip_nm
+    apply_static_ip_netplan "$NIC" "$server_ip" "$prefix"
+  fi
+
+  # Verify the IP actually landed; if not, warn loudly so the user can
+  # diagnose backend / NM-managed-by-user / IP-already-in-use issues
+  # before isc-dhcp-server tries (and fails) to bind.
+  sleep 1
+  if ! ip -4 addr show "$NIC" 2>/dev/null | grep -q "inet ${server_ip}/${prefix}"; then
+    echo "WARN: ${server_ip}/${prefix} not present on ${NIC} after configuration." >&2
+    echo "      Backend used: ${backend}. Investigate with:" >&2
+    echo "        ip -4 addr show ${NIC}" >&2
+    if [[ "$backend" == "NetworkManager" ]]; then
+      echo "        nmcli connection show ${NM_CON_NAME}" >&2
+    fi
+  fi
+
+  # 2) /etc/default/isc-dhcp-server
+  backup_if_exists "$ISC_DEFAULTS_FILE"
+  cat > "$ISC_DEFAULTS_FILE" <<EOF
+# Auto-generated by tools/galaxis_pico_dhcp_setup.sh on $(date --iso-8601=seconds)
+INTERFACESv4="${NIC}"
+INTERFACESv6=""
+EOF
+  chmod 644 "$ISC_DEFAULTS_FILE"
+  echo "Wrote: $ISC_DEFAULTS_FILE"
+
+  # 3) /etc/dhcp/dhcpd.conf
+  backup_if_exists "$DHCPD_CONF_FILE"
+  local dns_fmt
+  dns_fmt="$(echo "$dns" | sed 's/,/, /g; s/  */ /g')"
+  {
+    cat <<EOF
+# Auto-generated by tools/galaxis_pico_dhcp_setup.sh on $(date --iso-8601=seconds)
+default-lease-time ${lease_time};
+max-lease-time ${max_lease_time};
+authoritative;
+
+subnet ${network_addr} netmask ${netmask} {
+    range ${range_start} ${range_end};
+    option routers ${server_ip};
+    option domain-name-servers ${dns_fmt};
+    option broadcast-address ${broadcast};
+}
+EOF
+    if [[ -n "$pico_mac" ]]; then
+      cat <<EOF
+
+host pico {
+    hardware ethernet ${pico_mac};
+    fixed-address ${pico_ip};
+}
+EOF
+    fi
+  } > "$DHCPD_CONF_FILE"
+  chmod 644 "$DHCPD_CONF_FILE"
+  echo "Wrote: $DHCPD_CONF_FILE"
+
+  # 4) udev auto-restart rule
+  backup_if_exists "$UDEV_RULE_FILE"
+  cat > "$UDEV_RULE_FILE" <<EOF
+# Auto-generated by tools/galaxis_pico_dhcp_setup.sh on $(date --iso-8601=seconds)
+# Restart ${SERVICE_NAME} when ${NIC} re-appears (USB-Ethernet hot-plug).
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="${NIC}", RUN+="/bin/systemctl --no-block restart ${SERVICE_NAME}.service"
+EOF
+  chmod 644 "$UDEV_RULE_FILE"
+  echo "Wrote: $UDEV_RULE_FILE"
+
+  echo "Reloading udev rules..."
+  udevadm control --reload-rules
+
+  # 4b) NM dispatcher (only useful on NM hosts; cheap to install always
+  # but we keep it backend-conditional for cleanliness)
+  if [[ "$backend" == "NetworkManager" ]]; then
+    write_nm_dispatcher
+  else
+    remove_nm_dispatcher
+  fi
+
+  # 5) enable + restart
+  echo "Enabling and restarting ${SERVICE_NAME}..."
+  systemctl enable "${SERVICE_NAME}.service" >/dev/null 2>&1 || true
+  if ! systemctl restart "${SERVICE_NAME}.service"; then
+    echo "ERROR: ${SERVICE_NAME} failed to start. Recent logs:" >&2
+    journalctl -u "${SERVICE_NAME}.service" -n 50 --no-pager >&2 || true
+    exit 1
+  fi
+
+  echo
+  echo "=== Summary ==="
+  echo "NIC          : ${NIC}"
+  echo "Backend      : ${backend}"
+  echo "Server IP    : ${server_ip}/${prefix}"
+  echo "DHCP range   : ${range_start} - ${range_end}"
+  if [[ -n "$pico_mac" ]]; then
+    echo "PICO fixed  : ${pico_mac} -> ${pico_ip}"
+  fi
+  echo "Managed artifacts:"
+  if [[ "$backend" == "NetworkManager" ]]; then
+    echo "  nmcli connection: ${NM_CON_NAME}"
+    echo "  ${NM_DISPATCHER_FILE}"
+  else
+    echo "  ${NETPLAN_FILE}"
+  fi
+  echo "  ${ISC_DEFAULTS_FILE}"
+  echo "  ${DHCPD_CONF_FILE}"
+  echo "  ${UDEV_RULE_FILE}"
+  echo
+  ip -4 addr show "$NIC" || true
+  echo
+  echo "${SERVICE_NAME}: $(systemctl is-active "${SERVICE_NAME}.service" 2>/dev/null || echo unknown)"
+  echo "Done."
+}
+
+cmd_remove() {
+  ensure_root
+  require systemctl
+  require udevadm
+
+  if systemctl cat "${SERVICE_NAME}.service" >/dev/null 2>&1; then
+    echo "Stopping and disabling ${SERVICE_NAME}..."
+    systemctl disable --now "${SERVICE_NAME}.service" 2>/dev/null || true
+  else
+    echo "(skip) ${SERVICE_NAME}.service not installed."
+  fi
+
+  if [[ -f "$UDEV_RULE_FILE" ]]; then
+    rm -f "$UDEV_RULE_FILE"
+    echo "Removed: $UDEV_RULE_FILE"
+    udevadm control --reload-rules
+  else
+    echo "(skip) udev rule not present."
+  fi
+
+  # Tear down whichever static-IP path was used (idempotent — both helpers
+  # are no-ops if their artifact isn't present).
+  remove_static_ip_netplan
+  remove_static_ip_nm
+  remove_nm_dispatcher
+
+  restore_latest_bak "$ISC_DEFAULTS_FILE"
+  restore_latest_bak "$DHCPD_CONF_FILE"
+
+  echo "Done. The ${SERVICE_NAME} package was NOT removed (intentional)."
+}
+
+cmd_restart() {
+  ensure_root
+  require systemctl
+  echo "Restarting ${SERVICE_NAME}..."
+  if ! systemctl restart "${SERVICE_NAME}.service"; then
+    echo "ERROR: restart failed. Recent logs:" >&2
+    journalctl -u "${SERVICE_NAME}.service" -n 50 --no-pager >&2 || true
+    exit 1
+  fi
+  systemctl status "${SERVICE_NAME}.service" --no-pager || true
+}
+
+cmd_status() {
+  require systemctl
+  systemctl status "${SERVICE_NAME}.service" --no-pager || true
+  echo
+  echo "=== DHCP listener sockets (UDP :67) ==="
+  if command -v ss >/dev/null 2>&1; then
+    ss -lunp 2>/dev/null | awk 'NR==1 || /:67 /' || true
+  else
+    echo "(ss not available)"
+  fi
+  echo
+  echo "=== Recent leases (tail of /var/lib/dhcp/dhcpd.leases) ==="
+  if [[ -r /var/lib/dhcp/dhcpd.leases ]]; then
+    tail -n 60 /var/lib/dhcp/dhcpd.leases
+  else
+    echo "(no leases file or insufficient permission)"
+  fi
+}
+
+# --- dispatch --------------------------------------------------------------
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 2
+fi
+
+SUBCMD="$1"
+shift || true
+
+case "$SUBCMD" in
+  -h|--help) usage; exit 0 ;;
+  setup)     cmd_setup   "$@" ;;
+  remove)    cmd_remove  "$@" ;;
+  restart)   cmd_restart "$@" ;;
+  status)    cmd_status  "$@" ;;
+  *)
+    echo "ERROR: unknown subcommand: $SUBCMD" >&2
+    echo >&2
+    usage >&2
+    exit 2
+    ;;
+esac

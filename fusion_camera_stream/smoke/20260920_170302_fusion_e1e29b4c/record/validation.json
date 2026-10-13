@@ -1,0 +1,159 @@
+{
+  "error": null,
+  "joints": {
+    "count": 500,
+    "span_s": 4.990039444,
+    "actual_hz": 99.9992095453264,
+    "interval_ms": {
+      "p50": 10.001776,
+      "p95": 12.665556,
+      "p99": 14.036514,
+      "max": 14.282149
+    }
+  },
+  "cameras": {
+    "usb_1_color": {
+      "count": 147,
+      "span_s": 4.867993025,
+      "actual_hz": 29.991826046217476,
+      "interval_ms": {
+        "p50": 32.190399,
+        "p95": 36.601746,
+        "p99": 39.597559,
+        "max": 40.018987
+      },
+      "sequence_gaps": 0
+    },
+    "usb_2_color": {
+      "count": 148,
+      "span_s": 4.927985086,
+      "actual_hz": 29.82963573035456,
+      "interval_ms": {
+        "p50": 32.020383,
+        "p95": 36.031314,
+        "p99": 36.252534,
+        "max": 36.490865
+      },
+      "sequence_gaps": 0
+    },
+    "usb_4_color": {
+      "count": 147,
+      "span_s": 4.891991141,
+      "actual_hz": 29.8446983634879,
+      "interval_ms": {
+        "p50": 32.035515,
+        "p95": 36.404489,
+        "p99": 37.795686,
+        "max": 38.074027
+      },
+      "sequence_gaps": 0
+    }
+  },
+  "bundles": {
+    "count": 146,
+    "span_s": 4.880692344,
+    "actual_hz": 29.70889984046083,
+    "interval_ms": {
+      "p50": 31.912251,
+      "p95": 40.428757,
+      "p99": 42.125421,
+      "max": 50.780166
+    }
+  },
+  "image_joint_abs_delta_ms": {
+    "p50": 6.76162,
+    "p95": 14.377951,
+    "p99": 14.651557,
+    "max": 15.477769
+  },
+  "three_camera_span_ms": {
+    "p50": 20.617546,
+    "p95": 22.993643,
+    "p99": 23.023871,
+    "max": 23.024063
+  },
+  "per_camera_nearest_joint_abs_delta_ms": {
+    "p50": 3.624128,
+    "p95": 5.515545,
+    "p99": 6.147225,
+    "max": 6.649443
+  },
+  "unmatched_joint_samples": 354,
+  "unmatched_images": {
+    "usb_1_color": 1,
+    "usb_2_color": 2,
+    "usb_4_color": 1
+  },
+  "duplicate_image_references": 0,
+  "hardware_synchronized": false,
+  "alignment_note": "Shared-state read and image completion use one controller clock; exposure/sample latency not calibrated.",
+  "grippers": {
+    "count": 111,
+    "span_s": 5.48767723,
+    "actual_hz": 20.04491069530341,
+    "interval_ms": {
+      "p50": 49.95055,
+      "p95": 54.954017,
+      "p99": 65.335257,
+      "max": 65.466814
+    }
+  },
+  "gripper_error": null,
+  "bundles_with_both_grippers": 146,
+  "gripper_abs_delta_ms": {
+    "p50": 12.242767,
+    "p95": 23.262878,
+    "p99": 24.456047,
+    "max": 28.703137
+  },
+  "gripper_calibration_outside_samples": {
+    "left": 111,
+    "right": 111
+  },
+  "gripper_clock_mapping": {
+    "offset_ns": -8715126988092,
+    "rtt_ns": 35549247,
+    "uncertainty_ns": 17774623,
+    "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+    "pc_midpoint_ns": 29357443146010,
+    "measurements": [
+      {
+        "offset_ns": -8715126664166,
+        "rtt_ns": 36165987,
+        "uncertainty_ns": 18082993,
+        "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+        "pc_midpoint_ns": 29357299586799
+      },
+      {
+        "offset_ns": -8715126842816,
+        "rtt_ns": 35840437,
+        "uncertainty_ns": 17920218,
+        "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+        "pc_midpoint_ns": 29357335595942
+      },
+      {
+        "offset_ns": -8715126704372,
+        "rtt_ns": 36087660,
+        "uncertainty_ns": 18043830,
+        "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+        "pc_midpoint_ns": 29357371569584
+      },
+      {
+        "offset_ns": -8715126829676,
+        "rtt_ns": 35750127,
+        "uncertainty_ns": 17875063,
+        "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+        "pc_midpoint_ns": 29357407493557
+      },
+      {
+        "offset_ns": -8715126988092,
+        "rtt_ns": 35549247,
+        "uncertainty_ns": 17774623,
+        "boot_id": "c268b253-9ea0-41d6-aa45-7ad728aa5b07",
+        "pc_midpoint_ns": 29357443146010
+      }
+    ],
+    "method": "minimum_RTT_midpoint_estimate"
+  },
+  "acquisition_passed": true
+}

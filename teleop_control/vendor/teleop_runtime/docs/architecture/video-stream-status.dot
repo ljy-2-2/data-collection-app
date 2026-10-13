@@ -1,0 +1,65 @@
+digraph video_stream_status {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    pad="0.35",
+    nodesep="0.34",
+    ranksep="0.70",
+    splines=ortho,
+    fontname="Noto Sans CJK SC",
+    fontsize=20,
+    labelloc=t,
+    label="跨机器人视频回传架构 · V1 验收状态\n绿色＝已验证完成　橙色＝部分完成　灰色＝后续\n与控制链路只共享 SessionSupervisor / Monitor / Recorder；视频不进入 XRFrame、Retargeting、SafetyGateway"
+  ];
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=11, margin="0.16,0.10", color="#9ca3af", fillcolor="#f3f4f6", fontcolor="#111827", penwidth=1.5];
+  edge [fontname="Noto Sans CJK SC", fontsize=10, color="#64748b", fontcolor="#475569", penwidth=1.2, arrowsize=0.75];
+
+  subgraph cluster_robot {
+    label="① 可替换的机器人相机端";
+    color="#cbd5e1";
+    style="rounded";
+    G2 [label="G2CameraSource\nagibot_gdk · kHeadColor\n640×400 · 约30 FPS 已验证", fillcolor="#dcfce7", color="#16a34a"];
+    LEJU [label="LejuCameraSource\n乐聚 SDK\n待实现"];
+    SOURCE [label="RobotAdapter 的 RobotVideoSource 接口\n相机列表 / 能力 / 读取最新帧\n已完成", fillcolor="#dcfce7", color="#16a34a"];
+    { rank=same; G2; LEJU; }
+    G2 -> SOURCE;
+    LEJU -> SOURCE [color="#9ca3af"];
+  }
+
+  subgraph cluster_pc {
+    label="② PC 统一视频核心";
+    color="#cbd5e1";
+    style="rounded";
+    FRAME [label="统一 VideoFrame\nJPEG + 尺寸 + 序号 + 时间戳\n已完成", fillcolor="#dcfce7", color="#16a34a"];
+    HUB [label="VideoHub\n只保留最新帧\n多观看者互不阻塞 · 已完成", fillcolor="#dcfce7", color="#16a34a"];
+    FRAME -> HUB;
+  }
+
+  subgraph cluster_output {
+    label="③ 可替换的输出通道";
+    color="#cbd5e1";
+    style="rounded";
+    TCP [label="TCP/JPEG · 63902\n第一版原图直传\nPC 已验证", fillcolor="#dcfce7", color="#16a34a"];
+    PLATFORM [label="集合平台接口\n按平台技术接入\n待实现"];
+    BROWSER [label="PC 浏览器预览\n只用于诊断\n已验证", fillcolor="#dcfce7", color="#16a34a"];
+    { rank=same; TCP; PLATFORM; BROWSER; }
+  }
+
+  subgraph cluster_headset {
+    label="④ 可替换的头显显示端";
+    color="#cbd5e1";
+    style="rounded";
+    CLIENT [label="HeadsetVideoClient 统一接口\nUSB ADB / Wi-Fi\n连接 / 收包 / 重连 / 最新帧\n已完成", fillcolor="#dcfce7", color="#16a34a"];
+    PICO [label="PicoVideoClient\nUnity 小窗 / 可拖动大屏 / 关闭清黑\nPICO 肉眼验收完成", fillcolor="#dcfce7", color="#16a34a"];
+    OTHER [label="其他头显 Client\n待实现"];
+    { rank=same; PICO; OTHER; }
+    CLIENT -> PICO;
+    CLIENT -> OTHER [color="#9ca3af"];
+  }
+
+  SOURCE -> FRAME;
+  HUB -> TCP;
+  HUB -> PLATFORM [color="#9ca3af"];
+  HUB -> BROWSER;
+  TCP -> CLIENT;
+}
