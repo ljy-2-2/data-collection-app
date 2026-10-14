@@ -37,6 +37,7 @@ RUN apt-get update -y && \
 # Copy galaxis packages into existing workspace
 COPY ./footpedal_ros /root/ros2_ws/src/footpedal_ros
 COPY ./galaxis_bringup /root/ros2_ws/src/galaxis_bringup
+COPY ./third_party/usb_cam /root/ros2_ws/src/usb_cam
 COPY ./galaxis_description /root/ros2_ws/src/galaxis_description
 COPY ./galaxis_pico /root/ros2_ws/src/galaxis_pico
 

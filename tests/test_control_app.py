@@ -436,6 +436,7 @@ def test_umi_camera_preview_uses_cached_check_and_requires_frame(
         lambda *_args: pytest.fail("camera preview must not repeat hardware check"),
     )
     monkeypatch.setitem(sys.modules, "cv2", object())
+    monkeypatch.setattr(manager, "_selected_camera_mode", lambda _: ([], {}, "fixture"))
 
     class Subscription:
         closed = False
@@ -748,3 +749,11 @@ def test_umi_record_requires_live_sensor_data(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="实时数据尚未就绪"):
         manager.record("start")
+
+
+def test_umi_missing_head_data_reports_reason_without_hiding_other_streams(tmp_path):
+    manager=UmiManager(tmp_path,tmp_path/'data',python=sys.executable,runtime_dir=tmp_path/'runtime')
+    monitor={'vr':{'hmd':{'online':False},'left':{'online':True},'right':{'online':True}}, 'camera_quality_issues':[]}
+    assert '头盔' in manager._live_readiness_message(monitor)
+    monitor['vr']['hmd']['online']=True
+    assert manager._live_readiness_message(monitor)==''

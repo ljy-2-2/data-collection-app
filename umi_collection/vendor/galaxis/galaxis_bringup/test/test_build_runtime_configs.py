@@ -558,3 +558,26 @@ class TestSingleConfig:
             merger.build_from_single(
                 single, tmp_path / "out", profile_file=None
             )
+
+@pytest.mark.parametrize('source,expected', [('usb','compressed'), ('g2_head_color','raw')])
+def test_center_runtime_parameters_reach_launched_node(tmp_path, monkeypatch, source, expected):
+    from types import ModuleType
+    import galaxis_bringup.launch_registry as registry
+    module = ModuleType('launch_ros.actions')
+    module.Node = lambda **kw: kw
+    monkeypatch.setitem(sys.modules, 'launch_ros.actions', module)
+    monkeypatch.setattr(registry, 'with_center_camera_settings', lambda params: list(params))
+    profile_file = tmp_path/'profile.yaml'
+    _write_yaml(profile_file, {'camera_sources': {'center': source}})
+    runtime = _build_unified_runtime(tmp_path, profile_file=profile_file)/'galaxis_devices.yaml'
+    node = registry._factory_center_camera_flip([str(runtime)])
+    assert node['name'] == 'center_camera_flip'
+    # Only actual-node sections and parameter dictionaries apply in ROS. The
+    # old executable-name section was silently ignored in the real launch.
+    effective = {}
+    for param in node['parameters']:
+        if isinstance(param, dict): effective.update(param)
+        else: effective.update(yaml.safe_load(Path(param).read_text()).get(node['name'], {}).get('ros__parameters', {}))
+    assert effective['input_transport'] == expected
+    assert effective['vertical_flip'] is False
+    assert effective['jpeg_quality'] == 90

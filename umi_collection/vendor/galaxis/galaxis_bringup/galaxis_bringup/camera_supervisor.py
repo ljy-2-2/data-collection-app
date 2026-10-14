@@ -55,7 +55,8 @@ def main():
                 # A fresh driver process resolves the current device each time.
                 # USB camera libraries may otherwise pin an obsolete videoN.
                 child = subprocess.Popen([executable, *ros_args, '--ros-args', '-p',
-                                          'video_device:='+item['device']])
+                                          'video_device:='+item['device'], '-p',
+                                          'mjpeg_passthrough:=true'])
                 current = token
                 print(f"{options.camera_role} camera connected: {item['device']}", flush=True)
             shutdown.wait(1.0)

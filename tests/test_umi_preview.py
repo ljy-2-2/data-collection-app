@@ -30,8 +30,14 @@ def test_fragmented_bursts_use_content_length_and_bound_memory():
     with pytest.raises(ValueError):preview.MjpegFrames().feed(b'x'*17000)
 
 
-@pytest.mark.parametrize('size,expected',[((1920,1080),(960,540)),((1280,1024),(960,768)),((320,240),(320,240))])
-def test_only_preview_is_scaled_original_bytes_are_unchanged(size,expected):
+@pytest.mark.parametrize('limit,size,expected',[
+    ((960,768),(1920,1080),(960,540)), ((960,768),(1280,1024),(960,768)),
+    ((800,640),(1920,1080),(800,450)), ((800,640),(1280,1024),(800,640)),
+    ((640,512),(1920,1080),(640,360)), ((640,512),(1280,1024),(640,512)),
+    ((640,512),(320,240),(320,240)),
+])
+def test_only_preview_is_scaled_original_bytes_are_unchanged(monkeypatch,limit,size,expected):
+    monkeypatch.setattr(preview, 'PREVIEW_SIZE', limit)
     source=jpeg('red',size);saved=bytes(source)
     output=preview.preview_jpeg(source)
     assert Image.open(BytesIO(output)).size==expected
@@ -39,6 +45,7 @@ def test_only_preview_is_scaled_original_bytes_are_unchanged(size,expected):
 
 
 def test_hd_preview_uses_native_half_size_jpeg_decode(monkeypatch):
+    monkeypatch.setattr(preview, 'PREVIEW_SIZE', (960, 768))
     original = preview.cv2.imdecode
     decoded_sizes = []
     decode_flags = []
@@ -54,6 +61,24 @@ def test_hd_preview_uses_native_half_size_jpeg_decode(monkeypatch):
     assert decoded_sizes == [(960, 540)]
     assert decode_flags == [preview.cv2.IMREAD_REDUCED_COLOR_2 | preview.cv2.IMREAD_IGNORE_ORIENTATION]
     assert Image.open(BytesIO(output)).size == (960, 540)
+
+
+def test_smaller_center_preview_decodes_half_size_without_changing_recorded_frame(monkeypatch):
+    monkeypatch.setattr(preview, 'PREVIEW_SIZE', (640, 512))
+    monkeypatch.setattr(preview, 'PREVIEW_QUALITY', 82)
+    original = preview.cv2.imdecode
+    decoded_sizes = []
+    def decode(source, flags):
+        image = original(source, flags)
+        decoded_sizes.append((image.shape[1], image.shape[0]))
+        return image
+    monkeypatch.setattr(preview.cv2, 'imdecode', decode)
+    saved = jpeg('blue', (1280, 1024))
+    unchanged = bytes(saved)
+    display = preview.preview_jpeg(saved)
+    assert decoded_sizes == [(640, 512)]
+    assert Image.open(BytesIO(display)).size == (640, 512)
+    assert Image.open(BytesIO(saved)).size == (1280, 1024) and saved == unchanged
 
 
 def test_preview_preserves_pixel_orientation_and_rgb_colors_despite_exif():

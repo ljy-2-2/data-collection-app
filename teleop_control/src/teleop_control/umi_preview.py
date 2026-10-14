@@ -5,15 +5,19 @@ import asyncio
 from contextlib import suppress
 from io import BytesIO
 import re
+import platform
 
 import cv2
 import httpx
 import numpy as np
 from PIL import Image
 
-PREVIEW_SIZE = (960, 768)
-PREVIEW_QUALITY = 90
-PREVIEW_FPS = 24
+# ARM capture hosts reserve CPU for full-resolution recording. In particular,
+# Keep enough detail for inspecting contact points on the board display.
+_ARM_DISPLAY = platform.machine().lower() in {'aarch64', 'arm64'}
+PREVIEW_SIZE = (800, 640) if _ARM_DISPLAY else (960, 768)
+PREVIEW_QUALITY = 88 if _ARM_DISPLAY else 90
+PREVIEW_FPS = 30 if _ARM_DISPLAY else 24
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 BOUNDARY = b'boundarydonotcross'
 

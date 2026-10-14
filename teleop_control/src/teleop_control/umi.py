@@ -884,8 +884,8 @@ class UmiManager:
             pending, imported = self.import_counts()
             return UmiStatus(
                 state=state,
-                message=self._error or ('；'.join(monitor.get('camera_quality_issues', []))
-                    if running and self._expected_camera_modes else ''),
+                message=self._error or (self._live_readiness_message(monitor)
+                    if running else ''),
                 session_id=self._session_id,
                 task=self._task,
                 record_format=self._record_format,
@@ -901,6 +901,20 @@ class UmiManager:
                 monitor=monitor,
                 log_tail=self._logs(),
             )
+
+    def _live_readiness_message(self, monitor: dict) -> str:
+        issues = list(monitor.get('camera_quality_issues', []))
+        # Only diagnose devices once the monitor has published their state.
+        # A temporary dropout keeps the other previews and telemetry visible.
+        if monitor.get('vr'):
+            sides = {'single-left': ('hmd', 'left'), 'single-right': ('hmd', 'right')}.get(
+                self._collection_profile, ('hmd', 'left', 'right'))
+            labels = {'hmd': '头盔', 'left': '左手柄', 'right': '右手柄'}
+            missing = [labels[side] for side in sides
+                       if not monitor['vr'].get(side, {}).get('online')]
+            if missing:
+                issues.append('等待 PICO ' + '、'.join(missing) + '实时数据，请确认 Head、Controllers、Send Data 已开启')
+        return '；'.join(issues)
 
     def _monitor_ready(self, monitor: dict) -> bool:
         """Return true only when the complete live collection path is usable."""
@@ -1717,6 +1731,7 @@ class UmiManager:
                 "rosbag",
                 "--no-open",
                 "--skip-device-setup",
+                "--wait-for-devices",
                 "--collection-profile",
                 request.collection_profile,
             ]

@@ -118,6 +118,17 @@ def _factory_camera_control(side: str):
 def _factory_center_camera_flip(params):
     from launch_ros.actions import Node
 
+    # The registry key is an executable name, but the launched ROS node is
+    # center_camera_flip. ROS silently ignores the former YAML section.
+    resolved = []
+    for source in params:
+        resolved.append(source)
+        if isinstance(source, (str, Path)):
+            document = yaml.safe_load(Path(source).read_text()) or {}
+            legacy = document.get("center_camera_flip_node", {}).get("ros__parameters")
+            current = document.get("center_camera_flip", {}).get("ros__parameters", {})
+            if isinstance(legacy, dict):
+                resolved.append({**legacy, **current})
     return Node(
         package="galaxis_bringup",
         executable="center_camera_flip_node",
@@ -125,7 +136,7 @@ def _factory_center_camera_flip(params):
         output="screen",
         respawn=True,
         respawn_delay=2.0,
-        parameters=with_center_camera_settings(params),
+        parameters=with_center_camera_settings(resolved),
     )
 
 

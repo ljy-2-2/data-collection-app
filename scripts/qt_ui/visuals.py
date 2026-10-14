@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 import numpy as np
 from .grippers import endpoints, closure
-from PySide6.QtCore import QObject,Property,Signal,Slot,QTimer,QUrl,QRectF,QPointF,Qt,QByteArray,QBuffer,QIODevice,QSize
+from PySide6.QtCore import QObject,Property,Signal,Slot,QTimer,QUrl,QRectF,QPointF,Qt,QByteArray,QBuffer,QIODevice,QSize,QRunnable,QThreadPool
 from PySide6.QtGui import QImage,QImageReader,QPainter,QPen,QColor,QFont,QPainterPath,QVector3D,QQuaternion,QMatrix3x3,QRadialGradient
 from PySide6.QtNetwork import QNetworkAccessManager,QNetworkRequest,QNetworkReply
 from PySide6.QtQuick import QQuickPaintedItem
@@ -172,10 +172,36 @@ class _MjpegPreviewParser:
         return latest
 
 
+def decode_preview_image(data, target):
+    """Decode a display copy off the GUI thread; recorded bytes never enter here."""
+    encoded=QBuffer();encoded.setData(QByteArray(data));encoded.open(QIODevice.ReadOnly)
+    reader=QImageReader(encoded,b'JPEG')
+    size=reader.size()
+    if target.isValid() and size.isValid():
+        fitted=size.scaled(target,Qt.KeepAspectRatio)
+        if fitted.width()<size.width():reader.setScaledSize(fitted)
+    return reader.read()
+
+
+class _PreviewDecodeSignals(QObject):
+    ready=Signal(int,QImage)
+
+
+class _PreviewDecodeJob(QRunnable):
+    def __init__(self,sequence,data,target):
+        super().__init__();self.sequence=sequence;self.data=data;self.target=target
+        self.signals=_PreviewDecodeSignals()
+    def run(self):
+        try:image=decode_preview_image(self.data,self.target)
+        except Exception:image=QImage()
+        self.signals.ready.emit(self.sequence,image)
+
+
 class CameraItem(QQuickPaintedItem):
     sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal()
     def __init__(self,parent=None):
         super().__init__(parent);self._source='';self._online=False;self.frame=QImage();self.buffer=b'';self.reply=None;self.sequence=0
+        self._decode_job=None;self._decode_pending=None
         self.network=QNetworkAccessManager(self);self.retry=QTimer(self);self.retry.setSingleShot(True);self.retry.timeout.connect(self.connect_stream)
         self.stale=QTimer(self);self.stale.setInterval(2500);self.stale.setSingleShot(True);self.stale.timeout.connect(self.stream_stalled)
         self.setAntialiasing(True)
@@ -184,7 +210,7 @@ class CameraItem(QQuickPaintedItem):
     @source.setter
     def source(self,value):
         if value==self._source:return
-        self.sequence+=1;self._source=value;self.retry.stop();self.stale.stop();self.buffer=b''
+        self.sequence+=1;self._source=value;self.retry.stop();self.stale.stop();self.buffer=b'';self._decode_pending=None
         if self.reply:self.reply.abort();self.reply=None
         self.frame=QImage();self.frameChanged.emit()
         self.offline();self.sourceChanged.emit()
@@ -208,23 +234,12 @@ class CameraItem(QQuickPaintedItem):
         parser=_MjpegPreviewParser()
         frame_endpoint='/frame' in self._source
         def accept(data):
-            # JPEG's scaled decode avoids expanding all three HD frames on the
-            # UI thread only to shrink them again when painting small cards.
-            # This only changes display pixels; the recorded JPEG stays intact.
-            encoded=QBuffer();encoded.setData(QByteArray(data));encoded.open(QIODevice.ReadOnly)
-            reader=QImageReader(encoded,b'JPEG')
-            size=reader.size()
             ratio=self.window().devicePixelRatio() if self.window() else 1.0
-            target=QSize(max(1,round(self.width()*ratio)),max(1,round(self.height()*ratio)))
-            if self.width()>0 and self.height()>0 and size.isValid():
-                fitted=size.scaled(target,Qt.KeepAspectRatio)
-                if fitted.width()<size.width():reader.setScaledSize(fitted)
-            image=reader.read()
-            if not image.isNull():
-                first=self.frame.isNull()
-                self.frame=image;self.update();self.stale.start()
-                if first:self.frameChanged.emit()
-                if not self._online:self._online=True;self.onlineChanged.emit()
+            target=QSize(max(1,round(self.width()*ratio)),max(1,round(self.height()*ratio))) if self.width()>0 and self.height()>0 else QSize()
+            # At most one running decode and one newest pending frame per tile.
+            # Reading the network never waits for JPEG decode or old frames.
+            self._decode_pending=(sequence,data,target)
+            self._decode_next()
         def read():
             if sequence!=self.sequence:return
             latest=None
@@ -254,6 +269,21 @@ class CameraItem(QQuickPaintedItem):
                 self.retry.start(80 if frame_endpoint else 600)
             reply.deleteLater()
         reply.readyRead.connect(read);reply.finished.connect(finished)
+    def _decode_next(self):
+        if self._decode_job is not None or self._decode_pending is None:return
+        sequence,data,target=self._decode_pending;self._decode_pending=None
+        job=_PreviewDecodeJob(sequence,data,target)
+        self._decode_job=job
+        job.signals.ready.connect(self._decoded,Qt.QueuedConnection)
+        QThreadPool.globalInstance().start(job)
+    @Slot(int,QImage)
+    def _decoded(self,sequence,image):
+        self._decode_job=None
+        if sequence==self.sequence and self._source and not image.isNull():
+            first=self.frame.isNull();self.frame=image;self.update();self.stale.start()
+            if first:self.frameChanged.emit()
+            if not self._online:self._online=True;self.onlineChanged.emit()
+        self._decode_next()
     def paint(self,painter):
         if self.frame.isNull():return
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -278,6 +308,7 @@ class CurveItem(QQuickPaintedItem):
     @zeroBased.setter
     def zeroBased(self,v):self._zero_based=v;self.update();self.changed.emit()
     def paint(self,p):
+        if not self.isVisible():return
         samples=[math.degrees(v) if isinstance(v,(int,float)) and math.isfinite(v) else None for v in self._values]
         w,h=self.width(),self.height();values=[v for v in samples if v is not None]
         lo,hi=(min(values),max(values)) if values else (0,1);pad=max((hi-lo)*.12,math.degrees(.0005));lo-=pad;hi+=pad
@@ -363,6 +394,7 @@ class G2View(QQuickPaintedItem):
     @Slot(float)
     def changeZoom(self,factor):self.zoom=max(.65,min(1.65,self.zoom*factor));self.update()
     def paint(self,p):
+        if not self.isVisible():return
         colors=dict(zip(('base','body','head','left','right'),['#b8c5d3','#8fc7f2','#c1b6ea','#79d8c6','#f2b28c'] if self._dark else ['#8d9cad','#72a7d1','#9b91c8','#59bbaa','#df9874']))
         cy,sy,cp,sp=math.cos(self.yaw),math.sin(self.yaw),math.cos(self.pitch),math.sin(self.pitch)
         def project(point):

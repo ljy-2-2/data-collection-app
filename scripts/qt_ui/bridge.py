@@ -644,7 +644,8 @@ class Bridge(QObject):
         now=time.monotonic()
         requests=[('umi','/umi/status',1.)]
         if s['teleopStep']==2 and s['robot']=='tianji':requests.append(('tianji','/tianji/status',.1))
-        else:requests.append(('g2','/status',.5))
+        elif s['robot']=='agibot-g2' or s['g2'].get('session',{}).get('state')=='running':
+            requests.append(('g2','/status',.5))
         if s['teleopStep']==2 and s['robot']=='agibot-g2':requests.append(('preview','/preview',.15))
         if s['page']=='umi' and s['umiStep']==2 and s['checkedProfile']==s['profile'] and not s['busy']:
             requests.append(('encoders','/umi/encoders/preview?collection_profile='+s['profile'],.15))

@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -1091,6 +1092,19 @@ def port_listener_detail(port: int) -> str:
 
 def read_pico_bridge_diagnostics() -> dict[str, str]:
     """Read the latest diagnostic snapshot from the ROS bridge itself."""
+    # Use the monitor's persistent ROS subscription. Repeatedly starting the
+    # ROS CLI on ARM can spend the entire two-second window in DDS discovery.
+    # Missing/stale diagnostics in a new monitor are authoritative; only old
+    # monitors without this field fall back to the CLI.
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(MONITOR_URL + "api/state", timeout=1.0) as response:
+            snapshot = json.load(response)
+        if isinstance(snapshot, dict) and "pico_bridge" in snapshot:
+            status = snapshot["pico_bridge"]
+            return status if isinstance(status, dict) else {}
+    except (OSError, ValueError):
+        pass
     command = [
         "docker",
         "exec",
@@ -1180,7 +1194,29 @@ def wait_for_vr_streaming(timeout: float) -> bool:
     while time.monotonic() < deadline:
         if read_pico_bridge_diagnostics().get("message") == "streaming":
             return True
+        time.sleep(0.25)
     return False
+
+
+def prepare_live_devices(requested_serial: str | None, *, skip_vr: bool,
+                         wait_for_devices: bool) -> str | None:
+    """Keep App monitoring alive while recoverable device readiness settles.
+
+    No Episode is created until both VR and the existing recording gate pass.
+    Ctrl+C still follows main's normal resource cleanup path.
+    """
+    serial = None
+    while True:
+        try:
+            if not skip_vr:
+                serial = start_vr(requested_serial)
+            wait_for_recording_gate_ready()
+            return serial
+        except CollectionError as exc:
+            if not wait_for_devices:
+                raise
+            print(f"等待设备恢复：{exc} 监视保持运行，暂不可录制。", flush=True)
+            time.sleep(3.0)
 
 
 def vr_bridge_connected() -> bool:
@@ -1532,6 +1568,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip PICO startup/tunnel (diagnostics only)",
     )
     sample.add_argument(
+        "--wait-for-devices", action="store_true",
+        help="Keep App monitoring alive while VR/camera readiness recovers; recording remains gated",
+    )
+    sample.add_argument(
         "--detach",
         action="store_true",
         help="Exit after preparation instead of keeping terminal status visible",
@@ -1615,11 +1655,9 @@ def main(argv: list[str] | None = None) -> int:
         terminate_legacy_robotics_service()
         collection_stack_attempted = True
         ensure_collection_stack()
-        if not args.skip_vr:
-            print("正在建立 PICO VR 连接与实时数据流…")
-            pico_serial = start_vr(args.pico_serial)
-        print("正在检查相机与 VR 采集门禁…")
-        wait_for_recording_gate_ready()
+        print("正在建立 PICO VR 连接并检查采集门禁…", flush=True)
+        pico_serial = prepare_live_devices(args.pico_serial, skip_vr=args.skip_vr,
+                                          wait_for_devices=args.wait_for_devices)
         print("正在等待 ROS 接收任务…")
         episode, task, robot = create_episode_for_task(
             task_identifier=task["id"],

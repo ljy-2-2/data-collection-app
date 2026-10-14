@@ -296,6 +296,29 @@ class CommandLineTest(unittest.TestCase):
 
 
 class PicoListenerReadinessTest(unittest.TestCase):
+    def setUp(self):
+        # Never consult a real running monitor from these unit tests.
+        patcher = patch.object(gc.urllib.request, "build_opener")
+        self.opener = patcher.start().return_value
+        self.opener.open.side_effect = OSError("offline fixture")
+        self.addCleanup(patcher.stop)
+
+    def test_persistent_monitor_diagnostics_avoid_ros_cli_discovery(self):
+        import io
+        self.opener.open.side_effect = None
+        self.opener.open.return_value = io.BytesIO(b'{"pico_bridge":{"message":"streaming","listening":"True"}}')
+        with patch.object(gc.subprocess, "run") as run:
+            self.assertEqual(gc.read_pico_bridge_diagnostics()["message"], "streaming")
+        run.assert_not_called()
+
+    def test_expired_monitor_snapshot_does_not_reuse_healthy_cli_cache(self):
+        import io
+        self.opener.open.side_effect = None
+        self.opener.open.return_value = io.BytesIO(b'{"pico_bridge":{}}')
+        with patch.object(gc.subprocess, "run") as run:
+            self.assertEqual(gc.read_pico_bridge_diagnostics(), {})
+        run.assert_not_called()
+
     @staticmethod
     def diagnostics(name, listening, error=""):
         return (
@@ -499,3 +522,23 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
                 with self.assertRaises(gc.CollectionError):
                     gc.ensure_background_finalizer()
                 run.assert_not_called()
+
+class LiveDeviceRecoveryTest(unittest.TestCase):
+    def test_app_waits_through_missing_vr_and_gate_without_stopping_monitor(self):
+        with (patch.object(gc, 'start_vr', side_effect=[gc.CollectionError('USB missing'), 'serial', 'serial']),
+              patch.object(gc, 'wait_for_recording_gate_ready', side_effect=[gc.CollectionError('camera settling'), None]) as gate,
+              patch.object(gc, 'stop_collection_stacks') as stop,
+              patch.object(gc, 'create_episode_for_task') as episode,
+              patch.object(gc.time, 'sleep') as sleep):
+            self.assertEqual(gc.prepare_live_devices(None, skip_vr=False, wait_for_devices=True), 'serial')
+        self.assertEqual(gate.call_count, 2)
+        self.assertEqual(sleep.call_count, 2)
+        stop.assert_not_called()
+        episode.assert_not_called()
+
+    def test_cancel_escapes_retry_loop_for_normal_resource_cleanup(self):
+        with (patch.object(gc, 'start_vr', side_effect=KeyboardInterrupt),
+              patch.object(gc, 'wait_for_recording_gate_ready') as gate):
+            with self.assertRaises(KeyboardInterrupt):
+                gc.prepare_live_devices(None, skip_vr=False, wait_for_devices=True)
+        gate.assert_not_called()

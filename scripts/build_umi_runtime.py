@@ -129,10 +129,11 @@ COPY galaxis/galaxis-core/galaxis-core/ /root/ros2_ws/src/galaxis-core/
 COPY galaxis/galaxis-core/airoa_data_msgs/ /root/ros2_ws/src/airoa_data_msgs/
 COPY galaxis/galaxis_pico/ /root/ros2_ws/src/galaxis_pico/
 COPY galaxis/galaxis_bringup/ /root/ros2_ws/src/galaxis_bringup/
+COPY galaxis/third_party/usb_cam/ /root/ros2_ws/src/usb_cam/
 COPY galaxis/galaxis_description/ /root/ros2_ws/src/galaxis_description/
 COPY galaxis/monitor/ /app/monitor/
 WORKDIR /root/ros2_ws
-RUN rm -rf build/galaxis_bringup install/galaxis_bringup build/galaxis_description install/galaxis_description && /bin/bash -c 'source /opt/ros/jazzy/setup.bash && colcon build --symlink-install --packages-select airoa_data_msgs galaxis_pico_msgs galaxis_core galaxis_pico_bridge galaxis_bringup galaxis_description'
+RUN rm -rf build/galaxis_bringup install/galaxis_bringup build/galaxis_description install/galaxis_description build/usb_cam install/usb_cam && /bin/bash -c 'source /opt/ros/jazzy/setup.bash && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF --packages-select airoa_data_msgs galaxis_pico_msgs galaxis_core galaxis_pico_bridge galaxis_bringup galaxis_description usb_cam'
 RUN python3 -c 'import fastapi,uvicorn,yaml,PIL,h5py,serial,mcap,airoa_metadata,minio'
 '''.replace("colcon build --symlink-install", f"colcon build --parallel-workers {args.jobs} --symlink-install"))
     run("docker", "build", "--network=none", "-t", build_tag, context)
