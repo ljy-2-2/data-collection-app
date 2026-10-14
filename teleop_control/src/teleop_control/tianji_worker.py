@@ -72,7 +72,8 @@ def gripper_configuration(parameters, selected, *, path=None):
     params = TianjiParameters.model_validate(parameters)
     gc["motors"] = {side: motor for side, motor in gc["motors"].items() if side in selected}
     for side, motor in gc["motors"].items():
-        motor.update(speed_rad_s=getattr(params, side + "_gripper_speed"), kp=params.kp, kd=params.kd)
+        motor.update(speed_rad_s=getattr(params, side + "_gripper_speed"),
+                     accel_rad_s2=getattr(params, side + "_gripper_accel"))
     return gc
 
 

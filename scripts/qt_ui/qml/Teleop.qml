@@ -108,11 +108,12 @@ Column {
                 Btn {text: "";glyph: "X";width: 30;height: 30;ghost: true;enabled: !s.busy;onClicked: parameterDialog.close()}
             }
             GridLayout {Layout.fillWidth: true;columns: app.width<420 ? 1 : 2;columnSpacing: 14;rowSpacing: 14
-                Repeater {model: 4
+                Repeater {model: backend.fields.length-3
                     NumberField {required property int index;Layout.fillWidth: true;spec: backend.fields[index+3];value: s.parameters[spec.key];showRange: false;arrows: false;enabled: !root.locked;onEdited: number=>backend.setParameter(spec.key,number)}
                 }
             }
             Txt {text: s.paramSaved ? "参数已自动保存" : s.paramSaving ? "正在自动保存…" : "自动保存未完成，可通过检查设备重试";font.pixelSize: 12;color: Theme.inkMuted}
+            Txt {Layout.fillWidth: true;wrapMode: Text.WordWrap;text: "参数保存后，下次开始遥操作或手动控制时生效。夹爪加速度限制位置目标的变化。";font.pixelSize: 12;color: Theme.inkMuted}
           }
         }
     }

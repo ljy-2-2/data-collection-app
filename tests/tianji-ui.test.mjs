@@ -87,7 +87,10 @@ test('draft parameters reject empty, NaN and excessive values', () => {
     validTianjiParameters({ ...TIANJI_DEFAULTS, scale: NaN }),
     false,
   );
-  assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, kd: 0 }), false);
+  assert.equal('kp' in TIANJI_DEFAULTS, false);
+  assert.equal('kd' in TIANJI_DEFAULTS, false);
+  assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, left_gripper_accel: 0 }), false);
+  assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, right_gripper_accel: 201 }), false);
   assert.equal(
     validTianjiParameters({ ...TIANJI_DEFAULTS, max_joint_speed_deg_s: 181 }),
     false,

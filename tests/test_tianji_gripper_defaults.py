@@ -40,11 +40,12 @@ def test_changed_file_reaches_ui_model_and_actual_worker(gripper_file):
     for side in ('left', 'right'):
         assert actual['motors'][side] == source['motors'][side]
         assert ui[side + '_gripper_speed'] == 22
-    assert ui['kp'] == 95 and ui['kd'] == 3.5
+        assert ui[side + '_gripper_accel'] == 170
+    assert 'kp' not in ui and 'kd' not in ui
     # New instances re-read the file rather than use an import-time constant.
     change(gripper_file, speed_rad_s=19, kd=2.5)
     assert TianjiParameters().left_gripper_speed == 19
-    assert bridge.initial_state()['parameters']['kd'] == 2.5
+    assert bridge.initial_state()['parameters']['left_gripper_speed'] == 19
 
 
 def test_current_requested_values_reach_worker_and_travel_is_retained(gripper_file):
@@ -55,25 +56,29 @@ def test_current_requested_values_reach_worker_and_travel_is_retained(gripper_fi
 
 
 def test_operator_overrides_remain_effective_and_do_not_replace_calibration(gripper_file):
-    parameters = TianjiParameters(left_gripper_speed=7, right_gripper_speed=9, kp=60, kd=1.5)
+    parameters = TianjiParameters(left_gripper_speed=7, right_gripper_speed=9,
+                                 left_gripper_accel=12, right_gripper_accel=35)
     actual = gripper_configuration(parameters.model_dump(), ('left', 'right'), path=gripper_file)
     source = json.loads(gripper_file.read_text())
     for side, speed in (('left', 7), ('right', 9)):
         motor = actual['motors'][side]
-        assert (motor['speed_rad_s'], motor['kp'], motor['kd']) == (speed, 60, 1.5)
-        for key in ('open_rad', 'closed_rad', 'accel_rad_s2', 'max_current_a', 'travel_margin_rad'):
+        assert motor['speed_rad_s'] == speed
+        assert motor['accel_rad_s2'] == (12 if side == 'left' else 35)
+        for key in ('open_rad', 'closed_rad', 'max_current_a', 'travel_margin_rad', 'kp', 'kd'):
             assert motor[key] == source['motors'][side][key]
 
 
 @pytest.mark.parametrize('gain', ['kp', 'kd'])
-def test_unequal_shared_gains_are_rejected_instead_of_choosing_one_side(gripper_file, gain):
+def test_per_motor_driver_gains_are_preserved_without_exposing_ui_controls(gripper_file, gain):
     source = json.loads(gripper_file.read_text())
     source['motors']['right'][gain] = source['motors']['left'][gain] / 2
     gripper_file.write_text(json.dumps(source))
-    with pytest.raises(ValueError, match='不一致'):
-        TianjiParameters()
-    with pytest.raises(ValueError, match='不一致'):
-        bridge.initial_state()
+    params = TianjiParameters().model_dump()
+    assert gain not in params and gain not in bridge.initial_state()['parameters']
+    assert gain not in {field['key'] for field in bridge.FIELDS}
+    actual = gripper_configuration(params, ('left', 'right'), path=gripper_file)
+    for side in ('left', 'right'):
+        assert actual['motors'][side][gain] == source['motors'][side][gain]
 
 
 def test_speeds_can_differ_per_side(gripper_file):
@@ -106,7 +111,8 @@ def test_legacy_saved_values_do_not_override_new_calibration(gripper_file):
 
 
 def test_current_saved_override_survives_but_config_change_resets_only_gripper(gripper_file):
-    selected = TianjiParameters(scale=.8, left_gripper_speed=6, right_gripper_speed=8, kd=1.5)
+    selected = TianjiParameters(scale=.8, left_gripper_speed=6, right_gripper_speed=8,
+                               left_gripper_accel=12, right_gripper_accel=35)
     stored = calibration.parameter_storage(selected.model_dump())
     assert TianjiParameters.model_validate(calibration.stored_parameters(stored)) == selected
     # Formatting alone does not invalidate an explicit operator setting.
@@ -114,8 +120,42 @@ def test_current_saved_override_survives_but_config_change_resets_only_gripper(g
     assert TianjiParameters.model_validate(calibration.stored_parameters(stored)) == selected
     change(gripper_file, speed_rad_s=24, kd=4.5)
     updated = TianjiParameters.model_validate(calibration.stored_parameters(stored))
-    assert (updated.left_gripper_speed, updated.right_gripper_speed, updated.kd) == (24, 24, 4.5)
+    assert (updated.left_gripper_speed, updated.right_gripper_speed) == (24, 24)
     assert updated.scale == .8
+    assert updated.left_gripper_accel == updated.right_gripper_accel == 200
+
+
+def test_existing_saved_parameters_gain_acceleration_without_losing_overrides(gripper_file):
+    selected = TianjiParameters(left_gripper_speed=7, right_gripper_speed=9).model_dump()
+    selected.pop('left_gripper_accel')
+    selected.pop('right_gripper_accel')
+    restored = TianjiParameters.model_validate(calibration.stored_parameters(calibration.parameter_storage(selected)))
+    assert (restored.left_gripper_speed, restored.right_gripper_speed) == (7, 9)
+    assert restored.left_gripper_accel == restored.right_gripper_accel == 200
+
+
+def test_old_gain_fields_do_not_discard_saved_speed_acceleration_or_scale(gripper_file, tmp_path, monkeypatch):
+    from teleop_control import tianji
+    from teleop_control.main import MockController
+    monkeypatch.setattr(tianji, 'RUNTIME', tmp_path)
+    expected = TianjiParameters(scale=.6, left_gripper_speed=7, right_gripper_speed=9,
+                               left_gripper_accel=12, right_gripper_accel=35)
+    old = calibration.parameter_storage(dict(expected.model_dump(), kp=80, kd=4))
+    path = tmp_path / 'parameters.json'
+    path.write_text(json.dumps(old))
+    manager = tianji.TianjiManager(MockController())
+    assert manager.parameters() == expected
+    manager.save_parameters(manager.parameters())
+    saved = json.loads(path.read_text())['parameters']
+    assert saved == expected.model_dump()
+    assert 'kp' not in saved and 'kd' not in saved
+
+
+@pytest.mark.parametrize('key', ['left_gripper_accel', 'right_gripper_accel'])
+@pytest.mark.parametrize('value', [0, -1, 200.1, float('nan'), float('inf')])
+def test_invalid_acceleration_cannot_be_saved(key, value):
+    with pytest.raises(ValueError):
+        TianjiParameters(**{key: value})
 
 
 def test_manager_storage_loads_current_and_migrates_stale_parameters(gripper_file, tmp_path, monkeypatch):

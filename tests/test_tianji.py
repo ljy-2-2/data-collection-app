@@ -227,8 +227,8 @@ def test_reject_joint_limits_unselected_arm_and_bad_pose(models):
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("kp", float("nan")),
-        ("kd", 0),
+        ("kp", 80),  # Retired settings are rejected, even with valid old values.
+        ("kd", 4),
         ("scale", 0),
         ("max_joint_speed_deg_s", 181),
         ("max_joint_accel_deg_s2", 451),
@@ -252,8 +252,9 @@ def test_defaults_match_updated_sdk():
     from gripper.config import load as load_gripper_config
     validated = load_gripper_config(ROOT / "teleop/gripper/config.json", live=True)
     assert validated["motors"]["right"]["open_rad"] == g["motors"]["right"]["open_rad"]
-    assert p.kp == g["motors"]["left"]["kp"] == g["motors"]["right"]["kp"]
-    assert p.kd == g["motors"]["left"]["kd"] == g["motors"]["right"]["kd"]
+    assert 'kp' not in p.model_dump() and 'kd' not in p.model_dump()
+    assert p.left_gripper_accel == g["motors"]["left"]["accel_rad_s2"]
+    assert p.right_gripper_accel == g["motors"]["right"]["accel_rad_s2"]
 
 
 @pytest.mark.parametrize("upload_mode", ["left", "right", "dual"])

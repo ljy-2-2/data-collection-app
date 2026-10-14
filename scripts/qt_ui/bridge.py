@@ -21,8 +21,8 @@ FIELDS = [
     dict(key='max_joint_accel_deg_s2',label='关节加速度上限',unit='°/s²',min=1,max=450,step=1,default=450),
     dict(key='left_gripper_speed',label='左夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
     dict(key='right_gripper_speed',label='右夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
-    dict(key='kp',label='电机 Kp',unit='',min=0,max=500,step=1),
-    dict(key='kd',label='电机 Kd',unit='',min=.01,max=5,step=.1),
+    dict(key='left_gripper_accel',label='左夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
+    dict(key='right_gripper_accel',label='右夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
 ]
 _PARAMETER_DEFAULTS = parameter_defaults()
 for field in FIELDS:

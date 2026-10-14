@@ -195,12 +195,21 @@ def main():
         bridge.setValue('robot','agibot-g2')
         assert bridge.state['robot']=='tianji', 'Do not switch the active workspace from the setup selector'
 
-        click('otherParameters');snap('params');item('parameterDialog').setProperty('visible',False)
+        click('otherParameters')
+        assert {'left_gripper_accel','right_gripper_accel'} <= {field['key'] for field in bridge.fields}
+        assert not {'kp','kd'} & {field['key'] for field in bridge.fields}
+        assert not {'kp','kd'} & set(bridge.state['parameters'])
+        snap('params');item('parameterDialog').setProperty('visible',False)
         bridge.setParameter('left_gripper_speed',8.5);wait(lambda:bridge.state['paramSaved']);assert requests[-1][0]=='/tianji/parameters'
+        bridge.setParameter('left_gripper_accel',12)
+        bridge.setParameter('right_gripper_accel',35)
+        wait(lambda:bridge.state['paramSaved'])
+        assert requests[-1][1]['left_gripper_accel']==12 and requests[-1][1]['right_gripper_accel']==35
         click('teleopCheck');wait(lambda:bridge.can_move())
         verify_three_cameras('tianji')
         bridge.setValue('uploadMode','left');click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='running')
         start=next(p for path,p in reversed(requests) if path=='/tianji/start');assert start['mode']=='dual' and start['upload_mode']=='left' and start['parameters']['left_gripper_speed']==8.5
+        assert start['parameters']['left_gripper_accel']==12 and start['parameters']['right_gripper_accel']==35
         before=len(requests);bridge.jog('left',1,1);wait();assert len(requests)==before,'Motion must be blocked while teleoperating'
         click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='idle')
         bridge.jog('left',1,1);wait(lambda:not bridge.state['busy']);assert requests[-1]==('/tianji/move',dict(kind='jog',mode='dual',side='left',joint=1,delta=10))

@@ -14,8 +14,8 @@ class TianjiParameters(BaseModel):
     max_joint_accel_deg_s2: float = Field(default=450, ge=1, le=450)
     left_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_speed'), ge=0.01, le=100)
     right_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_speed'), ge=0.01, le=100)
-    kp: float = Field(default_factory=partial(gripper_parameter_default, 'kp'), ge=0, le=500)
-    kd: float = Field(default_factory=partial(gripper_parameter_default, 'kd'), gt=0, le=5)
+    left_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_accel'), ge=0.1, le=200)
+    right_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_accel'), ge=0.1, le=200)
 
 
 class TianjiStart(BaseModel):

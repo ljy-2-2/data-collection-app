@@ -7,7 +7,8 @@ import math
 from pathlib import Path
 
 GRIPPER_CONFIG = Path(__file__).resolve().parents[2] / 'vendor/tianji/teleop/gripper/config.json'
-GRIPPER_PARAMETERS = ('left_gripper_speed', 'right_gripper_speed', 'kp', 'kd')
+GRIPPER_PARAMETERS = ('left_gripper_speed', 'right_gripper_speed',
+                      'left_gripper_accel', 'right_gripper_accel')
 
 
 def gripper_parameter_defaults() -> dict[str, float]:
@@ -17,25 +18,20 @@ def gripper_parameter_defaults() -> dict[str, float]:
     result = {}
     for side in ('left', 'right'):
         if side not in motors:
-            # The page has two speed fields. A missing physical side keeps the
+            # A missing physical side keeps the
             # previous conservative placeholder; no motor is added to the
             # worker configuration and no command is sent to that absent side.
             result[side + '_gripper_speed'] = 10
+            result[side + '_gripper_accel'] = 20
             continue
         value = motors[side]['speed_rad_s']
         if type(value) not in (int, float) or not math.isfinite(value) or not .01 <= value <= 100:
             raise ValueError(f'{side}.speed_rad_s 必须为 0.01～100 的有效数值')
         result[side + '_gripper_speed'] = value
-    for key in ('kp', 'kd'):
-        values = [motor[key] for motor in motors.values()]
-        value = values[0]
-        if any(other != value for other in values[1:]):
-            raise ValueError(f'左右夹爪 {key} 不一致；当前页面使用共用参数，请明确配置相同值')
-        if type(value) not in (int, float) or not math.isfinite(value):
-            raise ValueError(f'夹爪 {key} 必须为有效数值')
-        if not (0 <= value <= 500 if key == 'kp' else 0 < value <= 5):
-            raise ValueError(f'夹爪 {key} 超出页面可设置范围')
-        result[key] = value
+        accel = motors[side].get('accel_rad_s2', 20.0)
+        if type(accel) not in (int, float) or not math.isfinite(accel) or not .1 <= accel <= 200:
+            raise ValueError(f'{side}.accel_rad_s2 必须为 0.1～200 的有效数值')
+        result[side + '_gripper_accel'] = accel
     return result
 
 
@@ -61,6 +57,10 @@ def stored_parameters(payload: dict) -> dict:
     else:
         values = dict(payload)
         current = False  # Legacy files cannot prove their calibrated source.
+    # Retired UI gains must not invalidate otherwise valid saved settings.
+    # The driver's per-motor configuration retains its own MIT gains.
+    values.pop('kp', None)
+    values.pop('kd', None)
     if not current:
         for key in GRIPPER_PARAMETERS:
             values.pop(key, None)

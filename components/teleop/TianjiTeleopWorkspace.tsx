@@ -519,6 +519,9 @@ export function TianjiTeleopWorkspace({
               ))}
             </div>
           </fieldset>
+          <p className="tianji-autosave-status">
+            参数保存后，下次开始遥操作或手动控制时生效。夹爪加速度限制位置目标的变化。
+          </p>
           {saveFailure ? (
             <div className="inline-alert" role="alert">
               {saveFailure.message}

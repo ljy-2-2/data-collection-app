@@ -19,6 +19,7 @@ import yaml
 from . import camera_devices
 from .camera_brightness import read_brightness, set_brightness
 from .camera_resolution import read_modes, choose_mode, ros_parameters, usb_connection_info
+from .umi_preview import PREVIEW_FPS, PREVIEW_QUALITY, preview_size
 from .models import (
     UmiDeviceConfigureRequest,
     UmiStartRequest,
@@ -215,9 +216,19 @@ class _CameraPreviewWorker:
                 now = time.monotonic()
                 if now < next_frame_at:
                     continue
-                next_frame_at = now + 0.1
+                # Advance the display deadline, rather than restarting it on
+                # every accepted frame (which turns a 30 Hz input into 15 Hz).
+                next_frame_at += 1.0 / PREVIEW_FPS
+                if next_frame_at <= now:
+                    next_frame_at = now + 1.0 / PREVIEW_FPS
+                # Validate the negotiated capture size above, then resize only
+                # this display copy. Never lower the device's recording mode
+                # to make the hardware-check page cheaper to render.
+                display_size = preview_size(frame.shape[1], frame.shape[0])
+                display = (cv2.resize(frame, display_size, interpolation=cv2.INTER_LINEAR)
+                           if display_size != (frame.shape[1], frame.shape[0]) else frame)
                 encoded, jpeg = cv2.imencode(
-                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90]
+                    ".jpg", display, [cv2.IMWRITE_JPEG_QUALITY, PREVIEW_QUALITY]
                 )
                 if not encoded:
                     continue

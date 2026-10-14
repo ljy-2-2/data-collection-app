@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import math
+import re
 from pathlib import Path
 import numpy as np
 from .grippers import endpoints, closure
@@ -117,6 +118,60 @@ class RobotScene(QObject):
         self._pose_angles=angles
 
 
+class _MjpegPreviewParser:
+    """Keep the latest complete preview, honoring multipart JPEG boundaries.
+
+    Camera JPEGs can contain thumbnails with their own SOI/EOI markers. A
+    multipart Content-Length describes the whole image, including those bytes.
+    Older preview producers omit the length or send bare JPEGs; retain marker
+    parsing only for those streams.
+    """
+    MAX_FRAME_BYTES = 8 * 1024 * 1024
+
+    def __init__(self):
+        self.buffer = bytearray()
+        self.body_size = None
+
+    def feed(self, data):
+        self.buffer.extend(data)
+        latest = None
+        while True:
+            if self.body_size is not None:
+                if len(self.buffer) < self.body_size:
+                    break
+                latest = bytes(self.buffer[:self.body_size])
+                del self.buffer[:self.body_size]
+                self.body_size = None
+                continue
+
+            start = self.buffer.find(b'\xff\xd8')
+            header_end = self.buffer.find(b'\r\n\r\n')
+            if header_end >= 0 and (start < 0 or header_end < start):
+                header = bytes(self.buffer[:header_end])
+                lengths = re.findall(rb'(?im)^content-length:[ \t]*([^\r\n]*)', header)
+                if lengths:
+                    if len(lengths) != 1 or not re.fullmatch(rb'[0-9]+[ \t]*', lengths[0]):
+                        raise ValueError('Invalid MJPEG Content-Length')
+                    length = int(lengths[0])
+                    if not 0 < length <= self.MAX_FRAME_BYTES:
+                        raise ValueError('Invalid MJPEG frame size')
+                    self.body_size = length
+                del self.buffer[:header_end + 4]
+                continue
+
+            end = self.buffer.find(b'\xff\xd9', start + 2) if start >= 0 else -1
+            if end < 0:
+                break
+            if end + 2 - start > self.MAX_FRAME_BYTES:
+                raise ValueError('Invalid MJPEG frame size')
+            latest = bytes(self.buffer[start:end + 2])
+            del self.buffer[:end + 2]
+
+        if len(self.buffer) > self.MAX_FRAME_BYTES:
+            raise ValueError('Invalid MJPEG buffer size')
+        return latest
+
+
 class CameraItem(QQuickPaintedItem):
     sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal()
     def __init__(self,parent=None):
@@ -150,6 +205,7 @@ class CameraItem(QQuickPaintedItem):
         if not self._source or self.reply is not None:return
         sequence=self.sequence;request=QNetworkRequest(QUrl(self._source));request.setTransferTimeout(5000)
         reply=self.network.get(request);self.reply=reply;self.buffer=b''
+        parser=_MjpegPreviewParser()
         frame_endpoint='/frame' in self._source
         def accept(data):
             # JPEG's scaled decode avoids expanding all three HD frames on the
@@ -176,13 +232,16 @@ class CameraItem(QQuickPaintedItem):
             # Drain bounded chunks and parse before limiting an incomplete frame;
             # the previous readAll limit repeatedly aborted healthy HD streams.
             while reply.bytesAvailable():
-                self.buffer+=bytes(reply.read(65536))
-                if not frame_endpoint:
-                    while True:
-                        start=self.buffer.find(b'\xff\xd8');end=self.buffer.find(b'\xff\xd9',start+2) if start>=0 else -1
-                        if end<0:break
-                        latest=self.buffer[start:end+2];self.buffer=self.buffer[end+2:]
-                if len(self.buffer)>8*1024*1024:
+                data=bytes(reply.read(65536))
+                try:
+                    if frame_endpoint:self.buffer+=data
+                    else:
+                        parsed=parser.feed(data)
+                        self.buffer=parser.buffer
+                        if parsed is not None:latest=parsed
+                    if len(self.buffer)>parser.MAX_FRAME_BYTES:
+                        raise ValueError('Invalid preview frame size')
+                except ValueError:
                     self.buffer=b'';reply.abort();return
             if latest:accept(latest)
         def finished():
