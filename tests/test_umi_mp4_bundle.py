@@ -26,7 +26,7 @@ def image_message(timestamp, color):
     return bytes(payload) + struct.pack("<I", len(output.getvalue())) + output.getvalue()
 
 
-def recording(root, sides=("left", "right", "center"), offsets=(0, 33000000, 68000000, 99000000, 134000000)):
+def recording(root, sides=("left", "right", "center"), offsets=(0, 33000000, 68000000, 99000000, 134000000), log_offsets=None):
     root.mkdir()
     source = root / "source.mcap"
     with source.open("wb") as stream:
@@ -36,7 +36,7 @@ def recording(root, sides=("left", "right", "center"), offsets=(0, 33000000, 680
         cameras = {side: writer.register_channel(f"/{side}_camera/image_raw/compressed", "cdr", schema) for side in sides}
         signals = writer.register_channel("/joint_states", "cdr", writer.register_schema("sensor_msgs/msg/JointState", "ros2msg", b"test joint schema"))
         for i, offset in enumerate(offsets):
-            timestamp = 100000000000 + offset
+            timestamp = 100000000000 + (offset if log_offsets is None else log_offsets[i])
             writer.add_message(signals, timestamp, b"exact-joint-data" + bytes([i]), timestamp - 5, i)
             for side, channel in cameras.items():
                 writer.add_message(channel, timestamp, image_message(offset, {"left":"red", "right":"green", "center":"blue"}[side]), timestamp - 9, i)
@@ -60,6 +60,7 @@ def test_recording_contract_validates_actual_frames_and_keeps_audit_in_manifest(
     selected=contract(root)
     manifest=bundle.convert_bundle(root)
     assert manifest['crf']==14
+    assert manifest['encoder'] == dict(codec='libx264', preset='veryfast', pixel_format='yuv420p')
     assert manifest['camera_contract']==selected
     for camera in manifest['cameras']:
         assert camera['size']==[64,48] and camera['frame_count']==5
@@ -127,6 +128,31 @@ def test_corrupted_video_is_rejected_and_source_survives(tmp_path):
     assert source.is_file()
 
 
+def test_decode_errors_are_rejected_even_with_matching_hash(tmp_path):
+    root = tmp_path / 'round'
+    source = recording(root)
+    manifest = bundle.convert_bundle(root)
+    path = root / 'media/left.mp4'
+    payload = bytearray(path.read_bytes())
+    start = payload.index(b'mdat') + 4
+    # Keep the MP4 index intact, corrupt the actual compressed frame packets.
+    payload[start:start + 24] = b'\x00' * 24
+    path.write_bytes(payload)
+    camera = next(c for c in manifest['cameras'] if c['file'] == 'left.mp4')
+    camera['sha256'] = bundle.file_hash(path)
+    (root / 'media/video-manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises((ValueError, bundle.subprocess.CalledProcessError)):
+        bundle.validate_bundle(root / 'media')
+    assert source.exists()
+
+
+def test_only_supervised_conversion_uses_pause_aware_timeout(monkeypatch):
+    monkeypatch.delenv('GALAXIS_MANAGED_FINALIZER', raising=False)
+    assert bundle.operation_timeout(180) == 180
+    monkeypatch.setenv('GALAXIS_MANAGED_FINALIZER', '1')
+    assert bundle.operation_timeout(180) is None
+
+
 def test_encoder_failure_never_publishes_bundle_or_deletes_source(tmp_path, monkeypatch):
     root = tmp_path / "round"
     source = recording(root)
@@ -138,3 +164,29 @@ def test_encoder_failure_never_publishes_bundle_or_deletes_source(tmp_path, monk
         bundle.convert_bundle(root)
     assert not (root / "media").exists()
     assert bundle.file_hash(source) == original
+
+
+def test_legacy_bundle_fps_uses_sensor_timestamps_not_bursty_arrival(tmp_path):
+    root=tmp_path/'legacy'
+    recording(root, offsets=tuple(i*33333333 for i in range(5)), log_offsets=(0,1000000,2000000,140000000,150000000))
+    manifest=bundle.convert_bundle(root)
+    assert all(abs(camera['fps']-30)<1e-5 for camera in manifest['cameras'])
+
+
+def test_parallel_validation_checks_every_camera_and_propagates_failure(tmp_path, monkeypatch):
+    import threading
+    root = tmp_path / 'round'
+    recording(root)
+    manifest = bundle.convert_bundle(root)
+    barrier = threading.Barrier(3, timeout=5)
+    checked = []
+    def probe(path, **kwargs):
+        checked.append(path.name)
+        barrier.wait()
+        if path.name == 'right.mp4':
+            raise ValueError('right camera decode error')
+        return dict(codec_name='h264', nb_read_frames=5, width=64, height=48)
+    monkeypatch.setattr(bundle, 'probe_video', probe)
+    with pytest.raises(ValueError, match='right camera decode error'):
+        bundle.validate_bundle(root / 'media')
+    assert set(checked) == {c['file'] for c in manifest['cameras']}

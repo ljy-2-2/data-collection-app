@@ -12,6 +12,7 @@ from .app import create_app
 from .collection_uploader import CollectionUploader
 from .collection_gate import CollectionGate
 from .platform_auth import PlatformLogin
+from .upload_targets import UploadTargets
 from .controller import TeleopController
 from .devices import DeviceDetector
 from .galaxis import GalaxisHeadsetSetup
@@ -357,8 +358,13 @@ def main() -> None:
     headset_setup = GalaxisHeadsetSetup(adb_path=args.adb)
     xr_service = XrServiceLauncher(args.xr_service)
     login = PlatformLogin(args.api_url)
-    gate = CollectionGate(Path(args.umi_data_root).expanduser() / ".collection-platform.json", login)
+    targets = UploadTargets(Path(args.umi_data_root), login,
+                            os.getenv('PLATFORM_WEB_URL', 'http://127.0.0.1:5173'),
+                            local_api=os.getenv('UMI_LOCAL_API_URL', 'http://127.0.0.1:8000'),
+                            local_web=os.getenv('UMI_LOCAL_WEB_URL', 'http://127.0.0.1:5173'))
+    gate = CollectionGate(Path(args.umi_data_root).expanduser() / ".collection-platform.json", targets)
     gate.start()
+    umi_gate = gate
     umi = UmiManager(
         args.umi_project,
         args.umi_data_root,
@@ -367,13 +373,15 @@ def main() -> None:
         runtime_dir=root / "teleop_control" / "runtime" / "umi",
         prepare_check=lambda: prepare_umi_device_check(headset_setup),
     )
+    umi.collection_gate_path = umi_gate.path
+    umi.upload_targets = targets
     controller = build_controller(
         args,
         umi=umi,
         headset_setup=headset_setup,
         xr_service=xr_service,
     )
-    umi_uploader = UmiRosbagUploader(args.umi_data_root, args.api_url)
+    umi_uploader = UmiRosbagUploader(args.umi_data_root, args.api_url, targets=targets)
     app = create_app(
         controller,
         cors_origins=[item.strip() for item in origins.split(",")],
@@ -381,13 +389,15 @@ def main() -> None:
         umi=umi,
         umi_uploader=umi_uploader,
         platform_api_url=args.api_url,
-        platform_login=login,
+        platform_login=targets,
+        upload_targets=targets,
+        umi_gate=umi_gate,
     )
     uploaders = [
-        CollectionUploader(args.output, args.api_url),
+        CollectionUploader(args.output, args.api_url, targets=targets),
         umi_uploader,
     ]
-    tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.output, args.api_url)
+    tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.output, args.api_url, targets=targets)
     app.state.tianji_manager.collection.uploader = tianji_uploader
     uploaders.append(tianji_uploader)
     output_root = Path(args.output).expanduser().resolve()
@@ -397,11 +407,12 @@ def main() -> None:
             CollectionUploader(
                 right_arm_root,
                 args.api_url,
-                discover_completed=True,
+                discover_completed=True, targets=targets,
             )
         )
-    for uploader in uploaders:
-        uploader.start()
+    from .background_upload import ensure_service
+    targets.background_credentials = ensure_service(args.umi_data_root, uploaders,
+        systemd=not args.mock, default_destination=targets.targets[targets.default_kind])
     try:
         # MJPEG responses are intentionally long-lived. Bound graceful shutdown
         # so a browser tab cannot keep a host-service restart waiting forever.

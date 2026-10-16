@@ -577,3 +577,12 @@ def test_gripper_reference_survives_episode_boundary_but_resets_on_rearm(tmp_pat
         assert set(collection.latest['gripper_action_reference']) == {'left'}
     finally:
         collection.close()
+
+
+def test_recorded_destination_is_written_to_both_metadata_and_ready_marker(tmp_path,account,monkeypatch):
+    destination={'kind':'local','api_url':'http://127.0.0.1:8000','web_url':'http://127.0.0.1:5173'}
+    monkeypatch.setattr(tianji_collection,'collection_context',lambda:{'author':'collector-test','upload_destination':dict(destination)})
+    test_ab_episode_and_platform_round_trip(tmp_path,account,'dual','mjpeg',None)
+    marker=next(tmp_path.glob('*/'+READY_MARKER))
+    assert json.loads(marker.read_text())['upload_destination']==destination
+    assert json.loads((marker.parent/'meta_info.json').read_text())['upload_destination']==destination

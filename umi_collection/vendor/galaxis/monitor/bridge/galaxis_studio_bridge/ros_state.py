@@ -412,8 +412,8 @@ class RosStateCollector:
                         'message': status.message,
                     }
                     self._pico_diagnostic_at = time.monotonic()
-        prefix = 'recording_gate/camera_quality/'
-        entries = [s for s in msg.status if s.name.startswith(prefix)]
+        prefixes = ('recording_gate/camera_quality/', 'recording_gate/pico_timing/')
+        entries = [s for s in msg.status if s.name.startswith(prefixes)]
         if entries:
             issues = []
             for status in entries:
@@ -424,9 +424,12 @@ class RosStateCollector:
                     level = int.from_bytes(level, 'little')
                 if not level:
                     continue
+                prefix = next(p for p in prefixes if status.name.startswith(p))
                 condition = status.name[len(prefix):]
                 role = condition.split('_', 1)[0]
                 label = {'left': '左腕相机', 'center': '中心相机', 'right': '右腕相机'}.get(role, '相机')
+                if prefix.endswith('/pico_timing/'):
+                    label = {'left': '左手柄', 'right': '右手柄'}.get(role, 'PICO')
                 reason = status.message.strip()
                 if reason.lower() == 'ok':
                     continue

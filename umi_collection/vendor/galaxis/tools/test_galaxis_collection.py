@@ -481,7 +481,7 @@ if __name__ == "__main__":
 
 class BackgroundWorkerLauncherTest(unittest.TestCase):
     def test_cpu_budget_adapts_to_other_computers_and_affinity_limits(self):
-        for count, expected in ((1, 1), (2, 1), (4, 2), (8, 4), (24, 6)):
+        for count, expected in ((1, 1), (2, 2), (4, 4), (8, 8), (24, 24)):
             with self.subTest(cpus=count), patch.object(gc.os, 'sched_getaffinity', return_value=set(range(count))):
                 self.assertEqual(gc.finalizer_cpu_budget(), expected)
         with patch.object(gc.os, 'sched_getaffinity', side_effect=OSError), patch.object(gc.os, 'cpu_count', return_value=None):

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -63,7 +64,13 @@ def clear_previous_app_login(values: dict[str, str]) -> None:
     Explicit logout, unlike closing the App, also deletes saved credentials.
     """
     configured = values.get("PLATFORM_TOKEN_FILE", "").strip()
-    PlatformTokenStore(configured or None).clear()
+    store = PlatformTokenStore(configured or None)
+    store.clear()
+    # Local destinations have their own token files. Clear only their exact
+    # session filenames, preserving password preferences and keyring entries.
+    for path in store.path.parent.glob('platform-local-*.json'):
+        if re.fullmatch(r'platform-local-[0-9a-f]{16}\.json', path.name):
+            PlatformTokenStore(path).clear()
 
 
 def stop_previous_umi(control_host: str, control_port: int) -> None:

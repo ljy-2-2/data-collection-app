@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -322,14 +323,14 @@ def ensure_collection_images() -> None:
 
 
 def finalizer_cpu_budget() -> int:
-    # Three encoders use at most two threads each. When capture is idle,
-    # process the backlog promptly while leaving CPU room for the desktop.
-    # CapturePriority still preempts the entire conversion before recording.
+    # Idle finalization may use every available CPU. The worker restricts its
+    # affinity while monitoring, and CapturePriority preempts the whole process
+    # group before recording. A static half-CPU quota also throttled idle work.
     try:
         available = len(os.sched_getaffinity(0))
     except (AttributeError, OSError):
-        available = os.cpu_count() or 2
-    return max(1, min(6, available // 2))
+        available = os.cpu_count() or 1
+    return max(1, available)
 
 
 _FINALIZER_LABEL = "cn.xiaokai.umi.finalizer"
@@ -1330,6 +1331,22 @@ def wait_for_new_recording(
     return None
 
 
+def read_monitor_recording_state() -> tuple[str | None, str | None]:
+    """Reuse the monitor's ROS subscriptions; never launch DDS nodes in a loop."""
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(MONITOR_URL + "api/state", timeout=1.0) as response:
+            state = json.load(response)
+        if not isinstance(state, dict) or state.get("ros_connected") is not True:
+            return None, None
+        recording = state.get("recording")
+        if not isinstance(recording, bool):
+            return None, None
+        return state.get("task_status"), str(recording).lower()
+    except (OSError, ValueError):
+        return None, None
+
+
 def read_topic_once(
     topic: str, timeout: float = 3.0, *, transient_local: bool = False
 ) -> str | None:
@@ -1385,7 +1402,17 @@ def wait_for_recording_gate_ready(timeout: float = 25.0) -> None:
     )
 
 
-def monitor_collection(
+def monitor_collection(task_name: str, **kwargs) -> int:
+    # Tell the independent encoder that live tracking needs CPU even while
+    # waiting between rounds. flock releases on exit/crash without stale flags.
+    path = DATA_DIR / 'rosbags/.capture-monitor.lock'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a+') as lock:
+        fcntl.flock(lock, fcntl.LOCK_SH)
+        return _monitor_collection(task_name, **kwargs)
+
+
+def _monitor_collection(
     task_name: str,
     *,
     record_format: str = "rosbag",
@@ -1405,12 +1432,7 @@ def monitor_collection(
     next_vr_health_check = time.monotonic() + 15.0
     try:
         while True:
-            status = read_topic_once(
-                "/task_sequence_manager/status", transient_local=True
-            )
-            recording_value = read_topic_once(
-                "/record_manager/recording", transient_local=True
-            )
+            status, recording_value = read_monitor_recording_state()
             timestamp = datetime.now().astimezone().strftime("%H:%M:%S")
             if recording_value is None:
                 print(
@@ -1474,7 +1496,7 @@ def monitor_collection(
             elif last_recording is None and not is_recording:
                 print(f"[{timestamp}] 已就绪，当前暂停（recording=false）")
             last_recording = is_recording
-            time.sleep(0.05)
+            time.sleep(0.25)
     except KeyboardInterrupt:
         print()
         if last_recording or recording_is_active():

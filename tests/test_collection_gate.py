@@ -94,3 +94,22 @@ def test_offline_upload_queue_keeps_data_without_connection_notice(tmp_path, mon
         uploader._set_status(tmp_path / 'round', 'failed', 'connection refused')
         assert uploader.status()['error'] == ''
         assert uploader.status()['pending'] == 1
+
+
+def test_teleop_context_is_frozen_before_finalization(tmp_path,monkeypatch):
+    from teleop_control.collection_gate import collection_context
+    spec=importlib.util.spec_from_file_location('g2_context',ROOT/'teleop_control/vendor/remote_collector.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    path=tmp_path/'gate.json';monkeypatch.setenv('DATA_COLLECTION_GATE_FILE',str(path))
+    gate=CollectionGate(path,Mock())
+    local={'kind':'local','api_url':'http://127.0.0.1:8000','web_url':'http://127.0.0.1:5173'}
+    gate._write(True,'local-owner',local)
+    context=collection_context();assert context==module.collection_context()
+    gate._write(True,'cloud-owner',{'kind':'cloud','api_url':'https://cloud.test','web_url':'https://cloud.test'})
+    episode=tmp_path/'episode';episode.mkdir()
+    module.mark_episode_ready(episode,session_id='session',session_folder='task',platform_context=context)
+    saved=json.loads((episode/module.READY_MARKER).read_text())
+    assert saved['author']=='local-owner' and saved['upload_destination']==local
+    gate._write(False)
+    for reader in (collection_context,module.collection_context):
+        with pytest.raises(RuntimeError):reader()

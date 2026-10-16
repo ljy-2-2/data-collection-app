@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import math
+import multiprocessing
+import queue
 import socket
 import threading
 import time
@@ -26,6 +28,7 @@ class PicoFrame:
     pico_id: str
     delta_time_s: float
     raw: Dict[str, Any] = field(default_factory=dict)
+    pc_received_wall_ns: int = 0
 
 
 _PACKET_HEAD = 0x3F
@@ -444,6 +447,7 @@ class GalaxisTcpServerTransport:
         raw = normalize_tracking_payload(tracking)
         device_time_ns = int(raw.get("deviceTimeNs", 0) or 0)
         pc_mono_ns = time.monotonic_ns()
+        pc_wall_ns = time.time_ns()
         now = pc_mono_ns / 1e9
         with self._frame_dispatch_lock:
             with self._lock:
@@ -487,6 +491,7 @@ class GalaxisTcpServerTransport:
             frame = PicoFrame(
                 device_time_ns=device_time_ns,
                 pc_monotonic_ns=pc_mono_ns,
+                pc_received_wall_ns=pc_wall_ns,
                 seq=seq,
                 pico_id=pico_id,
                 delta_time_s=delta_time_s,
@@ -504,3 +509,142 @@ class GalaxisTcpServerTransport:
     def _warn(self, message: str) -> None:
         if self._log is not None:
             self._log.warn(message)
+
+
+def _receive_process(host, port, frames, statuses, stopped):
+    """Socket I/O has its own interpreter; ROS callbacks cannot hold its GIL."""
+    fault = ""
+
+    def receive(frame):
+        nonlocal fault
+        try:
+            frames.put_nowait(frame)
+        except queue.Full:
+            # Never silently discard a pose/button edge or renumber samples.
+            # Stop receiving on overflow and expose a persistent fault until
+            # the collection service is restarted.
+            fault = "PICO receive queue overflow; collection must be restarted"
+            raise RuntimeError(fault)
+
+    transport = GalaxisTcpServerTransport(host=host, port=port, on_frame=receive)
+    transport.start_listener()
+    try:
+        while not stopped.wait(0.05):
+            parent = multiprocessing.parent_process()
+            if parent is not None and not parent.is_alive():
+                break
+            if fault:
+                transport.stop()
+            status = transport.metrics()
+            status["sampled_at"] = time.monotonic()
+            if fault:
+                status["listen_error"] = fault
+            try:
+                statuses.put_nowait(status)
+            except queue.Full:
+                pass
+    finally:
+        transport.stop()
+        # The parent may be shutting down with unconsumed frames. Do not hang
+        # interpreter exit waiting for an IPC feeder that nobody will drain.
+        frames.cancel_join_thread()
+        statuses.cancel_join_thread()
+
+
+class IsolatedGalaxisTransport:
+    """Preserve every frame in order while isolating reception from DDS work.
+
+    The bounded FIFO is for short publication stalls, not resampling. All clock
+    fields originate in the receiver; publication never substitutes a new time.
+    """
+
+    def __init__(self, *, host, port, on_frame, logger=None, queue_size=256):
+        self._host, self._port = host, int(port)
+        self._on_frame, self._log = on_frame, logger
+        self._queue_size = queue_size
+        self._process = None
+        self._thread = None
+        self._lock = threading.Lock()
+        self._snapshot = {}
+        self._delivery_delay = 0.0
+        self._delivery_error = ""
+
+    def start_listener(self):
+        with self._lock:
+            if self._process is not None:
+                return
+            # Do not fork a ROS/DDS process with live threads and locks.
+            ctx = multiprocessing.get_context("spawn")
+            self._frames = ctx.Queue(maxsize=self._queue_size)
+            self._statuses = ctx.Queue(maxsize=1)
+            self._stopped = ctx.Event()
+            self._snapshot = {}
+            self._delivery_error = ""
+            self._process = ctx.Process(
+                target=_receive_process,
+                args=(self._host, self._port, self._frames, self._statuses, self._stopped),
+                daemon=True, name="pico-receiver",
+            )
+            self._process.start()
+            self._thread = threading.Thread(target=self._deliver, daemon=True, name="pico-publisher")
+            self._thread.start()
+
+    def _deliver(self):
+        while not self._stopped.is_set():
+            try:
+                frame = self._frames.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            self._delivery_delay = max(0.0, (time.monotonic_ns() - frame.pc_monotonic_ns) / 1e9)
+            try:
+                self._on_frame(frame)
+            except Exception as exc:
+                self._delivery_error = f"PICO publication failed: {exc}"
+                self._stopped.set()
+                if self._log is not None:
+                    self._log.error(self._delivery_error)
+                return
+
+    @property
+    def connected(self):
+        return self.metrics()["connected"]
+
+    def metrics(self):
+        with self._lock:
+            if self._process is not None:
+                while True:
+                    try:
+                        self._snapshot = self._statuses.get_nowait()
+                    except queue.Empty:
+                        break
+            result = dict(self._snapshot) or {
+                "connected": False, "listening": False, "listen_error": "",
+                "last_frame_age_s": float("nan"), "fps": 0.0,
+                "offset_ns": 0, "rtt_ns": None,
+            }
+            sampled_at = result.pop("sampled_at", time.monotonic())
+            result["last_frame_age_s"] += max(0.0, time.monotonic() - sampled_at)
+            if self._process is not None and not self._process.is_alive():
+                result.update(connected=False, listening=False,
+                              listen_error="PICO receiver process exited")
+            if self._delivery_error:
+                result.update(connected=False, listening=False, listen_error=self._delivery_error)
+            result["publication_delay_s"] = self._delivery_delay
+            return result
+
+    def stop(self):
+        with self._lock:
+            process, thread = self._process, self._thread
+            if process is None:
+                return
+            self._stopped.set()
+        process.join(timeout=2.0)
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=1.0)
+        thread.join(timeout=2.0)
+        with self._lock:
+            self._process = self._thread = None
+            self._snapshot = {}
+            self._frames.close()
+            self._statuses.close()

@@ -56,6 +56,10 @@ class PlatformLoginRequest(BaseModel):
     use_saved_password: bool = False
 
 
+class UploadTargetRequest(BaseModel):
+    kind: str
+
+
 class CameraBrightnessRequest(BaseModel):
     value: StrictInt
 
@@ -161,6 +165,8 @@ def create_app(
     umi_uploader: ImportScanner | None = None,
     platform_api_url: str = "http://127.0.0.1:8000",
     platform_login: PlatformLogin | None = None,
+    upload_targets=None,
+    umi_gate=None,
 ) -> FastAPI:
     login_service = platform_login or PlatformLogin(platform_api_url)
     app = FastAPI(title="Robot Data Platform Teleop Control", version="0.1.0")
@@ -195,14 +201,15 @@ def create_app(
     @app.get("/platform/status")
     async def platform_status() -> dict[str, object]:
         """Report platform reachability and the current user session."""
+        current_api = upload_targets.api_url if upload_targets is not None else platform_api_url
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
-                response = await client.get(f"{platform_api_url.rstrip('/')}/healthz")
+                response = await client.get(f"{current_api.rstrip('/')}/healthz")
             response.raise_for_status()
         except httpx.HTTPError as exc:
             return {
                 "healthy": False,
-                "api_url": platform_api_url,
+                "api_url": current_api,
                 "authenticated": False,
                 "user": login_service.store.user(),
                 "upload_mode": "direct",
@@ -211,7 +218,7 @@ def create_app(
         auth = await asyncio.to_thread(login_service.status)
         return {
             "healthy": True,
-            "api_url": platform_api_url,
+            "api_url": current_api,
             **auth,
             "upload_mode": "direct",
         }
@@ -224,6 +231,31 @@ def create_app(
         origin = request.headers.get("origin")
         if origin and origin not in cors_origins:
             raise HTTPException(status_code=403, detail="不允许该页面访问本机登录信息")
+
+    @app.get('/platform/destinations')
+    def platform_destinations(request: Request):
+        check_login_origin(request)
+        if upload_targets is None:
+            raise HTTPException(status_code=503, detail='未配置上传目标')
+        return upload_targets.public()
+
+    @app.post('/platform/destinations')
+    def select_platform_destination(body: UploadTargetRequest, request: Request):
+        check_login_origin(request)
+        if upload_targets is None:
+            raise HTTPException(status_code=503, detail='未配置上传目标')
+        with upload_targets.lock:
+            if umi is not None and umi.status().state not in {'idle', 'error'}:
+                raise HTTPException(status_code=409, detail='请先结束当前采集会话，再切换上传目标')
+            _, session, motion = controller.status()
+            if tianji.active() or session.state != 'idle' or motion.state != 'idle':
+                raise HTTPException(status_code=409, detail='请先停止遥操作和机械臂运动，再切换平台')
+            try:
+                result = upload_targets.select(body.kind)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from None
+            auth = umi_gate.refresh() if umi_gate is not None else upload_targets.status()
+            return {**result, **auth, 'preferences': upload_targets.preferences.public()}
 
     @app.get("/platform/auth/preferences")
     def platform_login_preferences(request: Request, response: Response) -> dict[str, object]:
@@ -306,8 +338,16 @@ def create_app(
 
     @app.post("/umi/sessions", response_model=UmiStartResponse)
     async def start_umi(request: UmiStartRequest) -> UmiStartResponse:
+        def begin():
+            if upload_targets is None:
+                return require_umi().start(request)
+            with upload_targets.lock:
+                auth = umi_gate.refresh() if umi_gate is not None else upload_targets.status()
+                if not auth.get('authenticated'):
+                    raise HTTPException(status_code=401, detail='请先登录所选上传平台并确认连接正常')
+                return require_umi().start(request)
         try:
-            return await asyncio.to_thread(require_umi().start, request)
+            return await asyncio.to_thread(begin)
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 

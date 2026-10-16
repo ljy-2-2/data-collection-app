@@ -25,6 +25,11 @@ def prepare_umi_distribution(package: Path, resources: Path):
         "WEB_VIDEO_SERVER_PORT=9091\n"
         "SENTRY_DSN=\n"
     )
+    configure_umi_runtime(project, manifest)
+
+
+def configure_umi_runtime(project: Path, manifest: dict):
+    """Apply runtime bindings after copying source, including incremental releases."""
     path = project / "docker-compose.yml"
     compose = yaml.safe_load(path.read_text())
     services = compose["services"]
@@ -43,6 +48,25 @@ def prepare_umi_distribution(package: Path, resources: Path):
         "/work/galaxis_bringup/config/galaxis_config.yaml", "--profile-file", "/etc/galaxis/collection_profile.yaml",
     ]
     services["galaxis_core"]["command"] = ["ros2", "launch", "galaxis_core", "leader_teleop.launch.py"]
+    volumes = services["galaxis_core"].setdefault("volumes", [])
+    if '/etc/galaxis:/etc/galaxis:ro' not in volumes:
+        volumes.append('/etc/galaxis:/etc/galaxis:ro')
+    # Runtime images use symlink-installed Python modules. Bind reviewed patches
+    # at the real source paths, otherwise a deb source update is ignored by ROS.
+    for name in ("recording_gate_node.py", "pico_timing.py"):
+        services["galaxis_core"].setdefault("volumes", []).append(
+            f"./galaxis-core/galaxis-core/galaxis_core/{name}:"
+            f"/root/ros2_ws/src/galaxis-core/galaxis_core/{name}:ro")
+    for name in ("pico_bridge_node.py", "transport/galaxis_tcp.py"):
+        services["galaxis"].setdefault("volumes", []).append(
+            f"./galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/{name}:"
+            f"/root/ros2_ws/src/galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/{name}:ro")
+    monitor_volumes = services["galaxis_monitor"].setdefault("volumes", [])
+    monitor_binding = ("./monitor/bridge/galaxis_studio_bridge/ros_state.py:"
+                       "/app/monitor/bridge/galaxis_studio_bridge/ros_state.py:ro")
+    if monitor_binding not in monitor_volumes:
+        monitor_volumes.append(monitor_binding)
+
     services["galaxis_monitor"]["working_dir"] = "/app/monitor/bridge"
     services["galaxis_monitor"]["command"] = ["python3", "-m", "galaxis_studio_bridge", "--host", "127.0.0.1", "--port", "8770"]
     path.write_text(yaml.safe_dump(compose, allow_unicode=True, sort_keys=False))

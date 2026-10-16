@@ -14,6 +14,7 @@ import statistics
 import struct
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from pathlib import Path
 
@@ -112,11 +113,23 @@ def _signal_digest(path: Path) -> tuple[str, int]:
     return digest.hexdigest(), count
 
 
+def operation_timeout(seconds: float) -> float | None:
+    # The queue supervisor owns an active-time deadline. Wall-clock subprocess
+    # deadlines would incorrectly expire while the whole encoder group is paused
+    # for a recording. Standalone conversion retains its local timeouts.
+    return None if os.environ.get('GALAXIS_MANAGED_FINALIZER') == '1' else seconds
+
+
 def probe_video(path: Path, *, timeout: float = 180) -> dict:
     result = subprocess.run([
-        "ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
+        "ffprobe", "-v", "error", "-threads", "2", "-err_detect", "explode",
+        "-count_frames", "-select_streams", "v:0",
         "-show_entries", "stream=codec_name,width,height,nb_read_frames", "-of", "json", str(path),
-    ], check=True, capture_output=True, text=True, timeout=timeout)
+    ], check=True, capture_output=True, text=True, timeout=operation_timeout(timeout))
+    # ffprobe may return zero even when decoding reports errors. Reject them,
+    # rather than decoding every frame a second time with ffmpeg -f null.
+    if result.stderr.strip():
+        raise ValueError(f"Cannot decode MP4: {path.name}: {result.stderr[-1000:]}")
     return json.loads(result.stdout)["streams"][0]
 
 
@@ -150,15 +163,18 @@ def validate_bundle(root: Path, *, decode: bool = True) -> dict:
             prefix = bytes.fromhex(frame["cdr_prefix"])
             if len(prefix) < 20 or prefix[:2] not in (b"\x00\x01", b"\x00\x00"):
                 raise ValueError("Invalid saved camera message header")
-        if decode:
+    if decode:
+        # Independent cameras can be decoded concurrently without changing any
+        # frames. Keep full decode, count, size and checksum checks. The finalizer
+        # owns this entire process group and pauses it when recording starts.
+        def verify_camera(camera):
             path = root / camera["file"]
-            decode_timeout = max(180, len(frames) / 10)
-            probe = probe_video(path, timeout=decode_timeout)
-            if (probe["codec_name"] != "h264" or int(probe["nb_read_frames"]) != len(frames)
+            probe = probe_video(path, timeout=max(180, len(camera["frames"]) / 10))
+            if (probe["codec_name"] != "h264" or int(probe["nb_read_frames"]) != len(camera["frames"])
                     or [probe["width"], probe["height"]] != camera["size"]):
                 raise ValueError(f"MP4 frame count/size mismatch: {path.name}")
-            subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", str(path),
-                            "-f", "null", "-"], check=True, capture_output=True, timeout=decode_timeout)
+        with ThreadPoolExecutor(max_workers=min(3, len(cameras))) as pool:
+            list(pool.map(verify_camera, cameras))
     return manifest
 
 
@@ -193,10 +209,9 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
     with source.open("rb") as stream:
         for _, channel, message in make_reader(stream, validate_crcs=True).iter_messages(topics=list(CAMERAS), log_time_order=False):
             timestamps.setdefault(channel.topic, []).append(message.log_time)
-            if contract:
-                prefix, _ = split_image(message.data)
-                sec, ns = struct.unpack_from(('<' if prefix[1] else '>')+'iI', prefix, 4)
-                source_times.setdefault(channel.topic, []).append(sec*1_000_000_000+ns)
+            prefix, _ = split_image(message.data)
+            sec, ns = struct.unpack_from(('<' if prefix[1] else '>')+'iI', prefix, 4)
+            source_times.setdefault(channel.topic, []).append(sec*1_000_000_000+ns)
     if "/center_camera/image_raw/compressed" not in timestamps or len(timestamps) < 2:
         raise ValueError("MP4 recording requires center and at least one wrist camera")
     quality = {}
@@ -246,7 +261,7 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                         from PIL import Image
                         import io
                         size = list(Image.open(io.BytesIO(jpeg)).size)
-                        times = timestamps[channel.topic]
+                        times = source_times[channel.topic]
                         deltas = [b - a for a, b in zip(times, times[1:]) if b > a]
                         # Arrival intervals may alternate short/long because of
                         # scheduling. Their median can shorten a minute-long HD
@@ -255,7 +270,9 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                         if contract:
                             fps = round(quality[CAMERAS[channel.topic]]['actual_fps'], 9)
                         else:
-                            fps = round(1e9 / statistics.median(deltas), 6) if deltas else 30
+                            if len(times) < 2 or len(deltas) != len(times) - 1:
+                                raise ValueError('相机时间戳不足、重复或倒退，保留原始数据')
+                            fps = round((len(times)-1)*1e9/(times[-1]-times[0]), 9)
                         name = CAMERAS[channel.topic] + ".mp4"
                         cameras[channel.topic] = {"topic": channel.topic, "file": name, "fps": fps,
                             "size": size, "schema_name": schema.name, "schema_encoding": schema.encoding,
@@ -263,9 +280,10 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                             "channel_metadata": channel.metadata, "frames": []}
                         errors[channel.topic] = tempfile.TemporaryFile()
                         processes[channel.topic] = subprocess.Popen([
-                            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-threads", "1",
+                            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                            "-filter_threads", "1", "-threads", "1",
                             "-f", "image2pipe", "-framerate", str(fps), "-vcodec", "mjpeg", "-i", "pipe:0",
-                            "-an", "-c:v", "libx264", "-threads", "2", "-preset", "fast", "-crf", str(crf),
+                            "-an", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", str(crf),
                             "-pix_fmt", "yuv420p", "-fps_mode", "passthrough", "-movflags", "+faststart", str(stage / name),
                         ], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=errors[channel.topic])
                     camera = cameras[channel.topic]
@@ -278,7 +296,7 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                 writer.finish()
             for topic, process in processes.items():
                 process.stdin.close()
-                if process.wait(timeout=180) != 0:
+                if process.wait(timeout=operation_timeout(180)) != 0:
                     errors[topic].seek(0)
                     raise RuntimeError(errors[topic].read().decode(errors="replace")[-2000:])
             if _signal_digest(source) != _signal_digest(signals):
@@ -287,6 +305,7 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                 camera["sha256"] = file_hash(stage / camera["file"])
                 camera["frame_count"] = len(camera["frames"])
             manifest = {"format": FORMAT, "state": "complete", "crf": crf,
+                        "encoder": {"codec": "libx264", "preset": "veryfast", "pixel_format": "yuv420p"},
                         "source_file": source.name, "source_sha256": file_hash(source),
                         "signals": {"file": signals.name, "sha256": file_hash(signals)},
                         "cameras": list(cameras.values())}

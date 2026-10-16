@@ -210,3 +210,13 @@ class TestRealMonitorFailure(unittest.TestCase):
         self.assertEqual(state['recording_gate_level'],2)
         self.assertEqual(state['monitor_error'],'ROS unavailable')
         self.assertEqual(state['pico_bridge'],{})
+
+class TestPicoTimingAlerts(unittest.TestCase):
+    def test_clock_fault_is_named_correctly_and_disappears_on_recovery(self):
+        collector = RosStateCollector(Settings(profile_path=''))
+        status=SimpleNamespace(name='recording_gate/pico_timing/left_source_clock',level=1,message='PICO 数据积压，等待恢复后开始')
+        collector._on_camera_quality(SimpleNamespace(status=[status]))
+        self.assertEqual(collector.snapshot()['camera_quality_issues'],['左手柄：PICO 数据积压，等待恢复后开始'])
+        status.level=0;status.message='ok'
+        collector._on_camera_quality(SimpleNamespace(status=[status]))
+        self.assertEqual(collector.snapshot()['camera_quality_issues'],[])

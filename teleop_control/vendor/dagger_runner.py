@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from collection_ipc import CollectionClient
+from remote_collector import collection_context
 from dagger_dataset import (
     save_correction_windows,
     save_full_episode,
@@ -112,6 +113,7 @@ def stop_process(process: subprocess.Popen | None) -> None:
 class Runner:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
+        self.platform_context = collection_context()
         self.runtime = Path(tempfile.mkdtemp(prefix="data-platform-dagger-"))
         self.collector_status = self.runtime / "collector.json"
         self.collector_socket = self.runtime / "collector.sock"
@@ -441,6 +443,7 @@ class Runner:
                     "source": "intervention",
                     "collection_trigger": "dagger",
                     "dagger_save_mode": save_mode,
+                    **self.platform_context,
                 },
             )
         message = f"已保存 {len(episodes)} 段数据，正在同步到数据列表"

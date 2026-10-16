@@ -58,7 +58,7 @@ from tf2_ros import (
 from galaxis_pico_msgs.msg import PicoController, PicoHmd
 
 from galaxis_pico_bridge.transport.galaxis_tcp import (
-    GalaxisTcpServerTransport,
+    IsolatedGalaxisTransport,
     PicoFrame,
 )
 
@@ -220,6 +220,7 @@ _DIAG_FIELDS: Tuple[Tuple[str, Any], ...] = (
     ("last_frame_age_s", _fmt_nan_float),
     ("offset_s", lambda v: f"{v:.6f}"),
     ("rtt_ms", _fmt_nan_float),
+    ("publication_delay_s", _fmt_nan_float),
     ("left_tracked", str),
     ("right_tracked", str),
     ("left_valid", str),
@@ -420,7 +421,7 @@ class PicoBridgeNode(Node):
         self._cached_at: float = 0.0
 
         # ---- Transport ---------------------------------------------------
-        self._transport = GalaxisTcpServerTransport(
+        self._transport = IsolatedGalaxisTransport(
             host=str(self.get_parameter("galaxis_listen_host").value),
             port=int(self.get_parameter("galaxis_listen_port").value),
             on_frame=self._on_frame,
@@ -461,6 +462,10 @@ class PicoBridgeNode(Node):
             self._latest_raw = frame.raw
 
         recv_stamp = self.get_clock().now().to_msg()
+        # Align poses to the actual host reception, not later DDS publication.
+        # Legacy/test frames without a receive wall clock retain old behavior.
+        if frame.pc_received_wall_ns > 0:
+            recv_stamp.sec, recv_stamp.nanosec = divmod(frame.pc_received_wall_ns, 1_000_000_000)
         self._publish_pico_messages(frame, recv_stamp)
         self._publish_tf_from_data(frame.raw, recv_stamp)
         self._publish_joy_from_data(frame.raw, recv_stamp)
@@ -592,6 +597,7 @@ class PicoBridgeNode(Node):
             "last_frame_age_s": last_frame_age_s,
             "offset_s": offset_s,
             "rtt_ms": rtt_ms,
+            "publication_delay_s": float(m.get("publication_delay_s", 0.0)),
             "left_tracked": _bool("leftTracked"),
             "right_tracked": _bool("rightTracked"),
             "left_valid": _bool("leftValid"),
@@ -693,9 +699,8 @@ class PicoBridgeNode(Node):
     # ----------------------------------------------------------------------
 
     def _publish_tf_from_data(self, data: Dict[str, Any], stamp) -> None:
-        if not self._transport.connected:
-            return
-
+        # Called only for a received frame. A periodic connection snapshot may
+        # lag the first frame; it must not suppress its TF or button edges.
         hmd_pos = _get_xyz(data.get("hmdPosition", {}))
         hmd_rot = _get_xyzw(data.get("hmdRotation", {}))
         l_pos = _get_xyz(data.get("leftControllerPosition", {}))
@@ -841,8 +846,6 @@ class PicoBridgeNode(Node):
     #   [9] trigger_touched
     #   [10] thumb_rest_touched (always 0 under the current protocol)
     def _publish_joy_from_data(self, data: Dict[str, Any], stamp) -> None:
-        if not self._transport.connected:
-            return
         self._publish_controller_joy(data, stamp, "left", self._left_joy_pub)
         self._publish_controller_joy(data, stamp, "right", self._right_joy_pub)
 

@@ -15,6 +15,10 @@ from PIL import Image
 # ARM capture hosts reserve CPU for full-resolution recording. In particular,
 # Keep enough detail for inspecting contact points on the board display.
 _ARM_DISPLAY = platform.machine().lower() in {'aarch64', 'arm64'}
+# Three previews already run concurrently. Nested OpenCV thread pools compete
+# with the recorder on small ARM hosts. This only affects display transforms.
+if _ARM_DISPLAY:
+    cv2.setNumThreads(1)
 PREVIEW_SIZE = (800, 640) if _ARM_DISPLAY else (960, 768)
 PREVIEW_QUALITY = 88 if _ARM_DISPLAY else 90
 PREVIEW_FPS = 30 if _ARM_DISPLAY else 24

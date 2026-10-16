@@ -50,12 +50,14 @@ ApplicationWindow {
             Grid {x: 6;y: 6;width: parent.width-12;columns: app.narrow?3:1;spacing: 2
                 Repeater {model: backend.umiOnly ? ["UMI 采集"] : ["遥操作采集","UMI 采集","Ego 采集"]
                     Button {id: navButton;required property string modelData;required property int index;property string page: backend.umiOnly ? "umi" : ["teleop","umi","ego"][index];width: app.narrow?(sidebar.width-16)/(backend.umiOnly?1:3):sidebar.width-12;height: 34;hoverEnabled: true
+                        objectName: "nav-"+page
                         padding: 0;leftPadding: 9;rightPadding: 9
                         background: Rectangle {radius: 7;color: s.page===parent.page?Theme.accentSoft:parent.hovered?Theme.muted:"transparent";border.color: s.page===parent.page?"#30f4c520":"transparent"}
                         contentItem: Item {
                             Image {id: navIcon;objectName: "navIcon-"+navButton.page;anchors.left: parent.left;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon(backend.umiOnly ? "Camera" : ["Gamepad2","Camera","Glasses"][navButton.index],s.page===navButton.page?"accent":"")}
                             Txt {objectName: "navText-"+navButton.page;anchors.left: navIcon.right;anchors.leftMargin: 7;anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;text: navButton.modelData;font.pixelSize: 13;color: s.page===navButton.page?Theme.accentStrong:Theme.inkMuted;font.weight: s.page===navButton.page?Font.Medium:Font.Normal;wrapMode: Text.NoWrap}
                         }
+                        enabled: !s.busy && !s.closing
                         onClicked: backend.navigate(page)
                     }
                 }

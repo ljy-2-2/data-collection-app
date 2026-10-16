@@ -144,6 +144,7 @@ class CollectionUploader:
         interval_seconds: float = 2.0,
         discover_completed: bool = False,
         client: httpx.Client | None = None,
+        targets=None,
     ) -> None:
         self.output_root = Path(output_root).expanduser()
         self.api_url = api_url.rstrip("/")
@@ -151,6 +152,11 @@ class CollectionUploader:
         self.discover_completed = discover_completed
         self.client = client or platform_api_client(timeout=None)
         self._owns_client = client is None
+        self.targets = targets
+        self._base_client = self.client
+        self._target_clients = {}
+        self._destination = None
+        self._scan_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._status_lock = threading.Lock()
@@ -161,6 +167,12 @@ class CollectionUploader:
             self._episode_status[str(directory)] = {"state": state, "error": error}
 
     def status(self):
+        external = getattr(self, 'external_status_path', None)
+        if external is not None:
+            try:
+                return json.loads(external.read_text())
+            except (OSError, ValueError):
+                return dict(pending=0, uploaded=0, uploading=0, failed=0, error='')
         with self._status_lock:
             rows = list(self._episode_status.values())
         return {
@@ -187,7 +199,9 @@ class CollectionUploader:
         if self._thread is not None:
             self._thread.join(timeout=max(2.0, self.interval_seconds + 1.0))
         if self._owns_client:
-            self.client.close()
+            self._base_client.close()
+            for client in self._target_clients.values():
+                client.close()
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -198,6 +212,32 @@ class CollectionUploader:
             self._stop.wait(self.interval_seconds)
 
     def scan_once(self) -> None:
+        if not self._scan_lock.acquire(blocking=False):
+            return
+        try:
+            self._scan()
+        finally:
+            self._scan_lock.release()
+
+    def _select_destination(self, info):
+        store = None
+        if self.targets is not None:
+            destination, login = self.targets.resolve(info)
+            self._destination = dict(destination)
+            self.api_url = destination['api_url']
+            store = login.store
+            if not platform_session_available(store):
+                return False
+            if self._owns_client:
+                client_key = (self.api_url, str(store.path))
+                if client_key not in self._target_clients:
+                    self._target_clients[client_key] = platform_api_client(
+                        timeout=httpx.Timeout(30.0, connect=5.0, pool=5.0), store=store)
+                self.client = self._target_clients[client_key]
+        username = current_platform_username(store) if store is not None else current_platform_username()
+        return not info.get('author') or info['author'] == username
+
+    def _scan(self) -> None:
         if not self.output_root.is_dir():
             return
         batches: dict[str, dict] = {}
@@ -212,17 +252,22 @@ class CollectionUploader:
                 and (episode_dir / "record" / "actions.jsonl").is_file()
             )
         for episode_dir in sorted(episode_dirs):
-            info = self._ready_info(episode_dir)
+            try:
+                info = self._ready_info(episode_dir)
+                eligible = self._select_destination(info)
+            except Exception as exc:
+                self._set_status(episode_dir, 'failed', str(exc))
+                continue
             # A queued Tianji recording belongs to its recording account. A later
             # account switch must not silently upload another operator's data.
-            if info.get("author") and info["author"] != current_platform_username():
+            if not eligible:
                 if (episode_dir / UPLOADED_MARKER).is_file():
                     self._set_status(episode_dir, "uploaded")
                 else:
                     self._set_status(episode_dir, "pending", "等待采集账号登录后上传")
                 continue
             batch = batches.setdefault(
-                info["import_task_id"],
+                (self.api_url, info.get('author'), info["import_task_id"]),
                 {"info": info, "episodes": [], "pending": []},
             )
             batch["episodes"].append(episode_dir)
@@ -232,16 +277,20 @@ class CollectionUploader:
             else:
                 self._set_status(episode_dir, "uploaded")
 
-        if self._owns_client and (not collection_available() or not platform_session_available()):
+        if self.targets is None and self._owns_client and (not collection_available() or not platform_session_available()):
             return
 
         for batch in batches.values():
+            if self._stop.is_set():
+                break
             pending = batch["pending"]
             if not pending:
                 continue
             info = batch["info"]
             episode_total = len(batch["episodes"])
             try:
+                if not self._select_destination(info):
+                    continue
                 self._sync_batch(info, "queued", episode_total=episode_total)
             except Exception as exc:
                 for episode_dir in pending:
@@ -254,6 +303,8 @@ class CollectionUploader:
 
             errors: list[str] = []
             for episode_dir in pending:
+                if self._stop.is_set():
+                    return
                 try:
                     self._set_status(episode_dir, "uploading")
                     self._sync_batch(info, "processing", episode_total=episode_total)
@@ -278,8 +329,12 @@ class CollectionUploader:
         try:
             payload = json.loads(marker.read_text())
         except (OSError, json.JSONDecodeError):
+            if marker.is_file() and self.targets is not None:
+                raise ValueError('回合上传记录损坏，保留文件，无法确认目标平台')
             payload = {}
         if not isinstance(payload, dict):
+            if self.targets is not None:
+                raise ValueError('回合上传记录无效，无法确认目标平台')
             payload = {}
         episode_id = self._episode_id(episode_dir)
         task_id = payload.get("import_task_id")
@@ -292,6 +347,7 @@ class CollectionUploader:
         discovered = not marker.is_file()
         discovered_batch = uuid.uuid5(UPLOAD_NAMESPACE, str(self.output_root.resolve()))
         return {
+            **({'upload_destination': payload['upload_destination']} if 'upload_destination' in payload else {}),
             "author": payload.get("author"),
             "import_task_id": (
                 task_id.strip()
@@ -355,6 +411,8 @@ class CollectionUploader:
             json.dumps(
                 {
                     "episode_id": str(episode_id),
+                    "api_url": self.api_url,
+                    "upload_destination": self._destination,
                     "uploaded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 },
                 indent=2,
@@ -443,6 +501,7 @@ class CollectionUploader:
             _write_episode_tar(episode_dir, archive_path, local_relative_files, curve_sides)
             uploaded = self.client.put(
                 target["put_url"],
+                timeout=httpx.Timeout(180.0, connect=5.0, write=30.0, pool=5.0),
                 auth=None,  # Presigned storage URLs must not receive platform Bearer auth.
                 content=_file_chunks(archive_path),
                 headers={

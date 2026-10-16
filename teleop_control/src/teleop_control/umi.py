@@ -846,6 +846,10 @@ class UmiManager:
                 self._restore_session_state()
         self.refresh_camera_devices()
         connected, monitor = self._monitor_state()
+        # Starting a session holds UploadTargets.lock before entering UMI.
+        # Snapshot its queue outside the UMI lock to avoid the reverse order
+        # when UI status polling races a start/retry request.
+        queue = self.upload_queue()
         with self._lock:
             if self._device_check:
                 # The live collector monitor is offline before a session starts.
@@ -881,7 +885,7 @@ class UmiManager:
                 state = "starting"
             else:
                 state = "idle"
-            pending, imported = self.import_counts()
+            pending, imported = queue['pending'], queue['uploaded']
             return UmiStatus(
                 state=state,
                 message=self._error or (self._live_readiness_message(monitor)
@@ -895,9 +899,10 @@ class UmiManager:
                 recording=bool(monitor.get("recording")),
                 episodes_completed=int(monitor.get("episodes_completed_total") or 0),
                 pending_imports=pending,
-                pending_processing=self.processing_counts()[0],
-                failed_processing=self.processing_counts()[1],
+                pending_processing=queue['processing'],
+                failed_processing=queue['failed_processing'],
                 imported_episodes=imported,
+                upload_queue=queue,
                 monitor=monitor,
                 log_tail=self._logs(),
             )
@@ -914,6 +919,12 @@ class UmiManager:
                        if not monitor['vr'].get(side, {}).get('online')]
             if missing:
                 issues.append('等待 PICO ' + '、'.join(missing) + '实时数据，请确认 Head、Controllers、Send Data 已开启')
+            untracked = [labels[side] for side in sides
+                         if monitor['vr'].get(side, {}).get('online') and
+                         (monitor['vr'][side].get('tracked') is False or
+                          monitor['vr'][side].get('valid') is False)]
+            if untracked:
+                issues.append('PICO ' + '、'.join(untracked) + '追踪无效，请唤醒头显并恢复追踪')
         return '；'.join(issues)
 
     def _monitor_ready(self, monitor: dict) -> bool:
@@ -1474,7 +1485,7 @@ class UmiManager:
 
     def record(self, action: str) -> UmiStatus:
         from .collection_gate import collection_available
-        if action == "start" and not collection_available():
+        if action == "start" and not collection_available(getattr(self, 'collection_gate_path', None)):
             return self.status()
         if action not in {"start", "stop", "cancel"}:
             raise ValueError("unsupported UMI recording action")
@@ -1842,17 +1853,13 @@ class UmiManager:
             self._encoder_preview_blockers.discard("collection")
 
     def import_counts(self) -> tuple[int, int]:
-        root = self.data_root / "rosbags"
-        completed = [p for p in root.glob("*/*/meta.json")
-                     if not any((p.parent / name).exists() for name in
-                                (".mp4-pending.json", ".mp4-converting", "recording-failure.json"))
-                     and (((p.parent / "metadata.yaml").is_file() and any(p.parent.glob("*.mcap")))
-                     or (p.parent / "media/video-manifest.json").is_file())]
-        imported = sum(
-            (item.parent / ".data-platform-uploaded.json").is_file()
-            for item in completed
-        )
-        return len(completed) - imported, imported
+        queue = self.upload_queue()
+        return queue['pending'], queue['uploaded']
+
+    def upload_queue(self):
+        from .umi_queue import queue_summary
+        targets = getattr(self, 'upload_targets', None)
+        return queue_summary(self.data_root, targets.snapshot() if targets else None)
 
     def processing_counts(self) -> tuple[int, int]:
         pending = list((self.data_root / "rosbags").glob("*/*/.mp4-pending.json"))

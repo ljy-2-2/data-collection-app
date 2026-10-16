@@ -1650,3 +1650,19 @@ class TestFormatReason:
         msg.data = 72
         result = checker._format_reason(msg)
         assert "condition failed: msg.data < 50 (msg.data=72)" in result
+
+
+def test_pico_timing_blocks_start_only_and_recovers(gate_module, monkeypatch):
+    from types import SimpleNamespace
+    checker=gate_module.TopicConditionChecker('left_clock',dict(topic='/pico/controller/left/state',pico_timing=True,escalation=1))
+    checker.setup(MagicMock());checker._subscribed=True
+    for i in range(200):
+        now=i/90;monkeypatch.setattr(gate_module.time,'monotonic',lambda:now)
+        checker._cb(SimpleNamespace(device_time_ns=10**18+round(now*2e9),pc_monotonic_ns=10**12+round(now*1e9),seq=i,pico_id='pico'))
+    result=checker.evaluate()
+    assert not result.passed and result.escalation==1 and '积压' in result.reason
+    checker.invalidate();checker._subscribed=True
+    for i in range(200):
+        now=3+i/90;monkeypatch.setattr(gate_module.time,'monotonic',lambda:now)
+        checker._cb(SimpleNamespace(device_time_ns=10**18+round(now*1e9),pc_monotonic_ns=10**12+round(now*1e9),seq=i,pico_id='pico'))
+    assert checker.evaluate().passed

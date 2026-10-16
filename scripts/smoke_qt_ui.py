@@ -15,7 +15,7 @@ import time
 os.environ.setdefault('QSG_RHI_BACKEND','opengl')
 os.environ.setdefault('QSG_RENDER_LOOP','basic')
 import faulthandler
-faulthandler.dump_traceback_later(45,exit=True)
+faulthandler.dump_traceback_later(90,exit=True)
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 sys.path.insert(0,str(ROOT/'teleop_control/src'))
@@ -46,6 +46,9 @@ def main():
         encoded=QByteArray();output=QBuffer(encoded);output.open(QIODevice.WriteOnly)
         assert sample.save(output,'JPEG');camera_frames[camera_id]=bytes(encoded)
     state=initial_state();requests=[];failures=[]
+    targets=[dict(kind='cloud',api_url='https://cloud.test/api',web_url='https://cloud.test'),
+             dict(kind='local',api_url='http://127.0.0.1:8000',web_url='http://127.0.0.1:5173')]
+    state['uploadTarget']=dict(selected='cloud',default_kind='cloud',destinations=targets,**targets[0])
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
         def do_GET(self):
@@ -81,7 +84,7 @@ def main():
                 try:self.wfile.write(b'--frame\r\nContent-Type: image/jpeg\r\nContent-Length: '+str(len(image)).encode()+b'\r\n\r\n'+image+b'\r\n--frame--\r\n')
                 except (BrokenPipeError,ConnectionResetError):pass
                 return
-            mapping={'/platform/auth/preferences':{},'/tianji/status':state['tianji'],'/status':state['g2'],'/preview':state['preview'],'/umi/status':state['umi']}
+            mapping={'/platform/destinations':state['uploadTarget'],'/platform/auth/preferences':{},'/tianji/status':state['tianji'],'/status':state['g2'],'/preview':state['preview'],'/umi/status':state['umi']}
             if self.path.startswith('/umi/encoders/preview'):value={'encoders':{'left':{'value':.12,'online':True},'right':{'value':.34,'online':True}}}
             else:value=mapping.get(self.path,{})
             self.respond(value)
@@ -93,6 +96,10 @@ def main():
             raw=self.rfile.read(int(self.headers.get('Content-Length',0)));payload=json.loads(raw) if raw else None;path=self.path;requests.append((path,payload));value={}
             try:
                 if path=='/platform/auth/login':value=dict(authenticated=True,user=dict(username=payload['username']))
+                if path=='/platform/destinations':
+                    target=next(t for t in targets if t['kind']==payload['kind'])
+                    state['uploadTarget']=dict(selected=target['kind'],default_kind='cloud',destinations=targets,**target)
+                    value=dict(state['uploadTarget'],authenticated=True,user=dict(username='fixture'),preferences={})
                 if path=='/tianji/parameters':TianjiParameters.model_validate(payload);value=payload
                 if path=='/tianji/check':state['tianji'].update(devices=[{**d,'status':'connected'} for d in state['tianji']['devices']],joints={'left':[0]*7,'right':[0]*7},cameras=[dict(id=k,available=True) for k in ('usb_1','usb_2','usb_4')])
                 if path=='/tianji/start':TianjiStart.model_validate(payload);state['tianji']['state']='running'
@@ -179,8 +186,27 @@ def main():
             print('PASS '+robot+' three camera identities, main-left/wrists-right layout and removed settings',flush=True)
         print("Qt fixture loaded",flush=True)
         bridge.serviceReady();wait();snap('login')
+        # Deliberately return a cached valid session from the fixture. Merely
+        # choosing the platform on the login screen must never dismiss it.
+        chooser=item('loginUploadTarget')
+        wait(lambda:chooser.property('count')==2 and chooser.isVisible())
+        window.requestActivate();wait()
+        for _ in range(3):
+            for key,kind in ((Qt.Key_End,'local'),(Qt.Key_Home,'cloud')):
+                chooser.forceActiveFocus();QTest.keyClick(window,key)
+                wait(lambda:bridge.state['uploadTarget'].get('selected')==kind and not bridge.state['busy'])
+                assert not bridge.state['authenticated']
+                assert item('loginPage').isVisible() and not item('collectionPage').isVisible()
+        assert not any(path=='/platform/auth/login' for path,_ in requests)
+        print('PASS real login selector: six local/cloud switches never bypass login',flush=True)
         item('loginUsername').setProperty('text','operator');item('loginPassword').setProperty('text','fixture-password')
         click('loginSubmit');wait(lambda:bridge.state['authenticated']);snap('setup')
+        for _ in range(3):
+            for page in ('umi','ego','teleop'):
+                click('nav-'+page)
+                assert bridge.state['page']==page and bridge.state['authenticated']
+                assert bridge.state['uploadTarget']['selected']=='cloud'
+        print('PASS real navigation buttons preserve login and destination',flush=True)
         # Exercise user selection, then a state notification/poll before advancing.
         robot_type=item('robotType');robot_type.forceActiveFocus()
         QTest.keyClick(window,Qt.Key_Home)
@@ -241,9 +267,19 @@ def main():
         bridge.navigate('umi');snap('umi-setup');click('umiNext');snap('umi-check');click('umiCheck')
         wait(lambda:len(bridge.state['cameraLive'])==3 and all(bridge.state['cameraLive'].values()) and bool(bridge.state['encoders']))
         bridge.encoderMinimum('left',True);bridge.encoderMinimum('right',True);snap('umi-hardware')
+        chooser=item('umiUploadTarget');assert chooser.property('enabled')
+        bridge.selectUploadTarget('local');wait(lambda:bridge.state['uploadTarget'].get('selected')=='local' and not bridge.state['busy'])
+        assert bridge.platformLocation=='本地' and bridge.state['umiStep']==2
+        assert bridge.state['minima']=={'left':.12,'right':.34}
+        wait(lambda:all(bridge.state['cameraLive'].values()))
+        snap('umi-local-target')
         # Move the real button into view for the full hardware flow.
         scroll.setProperty('contentY',scroll.property('contentHeight')-scroll.height());wait();click('umiStart')
         wait(lambda:bridge.state['umiStep']==3 and bridge.state['umi'].get('monitor_connected'))
+        before=len(requests);bridge.selectUploadTarget('cloud');wait()
+        assert len(requests)==before and bridge.state['uploadTarget']['selected']=='local'
+        bridge.clearError()
+        print('PASS UMI destination selection reaches API and is locked during the collection session',flush=True)
         configuration=next(p for path,p in requests if path=='/umi/configure');assert configuration['encoder_minima']=={'left':.12,'right':.34};assert len(set(configuration['camera_roles'].values()))==3
         scroll.setProperty('contentY',0);snap('umi-monitor')
         wait(lambda:bridge.umiTelemetry.get('monitor_connected'))
@@ -294,7 +330,17 @@ def main():
         bridge.stopUmi();wait(lambda:bridge.state['umiStep']==1)
         assert bridge.telemetry.reply is None and not bridge.telemetry.retry.isActive()
         assert not bridge.umiTelemetry['monitor_connected'] and not bridge.umiHistory['left']
-        bridge.setValue('theme','light');bridge.navigate('teleop');bridge.returnTeleop();wait();snap('light-setup')
+        bridge.setValue('theme','light')
+        switches=sum(path=='/platform/destinations' for path,_ in requests)
+        for _ in range(3):
+            bridge.navigate('teleop');wait()
+            assert bridge.state['authenticated'] and bridge.state['uploadTarget']['selected']=='local'
+            assert bridge.state['username']=='fixture'
+            bridge.navigate('umi');wait();assert bridge.state['authenticated']
+        assert sum(path=='/platform/destinations' for path,_ in requests)==switches
+        bridge.navigate('teleop');wait();snap('local-teleop-navigation')
+        print('PASS local UMI/teleop navigation keeps login and upload destination',flush=True)
+        bridge.returnTeleop();wait();snap('light-setup')
         window.resize(560,700);wait();snap('compact');assert item('teleopNext').width()>0
         bridge.configureTeleop('小窗口测试','tianji');wait(lambda:bridge.state['paramSaved']);window.resize(360,380);wait()
         item('parameterDialog').setProperty('visible',True);wait();snap('compact-params')

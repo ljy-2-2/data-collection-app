@@ -39,12 +39,27 @@ def collection_available() -> bool:
         return False
 
 
+def collection_context() -> dict:
+    filename = os.environ.get('DATA_COLLECTION_GATE_FILE')
+    if not filename:
+        return {}
+    try:
+        value = json.loads(Path(filename).read_text())
+        if value.get('available') is not True or not 0 <= time.time()-value['checked_at'] < 10:
+            raise ValueError('platform lease expired')
+        return {'author': value['username'],
+                **({'upload_destination': value['upload_destination']} if 'upload_destination' in value else {})}
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        raise RuntimeError('无法确认采集平台和账号，请检查所选平台登录状态') from exc
+
+
 def mark_episode_ready(
     episode_dir: Path,
     *,
     session_id: str,
     session_folder: str,
     requested_cameras: list[str] | None = None,
+    platform_context: dict | None = None,
 ) -> None:
     marker = episode_dir / READY_MARKER
     temporary = marker.with_suffix(".tmp")
@@ -54,6 +69,7 @@ def mark_episode_ready(
         "import_folder": session_folder,
         "teleop_session_id": session_id,
         "requested_cameras": requested_cameras or [],
+        **(platform_context or {}),
     }))
     os.replace(temporary, marker)
 
@@ -395,6 +411,7 @@ def main():
                 server.finish_episode()
                 server._publish_recording(False)
                 continue
+            platform_context = collection_context()
             writer = EpisodeWriter(out_root, cfg.cameras, cfg.jpeg_passthrough,
                                    cfg.depth_png, args.task, config_as_dict(cfg))
             server.begin_episode()
@@ -408,6 +425,7 @@ def main():
                 session_id=args.session_id,
                 session_folder=args.session_folder,
                 requested_cameras=[camera.name for camera in cfg.cameras if not camera.essential],
+                platform_context=platform_context,
             )
             suffix = (
                 f", {frames} right-only state frames"

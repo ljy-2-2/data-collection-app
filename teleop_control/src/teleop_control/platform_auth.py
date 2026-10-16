@@ -89,6 +89,7 @@ class PlatformLogin:
         self.preferences = preferences or LoginPreferences(self.store.path, self.api_url)
         self._lock = threading.RLock()
         self._generation = 0
+        self.background_session = None
 
     def status(self) -> dict[str, object]:
         with self._lock:
@@ -146,6 +147,23 @@ class PlatformLogin:
                     self.preferences.write(record)
         response.raise_for_status()
         payload = response.json()
+        background_payload = None
+        if self.background_session is not None:
+            # Independent session: explicitly logging out of the UI revokes
+            # only its token, never a completed recording's upload grant.
+            try:
+                background_response = httpx.post(
+                    f"{self.api_url}/auth/token",
+                    json={"username": username, "password": password}, timeout=10.0)
+                background_response.raise_for_status()
+                background_payload = background_response.json()
+                if (background_payload.get('user') or {}).get('username') != (payload.get('user') or {}).get('username'):
+                    raise CredentialError('后台上传授权账号不一致，请重新登录。')
+            except Exception:
+                self._revoke(str(payload.get('access_token', '')))
+                if background_payload:
+                    self._revoke(str(background_payload.get('access_token', '')))
+                raise
         remember_password = remember_password or auto_login
         prepared = {}
         created_secret = False
@@ -172,6 +190,8 @@ class PlatformLogin:
                     expires_in=int(payload["expires_in"]),
                     user=payload["user"],
                 )
+                if background_payload is not None:
+                    self.background_session(background_payload)
         except Exception:
             with self._lock:
                 if created_secret and self.preferences.raw().get("credential_id") == prepared.get("credential_id"):
@@ -179,6 +199,10 @@ class PlatformLogin:
             if created_secret:
                 self.preferences.delete_secret(prepared)
             self._revoke(str(payload.get("access_token", "")))
+            if self.store.token() == payload.get('access_token'):
+                self.store.clear()
+            if background_payload:
+                self._revoke(str(background_payload.get('access_token', '')))
             raise
         warning = (self.preferences.delete_secret(previous)
                    if previous.get("credential_id") != prepared.get("credential_id") else "")

@@ -199,6 +199,14 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
         return data
 
     if filename == "recording_gate.yaml":
+        data.setdefault("groups", {})["pico_timing"] = dict(
+            default_type="topic_condition", default_escalation=1,
+            settle_sec=0.0, recovery_sec=0.5,
+            conditions={f"{side}_source_clock": dict(
+                topic=f"/pico/controller/{side}/state",
+                expected_type="galaxis_pico_msgs/msg/PicoController",
+                best_effort=True, pico_timing=True, timeout_sec=1.0, escalation=1,
+                debounce_sec=0.0) for side in profile["active_arms"]})
         quality = profile.get('camera_quality')
         if quality and quality.get('version', 1) < 2:
             quality = dict(version=2, min_rate_hz=27.0, rate_window_sec=5.0,

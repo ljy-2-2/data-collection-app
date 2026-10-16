@@ -110,6 +110,7 @@ services:
         exec ros2 launch galaxis_core leader_teleop.launch.py
       '
     volumes:
+      - /etc/galaxis:/etc/galaxis:ro
       # Source overlays for live edits — also COPYed into the image at build
       # time. See the same block in the `galaxis` service above for rationale.
       - ./galaxis-core/galaxis-core:/root/ros2_ws/src/galaxis_core
