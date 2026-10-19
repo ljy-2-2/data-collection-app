@@ -180,6 +180,8 @@ class Controller:
                 "hand_anchor": a.anchor[0].tolist() if a.anchor else None,
                 "tcp_anchor": a.anchor[1].tolist() if a.anchor else None,
                 "mapping_basis": a.basis.tolist() if a.basis is not None else None,
+                "translation_z_sign": self.cfg.get('teleop_translation_z_sign', {}).get(s, 1),
+                "translation_xy_sign": self.cfg.get('teleop_translation_xy_sign', {}).get(s, 1),
                 "calibration_head": a.calibration_head.tolist()
                 if a.calibration_head is not None
                 else None,
@@ -354,6 +356,10 @@ class Controller:
         a.previous_hand, a.sequence = hand.copy(), frame.sequence
         hand0, flange0 = a.anchor
         target = relative_target(hand, hand0, flange0, a.basis, self.cfg["scale"])
+        if self.cfg.get('teleop_translation_xy_sign', {}).get(side, 1) == -1:
+            target[:2, 3] = flange0[:2, 3] - (target[:2, 3] - flange0[:2, 3])
+        if self.cfg.get('teleop_translation_z_sign', {}).get(side, 1) == -1:
+            target[2, 3] = flange0[2, 3] - (target[2, 3] - flange0[2, 3])
         a.target_clamped = False
         a.target_pose = target.copy()
         desired = model.differential_ik(

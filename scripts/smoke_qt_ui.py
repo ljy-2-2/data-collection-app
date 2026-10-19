@@ -27,6 +27,7 @@ from qt_ui.bridge import Bridge,initial_state,G2_JOINTS
 from qt_ui.visuals import CameraItem,CurveItem,Backdrop,G2View,RobotScene
 from qt_ui.record_keys import UmiRecordKeys
 from teleop_control.tianji_models import TianjiParameters,TianjiStart,TianjiMove
+from teleop_control.tianji_config import installation_id, robot_configuration
 from teleop_control.models import UmiStartRequest,UmiDeviceConfigureRequest,StartSessionRequest,MoveRequest
 from teleop_control.umi_telemetry import telemetry_events
 
@@ -46,6 +47,8 @@ def main():
         encoded=QByteArray();output=QBuffer(encoded);output.open(QIODevice.WriteOnly)
         assert sample.save(output,'JPEG');camera_frames[camera_id]=bytes(encoded)
     state=initial_state();requests=[];failures=[]
+    state['tianji']['installation_id'] = installation_id()
+    state['tianji']['arm_channels'] = robot_configuration()['arm_channels']
     targets=[dict(kind='cloud',api_url='https://cloud.test/api',web_url='https://cloud.test'),
              dict(kind='local',api_url='http://127.0.0.1:8000',web_url='http://127.0.0.1:5173')]
     state['uploadTarget']=dict(selected='cloud',default_kind='cloud',destinations=targets,**targets[0])
@@ -101,7 +104,7 @@ def main():
                     state['uploadTarget']=dict(selected=target['kind'],default_kind='cloud',destinations=targets,**target)
                     value=dict(state['uploadTarget'],authenticated=True,user=dict(username='fixture'),preferences={})
                 if path=='/tianji/parameters':TianjiParameters.model_validate(payload);value=payload
-                if path=='/tianji/check':state['tianji'].update(devices=[{**d,'status':'connected'} for d in state['tianji']['devices']],joints={'left':[0]*7,'right':[0]*7},cameras=[dict(id=k,available=True) for k in ('usb_1','usb_2','usb_4')])
+                if path=='/tianji/check':state['tianji'].update(devices=[{**d,'status':'connected'} for d in state['tianji']['devices']],joints={'left':[11,0,0,0,0,0,0],'right':[22,0,0,0,0,0,0]},cameras=[dict(id=k,available=True) for k in ('usb_1','usb_2','usb_4')])
                 if path=='/tianji/start':TianjiStart.model_validate(payload);state['tianji']['state']='running'
                 if path=='/tianji/stop':state['tianji']['state']='idle'
                 if path=='/tianji/move':TianjiMove.model_validate(payload)
@@ -244,6 +247,16 @@ def main():
         scroll=item('pageScroll');scroll.setProperty('contentY',500);wait();snap('tianji-model')
         control=item('jog-left0-1');point=control.mapToScene(QPointF(0,0));scroll.setProperty('contentY',scroll.property('contentY')+point.y()-230);wait()
         click('jog-left0-1');wait(lambda:not bridge.state['busy']);assert requests[-1][1]['joint']==1 and requests[-1][1]['delta']==10
+        assert '厂家角度增加/减少' in item('tianjiJointConvention').property('text')
+        assert item('manual-arm-title-left').property('text') == '左臂 · A 通道'
+        assert item('manual-arm-title-right').property('text') == '右臂 · B 通道'
+        assert item('manual-joint-value-left0').property('text') == '11.00 °'
+        assert item('manual-joint-value-right0').property('text') == '22.00 °'
+        for direction in (1,-1):
+            control=item('jog-right2-'+str(direction));point=control.mapToScene(QPointF(0,0))
+            scroll.setProperty('contentY',scroll.property('contentY')+point.y()-320);wait()
+            click('jog-right2-'+str(direction));wait(lambda:not bridge.state['busy'])
+            assert requests[-1]==('/tianji/move',dict(kind='jog',mode='dual',side='right',joint=3,delta=direction*10))
         snap('manual');scroll.setProperty('contentY',0)
         # Qt transforms every visual from the original CAD file, without proxies.
         assert len(scene.parts_value)==sum(len(link['visuals']) for link in scene.model['links'])

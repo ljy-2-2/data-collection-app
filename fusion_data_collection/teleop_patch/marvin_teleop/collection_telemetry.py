@@ -93,6 +93,7 @@ class Publisher:
                 "buttons": dict(buttons), "button_press_counts": self.counts.copy(),
                 "joints_deg": value["joints_deg"],
                 "joint_feedback": value["robot_feedback_details"],
+                "installation": value.get("installation"),
                 "grippers": value["grippers"],
                 "control_timing": value.get("control_timing", {}),
                 "joint_command": value.get("joint_command"),

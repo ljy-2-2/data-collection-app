@@ -32,6 +32,7 @@ interface Pose {
   id: string;
   name: string;
   joints: Record<TianjiSide, number[]>;
+  installation_id?: string;
 }
 const POSES_KEY = 'tianji-pose-presets-v1';
 const primaryFields = TIANJI_FIELDS.slice(0, 3);
@@ -41,10 +42,6 @@ const emptyDevices: TianjiStatus['devices'] = [
   { id: 'xr', name: 'Galaxis VR', status: 'offline' },
   { id: 'headset', name: 'Pico 设备', status: 'offline' },
 ];
-const endpoints = {
-  left: [-1.942282749675746, -0.751316090638591],
-  right: [-0.478942549782559, 0.771915770199131],
-};
 function loadPoses(): Pose[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -262,7 +259,8 @@ export function TianjiTeleopWorkspace({
         0,
         Math.min(
           1,
-          (n - endpoints[id][0]) / (endpoints[id][1] - endpoints[id][0]),
+          (n - parameters[`${id}_gripper_open_rad`]) /
+            (parameters[`${id}_gripper_closed_rad`] - parameters[`${id}_gripper_open_rad`]),
         ),
       );
   }
@@ -294,6 +292,10 @@ export function TianjiTeleopWorkspace({
   async function resetPose() {
     if (!canMove) return;
     const selected = poses.find((p) => p.id === selectedPose);
+    if (selected && (!selected.installation_id || selected.installation_id !== state?.installation_id)) {
+      setError('该姿态属于旧安装或左右定义，请重新核对并保存后再复位。');
+      return;
+    }
     const label = selectedPose === 'zero' ? '零点' : selected?.name;
     if (
       !label ||
@@ -313,6 +315,7 @@ export function TianjiTeleopWorkspace({
       mode: 'dual',
       kind: selectedPose === 'zero' ? 'zero' : 'pose',
       targets,
+      installation_id: selected?.installation_id,
     });
   }
   function persistPoses(next: Pose[]) {
@@ -328,13 +331,14 @@ export function TianjiTeleopWorkspace({
   function savePose() {
     const left = state?.joints.left,
       right = state?.joints.right;
-    if (!live || !left || !right) return;
+    if (!live || !left || !right || !state?.installation_id) return;
     const name = window.prompt('请输入姿态名称')?.trim();
     if (!name) return;
     const p = {
       id: crypto.randomUUID(),
       name: name.slice(0, 50),
       joints: { left: [...left], right: [...right] },
+      installation_id: state.installation_id,
     };
     if (persistPoses([...poses, p])) setSelectedPose(p.id);
   }
@@ -691,6 +695,9 @@ export function TianjiTeleopWorkspace({
           <span className="badge badge-amber">真实运动</span>
         </div>
         <div className="teleop-manual-body">
+          <small>
+            关节＋/−：厂家角度增加/减少，每次 10°，不是画面上下；正向绕本关节轴按右手规则。
+          </small>
           <div className="teleop-preset-toolbar">
             <div>
               <strong>姿态配置</strong>
@@ -705,7 +712,7 @@ export function TianjiTeleopWorkspace({
                 <option value="zero">零点（默认）</option>
                 {poses.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}
+                    {p.name}{!p.installation_id || p.installation_id !== state?.installation_id ? '（旧安装，需重存）' : ''}
                   </option>
                 ))}
               </select>
@@ -743,7 +750,7 @@ export function TianjiTeleopWorkspace({
                   key={side.id}
                 >
                   <header>
-                    <h4>{side.label}</h4>
+                    <h4>{side.label} · {state?.arm_channels?.[side.id] ?? '—'} 通道</h4>
                   </header>
                   <div>
                     {TIANJI_LIMITS.map(([min, max], i) => {
@@ -768,7 +775,7 @@ export function TianjiTeleopWorkspace({
                             <div>
                               <button
                                 type="button"
-                                aria-label={`提高${side.label} J${i + 1}`}
+                                aria-label={`增加${side.label} J${i + 1} 10°（厂家关节坐标）`}
                                 disabled={
                                   !canMove ||
                                   value === undefined ||
@@ -784,11 +791,11 @@ export function TianjiTeleopWorkspace({
                                   })
                                 }
                               >
-                                ▲
+                                ＋
                               </button>
                               <button
                                 type="button"
-                                aria-label={`降低${side.label} J${i + 1}`}
+                                aria-label={`减少${side.label} J${i + 1} 10°（厂家关节坐标）`}
                                 disabled={
                                   !canMove ||
                                   value === undefined ||
@@ -804,7 +811,7 @@ export function TianjiTeleopWorkspace({
                                   })
                                 }
                               >
-                                ▼
+                                −
                               </button>
                             </div>
                           </div>

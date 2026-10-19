@@ -166,7 +166,7 @@ def test_manual_move_bounds_ten_degree_speed_and_existing_acceleration(models, s
     cfg.update(max_joint_speed_deg_s=speed, max_joint_accel_deg_s2=accel)
     measured = {"left": np.array([float(distance), 0, 0, 0, 0, 0, 0]), "right": np.zeros(7)}
     request = TianjiMove(kind=kind, mode="left", side="left", joint=1, delta=-distance if kind == "jog" else 0,
-                         targets={"left": [0.] * 7} if kind == "pose" else None)
+                         targets={"left": [0.] * 7} if kind == "pose" else None, installation_id=cfg['installation_id'])
     plan = manual_plan(models, measured, request, cfg)
     t = plan["duration"]
     u = np.linspace(0, 1, 1001)
@@ -214,13 +214,13 @@ def test_reject_joint_limits_unselected_arm_and_bad_pose(models):
             models,
             q,
             TianjiMove(
-                kind="pose", mode="left", targets={"left": [180, 0, 0, 0, 0, 0, 0]}
+                kind="pose", mode="left", targets={"left": [180, 0, 0, 0, 0, 0, 0]}, installation_id=cfg['installation_id']
             ),
             cfg,
         )
     with pytest.raises(ValueError, match="7 个"):
         manual_plan(
-            models, q, TianjiMove(kind="pose", mode="left", targets={"left": [0]}), cfg
+            models, q, TianjiMove(kind="pose", mode="left", targets={"left": [0]}, installation_id=cfg['installation_id']), cfg
         )
 
 

@@ -1,0 +1,254 @@
+{
+  "schema": "tianji_standard_drawing_directions_v1",
+  "scope": "offline_disk_configuration_only",
+  "physical_installation_verified": false,
+  "live_configuration_changed": false,
+  "installation_id": "physical_left_a_right_b_gripper_half_turn_v9_20261020",
+  "teleop_translation_z_sign": {
+    "left": 1,
+    "right": 1
+  },
+  "teleop_translation_xy_sign": {
+    "left": 1,
+    "right": 1
+  },
+  "teleop_translation_override_scope": "world_displacement_about_clutch_anchor_only_not_base_or_rotation",
+  "world_axes": [
+    "forward",
+    "left",
+    "up"
+  ],
+  "world_origin": "fixture_urdf_origin_not_floor",
+  "units": {
+    "position": "metres",
+    "joint_angle": "degrees"
+  },
+  "drawing_world_from_mount": [
+    [
+      0.0,
+      -1.0,
+      0.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "neutral_world_from_pico": [
+    [
+      0.0,
+      0.0,
+      -1.0
+    ],
+    [
+      -1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0
+    ]
+  ],
+  "arms": {
+    "left": {
+      "channel": "A",
+      "manufacturer_model": "left",
+      "fixture_base_side": "left",
+      "drawing_world_from_base": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0470005033993383
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          0.142
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "configured_world_from_base": [
+        [
+          1.0,
+          -1.262177448353619e-29,
+          3.552713678800501e-15,
+          0.0
+        ],
+        [
+          -3.552713678800501e-15,
+          -3.552713678800501e-15,
+          1.0,
+          0.0470005033993383
+        ],
+        [
+          0.0,
+          -1.0,
+          -3.552713678800501e-15,
+          0.142
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "configured_rotation_difference_deg": 0.0,
+      "configured_origin_difference_mm": 0.0,
+      "matches_standard_drawing": true,
+      "flange_to_tcp": [
+        [
+          3.697785493223493e-32,
+          1.0,
+          -3.3306690738754696e-16,
+          1.060660171779634e-05
+        ],
+        [
+          -1.1102230246251565e-16,
+          3.3306690738754696e-16,
+          1.0,
+          0.012986016036490945
+        ],
+        [
+          1.0,
+          0.0,
+          1.1102230246251565e-16,
+          0.202453
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "right": {
+      "channel": "B",
+      "manufacturer_model": "right",
+      "fixture_base_side": "right",
+      "drawing_world_from_base": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          -0.0469994966006617
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.142
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "configured_world_from_base": [
+        [
+          1.0,
+          -1.262177448353619e-29,
+          -3.552713678800501e-15,
+          0.0
+        ],
+        [
+          -3.552713678800501e-15,
+          -3.552713678800501e-15,
+          -1.0,
+          -0.0469994966006617
+        ],
+        [
+          0.0,
+          1.0,
+          -3.552713678800501e-15,
+          0.142
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "configured_rotation_difference_deg": 0.0,
+      "configured_origin_difference_mm": 0.0,
+      "matches_standard_drawing": true,
+      "flange_to_tcp": [
+        [
+          1.232595164407831e-32,
+          -1.0,
+          -1.1102230246251565e-16,
+          -1.0606601717799095e-05
+        ],
+        [
+          1.1102230246251565e-16,
+          1.1102230246251565e-16,
+          -1.0,
+          -0.012986016036490947
+        ],
+        [
+          1.0,
+          0.0,
+          1.1102230246251565e-16,
+          0.202453
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    }
+  },
+  "source_sha256": {
+    "双臂底座支架图纸260811/固定件/固定件urdf/Dual_arm_mount-m6/urdf/Dual_arm_mount-m6.urdf": "789c02c70d88a97b201f4f5f16d0f85b71ee116b38b802685f697853329bf11e",
+    "CommonConfig/ccs_m6_40.MvKDCfg": "ce20b1a80974c3ed58cdac4973152625096c8ad93a779e5fd4108c26ce19bd52"
+  },
+  "physical_check_required": [
+    "安装面缺口对应机械臂后面；核对实物缺口与图纸，而非依据屏幕左右。",
+    "按机器人自身左右核对法兰 L/R 标记及 A/B 通道。",
+    "图纸基准不是实物标定；存在安装旋转时须测量，不能自动应用方向翻转。"
+  ],
+  "config_source": "/home/yeap/桌面/data collection app/teleop_control/vendor/tianji/teleop/marvin_teleop/config.json",
+  "config_sha256": "fad88b927dfda55003bf6049a556285d633978e8cc7e67811eb039bc7a131eca"
+}

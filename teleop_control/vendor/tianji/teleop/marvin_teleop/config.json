@@ -1,6 +1,15 @@
 {
   "robot_ip": "192.168.1.190",
-  "mount_orientation": "same_facing_y_half_turn",
+  "mount_orientation": "cad",
+  "installation_id": "physical_left_a_right_b_gripper_half_turn_v9_20261020",
+  "arm_models": {
+    "left": "left",
+    "right": "right"
+  },
+  "arm_base_sides": {
+    "left": "left",
+    "right": "right"
+  },
   "arm_channels": {
     "left": "A",
     "right": "B"
@@ -11,6 +20,14 @@
   "port": 63903,
   "status_port": 8765,
   "scale": 1.0,
+  "teleop_translation_xy_sign": {
+    "left": 1,
+    "right": 1
+  },
+  "teleop_translation_z_sign": {
+    "left": 1,
+    "right": 1
+  },
   "rate_hz": 100,
   "vr_timeout_s": 0.2,
   "robot_timeout_s": 0.15,

@@ -69,6 +69,29 @@ def test_position_enable_requires_fresh_acknowledgement(session):
     assert session.robot.enabled_sides == {'left'}
 
 
+@pytest.mark.parametrize('side,channel,index', [('left', 'A', 0), ('right', 'B', 1)])
+@pytest.mark.parametrize('increment', [-10., 10.])
+@pytest.mark.parametrize('joint_index', range(7))
+def test_joint_command_and_feedback_preserve_sdk_angle_sign(session, side, channel, index, increment, joint_index):
+    robot, api = session.robot, session.api
+    robot.enable([side])
+    api.set_joint_cmd_pose.assert_called_with(channel, [10.]*7)
+    session.feedback.states[index] = 1
+    measured = robot.read()
+    target = measured[side].copy()
+    target[joint_index] += increment
+    robot.command({side: target})
+    api.set_joint_cmd_pose.assert_called_with(channel, target.tolist())
+    api.subscribe.side_effect = None
+    api.subscribe.return_value = dict(
+        states=[dict(cur_state=state, err_code=0) for state in session.feedback.states],
+        outputs=[dict(frame_serial=session.feedback.serial+1,
+                      fb_joint_pos=target.tolist() if arm_index == index else [10.]*7,
+                      fb_joint_vel=[0.]*7) for arm_index in range(2)],
+    )
+    assert robot.read()[side].tolist() == target.tolist()
+
+
 def test_position_mode_rejects_unexpected_impedance_feedback(session):
     session.robot.enable()
     session.feedback.states = [1, 1]

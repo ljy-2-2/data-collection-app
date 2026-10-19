@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from .collection_uploader import READY_MARKER
 from .collection_gate import collection_available, collection_context
 from .platform_auth import current_platform_username
+from .tianji_config import robot_configuration
 
 APP_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(APP_ROOT / "fusion_camera_stream"))
@@ -158,6 +159,12 @@ class TianjiCollection:
                 return
             if not self.armed or not self.latest or self.latest.get("teleop_state") != "running":
                 raise ValueError("请先开始遥操作，等待手柄和机械臂反馈就绪")
+            installation = self.latest.get('installation')
+            expected_installation = robot_configuration()
+            if (not isinstance(installation, dict) or any(
+                    installation.get(key) != expected_installation.get(key)
+                    for key in ('installation_id', 'arm_channels', 'arm_models', 'arm_base_sides', 'teleop_translation_z_sign', 'teleop_translation_xy_sign'))):
+                raise ValueError('遥操反馈与当前安装版本不一致；请停止控制并重启 App，不能按旧左右映射录制')
             reason = readiness(self.latest, required_sides=self.controlled_sides)
             if reason:
                 raise ValueError(reason)
@@ -170,6 +177,7 @@ class TianjiCollection:
                 controlled_sides=self.controlled_sides,
                 robot_type="tianji",
                 parameters=self.parameters,
+                controller_arm_channels=copy.deepcopy(installation['arm_channels']),
                 record_actions=True,
                 gripper_action_policy="initial_feedback_then_last_target",
                 recover_camera=False,
@@ -186,6 +194,7 @@ class TianjiCollection:
             self.phase, self.error = "starting", ""
             # Capture session ownership before this background operation begins.
             info = {
+                "installation": copy.deepcopy(installation),
                 "import_task_id": "tianji-" + self.session,
                 "import_folder": self.task,
                 "teleop_session_id": self.session,
@@ -214,6 +223,7 @@ class TianjiCollection:
             metadata["author"] = info["author"]
             metadata["teleop_session_id"] = info["teleop_session_id"]
             metadata["upload_sides"] = info["upload_sides"]
+            metadata['installation'] = info.get('installation')
             if "upload_destination" in info:
                 metadata["upload_destination"] = info["upload_destination"]
             dump(episode.directory / "meta_info.json", metadata)

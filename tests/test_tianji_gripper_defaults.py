@@ -110,6 +110,27 @@ def test_legacy_saved_values_do_not_override_new_calibration(gripper_file):
         assert getattr(restored, key) == value
 
 
+def test_known_pre_relabel_gripper_settings_follow_hardware_once(gripper_file):
+    current = json.loads(gripper_file.read_text())
+    old = json.loads(gripper_file.read_text())
+    old['motors'] = {'left': current['motors']['right'], 'right': current['motors']['left']}
+    gripper_file.write_text(json.dumps(old))
+    selected = TianjiParameters(scale=.8, left_gripper_speed=6, right_gripper_speed=8,
+                               left_gripper_accel=12, right_gripper_accel=35)
+    stored = calibration.parameter_storage(selected.model_dump())
+    stored['installation_id'] = 'physical_left_b_right_a_relabel_v6_20261020'
+    gripper_file.write_text(json.dumps(current))
+    restored = TianjiParameters.model_validate(calibration.stored_parameters(stored))
+    assert (restored.left_gripper_speed, restored.right_gripper_speed) == (8, 6)
+    assert (restored.left_gripper_accel, restored.right_gripper_accel) == (35, 12)
+    assert restored.scale == .8
+    for side in ('left', 'right'):
+        for endpoint in ('open', 'closed'):
+            assert getattr(restored, f'{side}_gripper_{endpoint}_rad') == current['motors'][side][endpoint+'_rad']
+    saved = calibration.parameter_storage(restored.model_dump())
+    assert TianjiParameters.model_validate(calibration.stored_parameters(saved)) == restored
+
+
 def test_current_saved_override_survives_but_config_change_resets_only_gripper(gripper_file):
     selected = TianjiParameters(scale=.8, left_gripper_speed=6, right_gripper_speed=8,
                                left_gripper_accel=12, right_gripper_accel=35)

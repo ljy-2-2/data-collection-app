@@ -15,7 +15,8 @@ def test_worker_dictionary_keeps_configured_tcp(monkeypatch):
         monkeypatch.delenv(name,raising=False)
     direct=configuration(tianji_config.DEFAULT_CONFIG)
     portable=configuration(tianji_config.robot_configuration())
-    for side,letter in [('left','L'),('right','R')]:
+    for side,model_side in direct['arm_models'].items():
+        letter = 'L' if model_side == 'left' else 'R'
         assert portable['tool_tcp'][side]['name']==f'grasp_center_{letter}'
         np.testing.assert_allclose(portable['tool_tcp'][side]['xyz_mm'],direct['tool_tcp'][side]['xyz_mm'])
         np.testing.assert_allclose(portable['tool_tcp'][side]['rpy_deg'],direct['tool_tcp'][side]['rpy_deg'])

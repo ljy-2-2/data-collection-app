@@ -15,10 +15,11 @@ Card {
         Txt {anchors.centerIn: parent;text: "真实运动";font.pixelSize: 11;color: Theme.amber;font.weight: Font.DemiBold}
     }
     Column {id: body;x: 12;y: heading.height+12;width: parent.width-24;spacing: 10
+        Txt {objectName: "tianjiJointConvention";visible: root.tianji;width: parent.width;wrapMode: Text.Wrap;elide: Text.ElideNone;text: "关节＋/−：厂家角度增加/减少，每次 10°，不是画面上下；正向绕本关节轴按右手规则。";font.pixelSize: 11;color: Theme.inkSoft}
         Rectangle {width: parent.width;height: toolbar.height+14;radius: 10;color: Theme.muted;border.color: Theme.line
             Flow {id: toolbar;x: 9;y: 7;width: parent.width-18;spacing: 5
                 Txt {text: "姿态配置";height: 34;width: Math.max(65,parent.width-445);font.weight: Font.DemiBold}
-                Select {id: poses;width: 210;model: {let p=s.poses.map(x=>({id:x.id,label:x.name}));if(root.tianji)p.unshift({id:"zero",label:"零点（默认）"});if(!p.length)p=[{id:"",label:"暂无配置"}];return p}
+                Select {id: poses;width: 210;model: {let p=s.poses.map(x=>({id:x.id,label:x.name+(root.tianji && x.installation_compatible===false ? "（旧安装，需重存）" : "")}));if(root.tianji)p.unshift({id:"zero",label:"零点（默认）"});if(!p.length)p=[{id:"",label:"暂无配置"}];return p}
                     textRole: "label";valueRole: "id";currentIndex: Math.max(0,model.findIndex(p=>p.id===s.selectedPose));enabled: !root.locked;onActivated: backend.setValue("selectedPose",model[currentIndex].id)}
                 Btn {primary: true;text: "复位";enabled: root.canMove && !!s.selectedPose;onClicked: {confirm.action="pose";confirm.open()}}
                 Btn {text: "保存当前姿态";enabled: !root.locked && (!root.tianji || root.live);onClicked: {poseName.text="";nameDialog.open()}}
@@ -35,7 +36,7 @@ Card {
                     property string sideTitle: side==="left" ? "左臂" : side==="right" ? "右臂" : "身体"
                     property var specs: root.tianji ? backend.limits.map((lim,i)=>({name:side+String(i),label:sideTitle+" J"+(i+1),minimum:lim[0],maximum:lim[1]})) : backend.g2Joints.filter(j=>side==="body"?j.name.includes("body"):side==="left"?j.name.includes("_l_"):j.name.includes("_r_"))
                     Layout.fillWidth: true;Layout.alignment: Qt.AlignTop;height: joints.height+45;color: Theme.muted;border.color: Theme.line;radius: 10
-                    Txt {x: 10;y: 8;height: 20;text: arm.sideTitle;font.weight: Font.DemiBold}
+                    Txt {objectName: "manual-arm-title-"+arm.side;x: 10;y: 8;height: 20;text: arm.sideTitle+(root.tianji ? " · "+((s.tianji.arm_channels||{})[arm.side]||"—")+" 通道" : "");font.weight: Font.DemiBold}
                     Rectangle {y: 36;width: parent.width;height: 1;color: Theme.line}
                     Column {id: joints;x: 6;y: 43;width: parent.width-12;spacing: 5
                         Repeater {
@@ -50,13 +51,14 @@ Card {
                                     Txt {width: parent.width;text: root.tianji ? spec.minimum+"° ～ "+spec.maximum+"°" : spec.name;font.pixelSize: root.tianji ? 12 : 9;color: Theme.inkSoft;height: 17}
                                 }
                                 Rectangle {anchors.right: parent.right;anchors.rightMargin: 34;y: 7;width: 72;height: 40;radius: 7;color: Theme.muted;border.color: Theme.line
-                                    Txt {anchors.centerIn: parent;text: raw===undefined ? "— °" : Number(raw).toFixed(root.tianji?2:4)+(root.tianji?" °":"");font.pixelSize: 13}
+                                    Txt {objectName: "manual-joint-value-"+spec.name;anchors.centerIn: parent;text: raw===undefined ? "— °" : Number(raw).toFixed(root.tianji?2:4)+(root.tianji?" °":"");font.pixelSize: 13}
                                 }
                                 Column {anchors.right: parent.right;anchors.rightMargin: 7;y: 7
                                     Repeater {model: 2
                                         Button {required property int index;property int direction: index===0?1:-1;objectName: "jog-"+spec.name+"-"+direction;width: 28;height: 20;enabled: root.canMove && raw!==undefined && raw+direction*(root.tianji?10:spec.name.includes("gripper")?.005:.01)>=spec.minimum && raw+direction*(root.tianji?10:spec.name.includes("gripper")?.005:.01)<=spec.maximum
                                             background: Rectangle {color: parent.hovered ? Theme.accentSoft : Theme.surface;border.color: Theme.line;radius: 3}
-                                            contentItem: Txt {text: index===0?"▲":"▼";font.pixelSize: 9;horizontalAlignment: Text.AlignHCenter;color: parent.enabled ? Theme.inkMuted : Theme.inkSoft;opacity: parent.enabled?1:.4}
+                                            Accessible.name: spec.label+(direction>0 ? " 增加" : " 减少")+(root.tianji ? "10°（厂家关节坐标）" : "")
+                                            contentItem: Txt {text: root.tianji ? (index===0?"＋":"−") : (index===0?"▲":"▼");font.pixelSize: root.tianji ? 13 : 9;horizontalAlignment: Text.AlignHCenter;color: parent.enabled ? Theme.inkMuted : Theme.inkSoft;opacity: parent.enabled?1:.4}
                                             onClicked: {if(root.tianji)backend.jog(arm.side,parent.parent.index+1,direction);else backend.jogG2(spec.name,direction)}
                                         }
                                     }

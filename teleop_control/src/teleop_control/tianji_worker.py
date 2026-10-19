@@ -93,6 +93,8 @@ def manual_plan(models, measured, request, config):
         for s in selected:
             goal[s] = np.zeros(7)
     elif request.kind == "pose":
+        if request.installation_id != config.get('installation_id', 'nominal'):
+            raise ValueError('保存姿态属于旧安装或未标记安装版本；请在当前安装下重新保存，禁止直接套用旧 replay 起点')
         if not request.targets or set(request.targets) != set(selected):
             raise ValueError("姿态必须包含当前模式的全部关节")
         for s in selected:
@@ -388,6 +390,8 @@ def main():
             # IPC run on separate bounded queues, never on the motion thread.
             publisher.submit(
                 {
+                    "installation": {key: config.get(key) for key in
+                                     ('installation_id', 'arm_models', 'arm_base_sides', 'arm_channels', 'mount_orientation', 'mount_orientation_overrides', 'teleop_translation_z_sign', 'teleop_translation_xy_sign')},
                     "mode": "live",
                     "state": state,
                     "joints_deg": {s: q.tolist() for s, q in robot.q.items()}
@@ -406,6 +410,13 @@ def main():
                 emit(
                     {
                         "status": {
+                            "installation_id": config.get('installation_id', 'nominal'),
+                            "arm_models": config['arm_models'],
+                            "arm_base_sides": config['arm_base_sides'],
+                            "arm_channels": config['arm_channels'],
+                            "mount_orientation_by_side": models.mapping_report['mount_orientation_by_side'],
+                            "teleop_translation_z_sign": config['teleop_translation_z_sign'],
+                            "teleop_translation_xy_sign": config['teleop_translation_xy_sign'],
                             "state": state,
                             "mode": mode,
                             "upload_mode": upload_mode,

@@ -7,13 +7,42 @@ No retargeting transforms from the reference robot are used here.
 import numpy as np
 
 
+def arm_model_sides(config):
+    sides = config.get('arm_models', {'left': 'left', 'right': 'right'})
+    if (not isinstance(sides, dict) or set(sides) != {'left', 'right'}
+            or set(sides.values()) != {'left', 'right'}):
+        raise ValueError('arm_models must uniquely map anatomical left/right to manufacturer left/right')
+    return dict(sides)
+
+
+def arm_base_sides(config):
+    sides = config.get('arm_base_sides', {'left': 'left', 'right': 'right'})
+    if (not isinstance(sides, dict) or set(sides) != {'left', 'right'}
+            or set(sides.values()) != {'left', 'right'}):
+        raise ValueError('arm_base_sides must uniquely map logical left/right to fixture L/R slots')
+    return dict(sides)
+
+
+def arm_mount_orientations(config):
+    default = config.get('mount_orientation', 'cad')
+    overrides = config.get('mount_orientation_overrides', {})
+    allowed = ('cad', 'same_facing_y_half_turn')
+    if default not in allowed:
+        raise ValueError('mount_orientation must be cad or same_facing_y_half_turn')
+    if (not isinstance(overrides, dict) or not set(overrides) <= {'left', 'right'}
+            or any(value not in allowed for value in overrides.values())):
+        raise ValueError('mount_orientation_overrides must map left/right to cad or same_facing_y_half_turn')
+    return {side: overrides.get(side, default) for side in ('left', 'right')}
+
+
 def installed_base_from_nominal(base, orientation):
     """Rigid arm mounting correction about its OWN fixed mounting centre.
 
     User's 20:06 trial: model +X moved physically backward, model +Z moved
     physically downward; TCP was physically below its mount, not above it.
     A Y half-turn satisfies these constraints without reflecting a pose.
-    The bilateral application is the user's requested common installation.
+    Select the correction independently per arm; a physical installation need
+    not require the same correction on both sides.
     """
     if orientation not in ("cad", "same_facing_y_half_turn"):
         raise ValueError("mount_orientation must be cad or same_facing_y_half_turn")

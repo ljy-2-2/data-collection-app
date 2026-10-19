@@ -103,6 +103,8 @@ export const TIANJI_LIMITS = [
   [-90, 90],
 ];
 export interface TianjiStatus {
+  installation_id?: string;
+  arm_channels?: Record<TianjiSide, 'A' | 'B'>;
   recording?: boolean;
   collection?: {
     state:

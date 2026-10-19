@@ -1,0 +1,20 @@
+{
+  "baseline_commit": "ed6b539fdd1b40ee7438dbd43d09e413a6056ce7",
+  "scope": "historical_conversion_code_with_current_tool_urdfs",
+  "robot_connected": false,
+  "arms": {
+    "left": {
+      "base_exact_match": true,
+      "fk_max_abs_difference": 0.0,
+      "jacobian_max_abs_difference": 0.0,
+      "ik_command_max_difference_deg": 0.0
+    },
+    "right": {
+      "base_exact_match": true,
+      "fk_max_abs_difference": 0.0,
+      "jacobian_max_abs_difference": 0.0,
+      "ik_command_max_difference_deg": 0.0
+    }
+  },
+  "head_mapping_exact_match": true
+}

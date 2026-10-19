@@ -1,0 +1,45 @@
+<div id="tianji-six-directions">
+  <div class="viz-controls">
+    <label class="form-label">机械臂 <select class="form-select" data-side><option value="left">左臂</option><option value="right">右臂</option></select></label>
+    <label class="form-label">模型视角 <select class="form-select" data-view><option value="oblique">后上方斜视</option><option value="top">俯视：上前、右右</option><option value="side">侧视：上上、右前</option><option value="custom" disabled>自由旋转</option></select></label>
+  </div>
+  <div class="text-small text-muted" data-version></div>
+  <div class="viz-controls" role="group" aria-label="手柄平移方向">
+    <button type="button" class="btn" data-direction="0" aria-pressed="true">向前</button>
+    <button type="button" class="btn" data-direction="1" aria-pressed="false">向后</button>
+    <button type="button" class="btn" data-direction="2" aria-pressed="false">向左</button>
+    <button type="button" class="btn" data-direction="3" aria-pressed="false">向右</button>
+    <button type="button" class="btn" data-direction="4" aria-pressed="false">向上</button>
+    <button type="button" class="btn" data-direction="5" aria-pressed="false">向下</button>
+  </div>
+  <div class="six-hand-row">
+    <svg data-hand role="img" aria-label="手柄平移方向示意"></svg>
+    <div><div data-summary aria-live="polite">正在加载离线模型…</div><div class="text-small text-muted" data-vector></div></div>
+  </div>
+  <div class="text-small text-muted">按住鼠标左键拖动旋转 · 滚轮缩放 · 触屏单指拖动</div>
+  <div class="six-scene">
+    <canvas data-model role="img" aria-label="双臂零位模型与末端方向，可拖动旋转视角"></canvas>
+    <svg data-overlay aria-label="世界坐标轴与末端目标箭头"></svg>
+  </div>
+  <div class="viz-row text-small"><span class="six-target">━ 目标方向（箭头放大）</span><span class="six-path">━ 离线 IK 末端路径</span><span>● 当前 TCP</span></div>
+  <div class="viz-controls"><button type="button" class="btn" data-play disabled>从零位演示</button><button type="button" class="btn" data-zero disabled>回到零位</button><span class="text-small tabular-nums" data-error></span></div>
+  <div class="text-small" data-pose aria-live="polite">双臂零位：J1–J7 均为 0°（非真机当前位置）</div>
+  <div class="text-small text-muted">头显接管朝向 = 前方 · 手柄平移 20 mm · 目标姿态保持；零位近伸直，目标方向不等于可达路径。</div>
+  <div class="text-small text-muted">模型外观简化；仅运动学示意，未验证碰撞与真机方向，不可作为执行轨迹。</div>
+  <div role="alert" class="text-destructive" data-error-message></div>
+  <script type="application/octet-stream" data-payload>__PAYLOAD__</script>
+</div>
+<style>
+#tianji-six-directions .six-hand-row{display:flex;align-items:center;gap:16px;margin-top:8px}
+#tianji-six-directions [data-hand]{width:150px;height:145px;flex:0 0 150px}
+#tianji-six-directions .six-scene{position:relative;height:410px;width:100%;overflow:hidden}
+#tianji-six-directions [data-model],#tianji-six-directions [data-overlay]{position:absolute;width:100%;height:100%;inset:0}
+#tianji-six-directions [data-overlay]{pointer-events:none}
+#tianji-six-directions [data-model]{touch-action:none;cursor:grab}
+#tianji-six-directions [data-model][data-dragging]{cursor:grabbing}
+#tianji-six-directions svg text{fill:var(--foreground);font-size:12px}
+#tianji-six-directions .six-target{color:var(--orange)}
+#tianji-six-directions .six-path{color:var(--green)}
+@media(max-width:420px){#tianji-six-directions .six-hand-row{gap:8px}#tianji-six-directions [data-hand]{width:125px;flex-basis:125px}#tianji-six-directions .six-scene{height:350px}}
+</style>
+<script>__SCRIPT__</script>

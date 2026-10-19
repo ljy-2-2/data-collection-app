@@ -13,6 +13,9 @@ from .mapping import (
     robot_from_behind_operator,
     behind_operator_convention,
     installed_base_from_nominal,
+    arm_model_sides,
+    arm_base_sides,
+    arm_mount_orientations,
 )
 
 ROOT = Path(
@@ -74,7 +77,7 @@ class ArmModel:
     def __init__(self, side, index, base):
         from SDK_PYTHON.fx_kine import Marvin_Kine
 
-        self.side, self.base = side, base
+        self.side, self.model_side, self.base = side, side, base
         letter = "L" if side == "left" else "R"
         folder = ROOT / f"Marvin M6-S-{letter}-CCS-696-V4.0 urdf (FUSION)/urdf"
         generated = folder / f"marvin_{side}_with_gripper.urdf"
@@ -345,8 +348,6 @@ class Models:
             letter = "L" if side == "left" else "R"
             base = origin(mount.find(f"joint[@name='Joint0_{letter}']/origin"))
             self.arms[side] = ArmModel(side, index, base)
-            self.arms[side].configure_tool(tools[side])
-            self.arms[side].configure_tool_collision(tool_collision[side])
         # First load vendor gravity and fixed URDF bases in fixture coordinates;
         # derive the anatomical world frame instead of assuming a CAD yaw angle.
         world_mount = robot_world_from_mount(
@@ -357,6 +358,7 @@ class Models:
         for arm in self.arms.values():
             arm.base = world_mount @ arm.base
             arm.nominal_base = arm.base.copy()
+            arm.manufacturer_base = arm.base.copy()
             arm.base_bound = (arm.base, *arm.base_bound[1:])
         self.robot_from_operator = robot_from_behind_operator(self.arms)
         stand = ET.parse(STAND).getroot()
@@ -367,11 +369,23 @@ class Models:
         delta = inverse(self.arms["right"].base) @ right_check
         if np.linalg.norm(delta[:3, 3]) > 0.001 or angle(delta[:3, :3]) > 0.001:
             raise ValueError("stand and mount assembly transforms disagree")
+        model_sides = arm_model_sides(config)
+        base_sides = arm_base_sides(config)
+        nominal_bases = {side: arm.nominal_base.copy() for side, arm in self.arms.items()}
+        self.nominal_bases = nominal_bases
+        manufacturer_arms = self.arms
+        self.arms = {side: manufacturer_arms[model_side] for side, model_side in model_sides.items()}
+        for side, arm in self.arms.items():
+            arm.side = side
+            arm.nominal_base = nominal_bases[base_sides[side]]
+            arm.configure_tool(tools[side])
+            arm.configure_tool_collision(tool_collision[side])
         # Register static CAD first. A measured arm mounting rotation must not
         # rotate the stand with it, nor redefine the operator's forward axis.
         mount_orientation = config.get("mount_orientation", "cad")
-        for arm in self.arms.values():
-            arm.base = installed_base_from_nominal(arm.nominal_base, mount_orientation)
+        mount_by_side = arm_mount_orientations(config)
+        for side, arm in self.arms.items():
+            arm.base = installed_base_from_nominal(arm.nominal_base, mount_by_side[side])
             arm.base_bound = (arm.base, *arm.base_bound[1:])
         installation = None
         if config.get("installation_calibration"):
@@ -384,6 +398,10 @@ class Models:
                 arm.base = bases[side]
                 arm.base_bound = (arm.base, *arm.base_bound[1:])
         self.mapping_report = {
+            "installation_id": config.get("installation_id", "nominal"),
+            "arm_models": model_sides,
+            "arm_base_sides": base_sides,
+            "arm_channels": config.get("arm_channels"),
             "arm_model_sources": {s: str(a.path) for s, a in self.arms.items()},
             "operator_alignment": "same_facing",
             "operator_convention": behind_operator_convention(),
@@ -393,9 +411,10 @@ class Models:
             "world_from_bases": {s: a.base.tolist() for s, a in self.arms.items()},
             "installation_calibration": installation,
             "mount_orientation": mount_orientation,
+            "mount_orientation_by_side": mount_by_side,
             "active_mount_source": "measured_calibration"
             if installation
-            else mount_orientation,
+            else ("per_arm_mount_orientation" if config.get('mount_orientation_overrides') else mount_orientation),
             "installed_gravity_in_base": {
                 s: (a.base[:3, :3].T @ np.array([0.0, 0.0, -9.81])).tolist()
                 for s, a in self.arms.items()
@@ -471,9 +490,9 @@ class Models:
 
         # Test intrinsic manufacturer symmetry in the nominal mounting; actual
         # independently measured installations need not be mirror symmetric.
-        nominal = {side: copy(arm) for side, arm in self.arms.items()}
+        nominal = {arm.model_side: copy(arm) for arm in self.arms.values()}
         for arm in nominal.values():
-            arm.base = arm.nominal_base
+            arm.base = arm.manufacturer_base
         self.mapping_report["mirror_validation"] = validate_mirror(nominal)
         return report
 

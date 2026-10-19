@@ -30,6 +30,12 @@ def feedback(sequence, selected=("left", "right"), a=0, b=0):
     stamp = time.monotonic_ns()
     return {
         "mode": "live",
+        "installation": {"installation_id": "physical_left_a_right_b_gripper_half_turn_v9_20261020",
+                         "teleop_translation_z_sign": {"left": 1, "right": 1},
+                         "teleop_translation_xy_sign": {"left": 1, "right": 1},
+                         "arm_channels": {"left": "A", "right": "B"},
+                         "arm_base_sides": {"left": "left", "right": "right"},
+                         "arm_models": {"left": "left", "right": "right"}},
         "teleop_state": "running",
         "session": "sdk-test",
         "vr_session": 1,
@@ -189,6 +195,9 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
             counts, samples = [0, 0, 0], 0
             for i in range(75):
                 row = feedback(i + 3, selected, a=1, b=int(i >= 65))
+                for side in selected:
+                    row['joint_command']['joints_deg'][side] = [10 if side == 'left' else 20] * 7
+                    row['grippers']['motors'][side]['target_rad'] = .8 if side == 'left' else .4
                 collection.accept(row)
                 stamp = row["pc_monotonic_ns"] + offset
                 yield StreamEvent(
@@ -259,6 +268,9 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     assert metadata["controlled_sides"] == list(selected)
     assert metadata["upload_sides"] == list(exported)
     assert metadata["camera_mapping"] == CAMERA_MAPPING
+    assert metadata['installation']['arm_channels'] == {'left': 'A', 'right': 'B'}
+    assert metadata['installation']['teleop_translation_z_sign'] == {'left': 1, 'right': 1}
+    assert metadata['installation']['teleop_translation_xy_sign'] == {'left': 1, 'right': 1}
     assert metadata["stop_reason"] == "B/Y"
     assert not list(directory.rglob("native"))
     assert set(p.name for p in (directory / "camera").iterdir()) == set(
@@ -273,14 +285,13 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
         for row in (directory / "record/bundles.jsonl").read_text().splitlines()
     ]
     assert all(len(row["grippers"]) == len(selected) for row in bundles)
-    assert all(row['tensors']['action__'+side+'_effector__position'] == [0.8]
+    assert all(row['tensors']['action__'+side+'_effector__position'] == [.8 if side == 'left' else .4]
                and row['gripper_target_sources'][side]['source'] == 'last_controller_target'
                for row in bundles for side in selected)
     action = next(row for row in bundles if "action__joint__position" in row["tensors"])
-    assert action["tensors"]["action__joint__position"][0] == pytest.approx(
-        math.radians(10)
-    )
-    assert action["tensors"]["state__joint__position"][0] == 0
+    for name, value in zip(action['tensors']['action__joint__name'], action['tensors']['action__joint__position']):
+        assert value == pytest.approx(math.radians(10 if name.startswith('left_') else 20))
+    assert action["tensors"]["state__joint__position"][0] == pytest.approx(0)
     assert (directory / READY_MARKER).is_file()
     manager.collection_frame.assert_not_called()
     assert manager.resume_cameras_after_episode.called
@@ -329,6 +340,8 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
             tensors = uploaded['tensors']
             assert tensors['state__joint__name'] == expected_names
             assert tensors['action__joint__name'] == expected_names
+            assert tensors['action__joint__position'] == pytest.approx(
+                [math.radians(10 if side == 'left' else 20) for side in exported for _ in range(7)])
             assert len(tensors['state__joint__position']) == 7 * len(exported)
             expected_positions = [math.radians(0 if s == 'left' else 30) for s in exported for _ in range(7)]
             assert tensors['state__joint__position'] == pytest.approx(expected_positions)

@@ -38,7 +38,8 @@ class URDFToolTests(unittest.TestCase):
     def test_installed_config_and_display_match_urdf(self):
         config_path=VENDOR/'teleop/marvin_teleop/config.json'
         c=configuration(config_path);cad=json.loads((ROOT/'public/tianji-model.json').read_text())
-        for side,letter in [('left','L'),('right','R')]:
+        for side,model_side in c['arm_models'].items():
+            letter = 'L' if model_side == 'left' else 'R'
             source=c['tool_tcp_source'][side]
             self.assertEqual(source['tcp_link'],f'grasp_center_{letter}')
             T,name=parse_tool_frame(c['tool_tcp'][side])
@@ -47,13 +48,29 @@ class URDFToolTests(unittest.TestCase):
                 j=next(j for j in cad['joints'] if j['name']==joint)
                 expected=expected@transform(j['xyz'],j['rpy'])
             np.testing.assert_allclose(T,expected,atol=1e-12)
-            delta=np.pi/2 if side=='left' else -np.pi/2
+            delta=-np.pi/2 if model_side=='left' else np.pi/2
             mount=next(joint for joint in cad['joints'] if joint['name']==f'gripper_mount_{letter}')
             self.assertAlmostEqual(mount['rpy'][2],np.pi/4+delta)
             original=transform([0,0,0],[0,0,np.pi/4])@transform([-.009175,.009190,.202453],[0,-np.pi/2,-np.pi/4])
             np.testing.assert_allclose(T,transform([0,0,0],[0,0,delta])@original,atol=1e-12)
             self.assertAlmostEqual(T[2,3],.202453)
             self.assertGreater(np.linalg.norm(T[:3,3]),.2)
+    def test_both_mount_half_turns_preserve_approach_local_tcp_and_channels(self):
+        config=configuration(VENDOR/'teleop/marvin_teleop/config.json')
+        self.assertEqual(config['arm_models'],{'left':'left','right':'right'})
+        self.assertEqual(config['arm_channels'],{'left':'A','right':'B'})
+        self.assertEqual(config['mount_orientation'],'cad')
+        tcp_in_gripper=transform([-.009175,.009190,.202453],[0,-np.pi/2,-np.pi/4])
+        half_turn=transform([0,0,0],[0,0,np.pi])
+        for side,previous_yaw in (('left',3*np.pi/4),('right',-np.pi/4)):
+            previous=transform([0,0,0],[0,0,previous_yaw])@tcp_in_gripper
+            current,_=parse_tool_frame(config['tool_tcp'][side])
+            np.testing.assert_allclose(current,half_turn@previous,atol=1e-12)
+            np.testing.assert_allclose(current[:3,0],previous[:3,0],atol=1e-12)
+            np.testing.assert_allclose(current[:3,1:3],-previous[:3,1:3],atol=1e-12)
+            np.testing.assert_allclose(current[:2,3],-previous[:2,3],atol=1e-12)
+            self.assertAlmostEqual(current[2,3],previous[2,3])
+            self.assertAlmostEqual(np.linalg.det(current[:3,:3]),1.0)
     def test_changing_urdf_origin_changes_loaded_tool_without_json_edits(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'arm.urdf';self.write(p)

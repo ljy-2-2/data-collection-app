@@ -8,6 +8,7 @@ import {
   tianjiCameraMatrix,
   transform,
   type TianjiModel,
+  type TianjiInstallation,
 } from '../lib/tianjiModel';
 import type { TianjiSide } from '../lib/tianji';
 
@@ -38,13 +39,18 @@ export function TianjiRobotPreview({
     if (!el) return;
     const abort = new AbortController();
     let cleanup = () => {};
-    void fetch('/tianji-model.json', { signal: abort.signal })
-      .then((r) => {
-        if (!r.ok) throw new Error('模型加载失败');
-        return r.json() as Promise<TianjiModel>;
-      })
-      .then((model: TianjiModel) => {
+    const fetchJson = async <Value,>(url: string): Promise<Value> => {
+      const response = await fetch(url, { signal: abort.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error('模型或安装配置加载失败');
+      return response.json() as Promise<Value>;
+    };
+    void Promise.all([
+      fetchJson<TianjiModel>('/tianji-model.json'),
+      fetchJson<TianjiInstallation>('/tianji-installation.json'),
+    ])
+      .then(([model, installation]) => {
         if (abort.signal.aborted) return;
+        model.joints = model.joints.map((joint) => ({ ...joint, ...installation.joints[joint.name] }));
         const gl = el.getContext('webgl', {
           alpha: false,
           depth: true,
@@ -134,10 +140,8 @@ export function TianjiRobotPreview({
           );
           gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
           const angles: Record<string, number> = {};
-          for (const [side, letter] of [
-            ['left', 'L'],
-            ['right', 'R'],
-          ] as const) {
+          for (const side of ['left', 'right'] as const) {
+            const letter = installation.arm_models[side] === 'left' ? 'L' : 'R';
             (pose.current.joints[side] ?? Array(7).fill(0)).forEach((v, i) => {
               angles[`Joint${i + 1}_${letter}`] = (v * Math.PI) / 180;
             });

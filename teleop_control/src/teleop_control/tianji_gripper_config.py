@@ -8,6 +8,7 @@ import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from .tianji_config import installation_id
 
 GRIPPER_CONFIG = Path(__file__).resolve().parents[2] / 'vendor/tianji/teleop/gripper/config.json'
 GRIPPER_PARAMETERS = ('left_gripper_speed', 'right_gripper_speed',
@@ -112,6 +113,25 @@ def stored_parameters(payload: dict) -> dict:
             raise ValueError('天机 parameters 必须为 JSON 对象')
         values = dict(payload['parameters'])
         current = payload.get('gripper_config_sha256') == gripper_config_fingerprint()
+        if (not current and installation_id() in (
+                'physical_left_a_right_b_verified_jog_v7_20261020',
+                'physical_left_a_right_b_shoulder_half_turn_v8_20261020',
+                'physical_left_a_right_b_gripper_half_turn_v9_20261020')
+                and payload.get('installation_id') == 'physical_left_b_right_a_relabel_v6_20261020'):
+            previous = json.loads(GRIPPER_CONFIG.read_text())
+            motors = previous['motors']
+            if set(motors) == {'left', 'right'}:
+                previous['motors'] = {'left': motors['right'], 'right': motors['left']}
+                previous_hash = hashlib.sha256(json.dumps(previous, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                if payload.get('gripper_config_sha256') == previous_hash:
+                    original = dict(values)
+                    for side, peer in (('left', 'right'), ('right', 'left')):
+                        for suffix in ('speed', 'accel', 'open_rad', 'closed_rad'):
+                            key, source = f'{side}_gripper_{suffix}', f'{peer}_gripper_{suffix}'
+                            values.pop(key, None)
+                            if source in original:
+                                values[key] = original[source]
+                    current = True
     else:
         values = dict(payload)
         current = False  # Legacy files cannot prove their calibrated source.
@@ -128,4 +148,4 @@ def stored_parameters(payload: dict) -> dict:
 
 
 def parameter_storage(values: dict) -> dict:
-    return {'gripper_config_sha256': gripper_config_fingerprint(), 'parameters': values}
+    return {'installation_id': installation_id(), 'gripper_config_sha256': gripper_config_fingerprint(), 'parameters': values}

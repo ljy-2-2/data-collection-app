@@ -34,6 +34,22 @@ def configuration(path):
             "operator_rotation_signs、wrist_axis_correction，使用同向相对映射"
         )
     ipaddress.IPv4Address(c["robot_ip"])
+    from .mapping import arm_model_sides, arm_base_sides, arm_mount_orientations
+    c['arm_models'] = arm_model_sides(c)
+    c['arm_base_sides'] = arm_base_sides(c)
+    arm_mount_orientations(c)
+    horizontal_signs = c.setdefault('teleop_translation_xy_sign', {'left': 1, 'right': 1})
+    if (not isinstance(horizontal_signs, dict) or set(horizontal_signs) != {'left', 'right'}
+            or any(type(value) not in (int, float) or value not in (-1, 1)
+                   for value in horizontal_signs.values())):
+        raise ValueError('teleop_translation_xy_sign must map left/right to +1 or -1')
+    c['teleop_translation_xy_sign'] = dict(horizontal_signs)
+    vertical_signs = c.setdefault('teleop_translation_z_sign', {'left': 1, 'right': 1})
+    if (not isinstance(vertical_signs, dict) or set(vertical_signs) != {'left', 'right'}
+            or any(type(value) not in (int, float) or value not in (-1, 1)
+                   for value in vertical_signs.values())):
+        raise ValueError('teleop_translation_z_sign must map left/right to +1 or -1')
+    c['teleop_translation_z_sign'] = dict(vertical_signs)
     if set(c["arm_channels"]) != {"left", "right"} or set(
         c["arm_channels"].values()
     ) != {"A", "B"}:

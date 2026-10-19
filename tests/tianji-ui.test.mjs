@@ -16,7 +16,7 @@ const { TianjiTeleopWorkspace } = await server.ssrLoadModule(
 const { TeleopPanel } = await server.ssrLoadModule(
   '/components/teleop/TeleopPanel.tsx',
 );
-const { validTianjiParameters, TIANJI_DEFAULTS } =
+const { validTianjiParameters, TIANJI_DEFAULTS, TIANJI_CAMERAS, TIANJI_SIDES } =
   await server.ssrLoadModule('/lib/tianji.ts');
 const { linkTransforms, tianjiCameraMatrix } = await server.ssrLoadModule(
   '/lib/tianjiModel.ts',
@@ -33,6 +33,17 @@ const props = {
     throw Error('No hardware during render');
   },
 };
+test('camera and arm labels match anatomical left and right', () => {
+  assert.deepEqual(TIANJI_CAMERAS, [
+    { id: 'usb_1', label: '主相机' },
+    { id: 'usb_2', label: '右腕部相机' },
+    { id: 'usb_4', label: '左腕部相机' },
+  ]);
+  assert.deepEqual(TIANJI_SIDES, [
+    { id: 'left', label: '左臂', letter: 'L' },
+    { id: 'right', label: '右臂', letter: 'R' },
+  ]);
+});
 test('robot selection includes Tianji and preserves G2', () => {
   const html = renderToStaticMarkup(createElement(TeleopPanel, props));
   assert.match(html, /value="tianji" selected=""/);
@@ -73,6 +84,12 @@ test('Tianji workspace has three modes, three named cameras, modal parameters an
   assert.doesNotMatch(html, /tianji-collection-panel|tianji-collection-stats|<h3>数据采集<\/h3>|结束本段/);
   assert.match(html, /A \/ X 开始采集，B \/ Y 结束并保存/);
   assert.match(html, /零点（默认）/);
+  assert.match(html, /厂家角度增加\/减少/);
+  assert.match(html, /正向绕本关节轴按右手规则/);
+  for (const side of ['左臂', '右臂']) {
+    assert.ok(html.includes(`aria-label="增加${side} J3 10°（厂家关节坐标）"`));
+    assert.ok(html.includes(`aria-label="减少${side} J3 10°（厂家关节坐标）"`));
+  }
   assert.doesNotMatch(
     html,
     /仅遥操作|断开设备|Tianji · 网线|tianji-camera-tabs|teleop-visual-caption/,
@@ -121,6 +138,39 @@ test('CAD assembly resolves all links and a left joint leaves the right arm fixe
   assert.ok(model.links.find((l) => l.name === 'stand').visuals.length);
   const q = linkTransforms(model, { gripper_drive_L: 0.8 });
   assert.notDeepEqual(zero.gripper_L_1, q.gripper_L_1);
+});
+test('physical right uses B/R and both shoulders turn around local Z without moving the stand', () => {
+  const model = JSON.parse(readFileSync(new URL('../public/tianji-model.json', import.meta.url)));
+  const installation = JSON.parse(readFileSync(new URL('../public/tianji-installation.json', import.meta.url)));
+  const nominal = linkTransforms(model, {});
+  model.joints = model.joints.map((joint) => ({ ...joint, ...installation.joints[joint.name] }));
+  const swapped = linkTransforms(model, {});
+  assert.deepEqual(installation.arm_models, { left: 'left', right: 'right' });
+  assert.deepEqual(installation.arm_channels, { left: 'A', right: 'B' });
+  assert.deepEqual(installation.arm_base_sides, { left: 'left', right: 'right' });
+  for (const index of [3, 7, 11]) {
+    assert.ok(Math.abs(swapped.Base_R[index] - nominal.Base_R[index]) < 1e-9);
+    assert.ok(Math.abs(swapped.Base_L[index] - nominal.Base_L[index]) < 1e-9);
+  }
+  for (const side of ['L', 'R']) {
+    for (let row = 0; row < 3; row += 1) {
+      for (let column = 0; column < 3; column += 1) {
+        const index = row * 4 + column;
+        const sign = column === 2 ? 1 : -1;
+        assert.ok(Math.abs(swapped[`Base_${side}`][index] - sign * nominal[`Base_${side}`][index]) < 1e-9);
+      }
+    }
+  }
+  assert.deepEqual(swapped.stand, nominal.stand);
+  const moved = linkTransforms(model, { Joint2_L: 0.5 });
+  assert.notDeepEqual(moved.Link7_L, swapped.Link7_L);
+  assert.deepEqual(moved.Link7_R, swapped.Link7_R);
+  const motors = JSON.parse(readFileSync(new URL('../teleop_control/vendor/tianji/teleop/gripper/config.json', import.meta.url))).motors;
+  for (const side of ['left', 'right']) {
+    for (const endpoint of ['open', 'closed']) {
+      assert.equal(TIANJI_DEFAULTS[`${side}_gripper_${endpoint}_rad`], motors[side][`${endpoint}_rad`]);
+    }
+  }
 });
 test('opaque orthographic view puts front surfaces ahead of rear surfaces without perspective scaling', () => {
   const camera = tianjiCameraMatrix(560, 300, { yaw: 0, pitch: 0, zoom: 1 });

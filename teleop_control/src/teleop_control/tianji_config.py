@@ -16,6 +16,11 @@ DEFAULT_CONFIG = (
 )
 
 
+def installation_id() -> str:
+    path = Path(os.environ.get('TIANJI_CONFIG') or DEFAULT_CONFIG).expanduser()
+    return json.loads(path.read_text()).get('installation_id', 'nominal')
+
+
 def robot_configuration() -> dict:
     path = Path(os.environ.get("TIANJI_CONFIG") or DEFAULT_CONFIG).expanduser()
     config = json.loads(path.read_text())

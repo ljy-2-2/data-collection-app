@@ -11,7 +11,9 @@ def sync_frames(app_root):
     model_path = app_root/'public/tianji-model.json'
     model = json.loads(model_path.read_text())
     joints = {joint['name']: joint for joint in model['joints']}
-    for side, letter in [('left', 'L'), ('right', 'R')]:
+    model_sides = config.get('arm_models', {'left': 'left', 'right': 'right'})
+    for side, model_side in model_sides.items():
+        letter = 'L' if model_side == 'left' else 'R'
         source = config['tool_tcp'][side]
         tree = ET.parse(config_path.parent/source['urdf'])
         for name in (f'gripper_mount_{letter}', f'grasp_center_fixed_{letter}'):
@@ -26,6 +28,8 @@ def sync_frames(app_root):
             for field in ('xyz', 'rpy'):
                 joint[field] = [float(value) for value in origin.get(field, '0 0 0').split()]
     model_path.write_text(json.dumps(model, separators=(',', ':'))+'\n')
+    from sync_tianji_installation import build_installation
+    (app_root/'public/tianji-installation.json').write_text(json.dumps(build_installation(app_root), indent=2)+'\n')
 
 
 if __name__ == '__main__':

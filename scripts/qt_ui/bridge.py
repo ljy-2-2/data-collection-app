@@ -10,6 +10,7 @@ import time
 import uuid
 from urllib.parse import quote
 from .grippers import endpoints, closure, parameter_defaults
+from teleop_control.tianji_config import installation_id
 from .umi_telemetry import UmiTelemetry
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSettings
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -416,7 +417,10 @@ class Bridge(QObject):
             targets=pose.get('targets',{})
             vectors=[targets.get(side,[]) for side in ('left','right')] if self._state['robot']=='tianji' else [list(targets.values())]
             if self._state['robot']=='tianji' and any(len(v)!=7 for v in vectors):continue
-            if all(isinstance(x,(int,float)) and math.isfinite(x) for v in vectors for x in v):valid.append(pose)
+            if all(isinstance(x,(int,float)) and math.isfinite(x) for v in vectors for x in v):
+                if self._state['robot']=='tianji':
+                    pose['installation_compatible'] = pose.get('installation_id') == installation_id()
+                valid.append(pose)
         self.update(poses=valid)
 
     def persist_poses(self,poses):
@@ -436,6 +440,10 @@ class Bridge(QObject):
             if any(len(targets.get(side,[]))!=7 for side in ('left','right')):self.fail('尚无关节反馈');return
         else:targets=self.g2_targets()
         pose=dict(id=str(uuid.uuid4()),name=name,targets=copy.deepcopy(targets))
+        if s['robot']=='tianji':
+            current = s['tianji'].get('installation_id')
+            if current != installation_id():self.fail('请重启天机连接，使反馈与当前安装配置一致后再保存姿态');return
+            pose['installation_id'] = current
         if self.persist_poses([*s['poses'],pose]):self.update(selectedPose=pose['id'])
 
     @Slot()
@@ -450,7 +458,9 @@ class Bridge(QObject):
         s=self._state;pose=next((p for p in s['poses'] if p['id']==s['selectedPose']),None)
         if s['robot']=='tianji':
             if s['selectedPose']=='zero':self.action('move','/tianji/move',dict(kind='zero',mode='dual'))
-            elif pose:self.action('move','/tianji/move',dict(kind='pose',mode='dual',targets=pose['targets']))
+            elif pose:
+                if pose.get('installation_id') != installation_id():self.fail('该姿态属于旧安装；请在新安装下重新保存，不能直接恢复旧 replay 点');return
+                self.action('move','/tianji/move',dict(kind='pose',mode='dual',targets=pose['targets'],installation_id=pose['installation_id']))
         elif pose:
             targets=self.g2_targets();targets.update(pose['targets']);self.move_g2(targets)
 

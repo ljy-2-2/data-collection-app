@@ -63,6 +63,13 @@ class RobotScene(QObject):
         super().__init__(parent)
         self.calibration=endpoints(root)
         self.model=json.loads((root/'public/tianji-model.json').read_text()) if load_model else dict(meshes={},links=[],joints=[])
+        installation_path = root/'public/tianji-installation.json'
+        self.arm_models = {'left': 'left', 'right': 'right'}
+        if load_model and installation_path.is_file():
+            installation = json.loads(installation_path.read_text())
+            self.arm_models = installation['arm_models']
+            for joint in self.model['joints']:
+                joint.update(installation['joints'].get(joint['name'], {}))
         self.geometries={key:MeshGeometry(mesh) for key,mesh in self.model['meshes'].items()}
         self.parts_value=[];self.by_link=[]
         for link in self.model['links']:
@@ -93,8 +100,9 @@ class RobotScene(QObject):
     @Slot('QVariantMap')
     def update_pose(self,status,calibration=None):
         if calibration is not None:self.calibration=calibration
-        angles={f'Joint{i+1}_{letter}':math.radians(v) for side,letter in [('left','L'),('right','R')] for i,v in enumerate(status.get('joints',{}).get(side,[])) if math.isfinite(v)}
-        for side,letter in [('left','L'),('right','R')]:
+        letters = [(side, 'L' if model == 'left' else 'R') for side, model in self.arm_models.items()]
+        angles={f'Joint{i+1}_{letter}':math.radians(v) for side,letter in letters for i,v in enumerate(status.get('joints',{}).get(side,[])) if math.isfinite(v)}
+        for side,letter in letters:
             amount=closure(status,side,self.calibration)
             if amount is None:amount=.5
             drive=next((j for j in self.model['joints'] if j['name']==f'gripper_drive_{letter}'),{})

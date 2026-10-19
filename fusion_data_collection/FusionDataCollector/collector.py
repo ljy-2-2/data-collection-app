@@ -25,6 +25,7 @@ from fusion_camera.stream import FusionStreamClient
 from fusion_camera.client import Frame
 from fusion_camera.episode import dump, line, match_bundles, percentiles, stats
 from PIL import Image
+from .channel_mapping import anatomical_joint_sample
 
 SIDES = ('left', 'right')
 CAMERAS = ('usb-1', 'usb-2', 'usb-4')
@@ -551,6 +552,7 @@ class Episode(threading.Thread):
             'episode_index':self.episode_index,
             'task':self.args.task, 'robot_type':getattr(self.args,'robot_type','fusion_dual_arm'),
             'controlled_sides':list(self.required_sides), 'parameters':getattr(self.args,'parameters',{}),
+            'controller_arm_channels':getattr(self.args, 'controller_arm_channels', None),
             'collector':'fusion_teleop_passive_collection', 'complete':False,'status':'starting',
             'pc_start_ns':time.time_ns(),'start_trigger':self.trigger,
             'requested_image_hz':30,'requested_joint_hz':100,
@@ -614,6 +616,7 @@ class Episode(threading.Thread):
                             dump(record/'stream_start.json',m)
                             self.notice('数据流已连接，等待三路相机首帧和关节反馈…')
                         elif kind == 'joints':
+                            m = anatomical_joint_sample(m, getattr(self.args, 'controller_arm_channels', None))
                             if len(m['position_deg']) != 14 or m['joint_names'] != meta['joint_order']:
                                 raise RuntimeError('Unexpected joint layout')
                             if not all(math.isfinite(v) for v in m['position_deg']+m['velocity_deg_s']+m['torque_nm']):

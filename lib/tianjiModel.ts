@@ -101,6 +101,13 @@ export interface TianjiModel {
     limit: { lower: string; upper: string } | null;
   }[];
 }
+export interface TianjiInstallation {
+  installation_id: string;
+  arm_models: Record<'left' | 'right', 'left' | 'right'>;
+  arm_base_sides?: Record<'left' | 'right', 'left' | 'right'>;
+  arm_channels?: Record<'left' | 'right', 'A' | 'B'>;
+  joints: Record<string, { xyz: number[]; rpy: number[] }>;
+}
 export function linkTransforms(
   model: TianjiModel,
   angles: Record<string, number>,

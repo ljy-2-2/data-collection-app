@@ -49,5 +49,6 @@ class TianjiMove(BaseModel):
     joint: int = Field(default=1, ge=1, le=7)
     delta: float = Field(default=0, ge=-10, le=10)
     targets: dict[str, list[float]] | None = None
+    installation_id: str | None = None
     closure: float = Field(default=0, ge=0, le=1)
     parameters: TianjiParameters = Field(default_factory=TianjiParameters)

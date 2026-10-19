@@ -89,7 +89,10 @@ def test_reclutch_refreshes_only_selected_arm_without_pose_jump(session, side):
     hands[side][:3, :3] = rotation([1, 0, 0], .02)
     session.tick(grips, yaw=-np.pi/3, hands=hands)
     expected = selected.anchor[1].copy()
-    expected[:3, 3] += expected_basis@hands[side][:3, 3]
+    displacement = expected_basis@hands[side][:3, 3]
+    displacement[2] *= session.controller.cfg['teleop_translation_z_sign'][side]
+    displacement[:2] *= session.controller.cfg['teleop_translation_xy_sign'][side]
+    expected[:3, 3] += displacement
     expected[:3, :3] = expected_basis@hands[side][:3, :3]@expected_basis.T@selected.anchor[1][:3, :3]
     np.testing.assert_allclose(selected.target_pose, expected, atol=1e-12)
     np.testing.assert_allclose(session.controller.arms[peer].basis, peer_basis)
@@ -112,7 +115,10 @@ def test_continuous_clutch_does_not_clip_translation_or_rotation(session, side, 
         hands[side][:3, :3] = rotation([0, 1, 0], step * .02)
         session.tick(grips, hands=hands)
         expected = anchor.copy()
-        expected[:3, 3] += basis @ hands[side][:3, 3] * session.controller.cfg['scale']
+        displacement = basis @ hands[side][:3, 3] * session.controller.cfg['scale']
+        displacement[:2] *= session.controller.cfg['teleop_translation_xy_sign'][side]
+        displacement[2] *= session.controller.cfg['teleop_translation_z_sign'][side]
+        expected[:3, 3] += displacement
         expected[:3, :3] = basis @ hands[side][:3, :3] @ basis.T @ anchor[:3, :3]
         np.testing.assert_allclose(selected.target_pose, expected, atol=1e-12)
         assert selected.mode == 'ACTIVE'
@@ -174,3 +180,75 @@ def test_heading_capture_ignores_head_pitch_and_roll(session):
     level[:3, :3] = rotation([0, 1, 0], .7)
     np.testing.assert_allclose(session.controller.arms['left'].basis,
                                same_facing_map(level, session.models.robot_from_operator), atol=1e-12)
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('axis', [0, 1, 2])
+@pytest.mark.parametrize('direction', [-1., 1.])
+@pytest.mark.parametrize('yaw', [0., .7])
+@pytest.mark.parametrize('scale', [.5, 2.])
+def test_both_arms_use_same_proper_rotation_for_translation_and_orientation(session, side, axis, direction, yaw, scale):
+    controller = session.controller
+    assert controller.cfg['teleop_translation_z_sign'] == {'left': 1, 'right': 1}
+    assert controller.cfg['teleop_translation_xy_sign'] == {'left': 1, 'right': 1}
+    controller.cfg['scale'] = scale
+    grips = {'left': 1., 'right': 1.}
+    session.tick(grips, yaw=yaw)
+    selected = controller.arms[side]
+    anchor = selected.anchor[1].copy()
+    basis = selected.basis.copy()
+    world_delta = np.eye(3)[axis] * direction * .005
+    hands = {arm_side: np.eye(4) for arm_side in grips}
+    hands[side][:3, 3] = basis.T @ world_delta
+    hands[side][:3, :3] = rotation([1., 2., 3.], .03)
+    session.tick(grips, yaw=yaw, hands=hands)
+    expected_delta = world_delta * scale
+    np.testing.assert_allclose(selected.target_pose[:3, 3] - anchor[:3, 3], expected_delta, atol=1e-12)
+    np.testing.assert_allclose(selected.target_pose[:3, :3],
+                               basis @ hands[side][:3, :3] @ basis.T @ anchor[:3, :3], atol=1e-12)
+    np.testing.assert_array_equal(selected.basis, basis)
+    peer = 'right' if side == 'left' else 'left'
+    np.testing.assert_allclose(controller.arms[peer].target_pose, controller.arms[peer].anchor[1], atol=1e-12)
+    assert controller.status()[side]['translation_z_sign'] == 1
+    assert controller.status()[side]['translation_xy_sign'] == 1
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('yaw', [0., .7, -1.2])
+def test_horizontal_override_changes_only_xy_relative_to_previous_targets(session, side, yaw):
+    controller = session.controller
+    grips = {'left': 1., 'right': 1.}
+    session.tick(grips, yaw=yaw)
+    state = controller.arms[side]
+    anchor = state.anchor[1].copy()
+    hands = {name: np.eye(4) for name in grips}
+    hands[side][:3, 3] = [.005, .003, -.007]
+    hands[side][:3, :3] = rotation([1., 2., 3.], .05)
+    controller.cfg['teleop_translation_xy_sign'][side] = 1
+    session.tick(grips, yaw=yaw, hands=hands)
+    previous = state.target_pose.copy()
+    controller.cfg['teleop_translation_xy_sign'][side] = -1
+    session.tick(grips, yaw=yaw, hands=hands)
+    np.testing.assert_allclose(state.target_pose[:2, 3] - anchor[:2, 3],
+                               -(previous[:2, 3] - anchor[:2, 3]), atol=1e-12)
+    np.testing.assert_allclose(state.target_pose[2, 3], previous[2, 3], atol=1e-12)
+    np.testing.assert_allclose(state.target_pose[:3, :3], previous[:3, :3], atol=1e-12)
+    np.testing.assert_array_equal(state.anchor[1], anchor)
+
+
+@pytest.mark.parametrize('invalid', [None, {}, {'right': -1}, {'left': 1, 'right': 0},
+                                    {'left': 1, 'right': 2}, {'left': True, 'right': -1},
+                                    {'left': 1, 'right': '-1'}, {'left': 1, 'right': -1, 'other': 1}])
+@pytest.mark.parametrize('field', ['teleop_translation_z_sign', 'teleop_translation_xy_sign'])
+def test_invalid_direction_configuration_is_rejected(invalid, field):
+    config = configuration(ROOT/'teleop/marvin_teleop/config.json')
+    config[field] = invalid
+    with pytest.raises(ValueError, match=field):
+        configuration(config)
+
+
+@pytest.mark.parametrize('field', ['teleop_translation_z_sign', 'teleop_translation_xy_sign'])
+def test_legacy_configuration_keeps_both_directions_positive(field):
+    config = configuration(ROOT/'teleop/marvin_teleop/config.json')
+    del config[field]
+    assert configuration(config)[field] == {'left': 1, 'right': 1}

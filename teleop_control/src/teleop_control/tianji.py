@@ -183,6 +183,13 @@ class TianjiManager:
                         self.checking_devices = False
 
     def _command(self, action, payload):
+        if action in ("start", "move"):
+            expected = robot_configuration()
+            with self.lock:
+                current = dict(self.value)
+            fields = ('installation_id', 'arm_channels', 'arm_models', 'arm_base_sides', 'teleop_translation_z_sign', 'teleop_translation_xy_sign')
+            if any(current.get(key) != expected.get(key) for key in fields):
+                raise ValueError("控制进程的左右安装版本不一致，请停止控制并完全重启 App，再检查设备")
         if action == "start" and self.collection.active():
             raise ValueError("上一轮数据仍在保存，请稍后再开始遥操作")
         if action in ("stop", "close"):
