@@ -9,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .devices import port_open
+from .gdk_env import add_xr_runtime_env
 
 
 class XrServiceStartError(RuntimeError):
@@ -55,9 +56,12 @@ class XrServiceLauncher:
             raise XrServiceStartError(f"Galaxis VR launcher not found: {self.script}")
 
         try:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
             with self.log_path.open("a") as log:
                 process = self.process_factory(
                     ["bash", str(self.script)],
+                    cwd=str(self.script.parent),
+                    env=add_xr_runtime_env(os.environ.copy(), str(self.script)),
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
@@ -70,10 +74,10 @@ class XrServiceLauncher:
             if self._ready():
                 return True
             return_code = process.poll()
-            # The installed vendor runService.sh backgrounds the bridge and
-            # exits successfully before its ports are ready. Bundled launchers
-            # use exec instead. In both cases readiness is the port opening.
-            if return_code not in (None, 0):
+            # The official ARM launcher backgrounds RoboticsServiceProcess and
+            # exits successfully before its socket is ready. Readiness belongs
+            # to the service, not to the short-lived shell wrapper.
+            if return_code is not None and return_code != 0:
                 raise XrServiceStartError(
                     f"Galaxis VR exited with code {return_code}; log: {self.log_path}"
                 )

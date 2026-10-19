@@ -1,19 +1,30 @@
 """Tianji-only requests. Joint units follow the vendor SDK (degrees)."""
 
 from typing import Literal
+from functools import partial
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .tianji_gripper_config import gripper_parameter_default, validate_gripper_endpoints, GRIPPER_ANGLE_LIMIT
 
 
 class TianjiParameters(BaseModel):
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-    scale: float = Field(default=1, ge=0.01, le=1)
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, validate_default=True)
+    scale: float = Field(default=1, ge=0.1, le=2)
     max_joint_speed_deg_s: float = Field(default=180, ge=0.1, le=180)
     max_joint_accel_deg_s2: float = Field(default=450, ge=1, le=450)
-    left_gripper_speed: float = Field(default=10, ge=0.01, le=100)
-    right_gripper_speed: float = Field(default=10, ge=0.01, le=100)
-    kp: float = Field(default=80, ge=0, le=500)
-    kd: float = Field(default=2, gt=0, le=5)
+    left_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_speed'), ge=0.01, le=100)
+    right_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_speed'), ge=0.01, le=100)
+    left_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_accel'), ge=0.1, le=200)
+    right_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_accel'), ge=0.1, le=200)
+    left_gripper_open_rad: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_open_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
+    left_gripper_closed_rad: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_closed_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
+    right_gripper_open_rad: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_open_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
+    right_gripper_closed_rad: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_closed_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
+
+    @model_validator(mode="after")
+    def validate_endpoints(self):
+        validate_gripper_endpoints(self.model_dump())
+        return self
 
 
 class TianjiStart(BaseModel):

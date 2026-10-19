@@ -43,6 +43,15 @@ def configure_rendering(values: dict[str, str], *, software=False) -> bool:
     return software
 
 
+def configure_surface_format() -> None:
+    if os.environ.get('QT_XCB_GL_INTEGRATION') == 'xcb_egl':
+        from PySide6.QtGui import QSurfaceFormat
+        surface = QSurfaceFormat()
+        surface.setRenderableType(QSurfaceFormat.RenderableType.OpenGLES)
+        surface.setVersion(3, 0)
+        QSurfaceFormat.setDefaultFormat(surface)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='小凯实验室数采平台 · PySide6')
     parser.add_argument('--mock', action='store_true', help='模拟机器人后端')
@@ -51,7 +60,10 @@ def main() -> int:
     args = parser.parse_args()
     values = read_env(ROOT / '.env')
     values.update(platform_urls(values))
-    service_env = os.environ.copy()
+    values['APP_COLLECTION_MODE'] = os.environ.get('APP_COLLECTION_MODE', values.get('APP_COLLECTION_MODE', 'all'))
+    from board_graphics import prepare_desktop, backend_environment
+    prepare_desktop(values, software=args.software_rendering)
+    service_env = backend_environment()
     configure_rendering(values, software=args.software_rendering)
     from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl, Qt, Slot
     from PySide6.QtGui import QGuiApplication, QIcon
@@ -60,6 +72,7 @@ def main() -> int:
     from qt_ui.visuals import CameraItem, CurveItem, Backdrop, G2View, RobotScene
     from qt_ui.record_keys import UmiRecordKeys
 
+    configure_surface_format()
     app = QGuiApplication(sys.argv[:1])
     app.setOrganizationName('XiaokaiLab')
     app.setApplicationName('xiaokai-lab-data-collection')
@@ -71,8 +84,8 @@ def main() -> int:
         qmlRegisterType(cls, 'Collection.Native', 1, 0, name)
     if args.demo: values['LOCAL_CONTROL_URL']='http://127.0.0.1:1'
     bridge = Bridge(values, demo=args.demo)
-    scene = RobotScene(ROOT)
-    bridge.changed.connect(lambda: scene.update_pose(bridge.state['tianji']))
+    scene = RobotScene(ROOT, load_model=not bridge.umiOnly)
+    bridge.changed.connect(lambda: scene.update_pose(bridge.state['tianji'],bridge.calibration))
     engine = QQmlApplicationEngine()
     context = engine.rootContext()
     context.setContextProperty('backend', bridge)

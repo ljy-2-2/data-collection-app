@@ -48,9 +48,11 @@ test('Tianji workspace has three modes, three named cameras, modal parameters an
     assert.match(html, new RegExp(`value="${camera}"`));
   assert.match(html, /<dialog[^>]*class="tianji-parameter-dialog"/);
   assert.doesNotMatch(html, /<dialog[^>]* open/);
-  assert.equal((html.match(/type="number"/g) || []).length, 7);
+  assert.equal((html.match(/type="number"/g) || []).length, 11);
   const dialog = html.match(/<dialog[\s\S]*?<\/dialog>/)[0];
-  assert.equal((dialog.match(/type="number"/g) || []).length, 4);
+  assert.equal((dialog.match(/type="number"/g) || []).length, 8);
+  for (const label of ['左夹爪打开角度', '左夹爪关闭角度', '右夹爪打开角度', '右夹爪关闭角度'])
+    assert.ok(dialog.includes(label));
   assert.match(dialog, /其它参数/);
   assert.doesNotMatch(dialog, /关节速度上限|关节加速度上限|MIT 模式/);
   for (const label of ['比例', '关节速度上限', '关节加速度上限']) {
@@ -83,11 +85,25 @@ test('Tianji workspace has three modes, three named cameras, modal parameters an
 test('draft parameters reject empty, NaN and excessive values', () => {
   assert.ok(validTianjiParameters(TIANJI_DEFAULTS));
   assert.equal(TIANJI_DEFAULTS.right_gripper_speed, 10);
+  for (const scale of [0.1, 1, 1.5, 2]) {
+    assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, scale }), true);
+  }
+  for (const scale of [0.099, 2.001, Infinity]) {
+    assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, scale }), false);
+  }
   assert.equal(
     validTianjiParameters({ ...TIANJI_DEFAULTS, scale: NaN }),
     false,
   );
-  assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, kd: 0 }), false);
+  assert.equal('kp' in TIANJI_DEFAULTS, false);
+  assert.equal('kd' in TIANJI_DEFAULTS, false);
+  assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, left_gripper_accel: 0 }), false);
+  assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, right_gripper_accel: 201 }), false);
+  for (const side of ['left', 'right']) {
+    for (const endpoint of ['open', 'closed']) {
+      assert.equal(validTianjiParameters({ ...TIANJI_DEFAULTS, [`${side}_gripper_${endpoint}_rad`]: 4 }), false);
+    }
+  }
   assert.equal(
     validTianjiParameters({ ...TIANJI_DEFAULTS, max_joint_speed_deg_s: 181 }),
     false,

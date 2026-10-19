@@ -81,6 +81,7 @@ class UmiStatus(BaseModel):
     failed_processing: int = 0
     pending_imports: int = 0
     imported_episodes: int = 0
+    upload_queue: dict = Field(default_factory=dict)
     monitor: dict = Field(default_factory=dict)
     log_tail: list[str] = Field(default_factory=list)
 

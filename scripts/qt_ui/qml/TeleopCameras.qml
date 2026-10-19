@@ -49,18 +49,13 @@ Card {
                 }
                 Txt {anchors.top: parent.top;anchors.right: parent.right;anchors.margins: 7;text: camera.online?"LIVE":"--";font.pixelSize: 9;color: camera.online?Theme.green:"#8793a5"}
                 Rectangle {
+                    visible: !camera.hasFrame
                     anchors.centerIn: parent;width: Math.min(parent.width-8,label.implicitWidth+14);height: 26
                     radius: 5;color: camera.online?"#99000000":"#20252d"
                     Txt {id: label;objectName: "teleopCameraLabel-"+tile.role;anchors.centerIn: parent;width: Math.min(implicitWidth,parent.width-6);text: ({left:"左腕部相机",center:"主相机",right:"右腕部相机"})[tile.role];font.pixelSize: 12;color: "white";font.weight: Font.DemiBold}
                 }
-                Txt {visible: !camera.online;x: 4;y: parent.height/2+21;width: parent.width-8;text: "等待相机画面";font.pixelSize: 10;color: "#8793a5";horizontalAlignment: Text.AlignHCenter;wrapMode: Text.Wrap}
+                Txt {objectName: "teleopCameraStale-"+tile.role;visible: camera.hasFrame && !camera.online;anchors.bottom: parent.bottom;anchors.horizontalCenter: parent.horizontalCenter;anchors.bottomMargin: 6;text: "画面已暂停";font.pixelSize: 10;color: "#ffb4a9"}
             }
-        }
-        Rectangle {
-            visible: root.tianji && !!root.status.camera_error
-            anchors.bottom: parent.bottom;width: parent.width;height: Math.min(94,errorText.implicitHeight+16)
-            radius: 6;color: "#e820252d";clip: true
-            Txt {id: errorText;x: 8;y: 8;width: parent.width-16;text: root.status.camera_error||"";font.pixelSize: 11;color: "#ffb4a9";wrapMode: Text.Wrap;elide: Text.ElideNone}
         }
     }
 }

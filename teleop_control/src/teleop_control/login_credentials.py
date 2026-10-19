@@ -15,18 +15,42 @@ class CredentialError(RuntimeError):
 
 
 class DesktopKeyring:
+    _errors = {
+        "missing_dependency": "系统缺少密码保存组件，请重新安装采集软件以补齐系统钥匙环依赖。",
+        "missing_provider": "系统缺少钥匙环服务，无法保存账号密码；请重新安装采集软件以补齐系统依赖。",
+        "no_session_bus": "未连接桌面钥匙环，请以普通用户从桌面打开采集软件。",
+        "service_unavailable": "系统钥匙环服务未启动，请注销桌面后重新登录，再打开采集软件。",
+        "locked": "系统钥匙环尚未解锁，请完成桌面的钥匙环解锁提示后重试。",
+        "cancelled": "钥匙环授权已取消，请在系统提示中允许保存密码后重试。",
+        "verification_failed": "密码未能可靠保存到系统钥匙环，请解锁钥匙环后重试。",
+    }
+
     def call(self, operation: str, scope: str, key: str, password: str = "") -> str:
         try:
             result = subprocess.run(
                 [os.environ.get("XIAOKAI_SECRET_PYTHON", "/usr/bin/python3"), "-I", str(Path(__file__).with_name("keyring_helper.py")),
                  operation, scope, key],
                 input=json.dumps({"password": password}),
-                text=True, capture_output=True, timeout=15, check=False,
+                # XFCE may ask the user to create/unlock a login keyring on
+                # first use. Killing that prompt after 15 s made remembering
+                # credentials fail even when the dependency was installed.
+                text=True, capture_output=True,
+                timeout=90 if operation in {"store", "lookup"} else 15,
+                check=False,
             )
+            payload = json.loads(result.stdout)
+            if not isinstance(payload, dict):
+                raise ValueError("invalid keyring response")
             if result.returncode:
-                raise CredentialError("系统钥匙环不可用或未解锁，请解锁后重试，或取消记住账号密码。")
-            return json.loads(result.stdout).get("password", "")
-        except (OSError, subprocess.TimeoutExpired, ValueError):
+                raise CredentialError(self._errors.get(payload.get("error"),
+                    "系统钥匙环不可用或未解锁，请解锁后重试，或取消记住账号密码。"))
+            value = payload.get("password", "")
+            if not isinstance(value, str):
+                raise ValueError("invalid keyring response")
+            return value
+        except subprocess.TimeoutExpired:
+            raise CredentialError("等待钥匙环授权超时，请完成桌面的钥匙环创建或解锁提示后重试。") from None
+        except (OSError, ValueError):
             # Never include subprocess input/output or the password in errors.
             raise CredentialError("无法访问系统钥匙环，请解锁后重试，或取消记住账号密码。") from None
 

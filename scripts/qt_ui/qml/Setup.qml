@@ -4,10 +4,12 @@ import QtQuick.Layouts
 Card {
     id: root
     property bool umi: false
+    enabled: !backend.state.busy && !backend.state.closing
     height: content.height+heading.height+24
     Heading {id: heading;width: parent.width;eyebrow: "STEP 01";title: root.umi ? "选择采集配置" : "选择遥操作配置"}
     Column {
         id: content;x: 12;y: heading.height+12;width: parent.width-24;spacing: 12
+        UploadTarget {width: parent.width;visible: !root.umi && options.length>0;controlName: "teleopUploadTarget"}
         GridLayout {
             width: parent.width;columns: width<440 ? 1 : 2;columnSpacing: 9;rowSpacing: 9
             ColumnLayout {Layout.fillWidth: true;spacing: 4

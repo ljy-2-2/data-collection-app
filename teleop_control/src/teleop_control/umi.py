@@ -19,6 +19,7 @@ import yaml
 from . import camera_devices
 from .camera_brightness import read_brightness, set_brightness
 from .camera_resolution import read_modes, choose_mode, ros_parameters, usb_connection_info
+from .umi_preview import PREVIEW_FPS, PREVIEW_QUALITY, preview_size
 from .models import (
     UmiDeviceConfigureRequest,
     UmiStartRequest,
@@ -215,9 +216,19 @@ class _CameraPreviewWorker:
                 now = time.monotonic()
                 if now < next_frame_at:
                     continue
-                next_frame_at = now + 0.1
+                # Advance the display deadline, rather than restarting it on
+                # every accepted frame (which turns a 30 Hz input into 15 Hz).
+                next_frame_at += 1.0 / PREVIEW_FPS
+                if next_frame_at <= now:
+                    next_frame_at = now + 1.0 / PREVIEW_FPS
+                # Validate the negotiated capture size above, then resize only
+                # this display copy. Never lower the device's recording mode
+                # to make the hardware-check page cheaper to render.
+                display_size = preview_size(frame.shape[1], frame.shape[0])
+                display = (cv2.resize(frame, display_size, interpolation=cv2.INTER_LINEAR)
+                           if display_size != (frame.shape[1], frame.shape[0]) else frame)
                 encoded, jpeg = cv2.imencode(
-                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90]
+                    ".jpg", display, [cv2.IMWRITE_JPEG_QUALITY, PREVIEW_QUALITY]
                 )
                 if not encoded:
                     continue
@@ -835,6 +846,10 @@ class UmiManager:
                 self._restore_session_state()
         self.refresh_camera_devices()
         connected, monitor = self._monitor_state()
+        # Starting a session holds UploadTargets.lock before entering UMI.
+        # Snapshot its queue outside the UMI lock to avoid the reverse order
+        # when UI status polling races a start/retry request.
+        queue = self.upload_queue()
         with self._lock:
             if self._device_check:
                 # The live collector monitor is offline before a session starts.
@@ -870,11 +885,11 @@ class UmiManager:
                 state = "starting"
             else:
                 state = "idle"
-            pending, imported = self.import_counts()
+            pending, imported = queue['pending'], queue['uploaded']
             return UmiStatus(
                 state=state,
-                message=self._error or ('；'.join(monitor.get('camera_quality_issues', []))
-                    if running and self._expected_camera_modes else ''),
+                message=self._error or (self._live_readiness_message(monitor)
+                    if running else ''),
                 session_id=self._session_id,
                 task=self._task,
                 record_format=self._record_format,
@@ -884,12 +899,33 @@ class UmiManager:
                 recording=bool(monitor.get("recording")),
                 episodes_completed=int(monitor.get("episodes_completed_total") or 0),
                 pending_imports=pending,
-                pending_processing=self.processing_counts()[0],
-                failed_processing=self.processing_counts()[1],
+                pending_processing=queue['processing'],
+                failed_processing=queue['failed_processing'],
                 imported_episodes=imported,
+                upload_queue=queue,
                 monitor=monitor,
                 log_tail=self._logs(),
             )
+
+    def _live_readiness_message(self, monitor: dict) -> str:
+        issues = list(monitor.get('camera_quality_issues', []))
+        # Only diagnose devices once the monitor has published their state.
+        # A temporary dropout keeps the other previews and telemetry visible.
+        if monitor.get('vr'):
+            sides = {'single-left': ('hmd', 'left'), 'single-right': ('hmd', 'right')}.get(
+                self._collection_profile, ('hmd', 'left', 'right'))
+            labels = {'hmd': '头盔', 'left': '左手柄', 'right': '右手柄'}
+            missing = [labels[side] for side in sides
+                       if not monitor['vr'].get(side, {}).get('online')]
+            if missing:
+                issues.append('等待 PICO ' + '、'.join(missing) + '实时数据，请确认 Head、Controllers、Send Data 已开启')
+            untracked = [labels[side] for side in sides
+                         if monitor['vr'].get(side, {}).get('online') and
+                         (monitor['vr'][side].get('tracked') is False or
+                          monitor['vr'][side].get('valid') is False)]
+            if untracked:
+                issues.append('PICO ' + '、'.join(untracked) + '追踪无效，请唤醒头显并恢复追踪')
+        return '；'.join(issues)
 
     def _monitor_ready(self, monitor: dict) -> bool:
         """Return true only when the complete live collection path is usable."""
@@ -1449,7 +1485,7 @@ class UmiManager:
 
     def record(self, action: str) -> UmiStatus:
         from .collection_gate import collection_available
-        if action == "start" and not collection_available():
+        if action == "start" and not collection_available(getattr(self, 'collection_gate_path', None)):
             return self.status()
         if action not in {"start", "stop", "cancel"}:
             raise ValueError("unsupported UMI recording action")
@@ -1706,6 +1742,7 @@ class UmiManager:
                 "rosbag",
                 "--no-open",
                 "--skip-device-setup",
+                "--wait-for-devices",
                 "--collection-profile",
                 request.collection_profile,
             ]
@@ -1816,17 +1853,13 @@ class UmiManager:
             self._encoder_preview_blockers.discard("collection")
 
     def import_counts(self) -> tuple[int, int]:
-        root = self.data_root / "rosbags"
-        completed = [p for p in root.glob("*/*/meta.json")
-                     if not any((p.parent / name).exists() for name in
-                                (".mp4-pending.json", ".mp4-converting", "recording-failure.json"))
-                     and (((p.parent / "metadata.yaml").is_file() and any(p.parent.glob("*.mcap")))
-                     or (p.parent / "media/video-manifest.json").is_file())]
-        imported = sum(
-            (item.parent / ".data-platform-uploaded.json").is_file()
-            for item in completed
-        )
-        return len(completed) - imported, imported
+        queue = self.upload_queue()
+        return queue['pending'], queue['uploaded']
+
+    def upload_queue(self):
+        from .umi_queue import queue_summary
+        targets = getattr(self, 'upload_targets', None)
+        return queue_summary(self.data_root, targets.snapshot() if targets else None)
 
     def processing_counts(self) -> tuple[int, int]:
         pending = list((self.data_root / "rosbags").glob("*/*/.mp4-pending.json"))

@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import setup_umi_system as setup
 import package_launcher as launcher
-from umi_distribution import prepare_umi_distribution
+from umi_distribution import prepare_umi_distribution, configure_umi_runtime
 
 
 def resources(tmp_path):
@@ -42,11 +42,38 @@ def test_distribution_has_no_capture_time_downloads_or_compilation(tmp_path):
         assert "build" not in service
         assert "pip install" not in str(service)
         assert "colcon build" not in str(service)
-        assert not any(":/root/ros2_ws/src/" in v for v in service.get("volumes", []))
+        bindings = [v for v in service.get("volumes", []) if ":/root/ros2_ws/src/" in v]
+        assert all(v.endswith(':ro') and v.split(':')[0] in {
+            './galaxis-core/galaxis-core/galaxis_core/recording_gate_node.py',
+            './galaxis-core/galaxis-core/galaxis_core/pico_timing.py',
+            './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/pico_bridge_node.py',
+            './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/transport/galaxis_tcp.py'} for v in bindings)
+    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 2
+    assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 2
+    assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
     assert services["config-init"]["entrypoint"] == ["python3"]
     assert "galaxis_studio_bridge" in services["galaxis_monitor"]["command"]
     assert any("runtime_galaxis_devices.yaml" in v for v in services["galaxis"]["volumes"])
     assert (project / ".env").is_file()
+
+
+def test_incremental_release_reapplies_runtime_after_source_copy(tmp_path):
+    project = tmp_path / "package/app/umi_collection/vendor/galaxis"
+    project.mkdir(parents=True)
+    source = (ROOT / "umi_collection/vendor/galaxis/docker-compose.yml").read_bytes()
+    (project / "docker-compose.yml").write_bytes(source)
+    assets = resources(tmp_path)
+    prepare_umi_distribution(tmp_path / "package", assets)
+    (project / "docker-compose.yml").write_bytes(source)
+    manifest = json.loads((assets / "manifest.json").read_text())
+    configure_umi_runtime(project, manifest)
+    configure_umi_runtime(project, manifest)
+    services = yaml.safe_load((project / "docker-compose.yml").read_text())["services"]
+    for service in services.values():
+        assert service["image"] == manifest["image"]
+        assert service["pull_policy"] == "never"
+        assert "build" not in service
+    assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Compose CLI integration check")

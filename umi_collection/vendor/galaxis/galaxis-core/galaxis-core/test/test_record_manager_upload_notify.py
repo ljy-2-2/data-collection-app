@@ -462,8 +462,10 @@ def test_desktop_offline_gate_prevents_ros_recorder_start(record_manager, tmp_pa
 
 def test_completed_metadata_atomically_carries_collection_owner(record_manager, tmp_path):
     record_manager.collection_author = 'operator-a'
+    record_manager.collection_destination = {'kind': 'local', 'api_url': 'http://127.0.0.1:8000', 'web_url': 'http://127.0.0.1:5173'}
     record_manager.save_meta_file({'episode': {'start_time': 10}}, str(tmp_path))
     assert json.loads((tmp_path / 'meta.json').read_text())['author'] == 'operator-a'
+    assert json.loads((tmp_path / 'meta.json').read_text())['upload_destination'] == record_manager.collection_destination
     assert not (tmp_path / 'meta.json.tmp').exists()
 
 
@@ -474,6 +476,7 @@ def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager,
     record_manager.video_mp4_enabled = True
     record_manager.recent_record_dir = str(folder)
     record_manager.collection_author = 'first-author'
+    record_manager.collection_destination = {'kind': 'local', 'api_url': 'http://127.0.0.1:8000', 'web_url': 'http://127.0.0.1:5173'}
     record_manager.rosbag_process = MagicMock()
     record_manager.rosbag_process.wait.return_value = 0
     future = MagicMock()
@@ -488,6 +491,7 @@ def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager,
     assert success and not record_manager.is_recording
     pending = json.loads((folder / '.mp4-pending.json').read_text())
     assert pending['author'] == 'first-author' and pending['_video_crf'] == 14
+    assert pending['upload_destination'] == record_manager.collection_destination
     assert (folder / 'meta.json').exists() and source.exists()
     record_manager.recording_saved_pub.publish.assert_called_once()
     record_manager.recording_completed_pub.publish.assert_not_called()

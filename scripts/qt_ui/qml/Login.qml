@@ -12,7 +12,14 @@ Item {
             let p=backend.state.preferences;
             if(p.username && !username.activeFocus && !password.activeFocus){username.text=p.username;root.savedPassword=!!p.has_saved_password;remember.checked=!!p.remember_password;autoLogin.checked=!!p.auto_login}
         }
-        function onResult(action,ok) {if(action==="login" && ok){password.text="";root.savedPassword=false}}
+        function onResult(action,ok) {
+            if(action==="login" && ok){password.text="";root.savedPassword=false}
+            if(action==="upload-target" && ok){
+                let p=backend.state.preferences||{};
+                username.text=p.username||"";password.text="";root.savedPassword=!!p.has_saved_password;
+                remember.checked=!!p.remember_password;autoLogin.checked=!!p.auto_login;
+            }
+        }
     }
     WheelScroll {
         anchors.fill: parent;contentHeight: Math.max(height,card.height+48);clip: true;boundsBehavior: Flickable.StopAtBounds
@@ -34,6 +41,7 @@ Item {
                         Txt {text: "登录";font.pixelSize: 23;height: 29}
                     }
                 }
+                UploadTarget {Layout.fillWidth: true;compact: true;controlName: "loginUploadTarget"}
                 ColumnLayout {Layout.fillWidth: true;spacing: 6
                     Txt {text: "用户名";color: Theme.inkMuted;font.weight: Font.DemiBold;Layout.preferredHeight: 19}
                     Field {id: username;objectName: "loginUsername";Layout.fillWidth: true;implicitHeight: 38;enabled: backend.state.ready && !backend.state.busy;onTextEdited: root.savedPassword=false;onAccepted: password.forceActiveFocus()}

@@ -30,6 +30,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from std_msgs.msg import UInt8
 from std_srvs.srv import Trigger
 from galaxis_core.camera_quality import CameraCadence
+from galaxis_core.pico_timing import PicoTiming
 
 from galaxis_core.recording_gate import (
     EscalationLevel,
@@ -139,6 +140,8 @@ class TopicConditionChecker(ConditionChecker):
                                 self.config.get('low_rate_hold_sec', 0.0))
                                 if 'max_frame_gap_sec' in self.config else None)
 
+        self._pico_timing = PicoTiming() if self.config.get("pico_timing") else None
+
         # Single-shot: require one message, then always pass
         self._single_shot = self.config.get("single_shot", False)
 
@@ -194,6 +197,8 @@ class TopicConditionChecker(ConditionChecker):
             self._camera_cadence.samples.clear()
             self._camera_cadence.fault = None
             self._camera_cadence.low_since = None
+        if self._pico_timing:
+            self._pico_timing = PicoTiming()
         self._first_absent = None
 
     def _try_subscribe(self) -> None:
@@ -237,6 +242,8 @@ class TopicConditionChecker(ConditionChecker):
         self._last_stamp = now
         self._last_msg = msg
         self._msg_times.append(now)
+        if self._pico_timing:
+            self._pico_timing.push(now, msg.device_time_ns, msg.pc_monotonic_ns, msg.seq, msg.pico_id)
         if self._camera_cadence:
             stamp = msg.header.stamp
             self._camera_cadence.push(now, stamp.sec*1_000_000_000+stamp.nanosec)
@@ -346,6 +353,12 @@ class TopicConditionChecker(ConditionChecker):
             age = now - self._last_stamp
             if age > self._timeout:
                 return self._timeout_result(age, self._timeout)
+
+        if self._pico_timing:
+            failure = self._pico_timing.failure(now)
+            if failure:
+                # Block a new round only; never pause a recording on transient jitter.
+                return ConditionResult(self.name, False, failure, escalation=1)
 
         # 4. Content expression
         if self._condition_code is not None:

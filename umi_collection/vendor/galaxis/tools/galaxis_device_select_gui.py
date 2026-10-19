@@ -1322,7 +1322,8 @@ def _run_gui(args: argparse.Namespace) -> None:
             devices = []
             for line in result.stdout.splitlines()[1:]:
                 fields = line.split()
-                if len(fields) >= 2 and fields[1] == "device":
+                if (len(fields) >= 2 and fields[1] == "device"
+                        and not fields[0].startswith("emulator-")):
                     devices.append(fields[0])
             if self.serial_number:
                 return self.serial_number in devices

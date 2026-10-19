@@ -23,7 +23,14 @@ python3 -m venv "$APP_ROOT/.venv"
 "$APP_ROOT/.venv/bin/python" -m pip install --upgrade pip
 "$APP_ROOT/.venv/bin/python" -m pip install -e "$APP_ROOT/teleop_control"
 
-"$APP_ROOT/.venv/bin/python" -m pip install 'PySide6==6.8.3' 'h5py>=3.11' 'psutil>=6'
+APP_QT_VERSION=$(python3 - "$APP_ROOT/scripts" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from runtime_platform import native_target
+print(native_target().qt_version)
+PY
+)
+"$APP_ROOT/.venv/bin/python" -m pip install "PySide6==$APP_QT_VERSION" 'h5py>=3.11' 'psutil>=6'
 
 python3 "$APP_ROOT/scripts/install_desktop.py"
 chmod +x "$APP_ROOT/数据采集台.desktop" "$APP_ROOT/scripts/desktop_app.py"

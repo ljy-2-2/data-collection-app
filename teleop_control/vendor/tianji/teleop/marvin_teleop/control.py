@@ -354,15 +354,7 @@ class Controller:
         a.previous_hand, a.sequence = hand.copy(), frame.sequence
         hand0, flange0 = a.anchor
         target = relative_target(hand, hand0, flange0, a.basis, self.cfg["scale"])
-        displacement = target[:3, 3] - flange0[:3, 3]
-        distance = np.linalg.norm(displacement)
-        clamped = distance > self.cfg["max_displacement_m"]
-        a.target_clamped = bool(clamped)
-        if clamped:
-            target[:3, 3] = (
-                flange0[:3, 3]
-                + displacement * self.cfg["max_displacement_m"] / distance
-            )
+        a.target_clamped = False
         a.target_pose = target.copy()
         desired = model.differential_ik(
             target,
@@ -399,9 +391,7 @@ class Controller:
         a.position_error_m = float(position_error)
         a.rotation_error_rad = angle(target[:3, :3] @ actual_flange[:3, :3].T)
         a.reason = (
-            "本侧目标已到操作范围边界，向回移动手柄即可继续"
-            if clamped
-            else "本侧方向受伸直姿态或限位约束，可换方向小幅移动或松开重新定位"
+            "本侧方向受伸直姿态或限位约束，可换方向小幅移动或松开重新定位"
             if position_error > 0.005 and np.max(np.abs(desired - a.commanded)) < 1e-5
             else "跟随本侧手柄，松开本侧保持（不下电）"
         )
@@ -409,7 +399,7 @@ class Controller:
         a.speed_limited = bool(
             np.max(np.abs(a.next_velocity)) >= 0.98 * self.cfg["max_joint_speed_deg_s"]
         )
-        if a.speed_limited and position_error > 0.01 and not clamped:
+        if a.speed_limited and position_error > 0.01:
             a.reason = f"已到关节限速 {self.cfg['max_joint_speed_deg_s']:g}°/s；TCP 位置误差 {position_error * 1000:.1f} mm"
         ik_constrained = getattr(model, "last_ik_constrained", False)
         motion_constrained = getattr(model, "last_motion_constrained", False)

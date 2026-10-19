@@ -48,3 +48,7 @@ site/
 /measure
 /orchestrator_work
 /video_cache
+
+# Fixture allowlists must not include generated Python bytecode.
+__pycache__/
+*.py[cod]

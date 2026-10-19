@@ -6,6 +6,7 @@ import grp
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import pwd
 import subprocess
@@ -30,6 +31,9 @@ def installer_user(environ):
 def setup(package=PACKAGE, *, run=subprocess.run):
     resources = package / "umi-runtime"
     manifest = json.loads((resources / "manifest.json").read_text())
+    arch = {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(platform.machine())
+    if manifest.get("architecture", "amd64") != arch:
+        raise RuntimeError("UMI 镜像与本机 CPU 架构不符，请使用对应架构的安装包")
     archive = resources / manifest["archive"]
     if archive.name != manifest["archive"]:
         raise ValueError("Invalid runtime archive name")

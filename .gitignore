@@ -42,3 +42,30 @@ next-env.d.ts
 /.build-cache/
 /dist-packages/
 /hdf5-reports/
+
+# Local credentials and editor/agent state (keep configuration examples)
+/.aws
+/.ssh/
+/.openai/
+/.codex/
+/.agents/
+*.key
+!tests/fixtures/camera_test_ca.pem
+
+# Python and local build state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+*.tsbuildinfo
+/.runtime
+
+# Local verification output and captured hardware data
+/validation_runs/
+/fusion_camera_stream/smoke/
+/fusion_camera_stream/packet_diagnostics/sides-*/
+/fusion_camera_stream/packet_diagnostics/trace-*/
+/fusion_camera_stream/packet_diagnostics/*.pcap
+/fusion_camera_stream/packet_diagnostics/*.log
+/teleop_control/vendor/tianji/teleop/logs/

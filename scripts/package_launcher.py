@@ -119,6 +119,8 @@ def main() -> int:
         return 1
     os.set_inheritable(lock, True)
     work = prepare(package, data, config)
+    metadata = json.loads((package / "package-build.json").read_text())
+    os.environ["APP_COLLECTION_MODE"] = metadata.get("collection_mode", "all")
     os.chdir(work)
     os.environ["PLATFORM_TOKEN_FILE"] = str(config / "platform-auth.json")
     os.environ.pop("PYTHONHOME", None)

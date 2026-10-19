@@ -17,7 +17,7 @@ class WindowChromeTests(unittest.TestCase):
             from pathlib import Path
             from tempfile import TemporaryDirectory
             from PySide6.QtCore import QObject, QPointF, QUrl, Qt, qInstallMessageHandler
-            from PySide6.QtGui import QGuiApplication
+            from PySide6.QtGui import QGuiApplication, QImage, QColor
             from PySide6.QtQml import QQmlApplicationEngine, QQmlProperty, qmlRegisterType
             from PySide6.QtQuick import QQuickWindow
             from PySide6.QtTest import QTest
@@ -43,11 +43,11 @@ class WindowChromeTests(unittest.TestCase):
                 window = engine.rootObjects()[0]
                 window.resize(800, 600)
                 QTest.qWait(80)
-                def find_item(name):
+                def find_item(name, visible=False):
                     pending = [window.contentItem()]
                     while pending:
                         item = pending.pop()
-                        if item.objectName() == name: return item
+                        if item.objectName() == name and (not visible or item.isVisible()): return item
                         pending.extend(item.childItems())
                 assert all(find_item(name) is None for name in ('windowMinimize', 'windowMaximize', 'windowClose'))
                 for flag in (Qt.WindowTitleHint, Qt.WindowSystemMenuHint, Qt.WindowMinimizeButtonHint, Qt.WindowMaximizeButtonHint, Qt.WindowCloseButtonHint):
@@ -66,6 +66,89 @@ class WindowChromeTests(unittest.TestCase):
                 assert window.visibility() == QQuickWindow.Maximized
                 window.showNormal(); QTest.qWait(40)
                 assert window.visibility() == QQuickWindow.Windowed
+                backend.update(page='teleop', teleopStep=2, robot='tianji', error='', notice='')
+                original_status = dict(backend.state['tianji'])
+                for width in (360, 1280):
+                    window.resize(width, 800)
+                    QTest.qWait(40)
+                    tools = find_item('pageTools')
+                    guide = find_item('usageGuide')
+                    notice = find_item('pageNotice')
+                    stepper = find_item('pageStepper')
+                    workspace = find_item('teleopWorkspace')
+                    scroll = find_item('pageScroll')
+                    baseline = (stepper.y(), workspace.y(), workspace.height(), scroll.property('contentHeight'))
+                    assert tools.height() == 30
+                    for message in ('等待采集账号登录后上传', '较长错误：' + '连接失败，请检查账号。' * 30, ''):
+                        backend.update(error=message)
+                        QTest.qWait(30)
+                        assert (stepper.y(), workspace.y(), workspace.height(), scroll.property('contentHeight')) == baseline
+                        assert notice.isVisible() == bool(message)
+                        assert abs(notice.x() + notice.width() + 12 - guide.x()) < .1
+                        assert notice.height() == guide.height() == 30
+                        assert find_item('pageNoticeText').property('text') == message
+                    backend.update(tianji=dict(original_status, collection=dict(error='采集失败', upload=dict(error='等待采集账号登录后上传'))))
+                    QTest.qWait(30)
+                    assert '采集失败' in find_item('pageNoticeText').property('text')
+                    assert '等待采集账号登录后上传' in find_item('pageNoticeText').property('text')
+                    assert (stepper.y(), workspace.y(), workspace.height(), scroll.property('contentHeight')) == baseline
+                    screenshot_dir = os.environ.get('NOTICE_LAYOUT_SCREENSHOT_DIR')
+                    if screenshot_dir:
+                        def disable_notice_shadow(item):
+                            if not isValid(item): return
+                            if item.metaObject().className().startswith(('Card_', 'Setup_')):
+                                QQmlProperty.write(item, 'layer.enabled', False)
+                            for child in item.childItems(): disable_notice_shadow(child)
+                        disable_notice_shadow(window.contentItem())
+                        QTest.qWait(100)
+                        assert window.grabWindow().save(str(Path(screenshot_dir) / f'notice-{width}.png'))
+                    backend.update(tianji=original_status, notice='上传已恢复')
+                    QTest.qWait(30)
+                    assert (stepper.y(), workspace.y(), workspace.height(), scroll.property('contentHeight')) == baseline
+                    backend.update(notice='')
+                backend.update(page='teleop', teleopStep=2, tianji=dict(original_status, camera_error='相机预览不可用：fixture'))
+                QTest.qWait(30)
+                for role in ('left', 'center', 'right'):
+                    camera = find_item('teleopCamera-' + role)
+                    label = find_item('teleopCameraLabel-' + role)
+                    stale = find_item('teleopCameraStale-' + role)
+                    assert label.isVisible()
+                    frame = QImage(32, 24, QImage.Format_RGB32)
+                    frame.fill(QColor('blue'))
+                    camera._source = 'offline-fixture'
+                    camera._decoded(camera.sequence, frame)
+                    QTest.qWait(10)
+                    assert not label.isVisible() and not stale.isVisible()
+                    camera.offline()
+                    QTest.qWait(10)
+                    assert not label.isVisible() and stale.isVisible()
+                    camera.source = ''
+                target = dict(selected='local', web_url='http://127.0.0.1:5173', destinations=[dict(kind='local'), dict(kind='cloud')])
+                backend.update(uploadTarget=target, tianji=original_status)
+                for width in (360, 1280):
+                    window.resize(width, 800)
+                    for authenticated, page, step, name in ((False, 'teleop', 1, 'loginUploadTarget'), (True, 'teleop', 1, 'teleopUploadTarget'), (True, 'umi', 2, 'umiUploadTarget')):
+                        backend.update(authenticated=authenticated, page=page, teleopStep=step, umiStep=step)
+                        QTest.qWait(30)
+                        selector = find_item(name, visible=True)
+                        assert selector is not None, (name, width)
+                        assert selector.isVisible(), (name, width, backend.state['page'], backend.state['teleopStep'], backend.state['umiStep'])
+                        content = selector.parentItem()
+                        assert abs(selector.y() + selector.height()/2 - content.height()/2) < 1
+                        assert selector.x() + selector.width() <= content.width() + 1
+                        assert selector.height() == 32
+                        screenshot_dir = os.environ.get('NOTICE_LAYOUT_SCREENSHOT_DIR')
+                        if screenshot_dir:
+                            def disable_target_shadow(item):
+                                if not isValid(item): return
+                                QQmlProperty.write(item, 'layer.enabled', False)
+                                for child in item.childItems(): disable_target_shadow(child)
+                            disable_target_shadow(window.contentItem())
+                            QTest.qWait(100)
+                            assert window.grabWindow().save(str(Path(screenshot_dir) / f'{name}-{width}.png'))
+                assert 'ToolTip' not in Path('scripts/qt_ui/qml/Main.qml').read_text()
+                camera_qml = Path('scripts/qt_ui/qml/TeleopCameras.qml').read_text()
+                assert '等待相机画面' not in camera_qml and 'camera_error' not in camera_qml
                 requests = []
                 backend.closeRequested.connect(lambda: requests.append('safe-close'))
                 backend.update(busy='record-stop')

@@ -202,7 +202,7 @@ class DeviceDetector:
             if not stripped or stripped.startswith("* ") or stripped.startswith("List of devices"):
                 continue
             parts = stripped.split(None, 1)
-            if len(parts) == 2:
+            if len(parts) == 2 and not parts[0].startswith("emulator-"):
                 rows.append((parts[0], parts[1]))
         return rows
 

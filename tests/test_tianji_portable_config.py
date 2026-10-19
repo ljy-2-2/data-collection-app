@@ -127,6 +127,7 @@ def test_xr_service_overrides_are_shared_with_worker(
 def test_launch_uses_portable_python_and_same_service_root(
     monkeypatch, settings_file, explicit, shared, bundled, legacy, expected
 ):
+    monkeypatch.setenv("ADB_SERVER_SOCKET", "tcp:15037")
     if explicit:
         monkeypatch.setenv("TIANJI_PYTHON", explicit)
     if shared:
@@ -146,3 +147,4 @@ def test_launch_uses_portable_python_and_same_service_root(
     manager._launch()
     assert process.call_args.args[0] == [expected, "-u", "-m", "teleop_control.tianji_worker"]
     assert runtime_env.call_args.args[1] == "/relocated/runtime/robot/xr/runService.sh"
+    assert process.call_args.kwargs["env"]["ADB_SERVER_SOCKET"] == "tcp:15037"

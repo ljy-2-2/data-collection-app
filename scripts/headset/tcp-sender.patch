@@ -1,0 +1,73 @@
+--- a/Assets/Scripts/Network/TcpHandler.cs
++++ b/Assets/Scripts/Network/TcpHandler.cs
+@@ -30,6 +30,7 @@
+         public static bool SendTrackingData = false;
+         private readonly object _socketLock = new object();
+         private ConcurrentQueue<NetPacket> _receivePackages = new ConcurrentQueue<NetPacket>();
++        private static readonly AutoResetEvent SendReady = new AutoResetEvent(false);
+         private static ConcurrentQueue<SendData> _sendDatas = new ConcurrentQueue<SendData>();
+ 
+         private Socket _socket;
+@@ -280,11 +281,13 @@
+         public static void Send(byte cmd, string msg)
+         {
+             _sendDatas.Enqueue(new SendData(cmd, Encoding.UTF8.GetBytes(msg)));
++            SendReady.Set();
+         }
+ 
+         public static void SendCustomData(byte[] msg)
+         {
+             _sendDatas.Enqueue(new SendData(NetCMD.PACKET_CMD_CUSTOM_TO_PC, msg));
++            SendReady.Set();
+         }
+ 
+ 
+@@ -296,6 +299,7 @@
+                 {
+                     _trackingData.Get(ref _trackingJsonData);
+                     _sendTrackingMsg.Enqueue(_trackingJsonData.ToJson());
++                    SendReady.Set();
+                 }
+             }
+ 
+@@ -452,13 +456,20 @@
+                                 byte[] data = PackageHandle.Pack(NetCMD.PACKET_CCMD_TO_CONTROLLER_FUNCTION,
+                                     Encoding.UTF8.GetBytes(_sendJson.ToJson()));
+ 
+-                                int res = socket.Send(data, 0, data.Length, SocketFlags.None,
+-                                    out socketError);
+-                                if (res < data.Length)
++                                int offset = 0;
++                                while (offset < data.Length)
+                                 {
+-                                    Debug.LogWarning(Tag + "Incomplete data occurrence!");
++                                    int sent = socket.Send(data, offset, data.Length - offset,
++                                        SocketFlags.None, out socketError);
++                                    if (sent <= 0 || socketError != SocketError.Success)
++                                    {
++                                        if (socketError == SocketError.Success)
++                                            socketError = SocketError.ConnectionReset;
++                                        break;
++                                    }
++                                    offset += sent;
+                                 }
+-                                else if (socketError == SocketError.Success)
++                                if (socketError == SocketError.Success)
+                                 {
+                                     // Count only complete tracking messages accepted by the socket.
+                                     FPSDisplay.UpdateTime();
+@@ -474,10 +485,10 @@
+                                 }
+                             }
+                         }
+-                        else
+-                        {
+-                            Thread.Sleep(14);
+-                        }
++                        // Wait for a producer instead of spinning a full CPU core
++                        // between XR frames. The bounded wait also observes shutdown.
++                        if (_sendDatas.IsEmpty && (!_connectInited || !SendTrackingData || _sendTrackingMsg.IsEmpty))
++                            SendReady.WaitOne(20);
+                     }
+                     else
+                     {

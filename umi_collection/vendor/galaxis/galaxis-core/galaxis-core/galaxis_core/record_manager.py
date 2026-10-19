@@ -356,6 +356,7 @@ class RecordManager(Node):
         # never perform network requests or create a recording while offline.
         gate_file = getattr(self, "collection_gate_file", "")
         self.collection_author = None
+        self.collection_destination = None
         if gate_file:
             try:
                 with open(gate_file, encoding="utf-8") as handle:
@@ -363,6 +364,7 @@ class RecordManager(Node):
                 if gate.get("available") is not True or not 0 <= time.time() - gate["checked_at"] < 10:
                     return False, ""
                 self.collection_author = gate["username"]
+                self.collection_destination = gate.get('upload_destination')
             except (OSError, ValueError, KeyError, TypeError):
                 return False, ""
         task_name = message or datetime.now(timezone.utc).strftime("rosbag-%Y%m%d-%H%M%S")
@@ -892,6 +894,8 @@ class RecordManager(Node):
         meta = dict(meta)
         if getattr(self, "collection_author", None):
             meta["author"] = self.collection_author
+        if getattr(self, 'collection_destination', None):
+            meta['upload_destination'] = dict(self.collection_destination)
         atomic_json(record_dir / ".mp4-pending.json", dict(meta, _video_crf=14))
         atomic_json(record_dir / "meta.json", meta)
 
@@ -1005,6 +1009,8 @@ class RecordManager(Node):
         author = getattr(self, "collection_author", None)
         if author:
             meta_data = dict(meta_data, author=author)
+        if getattr(self, 'collection_destination', None):
+            meta_data = dict(meta_data, upload_destination=dict(self.collection_destination))
         # meta.json is the completed-rosbag marker consumed by the uploader.
         with open(meta_data_file + ".tmp", "w", encoding="utf-8") as handle:
             json.dump(meta_data, handle, ensure_ascii=False, indent=2)

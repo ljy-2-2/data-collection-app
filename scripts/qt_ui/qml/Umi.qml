@@ -28,9 +28,21 @@ Column {
     spacing: 12
     Setup {visible: s.umiStep===1;width: parent.width;umi: true}
     Card {
+        visible: s.umiStep===1 && ((root.status.pending_processing||0)>0 || (root.status.pending_imports||0)>0 || (root.status.failed_processing||0)>0)
+        width: parent.width;height: idleUploads.implicitHeight+24
+        Column {id: idleUploads;x: 12;y: 12;width: parent.width-24;spacing: 5
+            Txt {text: "后台处理与上传";font.weight: Font.DemiBold}
+            Txt {width: parent.width;text: "采集已结束，后台加速处理与上传；关闭软件后也会继续。";wrapMode: Text.Wrap;elide: Text.ElideNone;font.pixelSize: 12}
+            Txt {width: parent.width;text: "视频压缩与校验 "+(root.status.pending_processing||0)+" 段 · 待上传 "+(root.status.pending_imports||0)+" 段";color: Theme.inkSoft;font.pixelSize: 11}
+            Txt {visible: (root.status.failed_processing||0)>0;width: parent.width;text: "处理失败 "+(root.status.failed_processing||0)+" 段，请重试处理/上传";color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
+            Btn {text: "重试处理/上传";ghost: true;enabled: !s.busy;onClicked: backend.retryUploads()}
+        }
+    }
+    Card {
         visible: s.umiStep===2;width: parent.width;height: preflight.height+heading.height+24
         Heading {id: heading;width: parent.width;eyebrow: "STEP 02";title: "检查并选择硬件"}
         Column {id: preflight;x: 12;y: heading.height+12;width: parent.width-24;spacing: 10
+            UploadTarget {width: parent.width;locked: root.active}
             GridLayout {width: parent.width;columns: app.width<620?2:4;columnSpacing: 6;rowSpacing: 6
                 Repeater {model: ["相机","编码器","Galaxis VR","PICO"]
                     Rectangle {required property string modelData;required property int index;Layout.fillWidth: true;height: 52;color: Theme.muted;radius: 10;border.color: Theme.line
@@ -90,7 +102,7 @@ Column {
                     Txt {text: "采集监控";font.pixelSize: 15;font.weight: Font.DemiBold}
                     Txt {text: s.umiTask+" · "+(s.profile==="dual"?"双臂":s.profile==="single-left"?"仅左臂":"仅右臂");font.pixelSize: 12;color: Theme.inkMuted}
                 }
-                Txt {text: "● "+(root.recording?"录制中":root.ready?"已就绪":root.active?"启动中":"未启动");font.pixelSize: 12;color: root.recording?Theme.red:root.ready?Theme.green:Theme.inkMuted}
+                Txt {text: "● "+(root.recording?"录制中":root.ready?"已就绪":root.active?(root.status.monitor_connected?"等待数据就绪":"启动中"):"未启动");font.pixelSize: 12;color: root.recording?Theme.red:root.ready?Theme.green:Theme.inkMuted}
             }
             GridLayout {width: parent.width;columns: app.width<780?1:3;columnSpacing: 9;rowSpacing: 9
                 Repeater {model: 3
@@ -145,7 +157,7 @@ Column {
                     }
                 }
                 Rectangle {Layout.fillWidth: true;Layout.preferredHeight: Math.max(198,recordActions.y+recordActions.implicitHeight+10);color: Theme.muted;border.color: Theme.line;radius: 9
-                    Txt {x: 10;y: 8;text: "采集统计";font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
+                    Txt {x: 10;y: 8;text: "采集统计 · "+(s.uploadTarget.selected==="local"?"上传本机平台":"上传云端平台");font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
                     RowLayout {x: 10;y: 37;width: parent.width-20;height: 62;spacing: 6
                         Repeater {model: ["本次完成","当前回合","本回合录制时长","待上传"]
                             Column {required property string modelData;required property int index;Layout.fillWidth: true;Layout.preferredWidth: 1;Layout.minimumWidth: 0;spacing: 3
@@ -157,10 +169,11 @@ Column {
                     }
                     Rectangle {y: 104;width: parent.width;height: 1;color: Theme.line}
                     Column {id: recordActions;x: 10;y: 113;spacing: 3;width: parent.width-20
-                        Txt {text: root.recording?"正在录制":root.ready?"可以开始采集":"启动中";font.pixelSize: 12;font.weight: Font.DemiBold}
+                        Txt {text: root.recording?"正在录制":root.ready?"可以开始采集":root.status.monitor_connected?"等待设备实时数据稳定":"启动中";font.pixelSize: 12;font.weight: Font.DemiBold}
                         Txt {text: root.recording?"手柄 B/Y 或空格踏板保存本段":"手柄 A/X 或空格踏板开始";font.pixelSize: 10;color: Theme.inkSoft}
                         Txt {objectName: "umiPedalFeedback";width: parent.width;text: s.umiPedalMessage || "空格踏板：保持本窗口在前台，每踩一次切换录制";font.pixelSize: 9;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
-                        Txt {width: parent.width;visible: (root.status.pending_processing||0)>0 || (root.status.failed_processing||0)>0;text: "后台待处理 " + (root.status.pending_processing||0) + " 段 · 处理失败 " + (root.status.failed_processing||0) + " 段，可继续采集";font.pixelSize: 10;color: (root.status.failed_processing||0)>0?Theme.red:Theme.inkSoft;wrapMode: Text.Wrap}
+                        Txt {width: parent.width;visible: (root.status.pending_processing||0)>0 || (root.status.failed_processing||0)>0;text: "后台视频压缩与校验 " + (root.status.pending_processing||0) + " 段 · 处理失败 " + (root.status.failed_processing||0) + " 段，可继续采集";font.pixelSize: 10;color: (root.status.failed_processing||0)>0?Theme.red:Theme.inkSoft;wrapMode: Text.Wrap}
+                        Txt {width: parent.width;visible: !!text;text: (root.status.upload_queue||{}).message||"";font.pixelSize: 10;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
                         Row {spacing: 6
                             Btn {objectName: "umiRecord";text: root.recording?"完成本段":"开始采集";glyph: root.recording?"Square":"Radio";primary: true;textSize: 11;height: 32;enabled: !s.busy && (root.recording||root.ready);onClicked: backend.recordUmi(root.recording?"stop":"start")}
                             Btn {text: root.recording?"放弃本段":"结束返回";ghost: true;danger: true;textSize: 11;height: 32;enabled: !s.busy;onClicked: {if(root.recording)discardDialog.open();else backend.stopUmi()}}

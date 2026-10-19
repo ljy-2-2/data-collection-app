@@ -7,8 +7,12 @@ export interface TianjiParameters {
   max_joint_accel_deg_s2: number;
   left_gripper_speed: number;
   right_gripper_speed: number;
-  kp: number;
-  kd: number;
+  left_gripper_accel: number;
+  right_gripper_accel: number;
+  left_gripper_open_rad: number;
+  left_gripper_closed_rad: number;
+  right_gripper_open_rad: number;
+  right_gripper_closed_rad: number;
 }
 export const TIANJI_DEFAULTS: TianjiParameters = {
   scale: 1,
@@ -16,8 +20,12 @@ export const TIANJI_DEFAULTS: TianjiParameters = {
   max_joint_accel_deg_s2: 450,
   left_gripper_speed: 10,
   right_gripper_speed: 10,
-  kp: 80,
-  kd: 2,
+  left_gripper_accel: 200,
+  right_gripper_accel: 200,
+  left_gripper_open_rad: -0.62,
+  left_gripper_closed_rad: 0.9,
+  right_gripper_open_rad: 0.18,
+  right_gripper_closed_rad: 1.7,
 };
 export const TIANJI_FIELDS: {
   key: keyof TianjiParameters;
@@ -27,7 +35,7 @@ export const TIANJI_FIELDS: {
   max: number;
   step: number;
 }[] = [
-  { key: 'scale', label: '比例', unit: '×', min: 0.01, max: 1, step: 0.01 },
+  { key: 'scale', label: '比例', unit: '×', min: 0.1, max: 2, step: 0.01 },
   {
     key: 'max_joint_speed_deg_s',
     label: '关节速度上限',
@@ -60,8 +68,12 @@ export const TIANJI_FIELDS: {
     max: 100,
     step: 0.1,
   },
-  { key: 'kp', label: '电机 Kp', unit: '', min: 0, max: 500, step: 1 },
-  { key: 'kd', label: '电机 Kd', unit: '', min: 0.01, max: 5, step: 0.1 },
+  { key: 'left_gripper_accel', label: '左夹爪加速度', unit: 'rad/s²', min: 0.1, max: 200, step: 1 },
+  { key: 'right_gripper_accel', label: '右夹爪加速度', unit: 'rad/s²', min: 0.1, max: 200, step: 1 },
+  { key: 'left_gripper_open_rad', label: '左夹爪打开角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
+  { key: 'left_gripper_closed_rad', label: '左夹爪关闭角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
+  { key: 'right_gripper_open_rad', label: '右夹爪打开角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
+  { key: 'right_gripper_closed_rad', label: '右夹爪关闭角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
 ];
 export function validTianjiParameters(p: TianjiParameters) {
   return TIANJI_FIELDS.every(

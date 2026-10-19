@@ -54,7 +54,7 @@ def configuration(path):
     }.items():
         c.setdefault(key, value)
     ranges = {
-        "scale": (0.01, 1),
+        "scale": (0.1, 2),
         "resume_gap_s": (0.0, 1.0),
         "rate_hz": (10, 100),
         "vr_timeout_s": (0.05, 0.3),
@@ -76,7 +76,6 @@ def configuration(path):
         "joint_limit_escape_speed_deg_s": (0.0, 30.0),
         "max_hand_step_m": (0.01, 0.2),
         "max_hand_step_rad": (0.01, 1),
-        "max_displacement_m": (0.01, 0.5),
         "collision_margin_m": (0.005, 0.1),
     }
     for key, (lo, hi) in ranges.items():

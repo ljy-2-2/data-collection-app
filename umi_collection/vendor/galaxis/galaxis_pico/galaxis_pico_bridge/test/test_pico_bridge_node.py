@@ -417,7 +417,7 @@ def test_hand_offset_lookup_recovers_and_caches_after_missing_tf(
 
 def test_publish_joy_emits_one_per_controller(node_module):
     node = _make_node(node_module)
-    node._transport._connected = True
+    node._transport = __import__("types").SimpleNamespace(connected=True)
     frame = _make_frame(node_module)
 
     node._publish_joy_from_data(frame.raw, stamp="STAMP")
@@ -429,7 +429,7 @@ def test_publish_joy_emits_one_per_controller(node_module):
 def test_publish_joy_left_axes_and_buttons(node_module):
     """Left Joy carries left thumbstick, left triggers/buttons in fixed order."""
     node = _make_node(node_module)
-    node._transport._connected = True
+    node._transport = __import__("types").SimpleNamespace(connected=True)
     frame = _make_frame(node_module)
 
     node._publish_joy_from_data(frame.raw, stamp="STAMP")
@@ -463,7 +463,7 @@ def test_publish_joy_left_axes_and_buttons(node_module):
 def test_publish_joy_right_axes_and_buttons(node_module):
     """Right Joy uses A/B/Back semantics and the right-side raw keys."""
     node = _make_node(node_module)
-    node._transport._connected = True
+    node._transport = __import__("types").SimpleNamespace(connected=True)
     frame = _make_frame(node_module)
 
     node._publish_joy_from_data(frame.raw, stamp="STAMP")
@@ -486,3 +486,19 @@ def test_publish_joy_right_axes_and_buttons(node_module):
         1,  # rightIndexTriggerTouched
         0,
     ]
+
+
+def test_delayed_publication_preserves_receive_timestamp(node_module):
+    node = _make_node(node_module)
+    node._transport = __import__("types").SimpleNamespace(connected=False)
+    frame = _make_frame(node_module)
+    node._publish_tf_from_data = lambda *args: None
+    node._publish_joy_from_data = lambda *args: None
+    frame.pc_received_wall_ns = 1_790_000_000_123_456_789
+    node._on_frame(frame)
+    for topic in ("/pico/hmd/state", "/pico/controller/left/state", "/pico/controller/right/state"):
+        msg = node.published[topic][-1]
+        assert msg.header.stamp.sec == 1_790_000_000
+        assert msg.header.stamp.nanosec == 123_456_789
+        assert msg.device_time_ns == frame.device_time_ns
+        assert msg.pc_monotonic_ns == frame.pc_monotonic_ns

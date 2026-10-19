@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2] / "vendor" / "tianji"
 sys.path.insert(0, str(ROOT / "teleop"))
 # The vendor root is explicit, independent of the launch directory.
 os.environ["MARVIN_SDK_ROOT"] = str(ROOT)
-from gripper.config import load as load_grippers  # noqa: E402
+from gripper.config import load as load_grippers, travel_bounds  # noqa: E402
 from gripper.runtime import Grippers  # noqa: E402
 from marvin_teleop.configuration import configuration  # noqa: E402
 from marvin_teleop.control import Controller  # noqa: E402
@@ -64,6 +64,20 @@ def sides(mode):
 
 def load_configuration():
     return configuration(robot_configuration())
+
+
+def gripper_configuration(parameters, selected, *, path=None):
+    """Build the actual driver settings, retaining calibrated travel/limits."""
+    gc = load_grippers(path or ROOT / "teleop/gripper/config.json", live=True)
+    params = TianjiParameters.model_validate(parameters)
+    gc["motors"] = {side: motor for side, motor in gc["motors"].items() if side in selected}
+    for side, motor in gc["motors"].items():
+        motor.update(speed_rad_s=getattr(params, side + "_gripper_speed"),
+                     accel_rad_s2=getattr(params, side + "_gripper_accel"),
+                     open_rad=getattr(params, side + "_gripper_open_rad"),
+                     closed_rad=getattr(params, side + "_gripper_closed_rad"))
+        travel_bounds(motor)
+    return gc
 
 
 def manual_plan(models, measured, request, config):
@@ -183,11 +197,7 @@ def main():
             raise RuntimeError("; ".join(errors))
 
     def setup_grippers(selected):
-        gc = load_grippers(ROOT / "teleop/gripper/config.json", live=True)
-        params = TianjiParameters.model_validate(config.get("app_parameters", {}))
-        gc["motors"] = {s: m for s, m in gc["motors"].items() if s in selected}
-        for s, m in gc["motors"].items():
-            m.update(speed_rad_s=getattr(params, s + "_gripper_speed"), kp=params.kp, kd=params.kd)
+        gc = gripper_configuration(config.get("app_parameters", {}), selected)
         return Grippers(gc, True, config["vr_timeout_s"], robot=robot, rate_hz=config["rate_hz"])
 
     try:

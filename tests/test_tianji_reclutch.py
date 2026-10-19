@@ -97,6 +97,48 @@ def test_reclutch_refreshes_only_selected_arm_without_pose_jump(session, side):
     assert session.controller.arms[peer].mode == 'ACTIVE'
 
 
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('direction', [-1., 1.])
+def test_continuous_clutch_does_not_clip_translation_or_rotation(session, side, direction):
+    grips = {'left': 1., 'right': 1.}
+    session.tick(grips)
+    selected = session.controller.arms[side]
+    anchor = selected.anchor[1].copy()
+    basis = selected.basis.copy()
+    peer = 'right' if side == 'left' else 'left'
+    for step in range(1, 13):
+        hands = {arm_side: np.eye(4) for arm_side in grips}
+        hands[side][:3, 3] = [direction * step * .05, 0., 0.]
+        hands[side][:3, :3] = rotation([0, 1, 0], step * .02)
+        session.tick(grips, hands=hands)
+        expected = anchor.copy()
+        expected[:3, 3] += basis @ hands[side][:3, 3] * session.controller.cfg['scale']
+        expected[:3, :3] = basis @ hands[side][:3, :3] @ basis.T @ anchor[:3, :3]
+        np.testing.assert_allclose(selected.target_pose, expected, atol=1e-12)
+        assert selected.mode == 'ACTIVE'
+        assert not session.controller.status()[side]['target_clamped']
+        np.testing.assert_allclose(session.controller.arms[peer].target_pose,
+                                   session.controller.arms[peer].anchor[1], atol=1e-12)
+    assert np.linalg.norm(selected.target_pose[:3, 3] - anchor[:3, 3]) > .5
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('jump', ['translation', 'rotation'])
+def test_removing_displacement_cap_preserves_pose_jump_pause(session, side, jump):
+    grips = {'left': 1., 'right': 1.}
+    session.tick(grips)
+    hands = {arm_side: np.eye(4) for arm_side in grips}
+    if jump == 'translation':
+        hands[side][0, 3] = session.controller.cfg['max_hand_step_m'] + .01
+    else:
+        hands[side][:3, :3] = rotation([0, 1, 0], session.controller.cfg['max_hand_step_rad'] + .01)
+    session.tick(grips, hands=hands)
+    assert session.controller.arms[side].mode == 'WAIT_RELEASE'
+    assert 'VR 位姿跳变' in session.controller.arms[side].pause_reason
+    peer = 'right' if side == 'left' else 'left'
+    assert session.controller.arms[peer].mode == 'ACTIVE'
+
+
 def test_invalid_reclutch_heading_pauses_only_selected_arm(session):
     session.tick({'left': 1., 'right': 1.})
     peer_basis = session.controller.arms['right'].basis.copy()

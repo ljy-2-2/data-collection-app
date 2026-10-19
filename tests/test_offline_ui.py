@@ -20,12 +20,24 @@ def bridge(tmp_path):
     value.deleteLater()
 
 
-def test_service_ready_keeps_login_and_device_controls_locked(bridge):
+@pytest.mark.parametrize('destination_available', [True, False])
+def test_service_ready_keeps_login_and_device_controls_locked(bridge, destination_available):
+    requests = []
     def request(path, **kwargs):
-        assert path == '/platform/auth/preferences'
-        kwargs['done']({})
+        requests.append(path)
+        if path == '/platform/destinations':
+            if destination_available:
+                kwargs['done']({'selected': 'cloud'})
+            else:
+                kwargs['failed']('平台目标查询失败')
+        else:
+            assert path == '/platform/auth/preferences'
+            kwargs['done']({})
     bridge.request = request
     bridge.serviceReady()
+    assert requests == ['/platform/destinations', '/platform/auth/preferences']
+    if destination_available:
+        assert bridge.state['uploadTarget']['selected'] == 'cloud'
     assert not bridge.state['authenticated']
     calls = []
     bridge.action = lambda *args, **kwargs: calls.append(args)

@@ -12,6 +12,16 @@ ApplicationWindow {
     color: Theme.bg
     font.family: Theme.font;font.pixelSize: 13
     property var s: backend.state
+    readonly property string pageError: {
+        let messages=[s.error]
+        if(s.page==="teleop" && s.teleopStep===2){
+            let status=s.robot==="tianji"?s.tianji:s.g2
+            let collection=status.collection||{}
+            messages.push(status.error,collection.error,(collection.upload||{}).error)
+        }
+        if(s.page==="umi")messages.push(s.umi.error)
+        return messages.filter((message,index,list)=>!!message && list.indexOf(message)===index).join("\n")
+    }
     property bool narrow: width<780
     // The desktop window manager owns the single native title bar.
     property bool recordKeyBlocked: usageGuide.previewVisible || umiPanel.recordDialogOpen
@@ -48,14 +58,16 @@ ApplicationWindow {
         Card {
             id: sidebar;x: 0;y: header.height+12;width: app.narrow?parent.width:148;height: app.narrow?48:parent.height-y;radius: 10
             Grid {x: 6;y: 6;width: parent.width-12;columns: app.narrow?3:1;spacing: 2
-                Repeater {model: ["遥操作采集","UMI 采集","Ego 采集"]
-                    Button {id: navButton;required property string modelData;required property int index;property string page: ["teleop","umi","ego"][index];width: app.narrow?(sidebar.width-16)/3:sidebar.width-12;height: 34;hoverEnabled: true
+                Repeater {model: backend.umiOnly ? ["UMI 采集"] : ["遥操作采集","UMI 采集","Ego 采集"]
+                    Button {id: navButton;required property string modelData;required property int index;property string page: backend.umiOnly ? "umi" : ["teleop","umi","ego"][index];width: app.narrow?(sidebar.width-16)/(backend.umiOnly?1:3):sidebar.width-12;height: 34;hoverEnabled: true
+                        objectName: "nav-"+page
                         padding: 0;leftPadding: 9;rightPadding: 9
                         background: Rectangle {radius: 7;color: s.page===parent.page?Theme.accentSoft:parent.hovered?Theme.muted:"transparent";border.color: s.page===parent.page?"#30f4c520":"transparent"}
                         contentItem: Item {
-                            Image {id: navIcon;objectName: "navIcon-"+navButton.page;anchors.left: parent.left;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon(["Gamepad2","Camera","Glasses"][navButton.index],s.page===navButton.page?"accent":"")}
+                            Image {id: navIcon;objectName: "navIcon-"+navButton.page;anchors.left: parent.left;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon(backend.umiOnly ? "Camera" : ["Gamepad2","Camera","Glasses"][navButton.index],s.page===navButton.page?"accent":"")}
                             Txt {objectName: "navText-"+navButton.page;anchors.left: navIcon.right;anchors.leftMargin: 7;anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;text: navButton.modelData;font.pixelSize: 13;color: s.page===navButton.page?Theme.accentStrong:Theme.inkMuted;font.weight: s.page===navButton.page?Font.Medium:Font.Normal;wrapMode: Text.NoWrap}
                         }
+                        enabled: !s.busy && !s.closing
                         onClicked: backend.navigate(page)
                     }
                 }
@@ -90,17 +102,22 @@ ApplicationWindow {
             ScrollBar.vertical: ScrollBar {policy: ScrollBar.AsNeeded;width: 8;interactive: false}
             Column {
                 id: page;width: scroll.width;spacing: 12
-                Item {width: parent.width;height: s.page==="ego"?0:24;visible: s.page!=="ego"
-                    UsageGuide {id: usageGuide;objectName: "usageGuide";anchors.right: parent.right;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}
+                Item {objectName: "pageTools";width: parent.width;height: 30
+                    Rectangle {
+                        id: pageNotice;objectName: "pageNotice"
+                        readonly property string message: [app.pageError,s.notice].filter(Boolean).join("\n")
+                        anchors.left: parent.left;anchors.right: usageGuide.visible?usageGuide.left:parent.right;anchors.rightMargin: usageGuide.visible?12:0
+                        height: parent.height;visible: !!message;radius: 7
+                        color: app.pageError?Theme.redSoft:Theme.muted
+                        border.color: Theme.line
+                        Txt {objectName: "pageNoticeText";anchors.fill: parent;anchors.leftMargin: 10;anchors.rightMargin: 36;text: pageNotice.message.replace(/\n/g,"；");font.pixelSize: 12;color: app.pageError?Theme.red:Theme.inkMuted;wrapMode: Text.NoWrap}
+                        Btn {objectName: "pageNoticeDismiss";visible: !!s.error;anchors.right: parent.right;anchors.rightMargin: 3;anchors.verticalCenter: parent.verticalCenter;glyph: "X";ghost: true;width: 24;height: 24;Accessible.name: "关闭错误提示";onClicked: backend.clearError()}
+                    }
+                    UsageGuide {id: usageGuide;objectName: "usageGuide";visible: s.page!=="ego";anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}
                 }
-                Rectangle {visible: !!s.error;width: parent.width;height: error.implicitHeight+20;color: Theme.redSoft;radius: 8;border.color: Theme.line
-                    Txt {id: error;x: 10;y: 10;width: parent.width-45;text: s.error;font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
-                    Btn {anchors.right: parent.right;anchors.rightMargin: 5;y: 5;glyph: "X";ghost: true;width: 26;height: 26;onClicked: backend.clearError()}
-                }
-                Txt {visible: !!s.notice;width: parent.width;text: s.notice;wrapMode: Text.Wrap;color: Theme.inkMuted}
-                Stepper {visible: s.page!=="ego";width: parent.width;titles: s.page==="umi"?["选择配置","检查硬件","采集监控"]:["选择配置","遥操作采集"];step: s.page==="umi"?s.umiStep:s.teleopStep;returnVisible: s.page==="teleop"&&s.teleopStep===2;returnEnabled: !teleop.locked;onReturnClicked: backend.returnTeleop()}
+                Stepper {objectName: "pageStepper";visible: s.page!=="ego";width: parent.width;titles: s.page==="umi"?["选择配置","检查硬件","采集监控"]:["选择配置","遥操作采集"];step: s.page==="umi"?s.umiStep:s.teleopStep;returnVisible: s.page==="teleop"&&s.teleopStep===2;returnEnabled: !teleop.locked;onReturnClicked: backend.returnTeleop()}
                 Setup {width: parent.width;visible: s.page==="teleop"&&s.teleopStep===1}
-                Teleop {id: teleop;width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2}
+                Teleop {id: teleop;objectName: "teleopWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2}
                 Umi {id: umiPanel;width: parent.width;visible: s.page==="umi"}
                 Card {visible: s.page==="ego";width: parent.width;height: 580}
                 Btn {visible: app.narrow;text: "退出登录";glyph: "LogOut";ghost: true;enabled: !s.busy;onClicked: backend.logout()}

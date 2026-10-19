@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import subprocess
 from pathlib import Path
@@ -33,10 +34,20 @@ def _prepend_env_path(env: dict[str, str], name: str, paths: list[Path]) -> None
 
 def add_xr_runtime_env(env: dict[str, str], launcher_script: str) -> dict[str, str]:
     """Mirror the runtime paths exported by the vendor XR runService.sh."""
+    from .runtime_paths import APP_ROOT
+
     root = Path(launcher_script).expanduser().resolve().parent
-    _prepend_env_path(env, "LD_LIBRARY_PATH", [root, root / "lib", root / "SDK" / "x64"])
-    _prepend_env_path(env, "QT_PLUGIN_PATH", [root / "plugins"])
-    _prepend_env_path(env, "QT_QML_PATH", [root / "qml"])
+    arm = platform.machine().lower() in {"aarch64", "arm64"}
+    sdk_dirs = [root / "SDK" / name for name in (("arm64", "aarch64") if arm else ("x64",))]
+    # The ARM vendor service requires ICU 73, absent from Ubuntu 22.04. The
+    # package carries these libraries privately; never replace system Qt/ICU.
+    support_dirs = [APP_ROOT / ".runtime/xr-support", APP_ROOT.parent / "runtime/xr-support"]
+    _prepend_env_path(env, "LD_LIBRARY_PATH", [*support_dirs, root, root / "lib", *sdk_dirs])
+    # Keep this process on the vendor's matching Qt plugins, even when launched
+    # from the desktop UI, which uses a different Qt version.
+    env["QT_PLUGIN_PATH"] = str(root / "plugins")
+    env["QT_QML_PATH"] = str(root / "qml")
+    env.setdefault("QT_QPA_PLATFORM", "offscreen")
     return env
 
 

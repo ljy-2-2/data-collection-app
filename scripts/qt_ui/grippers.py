@@ -1,7 +1,16 @@
 """Use the same calibrated endpoints as the native control worker."""
 import json
 import math
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'teleop_control/src'))
+from teleop_control.tianji_models import TianjiParameters
+
+
+def parameter_defaults():
+    return TianjiParameters().model_dump()
+
 
 def endpoints(root: Path):
     path=root/'teleop_control/vendor/tianji/teleop/gripper/config.json'

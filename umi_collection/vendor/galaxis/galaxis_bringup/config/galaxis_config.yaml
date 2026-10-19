@@ -51,12 +51,12 @@ robot_config:
       upload_targets_file: /root/ros2_ws/install/galaxis_core/share/galaxis_core/config/upload_targets.yaml
       s3_endpoint: localhost:9000
       s3_bucket: data
-      s3_access_key_id: minioadmin
-      s3_secret_access_key: minioadmin
+      s3_access_key_id: ""
+      s3_secret_access_key: ""
       s3_use_ssl: false
       s3_prefix: ''
       base_url: http://localhost:8000/api
-      api_key: 1ffpNFv-224xXavbzi57sFFPlf0EsjWunv5K0uR21DE
+      api_key: ""
       offline_mode: true
       task_file: /opt/data/tasks.yaml
       auto_repeat_episode: true

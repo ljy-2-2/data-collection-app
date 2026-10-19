@@ -194,6 +194,7 @@ class RosStateCollector:
             "encoder_right": RateTracker(),
         }
         self._last_monitor_update: dict[str, float] = {}
+        self._pico_diagnostic_at: float | None = None
         # recording_saved and recording_completed intentionally carry the same
         # round path. Listen to both for compatibility, but count each round
         # exactly once (HDF5 completion may arrive much later).
@@ -207,6 +208,12 @@ class RosStateCollector:
         with self._lock:
             state = json.loads(json.dumps(self._state, default=str))
             now = time.time()
+            # A cached healthy diagnostic must never outlive a stopped bridge.
+            state["pico_bridge"] = (
+                state.get("pico_bridge", {})
+                if self._pico_diagnostic_at is not None
+                and time.monotonic() - self._pico_diagnostic_at < 3.0 else {}
+            )
         state["ts"] = now
         state["cameras"] = [
             {
@@ -261,13 +268,20 @@ class RosStateCollector:
         try:
             self._run_ros()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ROS 采集失败,降级为模拟数据: %s", exc)
-            self._run_mock()
+            logger.exception("ROS 监视连接失败: %s", exc)
+            # Real sessions must never display synthetic device values after
+            # a ROS failure. Mock data is allowed only with explicit mock mode.
+            with self._lock:
+                self._state['ros_connected'] = False
+                self._state['recording_gate_level'] = 2
+                self._state['monitor_error'] = str(exc)
+                self._state['pico_bridge'] = {}
+                self._pico_diagnostic_at = None
 
     def _run_ros(self) -> None:
         import rclpy  # 延迟导入:无 ROS 环境时不影响其余功能
 
-        from rclpy.executors import MultiThreadedExecutor
+        from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
         from rclpy.qos import QoSProfile, ReliabilityPolicy
 
@@ -347,7 +361,10 @@ class RosStateCollector:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("跳过话题 %s (%s): %s", topic, type_name, exc)
 
-        executor = MultiThreadedExecutor(num_threads=4)
+        # Callbacks only copy small telemetry messages. They share the default
+        # mutually exclusive group, so multiple workers add scheduling/GIL
+        # contention without parallelizing work on the ARM desktop.
+        executor = SingleThreadedExecutor()
         executor.add_node(node)
         logger.info(
             "ROS 采集器已启动:相机 %s · 编码器 %s · 话题 %d 个",
@@ -363,36 +380,40 @@ class RosStateCollector:
         node.destroy_node()
 
     def _discover_cameras(self, node: Any) -> None:
-        """ROS 模式下用实际话题列表过滤 profile 中的相机,避免展示未启用的相机。"""
+        """Keep selected cameras even before DDS discovers their publishers.
+
+        Discovery is asynchronous. Filtering once at startup used to remove a
+        slower center relay permanently, including its CameraInfo subscription;
+        the preview then returned 404 even after images began arriving. The
+        saved profile, not a transient graph snapshot, defines enabled cameras.
+        """
         try:
             names = {name for name, _ in node.get_topic_names_and_types()}
         except Exception as exc:  # noqa: BLE001
             logger.warning("话题探测失败,使用 profile 相机列表: %s", exc)
             return
-        available = [
+        pending = [
             key for key in self._state["active_cameras"]
-            if self._settings.camera_topics.get(key) in names
+            if self._settings.camera_topics.get(key) not in names
         ]
-        if available:
-            with self._lock:
-                self._state["active_cameras"] = available
-        # profile 未涵盖但实际存在的相机(例如翻转中心相机)按固定顺序补上
-        with self._lock:
-            current = list(self._state["active_cameras"])
-            for key in _CAMERA_KEYS:
-                if key not in current and self._settings.camera_topics.get(key) in names:
-                    current.append(key)
-            self._state["active_cameras"] = sorted(
-                current, key=lambda k: _CAMERA_KEYS.index(k)
-            )
+        if pending:
+            logger.info("等待已选相机话题出现: %s", pending)
 
     def _on_camera_info(self, role, msg):
         with self._lock:
             self._state['camera_info'][role] = dict(width=int(msg.width), height=int(msg.height))
 
     def _on_camera_quality(self, msg):
-        prefix = 'recording_gate/camera_quality/'
-        entries = [s for s in msg.status if s.name.startswith(prefix)]
+        for status in msg.status:
+            if status.name == 'pico_bridge':
+                with self._lock:
+                    self._state['pico_bridge'] = {
+                        **{v.key: v.value for v in status.values},
+                        'message': status.message,
+                    }
+                    self._pico_diagnostic_at = time.monotonic()
+        prefixes = ('recording_gate/camera_quality/', 'recording_gate/pico_timing/')
+        entries = [s for s in msg.status if s.name.startswith(prefixes)]
         if entries:
             issues = []
             for status in entries:
@@ -403,9 +424,12 @@ class RosStateCollector:
                     level = int.from_bytes(level, 'little')
                 if not level:
                     continue
+                prefix = next(p for p in prefixes if status.name.startswith(p))
                 condition = status.name[len(prefix):]
                 role = condition.split('_', 1)[0]
                 label = {'left': '左腕相机', 'center': '中心相机', 'right': '右腕相机'}.get(role, '相机')
+                if prefix.endswith('/pico_timing/'):
+                    label = {'left': '左手柄', 'right': '右手柄'}.get(role, 'PICO')
                 reason = status.message.strip()
                 if reason.lower() == 'ok':
                     continue

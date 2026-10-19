@@ -68,9 +68,6 @@ Column {
             }
         }
     }
-    Rectangle {visible: !!root.collection.error || !!(root.collection.upload||{}).error;width: parent.width;height: uploadError.implicitHeight+20;radius: 8;color: Theme.redSoft;border.color: Theme.line
-        Txt {id: uploadError;x: 10;y: 10;width: parent.width-20;text: root.collection.error || (root.collection.upload||{}).error || "";wrapMode: Text.Wrap;color: Theme.red;font.pixelSize: 12}
-    }
     GridLayout {
         width: parent.width;columns: app.width<=1180 ? 1 : 2;columnSpacing: 12;rowSpacing: 12
         Card {
@@ -108,7 +105,7 @@ Column {
                 Btn {text: "";glyph: "X";width: 30;height: 30;ghost: true;enabled: !s.busy;onClicked: parameterDialog.close()}
             }
             GridLayout {Layout.fillWidth: true;columns: app.width<420 ? 1 : 2;columnSpacing: 14;rowSpacing: 14
-                Repeater {model: 4
+                Repeater {model: backend.fields.length-3
                     NumberField {required property int index;Layout.fillWidth: true;spec: backend.fields[index+3];value: s.parameters[spec.key];showRange: false;arrows: false;enabled: !root.locked;onEdited: number=>backend.setParameter(spec.key,number)}
                 }
             }

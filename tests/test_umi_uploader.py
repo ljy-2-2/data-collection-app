@@ -13,6 +13,28 @@ from teleop_control.umi_uploader import UmiRosbagUploader  # noqa: E402
 from teleop_control.platform_auth import PlatformBearerAuth, PlatformTokenStore  # noqa: E402
 
 
+@pytest.mark.parametrize("failure", ["disconnect", "busy", "forbidden", "permanent_disconnect"])
+def test_file_retry_reopens_full_payload_and_is_bounded(tmp_path, monkeypatch, failure):
+    path=tmp_path/'video.mp4';path.write_bytes(b'video-payload'*1000)
+    bodies=[]
+    def handle(request):
+        bodies.append(request.content)
+        assert 'Authorization' not in request.headers
+        if failure=='forbidden':return httpx.Response(403)
+        if len(bodies)==1 or failure=='permanent_disconnect':
+            if failure=='busy':return httpx.Response(503)
+            raise httpx.ReadError('connection lost after body',request=request)
+        return httpx.Response(200)
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        uploader=UmiRosbagUploader(tmp_path,'https://platform.test',client=client)
+        monkeypatch.setattr(uploader._stop,'wait',lambda seconds:False)
+        if failure in ('forbidden','permanent_disconnect'):
+            with pytest.raises(httpx.HTTPError):uploader._put_file(path,'https://storage.test/video')
+        else:uploader._put_file(path,'https://storage.test/video')
+    expected=1 if failure=='forbidden' else 3 if failure=='permanent_disconnect' else 2
+    assert bodies==[path.read_bytes()]*expected
+
+
 @pytest.mark.parametrize("compact", [False, True])
 def test_completed_umi_round_uploads_bundle_and_writes_receipt(tmp_path, compact):
     episode_dir = tmp_path / "rosbags" / "task" / "round-001"
@@ -56,6 +78,9 @@ def test_completed_umi_round_uploads_bundle_and_writes_receipt(tmp_path, compact
                 for name in names
             ]})
         if request.url.host == "upload.test":
+            assert request.extensions["timeout"] == {
+                "connect": 5.0, "read": 180.0, "write": 30.0, "pool": 5.0,
+            }
             uploaded[request.url.path.lstrip("/")] = request.content
             return httpx.Response(200)
         if request.url.path == "/episodes" and request.method == "POST":

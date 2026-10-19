@@ -1,0 +1,13 @@
+{
+  "upstream": "https://github.com/ros-drivers/usb_cam",
+  "version": "0.8.1",
+  "archive_url": "https://codeload.github.com/ros-drivers/usb_cam/tar.gz/refs/tags/0.8.1",
+  "archive_sha256": "c2492808bf7b7f7df65f15b361f9b5707f80e40c9eea035d20961244d86e6875",
+  "license_file": "LICENSE",
+  "changes": [
+    "Opt-in MJPEG passthrough keeps original camera JPEG and V4L2 capture timestamp",
+    "Correct raw_mjpeg publisher selection and publish only actual bytesused",
+    "Skip invalid or absent MJPEG buffers rather than publishing stale frames"
+  ],
+  "scope": "ROS 2 UMI compressed-image recording; YUYV conversion remains supported"
+}

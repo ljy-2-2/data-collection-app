@@ -83,3 +83,21 @@ def test_new_app_launch_requires_login_again(tmp_path):
     clear_previous_app_login({"PLATFORM_TOKEN_FILE": str(path)})
 
     assert store.token() == ""
+
+
+def test_restart_clears_both_platform_sessions_but_preserves_saved_preferences(tmp_path):
+    from teleop_control.upload_targets import UploadTargets
+    cloud = PlatformLogin('https://cloud.test/api', PlatformTokenStore(tmp_path / 'auth.json'))
+    targets = UploadTargets(tmp_path / 'data', cloud, 'https://cloud.test')
+    for kind, login in targets.logins.items():
+        login.store.write(token=kind+'-old-session', expires_in=3600, user={'username':kind})
+        login.preferences.write({'username':kind, 'remember_password':True, 'auto_login':False})
+    targets.select('local')
+    unrelated = tmp_path / 'platform-local-not-an-app-session.json'
+    unrelated.write_text('preserve')
+    clear_previous_app_login({'PLATFORM_TOKEN_FILE': str(cloud.store.path)})
+    for login in targets.logins.values():
+        assert not login.store.token()
+        assert login.preferences.path.exists()
+    assert unrelated.read_text() == 'preserve'
+    assert targets.selected == 'local'

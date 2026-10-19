@@ -1,0 +1,8 @@
+{
+  "base_apk_sha256": "b80a79924338e7dc428c4e318f0105a625d9d95cb48f1288232f5bb043c9ccf1",
+  "base_source": "TJ_FX_ROBOT_CONTRL_SDK-master/Galaxis-VR-Teleop",
+  "base_source_tcp_sha256": "70f79b4143df213cbf32914abe9bc0dc5ab20453d6d27f96fc6a0593d55bc14e",
+  "unity": "2022.3.16f1",
+  "version": "1.1.7-capture.1",
+  "output_sha256": "eea967742237cd877601eb1d3cb16a8fedbcf57a4aaa0a1599a31a0c93a56776"
+}

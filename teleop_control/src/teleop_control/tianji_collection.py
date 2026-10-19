@@ -12,7 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from .collection_uploader import READY_MARKER
-from .collection_gate import collection_available
+from .collection_gate import collection_available, collection_context
 from .platform_auth import current_platform_username
 
 APP_ROOT = Path(__file__).resolve().parents[3]
@@ -161,6 +161,7 @@ class TianjiCollection:
             reason = readiness(self.latest, required_sides=self.controlled_sides)
             if reason:
                 raise ValueError(reason)
+            context = collection_context()
             args = SimpleNamespace(
                 output=str(self.output),
                 task=self.task,
@@ -193,6 +194,7 @@ class TianjiCollection:
                 "collection_trigger": "controller",
                 "author": self.owner,
                 "upload_sides": list(self.upload_sides),
+                **context,
             }
             self.job = threading.Thread(
                 target=self._record, args=(self.episode, info), name="tianji-episode", daemon=True
@@ -212,6 +214,8 @@ class TianjiCollection:
             metadata["author"] = info["author"]
             metadata["teleop_session_id"] = info["teleop_session_id"]
             metadata["upload_sides"] = info["upload_sides"]
+            if "upload_destination" in info:
+                metadata["upload_destination"] = info["upload_destination"]
             dump(episode.directory / "meta_info.json", metadata)
             # Last write: the uploader must never see a partially written Episode.
             dump(episode.directory / READY_MARKER, info)

@@ -92,6 +92,7 @@ export function TianjiTeleopWorkspace({
   });
   const [saved, setSaved] = useState<TianjiParameters | null>(null);
   const [saving, setSaving] = useState(false);
+  const [parametersLoaded, setParametersLoaded] = useState(false);
   const [saveFailure, setSaveFailure] = useState<{
     key: string;
     message: string;
@@ -138,6 +139,23 @@ export function TianjiTeleopWorkspace({
     }
   }, [api]);
   useEffect(() => {
+    let cancelled = false;
+    setParametersLoaded(false);
+    void api<TianjiParameters>('/parameters', { signal: AbortSignal.timeout(10000) })
+      .then((result) => {
+        if (!validTianjiParameters(result)) throw new Error('参数读取响应无效');
+        if (!cancelled) {
+          setParameters(result);
+          setSaved(result);
+          setParametersLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('夹爪参数读取失败，请重新进入操作页；未覆盖配置文件。');
+      });
+    return () => { cancelled = true; };
+  }, [api]);
+  useEffect(() => {
     mounted.current = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -156,6 +174,7 @@ export function TianjiTeleopWorkspace({
   const collecting = Boolean(collection?.recording);
   const collectionBusy = Boolean(collection?.busy);
   const locked =
+    !parametersLoaded ||
     Boolean(pending) ||
     collectionBusy ||
     running ||
@@ -176,10 +195,9 @@ export function TianjiTeleopWorkspace({
     !saved || TIANJI_FIELDS.some(({ key }) => parameters[key] !== saved[key]);
   const valid = validTianjiParameters(parameters);
   const canMove = Boolean(state) && live && !locked && !saving && !dirty;
-  // Each workspace starts with defaults. Serialize automatic saves, keeping
-  // edits made during a request queued until its response has arrived.
   useEffect(() => {
     if (
+      !parametersLoaded ||
       state?.state !== 'idle' ||
       pending ||
       saving ||
@@ -215,6 +233,7 @@ export function TianjiTeleopWorkspace({
     return () => clearTimeout(timer);
   }, [
     api,
+    parametersLoaded,
     state?.state,
     pending,
     saving,

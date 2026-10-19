@@ -12,7 +12,10 @@ import sys
 
 PACKAGE = Path(__file__).resolve().parents[1]
 GROUPS = ("xiaokai-collection", "dialout", "video", "plugdev")
-SERVICES = ("xiaokai-collection-docker.service", "xiaokai-collection-avahi.service")
+CONTAINERD_SERVICE = "xiaokai-collection-containerd.service"
+DOCKER_SERVICE = "xiaokai-collection-docker.service"
+AVAHI_SERVICE = "xiaokai-collection-avahi.service"
+SERVICES = (CONTAINERD_SERVICE, DOCKER_SERVICE, AVAHI_SERVICE)
 
 
 def run(*args, **kwargs):
@@ -76,6 +79,15 @@ def load_image():
     temporary.replace(ready)
 
 
+def restart_services(selected):
+    """Stop dockerd before upgrading its private containerd, then start in order."""
+    run("/usr/bin/systemctl", "stop", DOCKER_SERVICE)
+    run("/usr/bin/systemctl", "restart", CONTAINERD_SERVICE)
+    run("/usr/bin/systemctl", "start", DOCKER_SERVICE)
+    if AVAHI_SERVICE in selected:
+        run("/usr/bin/systemctl", "restart", AVAHI_SERVICE)
+
+
 def setup():
     verified_manifest()
     configure_user()
@@ -91,10 +103,10 @@ def setup():
             "--home-dir", "/run/avahi-daemon", "--shell", "/usr/sbin/nologin", "avahi")
     wants = Path("/etc/systemd/system/multi-user.target.wants")
     wants.mkdir(parents=True, exist_ok=True)
-    selected = [SERVICES[0]]
+    selected = [CONTAINERD_SERVICE, DOCKER_SERVICE]
     # Reuse an existing host Avahi instance when present.
     if not Path("/run/avahi-daemon/socket").exists():
-        selected.append(SERVICES[1])
+        selected.append(AVAHI_SERVICE)
     for service in selected:
         link = wants / service
         if not link.exists() and not link.is_symlink():
@@ -103,8 +115,7 @@ def setup():
     run(PACKAGE / "runtime/bin/adb", "version")
     if Path("/run/systemd/system").is_dir():
         run("/usr/bin/systemctl", "daemon-reload")
-        for service in reversed(selected):
-            run("/usr/bin/systemctl", "restart", service)
+        restart_services(selected)
         subprocess.run([str(PACKAGE / "runtime/bin/udevadm"), "control", "--reload-rules"], check=False)
     else:
         print("当前不是 systemd 桌面环境；采集服务将在正常系统启动时自动初始化。", flush=True)

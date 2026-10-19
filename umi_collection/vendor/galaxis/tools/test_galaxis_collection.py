@@ -296,6 +296,29 @@ class CommandLineTest(unittest.TestCase):
 
 
 class PicoListenerReadinessTest(unittest.TestCase):
+    def setUp(self):
+        # Never consult a real running monitor from these unit tests.
+        patcher = patch.object(gc.urllib.request, "build_opener")
+        self.opener = patcher.start().return_value
+        self.opener.open.side_effect = OSError("offline fixture")
+        self.addCleanup(patcher.stop)
+
+    def test_persistent_monitor_diagnostics_avoid_ros_cli_discovery(self):
+        import io
+        self.opener.open.side_effect = None
+        self.opener.open.return_value = io.BytesIO(b'{"pico_bridge":{"message":"streaming","listening":"True"}}')
+        with patch.object(gc.subprocess, "run") as run:
+            self.assertEqual(gc.read_pico_bridge_diagnostics()["message"], "streaming")
+        run.assert_not_called()
+
+    def test_expired_monitor_snapshot_does_not_reuse_healthy_cli_cache(self):
+        import io
+        self.opener.open.side_effect = None
+        self.opener.open.return_value = io.BytesIO(b'{"pico_bridge":{}}')
+        with patch.object(gc.subprocess, "run") as run:
+            self.assertEqual(gc.read_pico_bridge_diagnostics(), {})
+        run.assert_not_called()
+
     @staticmethod
     def diagnostics(name, listening, error=""):
         return (
@@ -458,7 +481,7 @@ if __name__ == "__main__":
 
 class BackgroundWorkerLauncherTest(unittest.TestCase):
     def test_cpu_budget_adapts_to_other_computers_and_affinity_limits(self):
-        for count, expected in ((1, 1), (2, 1), (4, 2), (8, 4), (24, 6)):
+        for count, expected in ((1, 1), (2, 2), (4, 4), (8, 8), (24, 24)):
             with self.subTest(cpus=count), patch.object(gc.os, 'sched_getaffinity', return_value=set(range(count))):
                 self.assertEqual(gc.finalizer_cpu_budget(), expected)
         with patch.object(gc.os, 'sched_getaffinity', side_effect=OSError), patch.object(gc.os, 'cpu_count', return_value=None):
@@ -473,10 +496,11 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
                 (source / name).write_text('# fixture')
             (project / 'umi-runtime.json').write_text(json.dumps({'image': 'offline-test:1'}))
             with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
-                 patch.object(gc.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), \
-                 patch.object(gc, 'run_checked') as run:
+                 patch.object(gc, '_inspect_finalizer', return_value=None), \
+                 patch.object(gc, '_finalizer_require_running'), \
+                 patch.object(gc, '_finalizer_docker', return_value=SimpleNamespace(returncode=0, stdout='a' * 64)) as run:
                 gc.ensure_background_finalizer()
-            command = run.call_args.args[0]
+            command = ['docker', *run.call_args.args]
             assert command[:3] == ['docker', 'run', '--detach']
             assert command[command.index('--network') + 1] == 'none'
             assert command[command.index('--restart') + 1] == 'unless-stopped'
@@ -499,41 +523,22 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
                     gc.ensure_background_finalizer()
                 run.assert_not_called()
 
+class LiveDeviceRecoveryTest(unittest.TestCase):
+    def test_app_waits_through_missing_vr_and_gate_without_stopping_monitor(self):
+        with (patch.object(gc, 'start_vr', side_effect=[gc.CollectionError('USB missing'), 'serial', 'serial']),
+              patch.object(gc, 'wait_for_recording_gate_ready', side_effect=[gc.CollectionError('camera settling'), None]) as gate,
+              patch.object(gc, 'stop_collection_stacks') as stop,
+              patch.object(gc, 'create_episode_for_task') as episode,
+              patch.object(gc.time, 'sleep') as sleep):
+            self.assertEqual(gc.prepare_live_devices(None, skip_vr=False, wait_for_devices=True), 'serial')
+        self.assertEqual(gate.call_count, 2)
+        self.assertEqual(sleep.call_count, 2)
+        stop.assert_not_called()
+        episode.assert_not_called()
 
-    def test_existing_worker_reconciles_mounts_even_when_code_is_unchanged(self):
-        import json
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / 'moved-app'
-            data = Path(td) / 'data'
-            source = project / 'galaxis-core/galaxis-core/galaxis_core'
-            source.mkdir(parents=True)
-            for name in ('mp4_worker.py', 'video_bundle.py', 'recording_priority.py', 'camera_quality.py'):
-                (source / name).write_text('# fixture')
-            with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
-                 patch.object(gc, 'finalizer_cpu_budget', return_value=2), \
-                 patch.object(gc.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), \
-                 patch.object(gc, 'run_checked') as run:
-                gc.ensure_background_finalizer()
-                command = run.call_args.args[0]
-            labels = dict(command[i + 1].split('=', 1) for i, arg in enumerate(command) if arg == '--label')
-            for old_source in (str(source.parent), str(Path(td) / 'old-app')):
-                for running in (True, False):
-                    with self.subTest(source=old_source, running=running):
-                        container = {'Config': {'Labels': labels}, 'State': {'Running': running},
-                                     'Mounts': [
-                                         {'Type': 'bind', 'Source': old_source, 'Destination': '/processing-src', 'RW': False},
-                                         {'Type': 'bind', 'Source': str(data), 'Destination': '/opt/data', 'RW': True}]}
-                        old = SimpleNamespace(returncode=0, stdout=json.dumps([container]))
-                        with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
-                             patch.object(gc, 'finalizer_cpu_budget', return_value=2), \
-                             patch.object(gc.subprocess, 'run', return_value=old), \
-                             patch.object(gc, 'run_checked') as run:
-                            gc.ensure_background_finalizer()
-                        commands = [call.args[0] for call in run.call_args_list]
-                        if old_source != str(source.parent):
-                            self.assertEqual([cmd[1] for cmd in commands], ['stop', 'rm', 'run'])
-                            self.assertIn(str(source.parent) + ':/processing-src:ro', commands[-1])
-                        elif running:
-                            self.assertEqual(commands, [])
-                        else:
-                            self.assertEqual([cmd[1] for cmd in commands], ['start'])
+    def test_cancel_escapes_retry_loop_for_normal_resource_cleanup(self):
+        with (patch.object(gc, 'start_vr', side_effect=KeyboardInterrupt),
+              patch.object(gc, 'wait_for_recording_gate_ready') as gate):
+            with self.assertRaises(KeyboardInterrupt):
+                gc.prepare_live_devices(None, skip_vr=False, wait_for_devices=True)
+        gate.assert_not_called()

@@ -227,8 +227,8 @@ def test_reject_joint_limits_unselected_arm_and_bad_pose(models):
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("kp", float("nan")),
-        ("kd", 0),
+        ("kp", 80),  # Retired settings are rejected, even with valid old values.
+        ("kd", 4),
         ("scale", 0),
         ("max_joint_speed_deg_s", 181),
         ("max_joint_accel_deg_s2", 451),
@@ -240,11 +240,33 @@ def test_invalid_parameters_rejected(field, value):
         TianjiParameters(**{field: value})
 
 
+@pytest.mark.parametrize('scale', [0.1, 1., 1.5, 2.])
+def test_scale_range_matches_api_worker_and_desktop(scale):
+    from qt_ui.bridge import FIELDS
+
+    params = TianjiParameters(scale=scale)
+    config = json.loads((ROOT / 'teleop/marvin_teleop/config.json').read_text())
+    config['scale'] = params.scale
+    assert configuration(config)['scale'] == scale
+    field = next(field for field in FIELDS if field['key'] == 'scale')
+    assert (field['min'], field['max'], field['default']) == (0.1, 2, 1)
+
+
+@pytest.mark.parametrize('scale', [0.099, 2.001, float('nan'), float('inf')])
+def test_out_of_range_scale_rejected_by_api_and_worker(scale):
+    with pytest.raises(ValidationError):
+        TianjiParameters(scale=scale)
+    config = json.loads((ROOT / 'teleop/marvin_teleop/config.json').read_text())
+    config['scale'] = scale
+    with pytest.raises(ValueError, match='scale'):
+        configuration(config)
+
+
 def test_defaults_match_updated_sdk():
     p = TianjiParameters()
     c = json.loads((ROOT / "teleop/marvin_teleop/config.json").read_text())
     g = json.loads((ROOT / "teleop/gripper/config.json").read_text())
-    assert p.right_gripper_speed == 10
+    assert p.right_gripper_speed == g["motors"]["right"]["speed_rad_s"]
     assert p.scale == c["scale"]
     assert p.left_gripper_speed == g["motors"]["left"]["speed_rad_s"]
     # Calibrated endpoint coordinates can be positive or negative. Validate
@@ -252,7 +274,9 @@ def test_defaults_match_updated_sdk():
     from gripper.config import load as load_gripper_config
     validated = load_gripper_config(ROOT / "teleop/gripper/config.json", live=True)
     assert validated["motors"]["right"]["open_rad"] == g["motors"]["right"]["open_rad"]
-    assert g["motors"]["left"]["accel_rad_s2"] == 20
+    assert 'kp' not in p.model_dump() and 'kd' not in p.model_dump()
+    assert p.left_gripper_accel == g["motors"]["left"]["accel_rad_s2"]
+    assert p.right_gripper_accel == g["motors"]["right"]["accel_rad_s2"]
 
 
 @pytest.mark.parametrize("upload_mode", ["left", "right", "dual"])
