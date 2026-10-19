@@ -29,7 +29,7 @@ from .umi import UmiManager
 from .umi_handoff import UmiControlHandoff
 from .umi_uploader import UmiRosbagUploader
 from .xr_service import XrServiceLauncher
-from .runtime_paths import resolve_robot_python, resolve_gdk_root, resolve_xr_service
+from .runtime_paths import legacy_robot_python, resolve_robot_python, resolve_gdk_root, resolve_xr_service
 
 
 class MockController:
@@ -92,21 +92,7 @@ def resolve_gdk_python(
     bundled = resolve_robot_python(configured)
     if bundled:
         return bundled
-    user_home = home or Path.home()
-    candidates = [
-        user_home / "miniforge3/envs/bot/bin/python",
-        user_home / "miniconda3/envs/bot/bin/python",
-        user_home / ".conda/envs/bot/bin/python",
-        user_home / "miniforge3/envs/g2/bin/python",
-    ]
-    return next(
-        (
-            str(path)
-            for path in candidates
-            if path.is_file() and os.access(path, os.X_OK)
-        ),
-        None,
-    )
+    return legacy_robot_python(home=home)
 
 
 def default_collection_project() -> str:

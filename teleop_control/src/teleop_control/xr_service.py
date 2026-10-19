@@ -70,7 +70,10 @@ class XrServiceLauncher:
             if self._ready():
                 return True
             return_code = process.poll()
-            if return_code is not None:
+            # The installed vendor runService.sh backgrounds the bridge and
+            # exits successfully before its ports are ready. Bundled launchers
+            # use exec instead. In both cases readiness is the port opening.
+            if return_code not in (None, 0):
                 raise XrServiceStartError(
                     f"Galaxis VR exited with code {return_code}; log: {self.log_path}"
                 )

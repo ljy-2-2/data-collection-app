@@ -816,7 +816,7 @@
   <joint name="gripper_mount_L" type="fixed">
     <parent link="flange_L" />
     <child link="gripper_L" />
-    <origin xyz="0 0 0" rpy="0 0 0.785398163397" />
+    <origin xyz="0 0 0" rpy="0 0 2.356194490192345" />
   </joint>
   <!-- Nominal fixed TCP: midpoint of two rubber-pad OBB centers at URDF full opening; NOT physical calibration. xyz in metres; tool X=finger approach, Y=jaw opening, Z=right-handed normal. See description/grasp_center.txt. -->
   <link name="grasp_center_L" />

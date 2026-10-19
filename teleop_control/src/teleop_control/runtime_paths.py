@@ -24,6 +24,21 @@ def resolve_robot_python(configured: str | None = None) -> str | None:
     return None
 
 
+def legacy_robot_python(*, home: Path | None = None) -> str | None:
+    """Find the existing SDK environment for an unbundled source checkout."""
+    user_home = home or Path.home()
+    candidates = (
+        user_home / "miniforge3/envs/bot/bin/python",
+        user_home / "miniconda3/envs/bot/bin/python",
+        user_home / ".conda/envs/bot/bin/python",
+        user_home / "miniforge3/envs/g2/bin/python",
+    )
+    return next(
+        (str(path) for path in candidates if path.is_file() and os.access(path, os.X_OK)),
+        None,
+    )
+
+
 def resolve_gdk_root(configured: str | None = None) -> str:
     runtime = robot_runtime()
     if runtime and (not configured or (

@@ -337,7 +337,7 @@ def ensure_background_finalizer() -> None:
     (root / "rosbags").mkdir(parents=True, exist_ok=True)
     manifest = PROJECT_DIR / "umi-runtime.json"
     image = json.loads(manifest.read_text())["image"] if manifest.is_file() else "galaxis-core:latest"
-    source = PROJECT_DIR / "galaxis-core/galaxis-core"
+    source = (PROJECT_DIR / "galaxis-core/galaxis-core").resolve()
     # A source digest restarts only this worker on software updates. Its queue
     # lives in the mounted data folder, so interrupted work is recoverable.
     digest = hashlib.sha256()
@@ -353,7 +353,21 @@ def ensure_background_finalizer() -> None:
         labels = container.get("Config", {}).get("Labels", {}) or {}
         if labels.get(label) != str(root):
             raise CollectionError("后台处理容器名称冲突，无法确认归属")
-        if labels.get(label + ".version") == version:
+        # Identical code can move to another installation directory. A matching
+        # digest alone does not make the old bind mounts usable.
+        mounts = {mount.get("Destination"): mount
+                  for mount in container.get("Mounts", [])}
+        source_mount = mounts.get("/processing-src", {})
+        data_mount = mounts.get("/opt/data", {})
+        mounts_match = (
+            source_mount.get("Type") == "bind"
+            and source_mount.get("Source") == str(source)
+            and source_mount.get("RW") is False
+            and data_mount.get("Type") == "bind"
+            and data_mount.get("Source") == str(root)
+            and data_mount.get("RW") is True
+        )
+        if labels.get(label + ".version") == version and mounts_match:
             if not container.get("State", {}).get("Running"):
                 run_checked(["docker", "start", name], quiet=True)
             return

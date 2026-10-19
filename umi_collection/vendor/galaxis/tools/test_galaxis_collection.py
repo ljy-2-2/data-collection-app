@@ -498,3 +498,42 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
                 with self.assertRaises(gc.CollectionError):
                     gc.ensure_background_finalizer()
                 run.assert_not_called()
+
+
+    def test_existing_worker_reconciles_mounts_even_when_code_is_unchanged(self):
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / 'moved-app'
+            data = Path(td) / 'data'
+            source = project / 'galaxis-core/galaxis-core/galaxis_core'
+            source.mkdir(parents=True)
+            for name in ('mp4_worker.py', 'video_bundle.py', 'recording_priority.py', 'camera_quality.py'):
+                (source / name).write_text('# fixture')
+            with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
+                 patch.object(gc, 'finalizer_cpu_budget', return_value=2), \
+                 patch.object(gc.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), \
+                 patch.object(gc, 'run_checked') as run:
+                gc.ensure_background_finalizer()
+                command = run.call_args.args[0]
+            labels = dict(command[i + 1].split('=', 1) for i, arg in enumerate(command) if arg == '--label')
+            for old_source in (str(source.parent), str(Path(td) / 'old-app')):
+                for running in (True, False):
+                    with self.subTest(source=old_source, running=running):
+                        container = {'Config': {'Labels': labels}, 'State': {'Running': running},
+                                     'Mounts': [
+                                         {'Type': 'bind', 'Source': old_source, 'Destination': '/processing-src', 'RW': False},
+                                         {'Type': 'bind', 'Source': str(data), 'Destination': '/opt/data', 'RW': True}]}
+                        old = SimpleNamespace(returncode=0, stdout=json.dumps([container]))
+                        with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
+                             patch.object(gc, 'finalizer_cpu_budget', return_value=2), \
+                             patch.object(gc.subprocess, 'run', return_value=old), \
+                             patch.object(gc, 'run_checked') as run:
+                            gc.ensure_background_finalizer()
+                        commands = [call.args[0] for call in run.call_args_list]
+                        if old_source != str(source.parent):
+                            self.assertEqual([cmd[1] for cmd in commands], ['stop', 'rm', 'run'])
+                            self.assertIn(str(source.parent) + ':/processing-src:ro', commands[-1])
+                        elif running:
+                            self.assertEqual(commands, [])
+                        else:
+                            self.assertEqual([cmd[1] for cmd in commands], ['start'])

@@ -1,4 +1,4 @@
-"""Independent arm clutches, shared same-facing calibration and collision checks."""
+"""Independent arm clutches and heading anchors, with shared collision checks."""
 
 from dataclasses import dataclass, field
 import time
@@ -55,6 +55,8 @@ class ArmControl:
     velocity: np.ndarray = field(default_factory=lambda: np.zeros(7))
     next_velocity: np.ndarray = field(default_factory=lambda: np.zeros(7))
     anchor: object = None
+    basis: object = None
+    calibration_head: object = None
     joint_anchor: object = None
     previous_hand: object = None
     sequence: object = None
@@ -91,8 +93,7 @@ class Controller:
             ] > min(arm.acceleration_limits):
                 raise ValueError("motion settings exceed vendor PNVA limits")
         self.state, self.reason = "WAIT_RELEASE", "左右握把分别控制对应机械臂"
-        self.session = self.safety_epoch = self.last_tick = self.basis = None
-        self.calibration_head = None
+        self.session = self.safety_epoch = self.last_tick = None
         self.fault = False
         self.send_busy_since = None
         self.deferred_sends = 0
@@ -130,7 +131,6 @@ class Controller:
         self.pause("VR 数据过期：保持当前位置，短暂断流恢复后重新锚定")
         if now - self.resume_since > self.cfg.get("resume_gap_s", 0.6):
             self.resume_sides.clear()
-            self.basis = None
 
     @property
     def preparing(self):
@@ -179,6 +179,10 @@ class Controller:
                 else None,
                 "hand_anchor": a.anchor[0].tolist() if a.anchor else None,
                 "tcp_anchor": a.anchor[1].tolist() if a.anchor else None,
+                "mapping_basis": a.basis.tolist() if a.basis is not None else None,
+                "calibration_head": a.calibration_head.tolist()
+                if a.calibration_head is not None
+                else None,
                 "flange_anchor": self.models.arms[s].flange_fk(a.joint_anchor).tolist()
                 if a.joint_anchor is not None
                 else None,
@@ -206,6 +210,7 @@ class Controller:
     def _reset(a, reason):
         a.mode, a.reason, a.released = "WAIT_RELEASE", reason, False
         a.plan = a.anchor = a.commanded = a.previous_hand = a.sequence = None
+        a.basis = a.calibration_head = None
         a.joint_anchor = None
         a.target_pose = None
         a.position_error_m = a.rotation_error_rad = None
@@ -275,11 +280,6 @@ class Controller:
                     {side},
                     allow_singular=True,
                 )
-                if self.basis is None:
-                    self.basis = same_facing_map(
-                        frame.head, self.models.robot_from_operator
-                    )
-                    self.calibration_head = frame.head.copy()
         except ValueError as error:
             self.pause_side(side, str(error))
             return
@@ -290,6 +290,13 @@ class Controller:
         if a.preparing and np.max(np.abs(q[side] - a.plan.start[side])) > 0.25:
             self.pause_side(side, "使能前后姿态变化，请松开重新准备")
             return
+        if not a.preparing:
+            try:
+                a.basis = same_facing_map(frame.head, self.models.robot_from_operator)
+            except ValueError as error:
+                self.pause_side(side, str(error))
+                return
+            a.calibration_head = frame.head.copy()
         a.commanded = q[side].copy()
         a.joint_anchor = q[side].copy()
         self.holds[side] = q[side].copy()
@@ -346,9 +353,7 @@ class Controller:
         # send slot must not accumulate normal hand motion into a false jump.
         a.previous_hand, a.sequence = hand.copy(), frame.sequence
         hand0, flange0 = a.anchor
-        target = relative_target(hand, hand0, flange0, self.basis, self.cfg["scale"])
-        # Both arms use the same proper rotation C for relative pose mapping.
-        # Joint axes and mounting asymmetry belong exclusively to each model.
+        target = relative_target(hand, hand0, flange0, a.basis, self.cfg["scale"])
         displacement = target[:3, 3] - flange0[:3, 3]
         distance = np.linalg.norm(displacement)
         clamped = distance > self.cfg["max_displacement_m"]
@@ -460,7 +465,7 @@ class Controller:
             self.resume_sides.clear()
             self.resume_since = None
             self.pause("新 VR 会话：松开要操作一侧的握把")
-            self.session, self.basis = frame.session, None
+            self.session = frame.session
         if not frame.tracked or not frame.focused:
             self.resume_sides.clear()
             self.resume_since = None

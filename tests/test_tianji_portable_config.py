@@ -117,20 +117,22 @@ def test_xr_service_overrides_are_shared_with_worker(
 
 
 @pytest.mark.parametrize(
-    "explicit,shared,bundled,expected",
-    [("/custom/tianji-python", "/custom/gdk-python", "/bundle/python", "/custom/tianji-python"),
-     (None, "/custom/gdk-python", "/bundle/python", "/custom/gdk-python"),
-     (None, None, "/bundle/python", "/bundle/python"),
-     (None, None, None, sys.executable)],
+    "explicit,shared,bundled,legacy,expected",
+    [("/custom/tianji-python", "/custom/gdk-python", "/bundle/python", "/bot/python", "/custom/tianji-python"),
+     (None, "/custom/gdk-python", "/bundle/python", "/bot/python", "/custom/gdk-python"),
+     (None, None, "/bundle/python", "/bot/python", "/bundle/python"),
+     (None, None, None, "/bot/python", "/bot/python"),
+     (None, None, None, None, sys.executable)],
 )
 def test_launch_uses_portable_python_and_same_service_root(
-    monkeypatch, settings_file, explicit, shared, bundled, expected
+    monkeypatch, settings_file, explicit, shared, bundled, legacy, expected
 ):
     if explicit:
         monkeypatch.setenv("TIANJI_PYTHON", explicit)
     if shared:
         monkeypatch.setenv("TELEOP_GDK_PYTHON", shared)
     monkeypatch.setattr(tianji, "resolve_robot_python", Mock(return_value=bundled))
+    monkeypatch.setattr(tianji, "legacy_robot_python", Mock(return_value=legacy))
     monkeypatch.setattr(tianji_config, "resolve_xr_service",
                         Mock(return_value="/relocated/runtime/robot/xr/runService.sh"))
     runtime_env = Mock(side_effect=lambda env, launcher: env)

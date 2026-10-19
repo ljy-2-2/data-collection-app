@@ -54,6 +54,16 @@ def test_explicit_custom_paths_take_priority_even_if_missing(relocated_runtime):
     assert runtime_paths.resolve_xr_service("/operator/custom/xr.sh") == "/operator/custom/xr.sh"
 
 
+def test_source_checkout_finds_executable_sdk_environment(tmp_path):
+    assert runtime_paths.legacy_robot_python(home=tmp_path) is None
+    interpreter = tmp_path / "miniforge3/envs/bot/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_text("#!/bin/sh\n")
+    assert runtime_paths.legacy_robot_python(home=tmp_path) is None
+    interpreter.chmod(0o755)
+    assert runtime_paths.legacy_robot_python(home=tmp_path) == str(interpreter)
+
+
 @pytest.mark.parametrize("exists", [False, True])
 def test_legacy_default_paths_migrate_only_if_missing(relocated_runtime, monkeypatch, exists):
     legacy_xr = runtime_paths.LEGACY_XR_SERVICE

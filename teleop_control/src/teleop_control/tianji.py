@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
 from .gdk_env import add_xr_runtime_env
-from .runtime_paths import resolve_robot_python
+from .runtime_paths import legacy_robot_python, resolve_robot_python
 from .tianji_config import camera_host, robot_configuration
 from .tianji_camera_credentials import import_credentials, resolve_credentials
 from .tianji_models import TianjiMove, TianjiParameters, TianjiStart
@@ -138,7 +138,7 @@ class TianjiManager:
         # Explicit overrides take priority over the relocated bundled robot runtime.
         python = os.environ.get("TIANJI_PYTHON") or os.environ.get("TELEOP_GDK_PYTHON")
         if not python:
-            python = resolve_robot_python()
+            python = resolve_robot_python() or legacy_robot_python()
         if python:
             python = str(Path(python).expanduser())
         env = add_xr_runtime_env(

@@ -100,7 +100,8 @@ def same_facing_map(head, robot_from_operator=None):
     Native pose contract: right-handed, +X right, +Y up, -Z forward.
     At calibration the operator looks in the same direction as the robot.
     Horizontal heading only; headset pitch/roll never tilt the robot world.
-    The controller keeps this rotation for the VR session, across clutches.
+    Each arm captures this rotation at its own clutch engagement and keeps it
+    fixed until that arm releases or otherwise re-anchors.
     """
     head = np.asarray(head, dtype=float)
     if head.shape != (4, 4) or not np.isfinite(head).all():

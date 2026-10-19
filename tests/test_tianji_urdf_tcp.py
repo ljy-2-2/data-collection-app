@@ -47,7 +47,11 @@ class URDFToolTests(unittest.TestCase):
                 j=next(j for j in cad['joints'] if j['name']==joint)
                 expected=expected@transform(j['xyz'],j['rpy'])
             np.testing.assert_allclose(T,expected,atol=1e-12)
-            np.testing.assert_allclose(T[:3,:3],[[0,0,-1],[0,1,0],[1,0,0]],atol=1e-10)
+            delta=np.pi/2 if side=='left' else -np.pi/2
+            mount=next(joint for joint in cad['joints'] if joint['name']==f'gripper_mount_{letter}')
+            self.assertAlmostEqual(mount['rpy'][2],np.pi/4+delta)
+            original=transform([0,0,0],[0,0,np.pi/4])@transform([-.009175,.009190,.202453],[0,-np.pi/2,-np.pi/4])
+            np.testing.assert_allclose(T,transform([0,0,0],[0,0,delta])@original,atol=1e-12)
             self.assertAlmostEqual(T[2,3],.202453)
             self.assertGreater(np.linalg.norm(T[:3,3]),.2)
     def test_changing_urdf_origin_changes_loaded_tool_without_json_edits(self):
