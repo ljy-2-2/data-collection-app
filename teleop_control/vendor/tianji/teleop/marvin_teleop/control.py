@@ -1,4 +1,4 @@
-"""Independent arm clutches and heading anchors, with shared collision checks."""
+"""Independent arm clutches with shared session heading and collision checks."""
 
 from dataclasses import dataclass, field
 import time
@@ -104,6 +104,7 @@ class Controller:
         self.suspend_reason = None
         self.resume_sides = set()
         self.resume_since = None
+        self.session_basis = self.session_head = None
 
     def start_session(self):
         """Enable once at measured pose; clutches never change servo power."""
@@ -292,11 +293,14 @@ class Controller:
             return
         if not a.preparing:
             try:
-                a.basis = same_facing_map(frame.head, self.models.robot_from_operator)
+                if self.session_basis is None:
+                    self.session_basis = same_facing_map(frame.head, self.models.robot_from_operator)
+                    self.session_head = frame.head.copy()
+                a.basis = self.session_basis.copy()
             except ValueError as error:
                 self.pause_side(side, str(error))
                 return
-            a.calibration_head = frame.head.copy()
+            a.calibration_head = self.session_head.copy()
         a.commanded = q[side].copy()
         a.joint_anchor = q[side].copy()
         self.holds[side] = q[side].copy()
@@ -452,6 +456,7 @@ class Controller:
             self._send({}, started, now)
             return
         if frame.session != self.session:
+            self.session_basis = self.session_head = None
             self.resume_sides.clear()
             self.resume_since = None
             self.pause("新 VR 会话：松开要操作一侧的握把")

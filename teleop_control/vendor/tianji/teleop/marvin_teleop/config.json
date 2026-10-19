@@ -46,5 +46,5 @@
       "tcp_link": "grasp_center_R"
     }
   },
-  "tool_tcp_note": "URDF is the geometry source of truth. Fixed midpoint of rubber-pad OBB centers at URDF full opening; nominal CAD reference, NOT measured physical calibration. Reload App/replay after changes."
+  "tool_tcp_note": "URDF is the geometry source of truth. Fixed motor-axis intersection with the plane containing both jaw pivot axes (142.225549599 mm from flange); nominal CAD reference, NOT measured physical calibration. Reload App/replay after changes."
 }

@@ -2,6 +2,7 @@
 import json,sys,tempfile,unittest
 from pathlib import Path
 import numpy as np
+import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 VENDOR=ROOT/'teleop_control/vendor/tianji'
 sys.path.insert(0,str(VENDOR/'teleop'))
@@ -50,10 +51,33 @@ class URDFToolTests(unittest.TestCase):
             delta=np.pi/2 if side=='left' else -np.pi/2
             mount=next(joint for joint in cad['joints'] if joint['name']==f'gripper_mount_{letter}')
             self.assertAlmostEqual(mount['rpy'][2],np.pi/4+delta)
-            original=transform([0,0,0],[0,0,np.pi/4])@transform([-.009175,.009190,.202453],[0,-np.pi/2,-np.pi/4])
+            original=transform([0,0,0],[0,0,np.pi/4])@transform([0,0,.142225549599],[0,-np.pi/2,-np.pi/4])
             np.testing.assert_allclose(T,transform([0,0,0],[0,0,delta])@original,atol=1e-12)
-            self.assertAlmostEqual(T[2,3],.202453)
-            self.assertGreater(np.linalg.norm(T[:3,3]),.2)
+            np.testing.assert_allclose(T[:3,3],[0,0,.142225549599],atol=1e-12)
+    def test_tcp_is_on_motor_axis_and_both_jaw_pivot_plane(self):
+        config_path=VENDOR/'teleop/marvin_teleop/config.json'
+        config=json.loads(config_path.read_text())
+        for side,letter in [('left','L'),('right','R')]:
+            tree=ET.parse(config_path.parent/config['tool_tcp'][side]['urdf'])
+            def joint(name):
+                node=tree.find(f"joint[@name='{name}_{letter}']")
+                origin=node.find('origin')
+                pose=transform(np.fromstring(origin.get('xyz'),sep=' '),
+                               np.fromstring(origin.get('rpy'),sep=' '))
+                axis=node.find('axis')
+                return node,pose,None if axis is None else pose[:3,:3]@np.fromstring(axis.get('xyz'),sep=' ')
+            tcp,pose,_=joint('grasp_center_fixed')
+            _,drive,axis=joint('gripper_drive')
+            _,a,axis_a=joint('gripper_jaw_1')
+            _,b,axis_b=joint('gripper_jaw_17')
+            self.assertEqual(tcp.get('type'),'fixed')
+            self.assertEqual(tcp.find('parent').get('link'),f'gripper_{letter}')
+            np.testing.assert_allclose(axis_a,axis_b,atol=1e-12)
+            normal=np.cross(b[:3,3]-a[:3,3],axis_a)
+            normal/=np.linalg.norm(normal)
+            self.assertLess(abs(normal@(pose[:3,3]-a[:3,3])),1e-12)
+            np.testing.assert_allclose(np.cross(pose[:3,3]-drive[:3,3],axis),0,atol=1e-12)
+            self.assertGreater(pose[2,3],drive[2,3])
     def test_changing_urdf_origin_changes_loaded_tool_without_json_edits(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'arm.urdf';self.write(p)

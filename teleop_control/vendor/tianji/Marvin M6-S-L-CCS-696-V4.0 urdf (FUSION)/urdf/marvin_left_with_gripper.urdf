@@ -818,11 +818,11 @@
     <child link="gripper_L" />
     <origin xyz="0 0 0" rpy="0 0 2.356194490192345" />
   </joint>
-  <!-- Nominal fixed TCP: midpoint of two rubber-pad OBB centers at URDF full opening; NOT physical calibration. xyz in metres; tool X=finger approach, Y=jaw opening, Z=right-handed normal. See description/grasp_center.txt. -->
+  <!-- Nominal fixed TCP: intersection of motor axis with the plane containing both fixed jaw pivot axes; NOT physical calibration. xyz in metres; tool X=finger approach, Y=jaw opening, Z=right-handed normal. See description/grasp_center.txt. -->
   <link name="grasp_center_L" />
   <joint name="grasp_center_fixed_L" type="fixed">
     <parent link="gripper_L" />
     <child link="grasp_center_L" />
-    <origin xyz="-0.009175 0.009190 0.202453" rpy="0 -1.5707963267948966 -0.7853981633974483" />
+    <origin xyz="0 0 0.142225549599" rpy="0 -1.5707963267948966 -0.7853981633974483" />
   </joint>
 </robot>

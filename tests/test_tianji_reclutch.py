@@ -1,4 +1,4 @@
-"""Per-arm heading capture with real kinematics and a simulated robot only."""
+"""Shared session heading with real kinematics and a simulated robot only."""
 from pathlib import Path
 import os
 import sys
@@ -35,13 +35,13 @@ def session(models, monkeypatch):
     for arm in models.arms.values():
         monkeypatch.setattr(arm, 'differential_ik', lambda target, reference, *args, **kwargs: reference.copy())
 
-    def tick(grips, yaw=0., hands=None, head=None, connected=True, elapsed=.01):
+    def tick(grips, yaw=0., hands=None, head=None, connected=True, elapsed=.01, session_id=1):
         clock[0] += elapsed
         if head is None:
             head = np.eye(4)
             head[:3, :3] = rotation([0, 1, 0], yaw)
         frame = Frame(
-            received=clock[0], session=1, sequence=round(clock[0]*1000),
+            received=clock[0], session=session_id, sequence=round(clock[0]*1000),
             source_time=clock[0], focused=True, tracked=True,
             hands=hands or {side: np.eye(4) for side in ('left', 'right')},
             head=head, grips=grips, stop=False,
@@ -53,18 +53,18 @@ def session(models, monkeypatch):
     return SimpleNamespace(controller=controller, robot=robot, models=models, tick=tick)
 
 
-def test_each_arm_captures_heading_when_it_engages(session):
+def test_both_arms_share_first_engagement_heading(session):
     first = session.tick({'left': 1., 'right': 0.})
     left = session.controller.arms['left']
     original_basis = left.basis.copy()
     second = session.tick({'left': 1., 'right': 1.}, yaw=np.pi/2)
     right = session.controller.arms['right']
     np.testing.assert_allclose(left.basis, same_facing_map(first.head, session.models.robot_from_operator))
-    np.testing.assert_allclose(right.basis, same_facing_map(second.head, session.models.robot_from_operator))
-    assert not np.allclose(left.basis, right.basis)
+    np.testing.assert_allclose(right.basis, same_facing_map(first.head, session.models.robot_from_operator))
+    np.testing.assert_allclose(left.basis, right.basis)
     session.tick({'left': 1., 'right': 1.}, yaw=-np.pi/2)
     np.testing.assert_allclose(left.basis, original_basis)
-    np.testing.assert_allclose(right.calibration_head, second.head)
+    np.testing.assert_allclose(right.calibration_head, first.head)
     for side, arm in session.controller.arms.items():
         np.testing.assert_allclose(arm.target_pose, arm.anchor[1], atol=1e-12)
 
@@ -80,7 +80,7 @@ def test_reclutch_refreshes_only_selected_arm_without_pose_jump(session, side):
     assert session.controller.arms[side].basis is None
     head_frame = session.tick(grips, yaw=np.pi/2)
     selected = session.controller.arms[side]
-    expected_basis = same_facing_map(head_frame.head, session.models.robot_from_operator)
+    expected_basis = peer_basis
     np.testing.assert_allclose(selected.basis, expected_basis)
     session.tick(grips, yaw=-np.pi/3)
     np.testing.assert_allclose(selected.target_pose, session.models.arms[side].fk(session.robot.q[side]), atol=1e-12)
@@ -139,21 +139,21 @@ def test_removing_displacement_cap_preserves_pose_jump_pause(session, side, jump
     assert session.controller.arms[peer].mode == 'ACTIVE'
 
 
-def test_invalid_reclutch_heading_pauses_only_selected_arm(session):
+def test_reclutch_while_looking_down_retains_session_heading(session):
     session.tick({'left': 1., 'right': 1.})
     peer_basis = session.controller.arms['right'].basis.copy()
     session.tick({'left': 0., 'right': 1.})
     head = np.eye(4)
     head[:3, :3] = rotation([1, 0, 0], np.pi/2)
     session.tick({'left': 1., 'right': 1.}, head=head)
-    assert session.controller.arms['left'].mode == 'WAIT_RELEASE'
-    assert session.controller.arms['left'].basis is None
+    assert session.controller.arms['left'].mode == 'ACTIVE'
+    np.testing.assert_allclose(session.controller.arms['left'].basis, peer_basis)
     assert session.controller.arms['right'].mode == 'ACTIVE'
     np.testing.assert_allclose(session.controller.arms['right'].basis, peer_basis)
     assert not session.controller.fault
 
 
-def test_short_input_gap_reanchors_with_fresh_heading(session):
+def test_short_input_gap_reanchors_but_preserves_heading(session):
     grips = {'left': 1., 'right': 1.}
     session.tick(grips)
     session.tick(grips, connected=False)
@@ -162,7 +162,7 @@ def test_short_input_gap_reanchors_with_fresh_heading(session):
     session.tick(grips, yaw=-np.pi/3)
     for arm in session.controller.arms.values():
         assert arm.mode == 'ACTIVE'
-        np.testing.assert_allclose(arm.basis, same_facing_map(frame.head, session.models.robot_from_operator))
+        np.testing.assert_allclose(arm.basis, same_facing_map(np.eye(4), session.models.robot_from_operator))
         np.testing.assert_allclose(arm.target_pose, arm.anchor[1], atol=1e-12)
 
 
@@ -174,3 +174,28 @@ def test_heading_capture_ignores_head_pitch_and_roll(session):
     level[:3, :3] = rotation([0, 1, 0], .7)
     np.testing.assert_allclose(session.controller.arms['left'].basis,
                                same_facing_map(level, session.models.robot_from_operator), atol=1e-12)
+
+
+def test_new_vr_session_captures_new_shared_heading(session):
+    grips = {'left': 1., 'right': 1.}
+    session.tick(grips)
+    old_basis = session.controller.session_basis.copy()
+    session.tick({'left': 0., 'right': 0.}, yaw=.7, session_id=2)
+    frame = session.tick(grips, yaw=.7, session_id=2)
+    expected = same_facing_map(frame.head, session.models.robot_from_operator)
+    assert not np.allclose(expected, old_basis)
+    session.tick(grips, yaw=-.2, session_id=2)
+    for arm in session.controller.arms.values():
+        np.testing.assert_allclose(arm.basis, expected)
+        np.testing.assert_allclose(arm.target_pose, arm.anchor[1], atol=1e-12)
+
+
+def test_invalid_first_heading_does_not_poison_later_capture(session):
+    head = np.eye(4)
+    head[:3, :3] = rotation([1, 0, 0], np.pi/2)
+    session.tick({'left': 1., 'right': 0.}, head=head)
+    assert session.controller.session_basis is None
+    assert session.controller.arms['left'].mode == 'WAIT_RELEASE'
+    frame = session.tick({'left': 0., 'right': 1.}, yaw=.4)
+    np.testing.assert_allclose(session.controller.arms['right'].basis,
+                               same_facing_map(frame.head, session.models.robot_from_operator))
