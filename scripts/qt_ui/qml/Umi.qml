@@ -20,6 +20,8 @@ Column {
     readonly property bool recordDialogOpen: discardDialog.visible
     property bool active: ["idle","error"].indexOf(status.state)<0
     property bool resolutionBusy: Object.values(backend.umiCameraResolution).some(v=>v.busy)
+    // Use the full content width on both pages, with the same square previews.
+    readonly property int cameraColumns: app.width<780 ? 1 : 3
     property bool canStart: !resolutionBusy && s.checkedProfile===s.profile && !check.stack_occupied && !!check.hardware_ready && !!check.pico_ready && sides.every(side=>s.minima[side]!==undefined && s.encoders[side] && s.encoders[side].online) && roles.filter(r=>r==="center" || sides.indexOf(r)>=0).every(r=>s.cameraRoles[r] && s.cameraLive[r]) && !s.busy
     function recordingDuration(seconds) {
         const total = Math.max(0, Math.floor(Number(seconds)||0))
@@ -60,16 +62,17 @@ Column {
             }
             Column {visible: Object.keys(root.check).length>0;width: parent.width;spacing: 10
                 Rectangle {width: parent.width;height: 1;color: Theme.line}
-                GridLayout {width: parent.width;columns: app.width<780?1:3;columnSpacing: 9;rowSpacing: 9
+                GridLayout {objectName: "umiPreflightCameras";width: parent.width;columns: root.cameraColumns;columnSpacing: 9;rowSpacing: 9
                     Repeater {model: 3
                         Rectangle {required property int index;property string role: root.roles[index];property bool active: role==="center" || root.sides.indexOf(role)>=0
-                            Layout.fillWidth: true;Layout.preferredHeight: width*.75+42+preflightControls.height;radius: 9;color: Theme.muted;border.color: Theme.line;opacity: active?1:.55
+                            objectName: "umiPreflightCard-"+role
+                            Layout.fillWidth: true;Layout.minimumWidth: 0;Layout.preferredWidth: 1;Layout.preferredHeight: width+41+preflightControls.height;radius: 9;color: Theme.muted;border.color: Theme.line;opacity: active?1:.55
                             RowLayout {x: 7;y: 5;width: parent.width-14;height: 32;spacing: 8
                                 Txt {text: root.titles[index];font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
                                 Select {Layout.fillWidth: true;height: 30;font.pixelSize: 11;model: root.candidateLabels;currentIndex: root.candidates.indexOf(s.cameraRoles[role]||"")+1;enabled: parent.parent.active && !s.busy;onActivated: backend.cameraRole(role,currentIndex>0?root.candidates[currentIndex-1]:"")}
                             }
                             Rectangle {x: 1;y: 42;width: parent.width-2;height: parent.height-43-preflightControls.height;color: Theme.dark?"#15202a":"#f5f6fc"
-                                CameraItem {id: camera;anchors.fill: parent;source: root.visible && s.page==="umi" && s.umiStep===2 && !s.busy && parent.parent.active && s.cameraRoles[role] ? backend.baseUrl+"/umi/device-cameras/"+encodeURIComponent(s.cameraRoles[role].replace(/^\/dev\//,"")) : "";onOnlineChanged: {let activeRole=role;let isOnline=online;Qt.callLater(function(){backend.cameraReady(activeRole,isOnline)})}}
+                                CameraItem {id: camera;objectName: "umiPreflightVideo-"+role;anchors.fill: parent;cropToFill: true;source: root.visible && s.page==="umi" && s.umiStep===2 && !s.busy && parent.parent.active && s.cameraRoles[role] ? backend.baseUrl+"/umi/device-cameras/"+encodeURIComponent(s.cameraRoles[role].replace(/^\/dev\//,"")) : "";onOnlineChanged: {let activeRole=role;let isOnline=online;Qt.callLater(function(){backend.cameraReady(activeRole,isOnline)})}}
                                 Txt {anchors.centerIn: parent;visible: !camera.online;text: parent.parent.active ? s.busy==="check-umi"?"检测中":"等待相机接入" : "未启用";font.pixelSize: 11;color: Theme.inkSoft}
                             }
                             Column {id: preflightControls;anchors.bottom: parent.bottom;width: parent.width
@@ -96,18 +99,17 @@ Column {
     Card {
         visible: s.umiStep===3;width: parent.width;height: monitor.height+24
         Column {id: monitor;x: 12;y: 12;width: parent.width-24;spacing: 9
-            RowLayout {width: parent.width
-                Column {Layout.fillWidth: true;spacing: 3
-                    Txt {text: "STEP 03";font.pixelSize: 11;font.bold: true;color: Theme.accentStrong}
-                    Txt {text: "采集监控";font.pixelSize: 15;font.weight: Font.DemiBold}
-                    Txt {text: s.umiTask+" · "+(s.profile==="dual"?"双臂":s.profile==="single-left"?"仅左臂":"仅右臂");font.pixelSize: 12;color: Theme.inkMuted}
-                }
+            RowLayout {id: monitorHeader;width: parent.width;height: 24;spacing: 12
+                Txt {text: "采集监控";font.pixelSize: 15;font.weight: Font.DemiBold}
+                Txt {Layout.fillWidth: true;text: s.umiTask+" · "+(s.profile==="dual"?"双臂":s.profile==="single-left"?"仅左臂":"仅右臂");font.pixelSize: 12;color: Theme.inkMuted}
                 Txt {text: "● "+(root.recording?"录制中":root.ready?"已就绪":root.active?(root.status.monitor_connected?"等待数据就绪":"启动中"):"未启动");font.pixelSize: 12;color: root.recording?Theme.red:root.ready?Theme.green:Theme.inkMuted}
             }
-            GridLayout {width: parent.width;columns: app.width<780?1:3;columnSpacing: 9;rowSpacing: 9
+            GridLayout {id: monitorCameras;objectName: "umiMonitorCameras";width: parent.width;columns: root.cameraColumns;columnSpacing: 9;rowSpacing: 9
                 Repeater {model: 3
                     Rectangle {required property int index;property string role: root.roles[index];property bool active: role==="center" || root.sides.indexOf(role)>=0
-                        Layout.fillWidth: true;Layout.preferredHeight: width*.75+34;radius: 9;border.color: Theme.line;color: Theme.muted;opacity: active?1:.55
+                        objectName: "umiMonitorCard-"+role
+                        Layout.fillWidth: true;Layout.minimumWidth: 0;Layout.preferredWidth: 1
+                        Layout.preferredHeight: width+33;radius: 9;border.color: Theme.line;color: Theme.muted;opacity: active?1:.55
                         RowLayout {x: 9;y: 3;width: parent.width-55;height: 28;spacing: 6
                             Txt {text: root.titles[index];color: Theme.accentStrong;font.pixelSize: 12;font.weight: Font.DemiBold}
                             Select {objectName: "umiLiveCameraSelect";Layout.fillWidth: true;height: 26;font.pixelSize: 10
@@ -119,7 +121,9 @@ Column {
                         }
                         Txt {anchors.right: parent.right;anchors.rightMargin: 9;y: 9;text: liveCamera.online?"LIVE":"--";font.pixelSize: 10;color: liveCamera.online?Theme.green:Theme.inkSoft}
                         Rectangle {x: 1;y: 34;width: parent.width-2;height: parent.height-35;color: Theme.dark?"#15202a":"#f5f6fc"
-                            CameraItem {id: liveCamera;anchors.fill: parent;source: root.visible && s.page==="umi" && s.umiStep===3 && root.active && parent.parent.active && s.busy!=="stop-umi" ? backend.baseUrl+"/umi/cameras/"+role : ""}
+                            // Fill the same square with all three images without
+                            // stretching. Edge cropping affects only this preview.
+                            CameraItem {id: liveCamera;objectName: "umiMonitorVideo-"+role;anchors.fill: parent;cropToFill: true;source: root.visible && s.page==="umi" && s.umiStep===3 && root.active && parent.parent.active && s.busy!=="stop-umi" ? backend.baseUrl+"/umi/cameras/"+role+"?native=true" : ""}
                             Rectangle {anchors.fill: parent;visible: !liveCamera.online && liveCamera.hasFrame;color: "#99000000"}
                             Txt {visible: !liveCamera.online;anchors.centerIn: parent;text: !parent.parent.active?"未启用":liveCamera.hasFrame?"画面中断，正在重连…":"等待视频流";font.pixelSize: 11;color: liveCamera.hasFrame?"white":Theme.inkSoft}
                         }
@@ -127,7 +131,7 @@ Column {
                     }
                 }
             }
-            Rectangle {width: parent.width;height: vrColumn.height+14;color: Theme.muted;radius: 9;border.color: Theme.line
+            Rectangle {id: vrPanel;width: parent.width;height: vrColumn.height+14;color: Theme.muted;radius: 9;border.color: Theme.line
                 Column {id: vrColumn;x: 9;y: 7;width: parent.width-18;spacing: 5
                     Txt {text: "VR 状态";font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
                     GridLayout {width: parent.width;columns: app.width<620?1:3;columnSpacing: 6;rowSpacing: 6
@@ -148,7 +152,7 @@ Column {
                     }
                 }
             }
-            GridLayout {width: parent.width;columns: app.width<1000?1:2;columnSpacing: 9;rowSpacing: 9
+            GridLayout {id: monitorDetails;objectName: "umiMonitorDetails";width: parent.width;columns: app.width<1000?1:2;columnSpacing: 9;rowSpacing: 9
                 Rectangle {Layout.fillWidth: true;Layout.preferredHeight: 198;color: Theme.muted;border.color: Theme.line;radius: 9
                     Txt {x: 9;y: 7;text: "磁编码器";font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
                     RowLayout {x: 9;y: 30;width: parent.width-18;spacing: 6

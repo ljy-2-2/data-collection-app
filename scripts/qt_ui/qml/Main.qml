@@ -118,7 +118,7 @@ ApplicationWindow {
                 Stepper {objectName: "pageStepper";visible: s.page!=="ego";width: parent.width;titles: s.page==="umi"?["选择配置","检查硬件","采集监控"]:["选择配置","遥操作采集"];step: s.page==="umi"?s.umiStep:s.teleopStep;returnVisible: s.page==="teleop"&&s.teleopStep===2;returnEnabled: !teleop.locked;onReturnClicked: backend.returnTeleop()}
                 Setup {width: parent.width;visible: s.page==="teleop"&&s.teleopStep===1}
                 Teleop {id: teleop;objectName: "teleopWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2}
-                Umi {id: umiPanel;width: parent.width;visible: s.page==="umi"}
+                Umi {id: umiPanel;objectName: "umiWorkspace";width: parent.width;visible: s.page==="umi"}
                 Card {visible: s.page==="ego";width: parent.width;height: 580}
                 Btn {visible: app.narrow;text: "退出登录";glyph: "LogOut";ghost: true;enabled: !s.busy;onClicked: backend.logout()}
             }

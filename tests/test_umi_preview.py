@@ -173,7 +173,9 @@ def test_stream_recovers_after_native_decoder_rejects_a_frame(monkeypatch):
     asyncio.run(run())
 
 
-def test_preview_caps_conversion_starts_at_24_fps_without_catchup(monkeypatch):
+@pytest.mark.parametrize('fps', [24, 30])
+def test_preview_caps_conversion_starts_without_catchup(monkeypatch, fps):
+    monkeypatch.setattr(preview, 'PREVIEW_FPS', fps)
     async def run():
         incoming = asyncio.Queue()
         closed = []
@@ -203,7 +205,7 @@ def test_preview_caps_conversion_starts_at_24_fps_without_catchup(monkeypatch):
             for index in range(49):
                 incoming.put_nowait(str(index).encode())
                 assert preview.MjpegFrames().feed(await anext(stream)) == str(index).encode()
-            assert starts == pytest.approx([index / 24 for index in range(49)])
+            assert starts == pytest.approx([index / fps for index in range(49)])
             # A slow UI resumes with a current frame, without trying to catch
             # up missed display slots or doing an unnecessary pacing sleep.
             now[0] = 10.0
@@ -323,8 +325,9 @@ def test_slow_conversion_does_not_block_receiver_or_queue_old_frames(monkeypatch
     asyncio.run(run())
 
 
+@pytest.mark.parametrize('native', [False, True])
 @pytest.mark.parametrize('failure', [False, True])
-def test_last_frame_survives_eof_and_upstream_errors_are_reported(monkeypatch, failure):
+def test_last_frame_survives_eof_and_upstream_errors_are_reported(monkeypatch, failure, native):
     async def run():
         closed = []
 
@@ -339,7 +342,7 @@ def test_last_frame_survives_eof_and_upstream_errors_are_reported(monkeypatch, f
 
         use_source(monkeypatch, Source())
         monkeypatch.setattr(preview, 'preview_jpeg', lambda frame: frame)
-        stream = preview.preview_stream('http://test/stream')
+        stream = preview.preview_stream('http://test/stream', native=native)
         assert preview.MjpegFrames().feed(await anext(stream)) == b'last-frame'
         with pytest.raises(httpx.ReadError if failure else StopAsyncIteration):
             await anext(stream)
@@ -382,7 +385,8 @@ def test_cancelling_during_pacing_closes_upstream(monkeypatch):
     asyncio.run(run())
 
 
-def test_closing_slow_viewer_with_pending_frame_does_not_wait_for_queue(monkeypatch):
+@pytest.mark.parametrize('native', [False, True])
+def test_closing_slow_viewer_with_pending_frame_does_not_wait_for_queue(monkeypatch, native):
     async def run():
         incoming = asyncio.Queue()
         received = asyncio.Queue()
@@ -400,7 +404,7 @@ def test_closing_slow_viewer_with_pending_frame_does_not_wait_for_queue(monkeypa
 
         use_source(monkeypatch, Source())
         monkeypatch.setattr(preview, 'preview_jpeg', lambda frame: frame)
-        stream = preview.preview_stream('http://test/stream')
+        stream = preview.preview_stream('http://test/stream', native=native)
         incoming.put_nowait(b'first')
         assert await anext(stream)
         assert await received.get() == b'first'
@@ -412,7 +416,8 @@ def test_closing_slow_viewer_with_pending_frame_does_not_wait_for_queue(monkeypa
     asyncio.run(run())
 
 
-def test_slow_display_keeps_latest_frame_and_cancellation_closes_upstream(monkeypatch):
+@pytest.mark.parametrize('native', [False, True])
+def test_slow_display_keeps_latest_frame_and_cancellation_closes_upstream(monkeypatch, native):
     original=httpx.AsyncClient;closed=[];sent=[]
     async def run():
         release=asyncio.Event();ready=asyncio.Event()
@@ -426,7 +431,7 @@ def test_slow_display_keeps_latest_frame_and_cancellation_closes_upstream(monkey
                 await asyncio.Event().wait()
             async def aclose(self):closed.append(True)
         monkeypatch.setattr(preview.httpx,'AsyncClient',lambda **kw:original(transport=httpx.MockTransport(lambda _:httpx.Response(200,stream=Source())),**kw))
-        stream=preview.preview_stream('http://test/stream')
+        stream=preview.preview_stream('http://test/stream', native=native)
         assert await anext(stream)
         release.set();await ready.wait()
         frame=preview.MjpegFrames().feed(await anext(stream))
@@ -434,3 +439,88 @@ def test_slow_display_keeps_latest_frame_and_cancellation_closes_upstream(monkey
         assert color[0]>200 and color[1]>200 and color[2]<30,color
         await stream.aclose()
     asyncio.run(run());assert closed and len(sent)==3
+
+
+def test_native_desktop_preserves_every_jpeg_without_conversion_or_second_clock(monkeypatch):
+    async def run():
+        incoming = asyncio.Queue()
+        closed = []
+
+        class Source(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                while True:
+                    yield preview.multipart(await incoming.get())
+
+            async def aclose(self):
+                closed.append(True)
+
+        def forbidden(*args):
+            pytest.fail('Native desktop frames must not be decoded/re-encoded or paced twice')
+
+        use_source(monkeypatch, Source())
+        monkeypatch.setattr(preview, 'preview_jpeg', forbidden)
+        now = [0.0]
+        stream = preview.preview_stream('http://test/stream', native=True,
+                                        clock=lambda: now[0], sleep=forbidden)
+        originals = [jpeg('red', (1920, 1080)), jpeg('blue', (1280, 1024))]
+        try:
+            # Early/late 30 Hz source frames must not acquire a second pacing
+            # delay or a second compression loss. Slow viewers are covered above.
+            for index in range(90):
+                now[0] += (1 / 30) + (0.004 if index % 2 else -0.004)
+                original = originals[index % 2]
+                incoming.put_nowait(original)
+                displayed = preview.MjpegFrames().feed(await asyncio.wait_for(anext(stream), 2))
+                assert displayed == original
+        finally:
+            await stream.aclose()
+        assert closed == [True]
+
+    asyncio.run(run())
+
+
+def test_stalled_native_camera_does_not_block_other_two_streams(monkeypatch):
+    async def run():
+        queues = {role: asyncio.Queue() for role in ('left', 'center', 'right')}
+        closed = []
+        original = httpx.AsyncClient
+
+        class Source(httpx.AsyncByteStream):
+            def __init__(self, role):
+                self.role = role
+
+            async def __aiter__(self):
+                while True:
+                    yield preview.multipart(await queues[self.role].get())
+
+            async def aclose(self):
+                closed.append(self.role)
+
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(200, stream=Source(request.url.path.strip('/'))))
+        monkeypatch.setattr(preview.httpx, 'AsyncClient',
+                            lambda **kw: original(transport=transport, **kw))
+        streams = {role: preview.preview_stream('http://test/' + role, native=True)
+                   for role in queues}
+        stalled = asyncio.create_task(anext(streams['center']))
+        try:
+            # Center delivers no bytes at all. Both wrists must still advance
+            # independently, not wait on a shared frame barrier/encoder.
+            for index in range(60):
+                for role in ('left', 'right'):
+                    data = f'{role}-{index}'.encode()
+                    queues[role].put_nowait(data)
+                    frame = await asyncio.wait_for(anext(streams[role]), 1)
+                    assert preview.MjpegFrames().feed(frame) == data
+            assert not stalled.done()
+            queues['center'].put_nowait(b'recovered')
+            assert preview.MjpegFrames().feed(await asyncio.wait_for(stalled, 1)) == b'recovered'
+        finally:
+            if not stalled.done():
+                stalled.cancel()
+                await asyncio.gather(stalled, return_exceptions=True)
+            for stream in streams.values():
+                await stream.aclose()
+        assert sorted(closed) == ['center', 'left', 'right']
+
+    asyncio.run(run())

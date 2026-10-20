@@ -53,6 +53,35 @@ def test_umi_camera_prefers_native_stream_without_fps_cap(camera, expected_url):
     assert _umi_camera_upstream(camera, "http://127.0.0.1:8770") == expected_url
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_umi_monitor_native_mode_is_explicit_and_independent_of_raw_transport(monkeypatch, native):
+    import asyncio
+    from teleop_control import app as module
+    calls = []
+
+    async def stream(url, **options):
+        calls.append((url, options))
+        yield b"camera-jpeg"
+
+    monkeypatch.setattr(module, "preview_stream", stream)
+    provider = SimpleNamespace(
+        monitor_url="http://127.0.0.1:8770",
+        status=lambda: SimpleNamespace(monitor={"cameras": [
+            {"key": "left", "direct_url": "http://127.0.0.1:9091/stream?topic=/left"}
+        ]}),
+    )
+    app = create_app(MockController(), cors_origins=[], umi=provider)
+    endpoint = next(route.endpoint for route in app.routes if route.path == "/umi/cameras/{camera_key}")
+
+    async def request():
+        response = await endpoint("left", raw=True, native=native)
+        assert response.media_type == "application/octet-stream"
+        assert b"".join([chunk async for chunk in response.body_iterator]) == b"camera-jpeg"
+
+    asyncio.run(request())
+    assert calls == [("http://127.0.0.1:9091/stream?topic=/left", {"native": native})]
+
+
 @pytest.mark.parametrize("raw", [False, True])
 def test_umi_preview_raw_transport_keeps_video_bytes_and_releases_stream(raw):
     import asyncio

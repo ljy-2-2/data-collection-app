@@ -422,7 +422,7 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/umi/cameras/{camera_key}")
-    async def umi_camera(camera_key: str, raw: bool = False):
+    async def umi_camera(camera_key: str, raw: bool = False, native: bool = False):
         provider = require_umi()
         state = await asyncio.to_thread(provider.status)
         camera = next(
@@ -437,7 +437,7 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         return StreamingResponse(
-            preview_stream(upstream_url),
+            preview_stream(upstream_url, native=native),
             media_type="application/octet-stream" if raw else "multipart/x-mixed-replace; boundary=boundarydonotcross",
             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
         )
