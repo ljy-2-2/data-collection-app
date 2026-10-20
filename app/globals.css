@@ -1,7 +1,6 @@
 @import 'tailwindcss' source(none);
 @source '.';
 @source '../components';
-@source '../hooks';
 @source '../lib';
 
 :root {

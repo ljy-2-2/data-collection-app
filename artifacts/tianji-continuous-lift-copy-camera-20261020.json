@@ -1,0 +1,477 @@
+{
+  "date": "2026-10-20",
+  "motion_revision": "mirrored_continuous_pose_ik_v6",
+  "desktop_workspace_updated": true,
+  "install": {
+    "workspace": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261019153315.standalone.local20261019090404",
+    "updated_files": [
+      "README.md",
+      "teleop_control/src/teleop_control/tianji.py",
+      "teleop_control/src/teleop_control/tianji_preview_recovery.py",
+      "fusion_data_collection/FusionDataCollector/controller_v22/server.py",
+      "fusion_data_collection/FusionDataCollector/controller_v22/streaming.py",
+      "scripts/update_tianji_camera_stream.py"
+    ],
+    "private_configuration_unchanged": true,
+    "motion_revision": "mirrored_continuous_pose_ik_v6",
+    "coordinate_revision": "vendor_cad_same_facing_v2",
+    "patch_version": "0.1.0+20261019153315.standalone.local20261020041646",
+    "system_package_updated": false,
+    "robot_motion_commands_sent": false,
+    "physical_motion_validation": "pending on-site validation",
+    "backup": "/home/ljy/桌面/galaxis/data-collection-app/.build-cache/raised-arms-text-camera/backup-camera-workspace"
+  },
+  "installer": "/home/ljy/桌面/galaxis/data-collection-app/dist-packages/xiaokai-lab-data-collection_0.1.0+20261019153315.standalone.local20261020041646_amd64.deb",
+  "installer_sha256": "bdc3cb5785934911acac556df49425cbcbad24d9d3b555076e015e3f2c87bec7",
+  "root_cause": [
+    "Each hand target restarted a posture attraction near positional singularity",
+    "The old nullspace direction and acceptance objective were inconsistent, rejecting useful continuous motion"
+  ],
+  "correction": [
+    "One finite posture continuation budget per clutch; never restarted by hand samples",
+    "Consistent pose/posture objective, gradient and constrained Hessian; final tracking uses pose objective only",
+    "Four numerical iterations per arm/tick; common joint velocity, acceleration and stopping domain retained"
+  ],
+  "validation": {
+    "offline_regression_tests_passed": 640,
+    "additional_pedal_and_clipboard_tests_passed": true,
+    "real_installed_qt_clipboard_test_passed": true,
+    "package_startup_smoke_passed": true,
+    "source_package_desktop_hashes_equal": true,
+    "singular_held_stress_cases": 64,
+    "stress_failures": 0,
+    "maximum_stationary_joint_range_deg": 0.0,
+    "input_rate_control_replays": [
+      {
+        "input_hz": 30,
+        "cycles": 1000,
+        "controller_p95_ms": 4.374260874465108,
+        "controller_max_ms": 6.522401934489608,
+        "unexpected_pauses": 0,
+        "robot": "SimRobot only"
+      },
+      {
+        "input_hz": 60,
+        "cycles": 1000,
+        "controller_p95_ms": 5.084805662045255,
+        "controller_max_ms": 9.844330023042858,
+        "unexpected_pauses": 0,
+        "robot": "SimRobot only"
+      },
+      {
+        "input_hz": 90,
+        "cycles": 1000,
+        "controller_p95_ms": 4.567547328770161,
+        "controller_max_ms": 9.142469032667577,
+        "unexpected_pauses": 0,
+        "robot": "SimRobot only"
+      }
+    ],
+    "vr_like_lift_simulations": [
+      {
+        "name": "up_zero",
+        "before": {
+          "near_zero_motion_ticks": 467,
+          "maximum_tcp_speed_m_s": 0.8036584185061073
+        },
+        "after": {
+          "near_zero_motion_ticks": 0,
+          "maximum_tcp_speed_m_s": 0.1259126344829583
+        }
+      },
+      {
+        "name": "up_folded",
+        "before": {
+          "near_zero_motion_ticks": 500,
+          "maximum_tcp_speed_m_s": 0.6130742284989539
+        },
+        "after": {
+          "near_zero_motion_ticks": 0,
+          "maximum_tcp_speed_m_s": 0.09389674657372454
+        }
+      },
+      {
+        "name": "up_inward",
+        "before": {
+          "near_zero_motion_ticks": 0,
+          "maximum_tcp_speed_m_s": 0.14365446858183603
+        },
+        "after": {
+          "near_zero_motion_ticks": 0,
+          "maximum_tcp_speed_m_s": 0.14552442509731697
+        }
+      },
+      {
+        "name": "hands_up",
+        "before": {
+          "near_zero_motion_ticks": 357,
+          "maximum_tcp_speed_m_s": 0.8542541423942425
+        },
+        "after": {
+          "near_zero_motion_ticks": 0,
+          "maximum_tcp_speed_m_s": 0.09783028336278767
+        }
+      }
+    ],
+    "noise_stress_cases": [
+      {
+        "case": 0,
+        "noise_m": 0.0002,
+        "range_deg": 0.16038199739279158,
+        "max_speed_deg_s": 3.000177105999846
+      },
+      {
+        "case": 0,
+        "noise_m": 0.0005,
+        "range_deg": 0.35419628094455646,
+        "max_speed_deg_s": 2.91450833436393
+      },
+      {
+        "case": 7,
+        "noise_m": 0.0002,
+        "range_deg": 0.03069349743559968,
+        "max_speed_deg_s": 0.8994890994195259
+      },
+      {
+        "case": 7,
+        "noise_m": 0.0005,
+        "range_deg": 0.08579504248425707,
+        "max_speed_deg_s": 2.097644396645748
+      },
+      {
+        "case": 59,
+        "noise_m": 0.0002,
+        "range_deg": 0.04924874451729977,
+        "max_speed_deg_s": 0.9195342174862731
+      },
+      {
+        "case": 59,
+        "noise_m": 0.0005,
+        "range_deg": 0.07184211792926476,
+        "max_speed_deg_s": 1.6980349638784809
+      },
+      {
+        "case": 62,
+        "noise_m": 0.0002,
+        "range_deg": 0.07625154340046514,
+        "max_speed_deg_s": 4.327750470269809
+      },
+      {
+        "case": 62,
+        "noise_m": 0.0005,
+        "range_deg": 0.13699822590477218,
+        "max_speed_deg_s": 3.238280671332028
+      }
+    ],
+    "additional_failed_round_recovery_tests_passed": 29
+  },
+  "camera": {
+    "resolved": false,
+    "cold_start_validation": "Both real camera streams and two consecutive start/stop cycles passed; hotplug fault remains under investigation",
+    "usb_devices": [
+      "1-2: 32e4:9230",
+      "1-4: 32e4:9230"
+    ],
+    "standard_readonly_usb_requests": [
+      {
+        "bus": 1,
+        "device_descriptor": {
+          "data": [],
+          "result": -7
+        },
+        "device_status": {
+          "data": [],
+          "result": -7
+        },
+        "address": 11,
+        "language_descriptor": {
+          "data": [],
+          "result": -7
+        },
+        "path": "1-2",
+        "open": 0
+      },
+      {
+        "bus": 1,
+        "device_descriptor": {
+          "data": [],
+          "result": -7
+        },
+        "device_status": {
+          "data": [],
+          "result": -7
+        },
+        "address": 8,
+        "language_descriptor": {
+          "data": [],
+          "result": -7
+        },
+        "path": "1-4",
+        "open": 0
+      }
+    ],
+    "real_video_frames_received_this_turn": 754,
+    "service_changed_this_turn": false,
+    "usb_reset_performed_this_turn": false,
+    "direct_stream_runs": [
+      {
+        "repeat": 0,
+        "frames": {
+          "usb-2": 207,
+          "usb-4": 180
+        },
+        "mean_received_fps": {
+          "usb-2": 29.816039590663948,
+          "usb-4": 29.804687089666427
+        }
+      },
+      {
+        "repeat": 1,
+        "frames": {
+          "usb-2": 187,
+          "usb-4": 180
+        },
+        "mean_received_fps": {
+          "usb-2": 29.82058911976167,
+          "usb-4": 29.822461942476867
+        }
+      }
+    ],
+    "full_production_preview_to_qt": {
+      "usb_2": {
+        "decoded_frames": 213,
+        "decoded_fps": 26.708829341983737,
+        "online": true
+      },
+      "usb_4": {
+        "decoded_frames": 213,
+        "decoded_fps": 27.475180806515198,
+        "online": true
+      },
+      "camera_error": "",
+      "phase": "streaming"
+    },
+    "service_fault_after_cold_start": null,
+    "reproduced_service_latch_fixed": true,
+    "hotplug_recovery_verified": true,
+    "camera_inventory_sequence": [
+      [],
+      [
+        "usb_2",
+        "usb_4"
+      ],
+      [
+        "usb_4"
+      ],
+      [
+        "usb_2",
+        "usb_4"
+      ],
+      [],
+      [
+        "usb_2"
+      ],
+      [
+        "usb_2",
+        "usb_4"
+      ]
+    ],
+    "final_qt_decoded_fps": {
+      "usb_2": 29.83357067602458,
+      "usb_4": 29.401200086516976
+    },
+    "preview_gap_recoveries": [
+      {
+        "kind": "preview_gap_recovered",
+        "monotonic": 590581.566105266,
+        "wall_time": 1792469793.307343,
+        "attempt": 1
+      },
+      {
+        "kind": "preview_gap_recovered",
+        "monotonic": 590606.454141966,
+        "wall_time": 1792469818.1953793,
+        "attempt": 1
+      },
+      {
+        "kind": "preview_gap_recovered",
+        "monotonic": 590647.956922878,
+        "wall_time": 1792469859.6981604,
+        "attempt": 1
+      },
+      {
+        "kind": "preview_gap_recovered",
+        "monotonic": 590652.827468881,
+        "wall_time": 1792469864.5687063,
+        "attempt": 1
+      }
+    ],
+    "controller_release_backup": "/mnt/fusion-camera/releases/teleop-v23-20261020-201439-4mmNfG",
+    "controller_camera_service_updated": true,
+    "final_state": {
+      "status": {
+        "fault": null,
+        "recovery_count": 4,
+        "last_stream": {
+          "native_termination": "client_stop",
+          "joint_skipped_ticks": 0,
+          "stop_reason": "client_stop",
+          "joint_max_lateness_ns": 4463036,
+          "cameras": [
+            "usb-2",
+            "usb-4"
+          ],
+          "joint_samples": 2827,
+          "frames": [
+            0,
+            844,
+            817
+          ],
+          "native_exit": 0,
+          "native_failure_reason": "",
+          "joint_hz": 100,
+          "recoverable_camera_fault": false,
+          "error": null,
+          "observation_mode": "teleop_observation",
+          "ok": true,
+          "type": "end",
+          "native_cleanup_timed_out": false,
+          "native_diagnostics_tail": [
+            "attempt to claim already-claimed interface 1",
+            "{\"usb_altsetting\":6,\"negotiated_payload\":3072,\"selected_packet_bytes\":3072}",
+            "{\"camera\":1,\"first_source_sequence\":1}",
+            "unsupported descriptor subtype VS_COLORFORMAT",
+            "unsupported descriptor subtype VS_STILL_IMAGE_FRAME",
+            "unsupported descriptor subtype VS_COLORFORMAT",
+            "{\"camera\":2,\"address\":10,\"format\":\"mjpeg\",\"width\":1024,\"height\":768,\"interval_100ns\":333333,\"max_payload\":3072}",
+            "attempt to claim already-claimed interface 1",
+            "{\"usb_altsetting\":6,\"negotiated_payload\":3072,\"selected_packet_bytes\":3072}",
+            "{\"camera\":2,\"first_source_sequence\":1}",
+            "{\"pipeline\":\"teleop_queue_sender\",\"queue_depth_per_camera\":8,\"format\":\"mjpeg\",\"width\":1024,\"height\":768,\"timestamp_kind\":\"controller_monotonic_frame_completion\"}",
+            "{\"event\":\"teleop_health\",\"captured\":[0,177,150],\"sent\":[0,177,150],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+            "{\"event\":\"teleop_health\",\"captured\":[0,326,299],\"sent\":[0,326,299],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+            "{\"event\":\"teleop_health\",\"captured\":[0,476,449],\"sent\":[0,476,449],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+            "{\"event\":\"teleop_health\",\"captured\":[0,625,598],\"sent\":[0,625,598],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+            "{\"event\":\"teleop_health\",\"captured\":[0,774,747],\"sent\":[0,774,747],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+            "{\"event\":\"rt_final\",\"task\":\"RTPSI\",\"cpu\":1,\"pid\":2030,\"msw\":0,\"csw\":1728263,\"pf\":0,\"process_start_ticks\":1686}",
+            "{\"event\":\"rt_final\",\"task\":\"FX_RtTask\",\"cpu\":1,\"pid\":0,\"msw\":0,\"csw\":1727126,\"pf\":0,\"process_start_ticks\":0}",
+            "{\"event\":\"teleop_final\",\"captured\":[0,844,817],\"sent\":[0,844,817],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+            "{\"exit\":0,\"normal_signal_stop\":true}"
+          ]
+        },
+        "captures": 0,
+        "camera_inventory_events": true,
+        "bytes": 0,
+        "recoverable_camera_fault": false,
+        "observation_modes": [
+          "stationary",
+          "teleop_observation"
+        ],
+        "stream_camera_selection": true,
+        "ok": true,
+        "teleop_rt_policy": "teleop_observation_v1",
+        "graceful_stop": true,
+        "stream_hz": 30,
+        "idle": true,
+        "supported_joint_hz": [
+          30,
+          100
+        ],
+        "version": "2.3.2",
+        "mode": "snapshot_and_stream",
+        "camera_hotplug_recovery": true,
+        "max_stream_seconds": 600,
+        "last_snapshot_error": null,
+        "cooldown_seconds": 2
+      },
+      "cameras": [
+        {
+          "available": false,
+          "vid": "0bda",
+          "format": "yuyv",
+          "usb_path": "1-1",
+          "bus": null,
+          "pid": "5883",
+          "height": 480,
+          "width": 640,
+          "fps": 30,
+          "address": null,
+          "id": "usb-1"
+        },
+        {
+          "available": true,
+          "vid": "32e4",
+          "format": "mjpeg",
+          "usb_path": "1-2",
+          "bus": 1,
+          "pid": "9230",
+          "height": 768,
+          "width": 1024,
+          "fps": 30,
+          "address": 9,
+          "id": "usb-2"
+        },
+        {
+          "available": true,
+          "vid": "32e4",
+          "format": "mjpeg",
+          "usb_path": "1-4",
+          "bus": 1,
+          "pid": "9230",
+          "height": 768,
+          "width": 1024,
+          "fps": 30,
+          "address": 10,
+          "id": "usb-4"
+        }
+      ]
+    },
+    "underlying_usb_host_timeout_repair_verified": false,
+    "remaining_limit": "A genuine USB host/controller communication failure is not repaired by this preview reconnect; such errors remain visible. No host reset or kernel/robot service change performed."
+  },
+  "physical_robot_motion_tested": false,
+  "robot_motion_commands_sent": false,
+  "umi_video_changes": "None; user requested assessment before deciding",
+  "umi_offline_qt_decode_comparison": {
+    "scope": "Only final Qt JPEG decode and resize; one representative 960px preview JPEG, not a live UMI FPS test",
+    "preview_fps_cap": 24,
+    "preview_bounds": [
+      960,
+      768
+    ],
+    "measurements": [
+      {
+        "display": [
+          560,
+          420
+        ],
+        "median_decode_ms": 3.039621456991881,
+        "p95_decode_ms": 3.905688994564116
+      },
+      {
+        "display": [
+          350,
+          263
+        ],
+        "median_decode_ms": 1.8502480234019458,
+        "p95_decode_ms": 2.171503030695021
+      },
+      {
+        "display": [
+          240,
+          180
+        ],
+        "median_decode_ms": 1.442771521396935,
+        "p95_decode_ms": 1.6779600409790874
+      },
+      {
+        "display": [
+          175,
+          131
+        ],
+        "median_decode_ms": 1.5727185527794063,
+        "p95_decode_ms": 1.9873959245160222
+      }
+    ]
+  }
+}

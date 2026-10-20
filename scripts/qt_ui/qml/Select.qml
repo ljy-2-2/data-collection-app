@@ -12,12 +12,12 @@ ComboBox {
     delegate: ItemDelegate {
         width: control.width
         height: 34
-        contentItem: Txt {text: control.textRole ? modelData[control.textRole] : modelData; color: highlighted ? Theme.accentStrong : Theme.ink}
+        contentItem: Txt {selectable: false;text: control.textRole ? modelData[control.textRole] : modelData; color: highlighted ? Theme.accentStrong : Theme.ink}
         highlighted: control.highlightedIndex === index
         background: Rectangle {color: highlighted ? Theme.accentSoft : Theme.surface}
     }
     indicator: Image {x: control.width - 24;y: (control.height-height)/2;width: 15;height: 15;source: Theme.icon("ChevronDown")}
-    contentItem: Txt {text: control.displayText; color: Theme.ink; font.pixelSize: control.font.pixelSize}
+    contentItem: Txt {selectable: false;text: control.displayText; color: Theme.ink; font.pixelSize: control.font.pixelSize}
     background: Rectangle {color: Theme.dark ? "#303030" : Theme.surface;radius: 7;border.color: control.activeFocus ? Theme.accentStrong : Theme.lineStrong}
     popup: Popup {
         y: control.height+3;width: control.width;padding: 4

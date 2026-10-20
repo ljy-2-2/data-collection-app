@@ -7,6 +7,7 @@ import atexit
 import json
 import io
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -22,15 +23,18 @@ from .gdk_env import add_xr_runtime_env
 from .runtime_paths import legacy_robot_python, resolve_robot_python
 from .tianji_config import camera_host, robot_configuration
 from .tianji_camera_credentials import import_credentials, resolve_credentials
-from .tianji_models import TianjiMove, TianjiParameters, TianjiStart
+from .tianji_models import TianjiMove, TianjiParameters, TianjiStart, TianjiCameraSettings
 from .tianji_gripper_config import stored_parameters, parameter_storage, synchronized_gripper_endpoints
 from .tianji_collection import TianjiCollection
 from .tianji_camera_session import CameraSession
 from .tianji_camera_recovery import restart_local_preview
+from .tianji_preview_recovery import recover_preview_gap, inventory_changed
+from .tianji_camera_settings import CameraSettings
 
 APP_ROOT = Path(__file__).resolve().parents[3]
 RUNTIME = APP_ROOT / "teleop_control/runtime/tianji"
-CAMERAS = ("usb_1", "usb_2", "usb_4")
+CAMERAS = ("usb_1", "usb_2", "usb_4")  # Legacy controller continuous-stream group.
+CAMERA_LABELS = {"usb_1": "主相机", "usb_2": "右腕部相机", "usb_4": "左腕部相机"}
 
 
 class TianjiManager:
@@ -48,6 +52,9 @@ class TianjiManager:
         self.error = ""
         self.camera_error = ""
         self.frames = {}
+        self.camera_frame_metadata = {}
+        self.camera_inventory = {}
+        self.camera_preview_mode = "stream"
         self.camera_thread = None
         self.camera_client = None
         self.camera_session = None
@@ -60,6 +67,7 @@ class TianjiManager:
         self.camera_recovery_cancel = threading.Event()
         self.diagnostic_events = deque(maxlen=64)
         self.collection = TianjiCollection(self)
+        self.camera_settings = CameraSettings(self)
         atexit.register(self.close)
 
     def active(self):
@@ -166,6 +174,9 @@ class TianjiManager:
         if action == "stop":
             return self._command(action, payload)
         with self.command_lock:
+            zero_recovery = action == "move" and (payload or {}).get("kind") == "zero"
+            if zero_recovery and (self.collection.armed or self.collection.active()):
+                raise ValueError("请先停止遥操作和采集，再执行回零恢复")
             if action == "check":
                 self.require_other_idle()
                 if self.collection.armed or self.collection.active():
@@ -174,7 +185,7 @@ class TianjiManager:
                 with self.lock:
                     self.checking_devices = True
             try:
-                if action == "check" and not self.active():
+                if (action == "check" or zero_recovery) and not self.active():
                     self._launch()
                 return self._command(action, payload)
             finally:
@@ -277,10 +288,12 @@ class TianjiManager:
             value["cameras"] = [
                 {
                     "id": c,
-                    "available": c in self.frames and time.monotonic() - self.frames[c][1] < 2,
+                    "label": CAMERA_LABELS.get(c, c),
+                    "connected": True,
+                    "available": c in self.frames and time.monotonic() - self.frames[c][1] < self.camera_frame_ttl,
                     "updated_at": self.frames[c][1] if c in self.frames else None,
                 }
-                for c in CAMERAS
+                for c in self.camera_inventory
             ]
             grippers = value.get("grippers")
             if grippers:
@@ -291,6 +304,8 @@ class TianjiManager:
                         feedback["age_s"] = time.monotonic() - feedback.get("received", 0)
             value["camera_error"] = self.camera_error
             value["camera_phase"] = self.camera_phase
+            value["camera_preview_mode"] = self.camera_preview_mode
+            value['camera_settings'], value['camera_settings_busy'] = self.camera_settings.snapshot()
             value["collection"] = self.collection.snapshot()
             value["recording"] = value["collection"]["recording"]
             return value
@@ -318,21 +333,23 @@ class TianjiManager:
         return parameters
 
     def start_cameras(self):
-        if self.camera_preview_restarting:
-            return
-        if self.camera_thread and self.camera_thread.is_alive():
-            return
-        self.camera_stop.clear()
-        self.camera_thread = threading.Thread(target=self._cameras, daemon=True)
-        self.camera_thread.start()
+        with self.lock:
+            if self.camera_preview_restarting:
+                return
+            if self.camera_thread and self.camera_thread.is_alive():
+                return
+            self.camera_stop.clear()
+            self.camera_thread = threading.Thread(target=self._cameras, daemon=True)
+            self.camera_thread.start()
 
     def check_camera_recovery(self):
-        # Check Devices only rebuilds the local preview receiver.
+        # Explicit idle-only reconnect; the controller classifies recoverable faults.
         with self.lock:
             healthy = (self.camera_thread and self.camera_thread.is_alive()
                        and not self.camera_error and self.camera_phase == "streaming"
-                       and all(c in self.frames and time.monotonic() - self.frames[c][1] < 2
-                               for c in CAMERAS))
+                       and bool(self.camera_inventory or self.frames)
+                       and all(c in self.frames and time.monotonic() - self.frames[c][1] < self.camera_frame_ttl
+                               for c in (self.camera_inventory or self.frames)))
         if healthy:
             return
         self.camera_preview_restarting = True
@@ -405,10 +422,23 @@ class TianjiManager:
     def adopt_camera_stream(self):
         session = self.camera_session
         if session is None:
-            raise RuntimeError("相机预览尚未就绪，请先检查设备")
+            raise RuntimeError("当前为逐路相机预览，采集需要连续相机流" if self.camera_preview_mode == "snapshot" else "相机预览尚未就绪，请先检查设备")
         client = session.subscribe()
         self._diagnostic_event("collection_adopted_preview")
         return client
+
+    def collection_camera_state(self):
+        session = self.camera_session
+        if session is None:
+            raise RuntimeError('等待连续相机流就绪后再开始采集')
+        with session.lock:
+            if session.start is None or session.end is not None or session.failure:
+                raise RuntimeError('相机流尚未就绪或已结束')
+            import copy
+            selected = session.start.metadata.get('cameras', ['usb-1', 'usb-2', 'usb-4'])
+            if not selected or not set(selected) <= {'usb-1', 'usb-2', 'usb-4'}:
+                raise RuntimeError('无有效的本轮相机清单')
+            return dict(ids=list(selected), profiles=copy.deepcopy(session.start.metadata.get('camera_profiles')))
 
     def pause_cameras(self):
         self._diagnostic_event("preview_pause_requested")
@@ -421,29 +451,60 @@ class TianjiManager:
             if self.camera_thread.is_alive():
                 raise RuntimeError("相机预览尚未释放，请稍后再开始采集")
         time.sleep(self.camera_cooldown + 0.1)
+        with self.lock:
+            self.camera_frame_metadata.clear()
 
     def _prepare_preview(self, client):
         status = client.status()
         cameras = client.list_cameras()
         self._diagnostic_event("preview_preflight", cameras=cameras,
                                service_fault=status.get("fault"))
-        available = {c["id"] for c in cameras if c.get("available")}
-        labels = {"usb-1": "主相机", "usb-2": "右腕相机", "usb-4": "左腕相机"}
-        missing = [f"{name}（{key}）" for key, name in labels.items() if key not in available]
-        if missing:
-            # Do not ask the serial service to open an incomplete group: its
-            # stream preflight would latch the temporary missing-device fault.
-            raise RuntimeError("控制器未识别到" + "、".join(missing) + "；未启动三路取流")
+        inventory = {}
+        for camera in cameras:
+            native_id = camera.get("id", "")
+            if camera.get("available") and re.fullmatch(r"[A-Za-z0-9_-]+", native_id):
+                inventory[native_id.replace("-", "_")] = native_id
+        with self.lock:
+            self.camera_settings.inventory(cameras)
+            self.camera_inventory = inventory
+            for camera in set(self.frames) - set(inventory):
+                del self.frames[camera]
+            self.camera_selection_supported = status.get("stream_camera_selection") is True
+            self.camera_preview_mode = "stream" if (
+                self.camera_selection_supported or set(inventory) == set(CAMERAS)
+            ) else "snapshot"
         if status.get("idle") is not True:
             raise RuntimeError("相机服务正被其他取流任务占用")
         if status.get("fault"):
-            raise RuntimeError("控制器相机服务故障，本地重连无法解除，请在控制器端处理："
-                               + str(status["fault"]))
+            action = ("停止控制和采集后点击“检查设备”重连：" if
+                      status.get("camera_hotplug_recovery") is True and
+                      status.get("recoverable_camera_fault") is True else
+                      "控制器 USB/相机故障，需要检查控制器诊断：")
+            raise RuntimeError(action + str(status["fault"]))
         seconds = status.get("max_stream_seconds", 60)
         if type(seconds) is not int or seconds < 1:
             raise RuntimeError("相机服务返回无效的取流时限")
         self.camera_cooldown = max(2.0, float(status.get("cooldown_seconds", 2.0)))
         return min(seconds, 600)
+
+    @property
+    def camera_frame_ttl(self):
+        # Serial snapshots include the controller's mandatory USB cooldown.
+        return max(10.0, len(self.camera_inventory) * 8.0) if self.camera_preview_mode == "snapshot" else 2.0
+
+    def _store_camera_frame(self, camera, frame):
+        data = frame.data
+        if frame.metadata.get("format") != "mjpeg":
+            buffer = io.BytesIO()
+            decoded = frame.frame() if hasattr(frame, "frame") else frame
+            decoded.to_pil().save(buffer, format="JPEG", quality=85)
+            data = buffer.getvalue()
+        with self.lock:
+            if camera in self.camera_inventory:
+                self.frames[camera] = (data, time.monotonic())
+                self.camera_frame_metadata[camera] = dict(frame.metadata)
+                self.camera_error = ""
+                self.camera_phase = "streaming"
 
     def _cameras(self):
         # Reuse the app's existing camera SDK, not another copied SDK tree.
@@ -455,8 +516,40 @@ class TianjiManager:
             self._diagnostic_event("preview_connecting")
             with self.new_camera_client() as client:
                 self.camera_client = client
+                snapshot_cursor = 0
+                recovery_attempts = 0
                 while not self.camera_stop.is_set() and time.monotonic() - self.last_access < 8:
-                    seconds = self._prepare_preview(client)
+                    try:
+                        seconds = self._prepare_preview(client)
+                    except RuntimeError:
+                        if recover_preview_gap(self, client, session, recovery_attempts):
+                            recovery_attempts += 1
+                            continue
+                        raise
+                    if not self.camera_inventory:
+                        self.camera_phase = "connecting"
+                        self.camera_stop.wait(1)
+                        continue
+                    if self.camera_preview_mode == "snapshot":
+                        self.camera_session = None
+                        ids = list(self.camera_inventory)
+                        if not ids:
+                            self.camera_phase = "connecting"
+                            self.camera_stop.wait(1)
+                            continue
+                        camera = ids[snapshot_cursor % len(ids)]
+                        snapshot_cursor += 1
+                        try:
+                            frame = client.read(self.camera_inventory[camera])
+                            self._store_camera_frame(camera, frame)
+                        except CameraError as exc:
+                            if exc.response.get("error") != "camera_unavailable":
+                                raise
+                            # Removal between enumeration and capture: rediscover.
+                            with self.lock:
+                                self.frames.pop(camera, None)
+                                self.camera_inventory.pop(camera, None)
+                        continue
                     session = CameraSession(client, client.clock_sync(samples=3), self.new_camera_client)
                     self.camera_session = session
                     self.camera_phase = "starting"
@@ -464,29 +557,33 @@ class TianjiManager:
                     first_frames = set()
                     # Explicit observation mode keeps images in RAM during motion.
                     try:
-                        for event in client.stream(seconds=seconds, mode="teleop_observation"):
+                        options = {}
+                        if self.camera_selection_supported:
+                            options["camera_ids"] = list(self.camera_inventory.values())
+                        for event in client.stream(seconds=seconds, mode="teleop_observation", **options):
                             session.publish(event)
                             if event.metadata.get("type") in ("start", "end"):
                                 self._diagnostic_event("preview_" + event.metadata["type"], metadata=event.metadata)
                             if self.camera_stop.is_set() or time.monotonic() - self.last_access > 8:
                                 client.request_stop()
+                            if (event.metadata.get("type") == "health"
+                                    and inventory_changed(self, session, event.metadata)):
+                                client.request_stop()
                             if event.metadata.get("type") == "image":
                                 camera = str(event.metadata.get("camera_id")).replace("-", "_")
-                                if camera in CAMERAS:
+                                if camera in self.camera_inventory:
                                     if camera not in first_frames:
                                         first_frames.add(camera)
                                         self.camera_phase = "streaming"
                                         self._diagnostic_event("preview_first_frame", camera=camera)
-                                    data = event.data
-                                    if event.metadata.get("format") == "yuyv":
-                                        buffer = io.BytesIO()
-                                        event.frame().to_pil().save(buffer, format="JPEG", quality=85)
-                                        data = buffer.getvalue()
-                                    with self.lock:
-                                        self.frames[camera] = (data, time.monotonic())
-                                        self.camera_error = ""
+                                    self._store_camera_frame(camera, event)
+                                    if first_frames >= set(self.camera_inventory):
+                                        recovery_attempts = 0
                     except CameraError as exc:
                         session.finish(exc)
+                        if recover_preview_gap(self, client, session, recovery_attempts):
+                            recovery_attempts += 1
+                            continue
                         raise
                     session.finish()
                     if session.attached:
@@ -517,6 +614,7 @@ class TianjiManager:
                     self.frames.clear()
 
     def close(self):
+        self.camera_settings.cancel()
         self.camera_recovery_cancel.set()
         self.collection.disarm("app_closed")
         self.camera_stop.set()
@@ -606,9 +704,17 @@ def tianji_router(manager):
     def close():
         return call(manager.close)
 
+    @router.get('/camera-controls/{camera_id}/settings')
+    def camera_settings(camera_id: str):
+        return call(manager.camera_settings.get, camera_id)
+
+    @router.post('/camera-controls/{camera_id}/settings')
+    def set_camera_settings(camera_id: str, request: TianjiCameraSettings):
+        return call(lambda: manager.camera_settings.request(camera_id, **request.model_dump(exclude_none=True)))
+
     @router.get("/cameras/{camera_id}/stream")
     async def stream(camera_id: str, request: Request, raw: bool = False):
-        if camera_id not in CAMERAS:
+        if camera_id not in manager.camera_inventory and camera_id not in CAMERAS:
             raise HTTPException(404, "未知相机")
 
         async def frames():
@@ -616,7 +722,7 @@ def tianji_router(manager):
             while not await request.is_disconnected():
                 with manager.lock:
                     value = manager.frames.get(camera_id)
-                if value and value[1] != stamp and time.monotonic() - value[1] < 2:
+                if value and value[1] != stamp and time.monotonic() - value[1] < manager.camera_frame_ttl:
                     stamp = value[1]
                     yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + value[0] + b"\r\n")
                 elif ((manager.camera_thread is None or not manager.camera_thread.is_alive())
@@ -636,11 +742,11 @@ def tianji_router(manager):
 
     @router.get("/cameras/{camera_id}/frame")
     def frame(camera_id: str):
-        if camera_id not in CAMERAS:
+        if camera_id not in manager.camera_inventory and camera_id not in CAMERAS:
             raise HTTPException(404, "未知相机")
         with manager.lock:
             value = manager.frames.get(camera_id)
-            if not value or time.monotonic() - value[1] > 2:
+            if not value or time.monotonic() - value[1] > manager.camera_frame_ttl:
                 raise HTTPException(503, "等待相机画面")
             return Response(
                 value[0], media_type="image/jpeg", headers={"Cache-Control": "no-store"}

@@ -13,6 +13,20 @@ after(() => server.close());
 const { TianjiTeleopWorkspace } = await server.ssrLoadModule(
   '/components/teleop/TianjiTeleopWorkspace.tsx',
 );
+const { TianjiCameraSettings } = await server.ssrLoadModule(
+  '/components/teleop/TianjiCameraSettings.tsx',
+);
+test('Tianji camera controls expose native resolution and brightness with recording lock', () => {
+  const html = renderToStaticMarkup(createElement(TianjiCameraSettings, {
+    baseUrl:'http://127.0.0.1:9', cameraKey:'usb_4', label:'左腕相机',
+    active:true, editable:false, blocked:false,
+    onBusyChange:() => {throw Error('No hardware operation during render');},
+  }));
+  assert.match(html, /录制分辨率/);
+  assert.match(html, /亮度调节/);
+  assert.match(html, /遥操及采集期间锁定设置/);
+  assert.match(html, /disabled=""/);
+});
 const { TeleopPanel } = await server.ssrLoadModule(
   '/components/teleop/TeleopPanel.tsx',
 );

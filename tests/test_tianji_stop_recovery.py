@@ -104,8 +104,10 @@ def test_stop_releases_faulted_connection_and_allows_a_fresh_check(monkeypatch, 
     monkeypatch.setattr(worker.sys, "stdin", Input())
     monkeypatch.setattr(worker.sys, "stdout", io.StringIO())
     monkeypatch.setattr(worker.signal, "signal", lambda *args: None)
-    monkeypatch.setattr(worker, "load_configuration", lambda: {})
-    monkeypatch.setattr(worker, "Models", lambda config: SimpleNamespace(validate=lambda: None))
+    monkeypatch.setattr(worker, "load_configuration", lambda: {"arm_geometry": "nominal"})
+    monkeypatch.setattr(worker, "Models", lambda config: SimpleNamespace(
+        validate=lambda: None, mapping_report={"arm_geometry": config["arm_geometry"]}))
+    monkeypatch.setattr(worker, "validate_preview", lambda *args: None)
     monkeypatch.setattr(worker, "RecordingRobot", Robot)
     monkeypatch.setattr(worker, "Publisher", Publisher)
     monkeypatch.setattr(worker, "PicoLauncher", lambda config: SimpleNamespace(
@@ -118,4 +120,5 @@ def test_stop_releases_faulted_connection_and_allows_a_fresh_check(monkeypatch, 
     finally:
         incoming.put(None)
     assert phase == "complete"
+    assert all(row['teleop_mapping']['arm_geometry'] == 'nominal' for row in samples)
     assert len(robots) == 2 and all(robot.closed for robot in robots)

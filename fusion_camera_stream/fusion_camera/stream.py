@@ -44,7 +44,7 @@ class FusionStreamClient(FusionCameraClient):
         best=min(rows,key=lambda r:r['rtt_ns'])
         return dict(best,measurements=rows,method='minimum_RTT_midpoint_estimate')
 
-    def stream(self, seconds=60, hz=30, joint_hz=100, mode='stationary'):
+    def stream(self, seconds=60, hz=30, joint_hz=100, mode='stationary', camera_ids=None):
         """Yield start/image/joints/health/end events. Closing iterator stops capture.
 
         Joint order: left 1..7, right 1..7. Joint sampling defaults to 100 Hz; image
@@ -60,7 +60,15 @@ class FusionStreamClient(FusionCameraClient):
         if self.closed: raise RuntimeError('Client is closed')
         if getattr(self, '_stream_socket', None) is not None:
             raise RuntimeError('Only one active stream per client')
-        request = json.dumps({'method':'stream','token':self.token,'seconds':seconds,'hz':hz,'joint_hz':joint_hz,'observation_mode':mode},separators=(',',':')).encode()
+        request_data = {'method':'stream','token':self.token,'seconds':seconds,'hz':hz,
+                        'joint_hz':joint_hz,'observation_mode':mode}
+        if camera_ids is not None:
+            if (not isinstance(camera_ids, (list, tuple)) or not camera_ids
+                    or any(c not in ('usb-1','usb-2','usb-4') for c in camera_ids)
+                    or len(set(camera_ids)) != len(camera_ids)):
+                raise ValueError('Invalid camera selection')
+            request_data['camera_ids'] = list(camera_ids)
+        request = json.dumps(request_data,separators=(',',':')).encode()
         self._stop_requested = False
         finished = False
         with socket.create_connection((self.host,self.port),timeout=self.timeout) as raw:

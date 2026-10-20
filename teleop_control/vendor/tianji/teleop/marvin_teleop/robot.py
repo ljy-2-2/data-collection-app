@@ -122,7 +122,7 @@ class Robot:
         elif side in self.enabled_sides and state != 1:
             raise ValueError(f"{side}: position mode lost")
 
-    def read(self):
+    def read(self, *, allow_faults=False):
         data, now = self.api.subscribe(self.dcss), time.monotonic()
         q = {}
         # Capture both lanes before validating either: a stale left lane must
@@ -166,14 +166,40 @@ class Robot:
             if side in self.stopping_sides:
                 # Release can arrive while the preceding enable is in flight.
                 allowed_states.update((POSITION_TRANSITION, IDLE_TRANSITION))
-            if state["err_code"] != 0 or state["cur_state"] not in allowed_states:
+            if not allow_faults and (state["err_code"] != 0 or state["cur_state"] not in allowed_states):
                 raise ValueError(controller_state_message(side, state))
-            self._observe_mode(side, serial, state["cur_state"], now)
+            if not allow_faults:
+                self._observe_mode(side, serial, state["cur_state"], now)
             q[side] = np.asarray(out["fb_joint_pos"], dtype=float)
             if q[side].shape != (7,) or not np.isfinite(q[side]).all():
                 raise ValueError("invalid joint feedback")
         self.q = q
         return q
+
+    def request_recovery_idle(self):
+        """Explicit recovery only: clear latched errors once, request both idle.
+
+        OnClearErr_A/B are void C functions; their return value is NOT an ACK.
+        The recovery state machine must verify new, error-free idle feedback.
+        """
+        self._clear_buffer("recovery clear_set")
+        for side, channel in self.config['arm_channels'].items():
+            getattr(self.api.robot, f'OnClearErr_{channel}').restype = None
+            self.api.clear_error(channel)
+            self.checked(self.api.set_state(channel, 0), "recovery idle")
+        # Mark both arms as owned until a fresh idle ACK, including an arm that
+        # entered error before this process could record its enabled state.
+        for side in self.config['arm_channels']:
+            self.stopping_sides[side] = (time.monotonic() + 8.0, self.frames[side])
+        self.checked(self.api.send_cmd(), "recovery idle send")
+
+    def stage_recovery_hold(self, side):
+        """Separate measured-hold transaction before the position-mode request."""
+        self._clear_buffer("recovery hold")
+        channel = self.config['arm_channels'][side]
+        self.checked(self.api.set_vel_acc(channel, 100, 100), "recovery velocity settings")
+        self.checked(self.api.set_joint_cmd_pose(channel, self.q[side].tolist()), "recovery initial hold")
+        self.checked(self.api.send_cmd(), "recovery hold send")
 
     def check_servo_errors(self):
         for side, errors in self.read_servo_errors().items():

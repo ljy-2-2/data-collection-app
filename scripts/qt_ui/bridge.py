@@ -34,7 +34,6 @@ for field in FIELDS:
 G2_JOINTS=json.loads((Path(__file__).with_name('g2_joints.json')).read_text())
 LIMITS=[[-170,170],[-120,120],[-170,170],[-144.99,60],[-170,170],[-60,60],[-90,90]]
 CAMERAS=[dict(id=k,label=v) for k,v in [('head_color','头部彩色'),('head_stereo_left','头部左目'),('head_stereo_right','头部右目'),('head_back_fisheye','头部后鱼眼'),('head_left_fisheye','头部左鱼眼'),('head_right_fisheye','头部右鱼眼'),('hand_left_color','左手彩色'),('hand_right_color','右手彩色'),('head_depth','头部深度'),('hand_left_depth','左手深度'),('hand_right_depth','右手深度')]]
-TIANJI_CAMERAS=[dict(id=k,label=v) for k,v in [('usb_1','主相机'),('usb_2','右腕部相机'),('usb_4','左腕部相机')]]
 
 
 def devices(robot):
@@ -60,6 +59,7 @@ class Bridge(QObject):
     umiTelemetryChanged=Signal()
     umiCameraBrightnessChanged=Signal()
     umiCameraResolutionChanged=Signal()
+    teleopCameraSettingsChanged=Signal()
     result=Signal(str, bool)
     closeRequested=Signal()
     def __init__(self, values, *, demo=False, settings_path=None):
@@ -73,6 +73,7 @@ class Bridge(QObject):
         if self.umiOnly:self._state['page']='umi'
         self._camera_brightness={}
         self._camera_resolution={}
+        self._teleop_camera_settings={}
         self._camera_role_identities={}
         self.epoch=0
         self.revision=0
@@ -109,14 +110,15 @@ class Bridge(QObject):
     def umiCameraBrightness(self): return self._camera_brightness
     @Property('QVariantMap',notify=umiCameraResolutionChanged)
     def umiCameraResolution(self): return self._camera_resolution
+
+    @Property('QVariantMap',notify=teleopCameraSettingsChanged)
+    def teleopCameraSettings(self): return self._teleop_camera_settings
     @Property('QVariantList',constant=True)
     def fields(self): return FIELDS
     @Property('QVariantList',constant=True)
     def g2Joints(self): return G2_JOINTS
     @Property('QVariantList',constant=True)
     def limits(self): return LIMITS
-    @Property('QVariantList',constant=True)
-    def tianjiCameras(self): return TIANJI_CAMERAS
     @Property('QVariantList',constant=True)
     def g2Cameras(self): return CAMERAS
     @Property('QVariantMap',notify=changed)
@@ -137,6 +139,16 @@ class Bridge(QObject):
     def assetRoot(self): return QUrl.fromLocalFile(str(ROOT/'public')+'/').toString()
 
     def update(self, **values):
+        if 'tianji' in values and 'camera_settings' in values['tianji']:
+            incoming=values['tianji']['camera_settings'] or {}
+            connected={c['id'] for c in values['tianji'].get('cameras',[]) if c.get('connected') is not False}
+            for key in set(self._teleop_camera_settings)-set(incoming):
+                if key not in connected and not self._teleop_camera_settings[key].get('busy'):
+                    self._teleop_camera_settings.pop(key,None);self.teleopCameraSettingsChanged.emit()
+            for key,value in incoming.items():
+                current=self._teleop_camera_settings.get(key,{})
+                if not current.get('busy') and not current.get('error'):
+                    self.teleop_camera_settings_update(key,value)
         self._state.update(values);self.changed.emit()
         self.sync_umi_telemetry()
 
@@ -377,6 +389,14 @@ class Bridge(QObject):
         if s['robot']=='tianji':return bool(s['tianji'].get('joints',{}).get('left')) and s['paramSaved']
         return bool(s['preview'].get('available')) and any(d.get('id')=='robot' and d.get('status')=='connected' for d in s['g2'].get('devices',[]))
 
+    def can_recover_zero(self):
+        s=self._state
+        collection=s['tianji'].get('collection') or {}
+        return bool(s['authenticated'] and s['robot']=='tianji' and not s['busy']
+                    and not s.get('closing') and s['paramSaved'] and not s['paramSaving']
+                    and s['tianji'].get('state') in ('idle','error')
+                    and not collection.get('busy') and not collection.get('recording'))
+
     @Slot(str,int,int)
     def jog(self,side,joint,direction):
         if not self.can_move() or side not in ('left','right') or not 1<=joint<=7 or direction not in (-1,1):return
@@ -446,6 +466,9 @@ class Bridge(QObject):
 
     @Slot()
     def restorePose(self):
+        if self._state['robot']=='tianji' and self._state['selectedPose']=='zero':
+            if self.can_recover_zero():self.action('move','/tianji/move',dict(kind='zero',mode='dual'))
+            return
         if not self.can_move():return
         s=self._state;pose=next((p for p in s['poses'] if p['id']==s['selectedPose']),None)
         if s['robot']=='tianji':
@@ -544,6 +567,57 @@ class Bridge(QObject):
     def reset_camera_brightness(self):
         self._camera_brightness={};self.umiCameraBrightnessChanged.emit()
         self._camera_resolution={};self.umiCameraResolutionChanged.emit()
+
+    def teleop_camera_settings_update(self,key,value=None,*,busy=False,error=''):
+        previous=self._teleop_camera_settings.get(key,{})
+        value=value or previous
+        updated=dict(busy=busy,error=error)
+        for name in ('brightness','resolution'):
+            updated[name]={**value.get(name,{}), 'busy':busy,'error':error,'loaded':not busy}
+        if previous!=updated:
+            self._teleop_camera_settings={**self._teleop_camera_settings,key:updated}
+            self.teleopCameraSettingsChanged.emit()
+
+    def teleop_camera_settings_allowed(self,key):
+        s=self._state;status=s['tianji'];collection=status.get('collection') or {}
+        return (s['authenticated'] and not s['closing'] and s['page']=='teleop' and s['robot']=='tianji'
+                and s['teleopStep']==2 and not s['busy'] and status.get('state') in ('idle','error')
+                and not collection.get('armed') and not collection.get('busy') and not collection.get('recording')
+                and key in [c['id'] for c in status.get('cameras',[]) if c.get('connected') is not False])
+
+    def teleop_camera_settings_request(self,key,*,mode_id=None,brightness=None):
+        if not self.teleop_camera_settings_allowed(key) or self._teleop_camera_settings.get(key,{}).get('busy'):return
+        self.teleop_camera_settings_update(key,busy=True)
+        def failed(message):self.teleop_camera_settings_update(key,error=str(message))
+        def done(value):
+            if not isinstance(value,dict) or not isinstance(value.get('brightness'),dict) or not isinstance(value.get('resolution'),dict):
+                failed('相机返回无效的设置');return
+            brightness=value['brightness'];resolution=value['resolution']
+            if (not isinstance(brightness.get('supported'),bool) or not isinstance(resolution.get('options'),list)
+                    or resolution.get('selected') not in resolution['options']):
+                failed('相机返回无效的亮度或分辨率');return
+            self.teleop_camera_settings_update(key,value)
+        if self.demo:
+            previous=self._teleop_camera_settings.get(key,{})
+            options=[dict(id=k,format='mjpeg',width=w,height=h,fps=30,label=f'{w} × {h} · 30 帧/秒') for k,w,h in (
+                ('mjpeg',1024,768),('mjpeg-1280x1024',1280,1024),('mjpeg-1920x1080',1920,1080))]
+            selected=next((v for v in options if v['id']==mode_id),previous.get('resolution',{}).get('selected') or options[0])
+            done(dict(brightness=dict(supported=True,value=brightness if brightness is not None else previous.get('brightness',{}).get('value',0),min=-64,max=64,step=1,default=0),
+                      resolution=dict(options=options,selected=selected,editable=True)));return
+        data={}
+        if mode_id is not None:data['mode_id']=mode_id
+        if brightness is not None:data['brightness']=brightness
+        self.request('/tianji/camera-controls/'+quote(key,safe='')+'/settings',data=data or None,
+                     done=done,method='POST' if data else 'GET',timeout=30000,failed=failed)
+
+    @Slot(str)
+    def loadTeleopCameraSettings(self,key):self.teleop_camera_settings_request(key)
+
+    @Slot(str,str)
+    def setTeleopCameraResolution(self,key,mode_id):self.teleop_camera_settings_request(key,mode_id=mode_id)
+
+    @Slot(str,int)
+    def setTeleopCameraBrightness(self,key,value):self.teleop_camera_settings_request(key,brightness=value)
 
     def camera_resolution_request(self,key,mode_id=None):
         if not self.camera_brightness_allowed(key) or self._camera_resolution.get(key,{}).get('busy'):return

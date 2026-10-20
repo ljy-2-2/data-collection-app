@@ -10,6 +10,8 @@ def sync_frames(app_root):
     config = json.loads(config_path.read_text())
     model_path = app_root/'public/tianji-model.json'
     model = json.loads(model_path.read_text())
+    if model.get('arm_geometry', 'nominal') != config.get('arm_geometry', 'nominal'):
+        raise ValueError('URDF and preview geometry revisions differ; regenerate the full model first')
     joints = {joint['name']: joint for joint in model['joints']}
     for side, letter in [('left', 'L'), ('right', 'R')]:
         source = config['tool_tcp'][side]

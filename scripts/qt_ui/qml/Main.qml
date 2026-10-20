@@ -17,7 +17,7 @@ ApplicationWindow {
         if(s.page==="teleop" && s.teleopStep===2){
             let status=s.robot==="tianji"?s.tianji:s.g2
             let collection=status.collection||{}
-            messages.push(status.error,collection.error,(collection.upload||{}).error)
+            messages.push(status.error,status.camera_error,collection.error,(collection.upload||{}).error)
         }
         if(s.page==="umi")messages.push(s.umi.error)
         return messages.filter((message,index,list)=>!!message && list.indexOf(message)===index).join("\n")
@@ -48,7 +48,7 @@ ApplicationWindow {
                     Repeater {model: ["跟随系统","浅色","深色"]
                         Button {required property string modelData;required property int index;property string mode: ["system","light","dark"][index];text: modelData;width: index===0?68:44;height: 24;hoverEnabled: true
                             background: Rectangle {radius: 6;color: s.theme===parent.mode || parent.hovered ? Theme.surface : "transparent"}
-                            contentItem: Txt {text: parent.text;font.pixelSize: 12;font.weight: Font.Bold;color: s.theme===parent.mode?Theme.accentStrong:Theme.ink;horizontalAlignment: Text.AlignHCenter}
+                            contentItem: Txt {selectable: false;text: parent.text;font.pixelSize: 12;font.weight: Font.Bold;color: s.theme===parent.mode?Theme.accentStrong:Theme.ink;horizontalAlignment: Text.AlignHCenter}
                             onClicked: backend.setValue("theme",mode)
                         }
                     }
@@ -65,7 +65,7 @@ ApplicationWindow {
                         background: Rectangle {radius: 7;color: s.page===parent.page?Theme.accentSoft:parent.hovered?Theme.muted:"transparent";border.color: s.page===parent.page?"#30f4c520":"transparent"}
                         contentItem: Item {
                             Image {id: navIcon;objectName: "navIcon-"+navButton.page;anchors.left: parent.left;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon(backend.umiOnly ? "Camera" : ["Gamepad2","Camera","Glasses"][navButton.index],s.page===navButton.page?"accent":"")}
-                            Txt {objectName: "navText-"+navButton.page;anchors.left: navIcon.right;anchors.leftMargin: 7;anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;text: navButton.modelData;font.pixelSize: 13;color: s.page===navButton.page?Theme.accentStrong:Theme.inkMuted;font.weight: s.page===navButton.page?Font.Medium:Font.Normal;wrapMode: Text.NoWrap}
+                            Txt {selectable: false;objectName: "navText-"+navButton.page;anchors.left: navIcon.right;anchors.leftMargin: 7;anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;text: navButton.modelData;font.pixelSize: 13;color: s.page===navButton.page?Theme.accentStrong:Theme.inkMuted;font.weight: s.page===navButton.page?Font.Medium:Font.Normal;wrapMode: Text.NoWrap}
                         }
                         enabled: !s.busy && !s.closing
                         onClicked: backend.navigate(page)
@@ -77,9 +77,9 @@ ApplicationWindow {
                 background: Rectangle {radius: 7;color: parent.hovered?Theme.muted:"transparent"}
                 contentItem: Item {
                     Image {x: 9;y: 7;width: 16;height: 16;source: Theme.icon("Database")}
-                    Txt {x: 32;y: 6;text: "跳转平台";font.pixelSize: 13;color: Theme.inkMuted}
+                    Txt {selectable: false;x: 32;y: 6;text: "跳转平台";font.pixelSize: 13;color: Theme.inkMuted}
                     Image {anchors.right: parent.right;anchors.rightMargin: 7;y: 9;width: 13;height: 13;source: Theme.icon("ExternalLink")}
-                    Txt {x: 32;y: 31;text: backend.platformLocation;font.pixelSize: 11;color: Theme.inkSoft}
+                    Txt {selectable: false;x: 32;y: 31;text: backend.platformLocation;font.pixelSize: 11;color: Theme.inkSoft}
                 }
                 onClicked: backend.openPlatform()
             }
@@ -110,7 +110,7 @@ ApplicationWindow {
                         height: parent.height;visible: !!message;radius: 7
                         color: app.pageError?Theme.redSoft:Theme.muted
                         border.color: Theme.line
-                        Txt {objectName: "pageNoticeText";anchors.fill: parent;anchors.leftMargin: 10;anchors.rightMargin: 36;text: pageNotice.message.replace(/\n/g,"；");font.pixelSize: 12;color: app.pageError?Theme.red:Theme.inkMuted;wrapMode: Text.NoWrap}
+                        Txt {objectName: "pageNoticeText";anchors.fill: parent;anchors.leftMargin: 10;anchors.rightMargin: 36;text: pageNotice.message;font.pixelSize: 12;color: app.pageError?Theme.red:Theme.inkMuted;wrapMode: Text.NoWrap}
                         Btn {objectName: "pageNoticeDismiss";visible: !!s.error;anchors.right: parent.right;anchors.rightMargin: 3;anchors.verticalCenter: parent.verticalCenter;glyph: "X";ghost: true;width: 24;height: 24;Accessible.name: "关闭错误提示";onClicked: backend.clearError()}
                     }
                     UsageGuide {id: usageGuide;objectName: "usageGuide";visible: s.page!=="ego";anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}

@@ -51,3 +51,15 @@ class TianjiMove(BaseModel):
     targets: dict[str, list[float]] | None = None
     closure: float = Field(default=0, ge=0, le=1)
     parameters: TianjiParameters = Field(default_factory=TianjiParameters)
+
+
+class TianjiCameraSettings(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    mode_id: str | None = Field(default=None, min_length=1, max_length=64)
+    brightness: int | None = Field(default=None, strict=True, ge=-32768, le=32767)
+
+    @model_validator(mode='after')
+    def require_setting(self):
+        if self.mode_id is None and self.brightness is None:
+            raise ValueError('请提供相机分辨率或硬件亮度')
+        return self

@@ -46,13 +46,15 @@ def audit():
     return result
 
 
-@pytest.mark.parametrize('fault', ['none', 'usb', 'rt', 'cleanup', 'unknown', 'interface'])
+@pytest.mark.parametrize('fault', ['none', 'hotplug', 'inventory_stop', 'usb', 'rt', 'cleanup', 'unknown', 'interface'])
 def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monkeypatch, fault):
     cameras = [{'id':name} for name in ('usb-1', 'usb-2', 'usb-4')]
     service = SimpleNamespace(config=dict(helper='/unused/capture', cameras=cameras),
                               runtime='/unused', fault=None, last_stream=None)
     process = Mock(pid=43210, returncode=1)
     process.poll.return_value = 1
+    if fault == 'inventory_stop':
+        process.returncode = 0; process.poll.return_value = 0
     process.stdout.fileno.return_value = 10
     rows = [dict(event=event, task=task, cpu=1, pid=2, msw=0, csw=1, pf=0, process_start_ticks=123)
             for event in ('rt_baseline', 'rt_final') for task in ('RTPSI','FX_RtTask')]
@@ -61,6 +63,8 @@ def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monke
     logs = (reason+'\n'+'\n'.join(json.dumps(row) for row in rows)).encode()
     before, after = audit(), audit()
     if fault == 'usb': after.update(camera_audit.dmesg_fingerprint(b'[ 1.000001] baseline\n[ 2.000001] usb disconnected\n'))
+    if fault in ('hotplug', 'inventory_stop'): after.update(camera_audit.dmesg_fingerprint(
+        b'[ 1.000001] baseline\n[ 2.000001] usb 1-2: USB disconnect, device number 3\n'))
     replies = []
     now = iter(i/10 for i in range(1000))
     api = SimpleNamespace(ACTIVE=None, STOP=False, monotonic=lambda:next(now),
@@ -87,12 +91,16 @@ def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monke
         monkeypatch.setattr(streaming.time, 'sleep', lambda n:None)
         # Force the stream to terminate first, then exercise timed-out cleanup.
         api.STOP = True
-    streaming.run(service, Mock(), dict(seconds=60, observation_mode='teleop_observation'), api)
+    sock = Mock()
+    if fault == 'inventory_stop':
+        sock.recv.return_value = b'S'
+        monkeypatch.setattr(streaming.select, 'select', lambda *a:([sock],[],[]))
+    streaming.run(service, sock, dict(seconds=60, observation_mode='teleop_observation'), api)
     end = replies[-1]
     assert not end['ok']
     assert service.fault
-    assert end['recoverable_camera_fault'] is (fault == 'none')
-    assert (service.recovery_audit is not None) is (fault == 'none')
+    assert end['recoverable_camera_fault'] is (fault in ('none', 'hotplug', 'inventory_stop'))
+    assert (service.recovery_audit is not None) is (fault in ('none', 'hotplug', 'inventory_stop'))
     assert api.ACTIVE is None
     process.stdout.close.assert_called_once()
 

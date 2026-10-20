@@ -77,3 +77,74 @@ def joint_symmetry(joints, arm_control=None):
         result['anchor_j1_mirror_error_deg'] = start_error
         result['relative_j1_mirror_error_deg'] = float(error[0] - start_error)
     return result
+
+
+class LeftFromRight:
+    """Solve the left arm in the verified right-arm kinematic coordinates.
+
+    This view has independent optimizer state. It never reads right-arm motion
+    or copies its commands. World poses and axial angular velocities are
+    reflected together; the actual left encoder/URDF definitions stay physical.
+    """
+    def __init__(self, left, right):
+        from copy import copy
+        from .geometry import inverse
+        nominal = {s:copy(a) for s,a in [('left',left),('right',right)]}
+        for arm in nominal.values():
+            arm.base = arm.nominal_base
+        report = validate_mirror(nominal, samples=8)
+        self.signs = np.asarray(report['joint_signs_left_to_right'])
+        world = np.eye(4)
+        world[:3,:3] = report['world_reflection']
+        world[:3,3] = report['position_offset_m']
+        self.world = (right.base @ inverse(right.nominal_base) @ world
+                      @ left.nominal_base @ inverse(left.base))
+        self.tcp = np.diag([1.,-1.,1.,1.])
+        flange = np.eye(4); flange[:3,:3] = report['flange_reflection']
+        self.arm = copy(right)
+        self.arm.side = 'left'
+        self.arm.tool = flange.T @ left.tool @ self.tcp
+        self.arm.control_point_name = left.control_point_name
+        self.arm.lower = np.minimum(self.signs*left.lower,self.signs*left.upper)
+        self.arm.upper = np.maximum(self.signs*left.lower,self.signs*left.upper)
+        self.arm.hardware_lower = np.minimum(self.signs*left.hardware_lower,self.signs*left.hardware_upper)
+        self.arm.hardware_upper = np.maximum(self.signs*left.hardware_lower,self.signs*left.hardware_upper)
+        self.arm.bd = left.bd
+        self.arm.velocity_limits = left.velocity_limits.copy()
+        self.arm.acceleration_limits = left.acceleration_limits.copy()
+        self.arm._pose_tracking = None
+        self.report = dict(joint_signs=self.signs.tolist(),world_to_solver=self.world.tolist(),
+                           tcp_reflection=self.tcp.tolist(),solver='independent_right_model',
+                           input='left_hand_and_left_feedback_only')
+
+    def step(self, physical, target, reference, dt, speed, velocity, max_accel, **quality):
+        from .pose_tracking import step
+        result = step(self.arm,self.world@target@self.tcp,self.signs*reference,
+                      dt,speed,self.signs*velocity,max_accel,**quality)
+        for name,value in vars(self.arm).items():
+            if name.startswith('last_'):
+                setattr(physical,name,value)
+        return self.signs*result
+
+    def reset(self):
+        self.arm._pose_tracking = None
+
+
+    def validate(self, physical, samples=40):
+        rng = np.random.default_rng(20261020)
+        maximum_pose = maximum_jacobian = 0.
+        for _ in range(samples):
+            q = rng.uniform([-40,-70,-50,-100,-40,-30,-30], [40,-15,50,-25,40,30,30])
+            pose = physical.fk(q)
+            canonical = self.arm.fk(self.signs*q)
+            maximum_pose = max(maximum_pose, float(np.max(abs(canonical-self.world@pose@self.tcp))))
+            j = physical.world_jacobian(q,pose)
+            h = self.world[:3,:3]
+            expected = np.vstack((h@j[:3],-h@j[3:]))*self.signs
+            maximum_jacobian = max(maximum_jacobian, float(np.max(abs(
+                self.arm.world_jacobian(self.signs*q,canonical)-expected))))
+            if self.arm.valid_joints(self.signs*q) != physical.valid_joints(q):
+                raise ValueError('left mirror solver physical domain mismatch')
+        if maximum_pose > 1e-8 or maximum_jacobian > 1e-8:
+            raise ValueError('left mirror solver differs from physical FK/Jacobian')
+        return dict(samples=samples,max_pose_matrix_error=maximum_pose,max_jacobian_error=maximum_jacobian)

@@ -10,9 +10,11 @@ Column {
     property bool running: tianji ? status.state==="running" : (status.session||{}).state==="running"
     property bool moving: tianji ? status.state==="moving" : (status.motion||{}).state!=="idle"
     property bool uncertain: tianji ? ["unknown","error"].indexOf(status.state)>=0 : (status.session||{}).state==="unknown"
-    property bool locked: !!s.busy || running || moving || uncertain || !!(status.collection||{}).busy || !!(status.collection||{}).recording
+    property bool cameraSettingsBusy: tianji && (!!status.camera_settings_busy || Object.values(backend.teleopCameraSettings).some(v=>v.busy))
+    property bool locked: !!s.busy || running || moving || uncertain || !!(status.collection||{}).busy || !!(status.collection||{}).recording || cameraSettingsBusy
     property bool live: tianji ? !!((status.joints||{}).left && (status.joints||{}).left.length) : !!s.preview.available
     property bool canMove: !locked && (tianji ? live && s.paramSaved : s.preview.available && status.devices.some(d=>d.id==="robot" && d.status==="connected"))
+    property bool canRecover: tianji && !s.busy && !s.paramSaving && !cameraSettingsBusy && s.paramSaved && ["idle","error"].indexOf(status.state)>=0 && !(status.collection||{}).busy && !(status.collection||{}).recording
     property var collection: status.collection||{}
     spacing: 12
     Card {
@@ -86,12 +88,13 @@ Column {
             }
         }
         TeleopCameras {
-            Layout.fillWidth: true;Layout.preferredWidth: 590;Layout.preferredHeight: 373
+            Layout.fillWidth: true;Layout.preferredWidth: 590;Layout.preferredHeight: 373+controlsHeight
             tianji: root.tianji;status: root.status;previewStatus: s.preview;locked: root.locked
             active: root.visible && s.page==="teleop" && s.teleopStep===2
         }
     }
-    Manual {width: parent.width;tianji: root.tianji;canMove: root.canMove;live: root.live;locked: root.locked}
+    Txt {visible: root.tianji && root.moving && !!root.status.recovery;width: parent.width;text: (root.status.recovery||{}).detail||"";color: Theme.inkMuted}
+    Manual {width: parent.width;tianji: root.tianji;canMove: root.canMove;canRecover: root.canRecover;live: root.live;locked: root.locked}
     Dialog {
         id: parameterDialog;objectName: "parameterDialog";parent: Overlay.overlay;anchors.centerIn: parent
         width: Math.min(560,app.width-32);height: Math.min(app.height-48,parameterContent.implicitHeight+40);modal: true;padding: 20;closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside

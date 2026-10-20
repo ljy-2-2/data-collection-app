@@ -116,16 +116,16 @@ def new_measurements(models):
         "schema": SCHEMA,
         "axes": AXES,
         "origin": "each_arm_mount_center",
-        "instructions": "真实测量裸法兰中心，相对本侧安装面中心，毫米；+X双方前方，+Y双方左方，+Z上。不要填旧FK计算值。",
+        "instructions": "真实测量本配置所选 TCP（见各臂 control_point），相对本侧安装面中心，毫米；+X双方前方，+Y双方左方，+Z上。不要填旧FK计算值。",
         "arms": {
-            s: {"model_sha256": model_fingerprint(a), "samples": []}
+            s: {"model_sha256": model_fingerprint(a), "control_point": a.control_point_name, "flange_to_tcp": a.tool.tolist(), "samples": []}
             for s, a in models.arms.items()
         },
     }
 
 
 def main():
-    from .__main__ import configuration
+    from .configuration import configuration
     from .model import Models
 
     parser = argparse.ArgumentParser(

@@ -1,0 +1,121 @@
+{
+  "summary": "桌面软件和相机服务已更新；机械臂响应通过离线验证；两只相机仍未恢复图像。",
+  "motion": {
+    "revision": "responsive_local_ik_v4",
+    "coordinate_revision": "vendor_cad_same_facing_v2",
+    "changes": [
+      "移除移植的 C++ 求解库及额外的 0.1 m/s 末端限速",
+      "本机连续局部逆解，七关节使用统一速度/加速度及刹停约束",
+      "保留当前坐标映射、完整厂家关节范围，无 J4 符号特判"
+    ],
+    "comparison": {
+      "before_left": {
+        "mean_tracking_speed_m_s": 0.09881357073509629,
+        "lag_at_half_second_mm": 55.014296877283,
+        "solver_p95_ms": 0.45115818502381444,
+        "final_error_mm": 8.37420331413944
+      },
+      "before_right": {
+        "mean_tracking_speed_m_s": 0.09834934103125906,
+        "lag_at_half_second_mm": 55.16753331440305,
+        "solver_p95_ms": 0.5059092247392981,
+        "final_error_mm": 8.837242475315353
+      },
+      "after_left": {
+        "mean_tracking_speed_m_s": 0.20005439807759443,
+        "lag_at_half_second_mm": 4.730554550083685,
+        "solver_p95_ms": 0.5875592469237744,
+        "final_error_mm": 1.233706376625033e-09
+      },
+      "after_right": {
+        "mean_tracking_speed_m_s": 0.19971958522575398,
+        "lag_at_half_second_mm": 4.861444512927471,
+        "solver_p95_ms": 0.46695338096469635,
+        "final_error_mm": 1.5762071083265697e-05
+      }
+    },
+    "comparison_is_offline": true,
+    "physical_following_validation": "尚待现场复核"
+  },
+  "camera": {
+    "service_upgrade": true,
+    "controller_backup": "/mnt/fusion-camera/releases/teleop-v23-20261020-185319-lqFt6o",
+    "images_restored": false,
+    "changes": [
+      "空闲“检查设备”可请求一次控制器校验过的重连",
+      "正常相机端口枚举与 xHCI/机器人异常分开处理，失败采集仍记为失败",
+      "加入 UVC 控制请求失败明细"
+    ],
+    "observed_kernel_errors": [
+      "xHCI Setup ERROR: setup context command for slot 9",
+      "can't restore configuration #1 (error=-32)"
+    ],
+    "right_camera_reset_completed": false,
+    "right_camera_reset_error": "[Errno 19] No such device",
+    "robot_unchanged_during_camera_reset": true,
+    "per_camera": {
+      "usb-2": {
+        "frames": 0,
+        "error": "Native helper failed (exit 1): Camera open/start or negotiation failed: ",
+        "recoverable_camera_fault": true,
+        "diagnostics": [
+          "{\"event\":\"rt_baseline\",\"task\":\"RTPSI\",\"cpu\":1,\"pid\":2031,\"msw\":93879,\"csw\":8866230,\"pf\":0,\"process_start_ticks\":1629}",
+          "{\"event\":\"rt_baseline\",\"task\":\"FX_RtTask\",\"cpu\":1,\"pid\":0,\"msw\":0,\"csw\":8771468,\"pf\":0,\"process_start_ticks\":0}",
+          "unsupported descriptor subtype VS_COLORFORMAT",
+          "unsupported descriptor subtype VS_STILL_IMAGE_FRAME",
+          "unsupported descriptor subtype VS_COLORFORMAT",
+          "{\"uvc_control_error\":-7,\"request\":131,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "{\"uvc_control_error\":-7,\"request\":1,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "{\"uvc_control_error\":-7,\"request\":129,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "{\"uvc_control_error\":-7,\"request\":1,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "Camera 1 UVC -7: Timeout",
+          "Camera open/start or negotiation failed",
+          "{\"event\":\"rt_final\",\"task\":\"RTPSI\",\"cpu\":1,\"pid\":2031,\"msw\":93879,\"csw\":8879289,\"pf\":0,\"process_start_ticks\":1629}",
+          "{\"event\":\"rt_final\",\"task\":\"FX_RtTask\",\"cpu\":1,\"pid\":0,\"msw\":0,\"csw\":8784528,\"pf\":0,\"process_start_ticks\":0}",
+          "{\"event\":\"teleop_final\",\"captured\":[0,0,0],\"sent\":[0,0,0],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+          "{\"exit\":1,\"normal_signal_stop\":false}"
+        ]
+      },
+      "usb-4": {
+        "frames": 0,
+        "error": "Native helper failed (exit 1): Camera open/start or negotiation failed: ",
+        "recoverable_camera_fault": true,
+        "diagnostics": [
+          "{\"event\":\"rt_baseline\",\"task\":\"RTPSI\",\"cpu\":1,\"pid\":2031,\"msw\":93879,\"csw\":8881870,\"pf\":0,\"process_start_ticks\":1629}",
+          "{\"event\":\"rt_baseline\",\"task\":\"FX_RtTask\",\"cpu\":1,\"pid\":0,\"msw\":0,\"csw\":8787109,\"pf\":0,\"process_start_ticks\":0}",
+          "unsupported descriptor subtype VS_COLORFORMAT",
+          "unsupported descriptor subtype VS_STILL_IMAGE_FRAME",
+          "unsupported descriptor subtype VS_COLORFORMAT",
+          "{\"uvc_control_error\":-7,\"request\":131,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "{\"uvc_control_error\":-7,\"request\":1,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "{\"uvc_control_error\":-7,\"request\":129,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "{\"uvc_control_error\":-7,\"request\":1,\"probe\":1,\"interface\":1,\"expected_bytes\":26}",
+          "Camera 2 UVC -7: Timeout",
+          "Camera open/start or negotiation failed",
+          "{\"event\":\"rt_final\",\"task\":\"RTPSI\",\"cpu\":1,\"pid\":2031,\"msw\":93879,\"csw\":8894930,\"pf\":0,\"process_start_ticks\":1629}",
+          "{\"event\":\"rt_final\",\"task\":\"FX_RtTask\",\"cpu\":1,\"pid\":0,\"msw\":0,\"csw\":8800168,\"pf\":0,\"process_start_ticks\":0}",
+          "{\"event\":\"teleop_final\",\"captured\":[0,0,0],\"sent\":[0,0,0],\"pending\":[0,0,0],\"shutdown_dropped\":[0,0,0],\"rtpsi_msw_delta\":0}",
+          "{\"exit\":1,\"normal_signal_stop\":false}"
+        ]
+      }
+    },
+    "unresolved": "两路 UVC GET_MAX/SET_CUR/GET_CUR 均返回 -7 超时，尚未确认具体硬件/驱动根因；需要继续排查控制器 USB 层。未重启或重载整个 USB 主控。"
+  },
+  "validation": {
+    "tests_passed": 603,
+    "package_desktop_smoke": "passed",
+    "installed_offline_validation": "passed",
+    "robot_motion_commands_sent": false
+  },
+  "deployment": {
+    "installed_workspace": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261019153315.standalone.local20261019090404",
+    "version": "0.1.0+20261019153315.standalone.local20261020025426",
+    "user_configuration_preserved": true,
+    "package": "/home/ljy/桌面/galaxis/data-collection-app/dist-packages/xiaokai-lab-data-collection_0.1.0+20261019153315.standalone.local20261020025426_amd64.deb",
+    "sha256": "97fb5be49d105be3c3cf53869ffafd54ccb0adf4ecdf0c5f368a3aebcc91ea0b",
+    "system_dpkg_package_replaced": false,
+    "desktop_workspace_updated": true,
+    "backup": "/home/ljy/桌面/galaxis/data-collection-app/.build-cache/responsive-hotplug/backup-workspace"
+  },
+  "diagnostic_directory": "/home/ljy/桌面/galaxis/data-collection-app/.build-cache/responsive-hotplug"
+}

@@ -9,7 +9,7 @@ import struct
 import time
 from dataclasses import dataclass
 
-MAX_FRAME = 2 * 1024 * 1024
+MAX_FRAME = 6 * 1024 * 1024
 
 class CameraError(RuntimeError):
     def __init__(self, response):
@@ -128,6 +128,17 @@ class FusionCameraClient:
     def status(self): return self._request('status')[0]
 
     def list_cameras(self): return self._request('list')[0]['cameras']
+
+    def camera_settings(self, camera_id, *, mode_id=None, brightness=None):
+        options = dict(camera_id=camera_id)
+        if mode_id is not None:
+            options['mode_id'] = mode_id
+        if brightness is not None:
+            options['brightness'] = brightness
+        return self._request('camera_settings', **options)[0]
+
+    def restore_camera_settings(self, camera_id):
+        return self._request('camera_settings_restore', camera_id=camera_id)[0]
 
     def read(self, camera_id, *, wait=True):
         """Capture one fresh frame. Rate limits may delay the request, never replay a stale frame."""

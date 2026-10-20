@@ -162,6 +162,9 @@ class TianjiCollection:
             if reason:
                 raise ValueError(reason)
             context = collection_context()
+            camera_state = (self.manager.collection_camera_state() if hasattr(self.manager, 'collection_camera_state')
+                            else dict(ids=list(CAMERA_MAPPING), profiles=None))
+            camera_mapping = {key: CAMERA_MAPPING[key] for key in camera_state['ids']}
             args = SimpleNamespace(
                 output=str(self.output),
                 task=self.task,
@@ -170,6 +173,12 @@ class TianjiCollection:
                 controlled_sides=self.controlled_sides,
                 robot_type="tianji",
                 parameters=self.parameters,
+                coordinate_mapping=copy.deepcopy(
+                    getattr(self.manager, "value", {}).get("coordinate_mapping")
+                ),
+                teleop_runtime_mapping=copy.deepcopy(self.latest.get('teleop_mapping')),
+                camera_ids=camera_state['ids'],
+                camera_profiles=camera_state['profiles'],
                 record_actions=True,
                 gripper_action_policy="initial_feedback_then_last_target",
                 recover_camera=False,
@@ -178,7 +187,7 @@ class TianjiCollection:
             )
             self.episode = self.episode_factory(
                 args,
-                CAMERA_MAPPING,
+                camera_mapping,
                 self.latest,
                 client_factory=self.manager.adopt_camera_stream,
                 episode_index=self.completed + 1,
@@ -189,7 +198,7 @@ class TianjiCollection:
                 "import_task_id": "tianji-" + self.session,
                 "import_folder": self.task,
                 "teleop_session_id": self.session,
-                "requested_cameras": list(CAMERA_MAPPING.values()),
+                "requested_cameras": list(camera_mapping.values()),
                 "source": "teleop",
                 "collection_trigger": "controller",
                 "author": self.owner,

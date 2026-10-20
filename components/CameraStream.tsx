@@ -14,11 +14,13 @@ export function CameraStream({
   alt,
   scope = 'umi',
   waiting = false,
+  refreshTimeoutMs = 10000,
 }: {
   src: string;
   alt: string;
   scope?: 'umi' | 'tianji';
   waiting?: boolean;
+  refreshTimeoutMs?: number;
 }) {
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -46,7 +48,7 @@ export function CameraStream({
     let disposed = false;
     let animation = 0;
     let latest: Uint8Array<ArrayBuffer> | null = null;
-    let timeout = window.setTimeout(() => controller.abort(), 10000);
+    let timeout = window.setTimeout(() => controller.abort(), refreshTimeoutMs);
     let staleTimer = window.setTimeout(() => setStalled(true), 500);
     setFailed(false);
     const cancel = () => {
@@ -69,7 +71,7 @@ export function CameraStream({
       window.clearTimeout(staleTimer);
       setStalled(false);
       staleTimer = window.setTimeout(() => setStalled(true), 500);
-      timeout = window.setTimeout(() => controller.abort(), 10000);
+      timeout = window.setTimeout(() => controller.abort(), refreshTimeoutMs);
       latest = frame;
       if (animation) return;
       animation = window.requestAnimationFrame(() => {
@@ -90,7 +92,7 @@ export function CameraStream({
       }
     });
     return cancel;
-  }, [src, attempt, scope]);
+  }, [src, attempt, scope, refreshTimeoutMs]);
 
   useEffect(() => {
     if (!failed) return;

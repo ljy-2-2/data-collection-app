@@ -84,11 +84,6 @@ export function validTianjiParameters(p: TianjiParameters) {
       p[key] <= max,
   );
 }
-export const TIANJI_CAMERAS = [
-  { id: 'usb_1', label: '主相机' },
-  { id: 'usb_2', label: '右腕部相机' },
-  { id: 'usb_4', label: '左腕部相机' },
-];
 export const TIANJI_SIDES = [
   { id: 'left' as const, label: '左臂', letter: 'L' },
   { id: 'right' as const, label: '右臂', letter: 'R' },
@@ -135,7 +130,9 @@ export interface TianjiStatus {
   upload_mode?: TianjiMode;
   devices: { id: string; name: string; status: string; detail?: string }[];
   joints: Partial<Record<TianjiSide, number[]>>;
-  cameras: { id: string; available: boolean; updated_at: number | null }[];
+  cameras: { id: string; label?: string; connected?: boolean; available: boolean; updated_at: number | null }[];
+  camera_preview_mode?: 'stream' | 'snapshot';
+  camera_settings_busy?: boolean;
   grippers?: {
     fault: string;
     motors: Partial<
@@ -152,4 +149,5 @@ export interface TianjiStatus {
   camera_error?: string;
   camera_phase?: string;
   reason?: string;
+  recovery?: { phase: string; detail: string; sides: TianjiSide[] } | null;
 }

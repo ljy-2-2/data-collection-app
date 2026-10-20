@@ -1,4 +1,4 @@
-"""Local preview reconnection only; no hardware, SSH or service commands."""
+"""Explicit preview reconnection; only controller-audited camera faults retry."""
 from pathlib import Path
 import sys
 import time
@@ -71,7 +71,7 @@ def test_failed_receiver_clears_local_state_without_remote_calls(manager):
     assert m.camera_phase == 'connecting'  # Not proof of restored images.
     assert not m.camera_preview_restarting
     client.close.assert_called_once()
-    client.status.assert_not_called()
+    client.status.assert_called_once()
     client.recover_camera.assert_not_called()
     assert not m.diagnostic_events
 
@@ -149,12 +149,11 @@ def test_local_restart_does_not_claim_controller_is_repaired(manager, failure):
         client.status.return_value.update(fault='Audit changed: dmesg_sha256', recoverable_camera_fault=True)
     else:
         client.status.side_effect = ConnectionRefusedError('connection refused')
-    m.check_camera_recovery()
-    m.camera_stop.clear()
-    m._cameras()
+    with pytest.raises(RuntimeError):
+        m.check_camera_recovery()
     assert m.camera_phase == 'fault'
     assert m.camera_error
-    if failure == 'controller_fault': assert '本地重连无法解除' in m.camera_error
+    if failure == 'controller_fault': assert '尚不能安全重连' in m.camera_error
     client.stream.assert_not_called()
     client.recover_camera.assert_not_called()
 
@@ -175,3 +174,24 @@ def test_fresh_preview_receives_three_images_after_local_reconnect(manager):
     client.stream.assert_called_once()
     client.recover_camera.assert_not_called()
     assert m.camera_phase == 'idle' and not m.camera_error
+
+
+def test_check_devices_retries_only_audited_idle_fault(manager):
+    m, client = manager
+    client.status.side_effect = [dict(idle=True, fault='camera unplugged',
+        camera_hotplug_recovery=True, recoverable_camera_fault=True), dict(idle=True, fault=None)]
+    m.check_camera_recovery()
+    client.recover_camera.assert_called_once()
+    assert m.camera_phase == 'connecting'  # still not proof of a real first frame
+
+
+@pytest.mark.parametrize('change', [dict(idle=False), dict(camera_hotplug_recovery=False),
+                                   dict(recoverable_camera_fault=False)])
+def test_check_devices_preserves_unknown_or_busy_controller_fault(manager, change):
+    m, client = manager
+    client.status.return_value = dict(dict(idle=True, fault='kernel failure',
+        camera_hotplug_recovery=True, recoverable_camera_fault=True), **change)
+    with pytest.raises(RuntimeError, match='尚不能安全重连'):
+        m.check_camera_recovery()
+    client.recover_camera.assert_not_called()
+    assert m.camera_phase == 'fault'

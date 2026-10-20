@@ -1,26 +1,26 @@
 """Same-facing mapping, derived from Marvin installation and native VR axes.
 
 See COORDINATES.md for source documents and the full transform chain.
-No retargeting transforms from the reference robot are used here.
+The XR/operator rotation follows test-teleop/retarget.py. Robot mounting,
+encoder axes and tool geometry remain independently derived from Marvin.
 """
 
 import numpy as np
 
 
-def installed_base_from_nominal(base, orientation):
-    """Rigid arm mounting correction about its OWN fixed mounting centre.
+# OpenXR: +X right, +Y up, -Z forward. Robot: +X forward, +Y left, +Z up.
+ROBOT_FROM_XR = np.array([[0., 0., -1.], [-1., 0., 0.], [0., 1., 0.]])
 
-    User's 20:06 trial: model +X moved physically backward, model +Z moved
-    physically downward; TCP was physically below its mount, not above it.
-    A Y half-turn satisfies these constraints without reflecting a pose.
-    The bilateral application is the user's requested common installation.
+
+def installed_base_from_nominal(base, orientation):
+    """Keep manufacturer mounting; physical corrections require measured registration.
+
+    An operator standing behind the robot does not rotate either arm base.
+    Retire the empirical Y half-turn: it reverses both forward and gravity.
     """
-    if orientation not in ("cad", "same_facing_y_half_turn"):
-        raise ValueError("mount_orientation must be cad or same_facing_y_half_turn")
-    result = np.asarray(base, dtype=float).copy()
-    if orientation == "same_facing_y_half_turn":
-        result[:3, :3] = np.diag([-1.0, 1.0, -1.0]) @ result[:3, :3]
-    return result
+    if orientation != "cad":
+        raise ValueError("mount_orientation: use cad and measured installation_calibration")
+    return np.asarray(base, dtype=float).copy()
 
 
 def unit(vector):
@@ -94,6 +94,20 @@ def robot_from_behind_operator(arms):
     return expected
 
 
+def operator_yaw_frame(head):
+    """Operator axes in tracking world, using the reference yaw convention."""
+    head = np.asarray(head, dtype=float)
+    if head.shape != (4, 4) or not np.isfinite(head).all():
+        raise ValueError("invalid headset pose for behind-robot calibration")
+    up = np.array([0., 1., 0.])
+    forward = head[:3, :3] @ np.array([0., 0., -1.])
+    forward -= up * (forward @ up)
+    if np.linalg.norm(forward) < 0.5:
+        raise ValueError("站在机器人背后，与机器人看向共同前方并平视，再接管校准")
+    backward = -unit(forward)
+    return np.column_stack((unit(np.cross(up, backward)), up, backward))
+
+
 def same_facing_map(head, robot_from_operator=None):
     """Map native VR tracking coordinates to robot forward/left/up.
 
@@ -103,9 +117,7 @@ def same_facing_map(head, robot_from_operator=None):
     Controller captures this rotation on the first clutch of a VR session.
     Both arms share it across re-clutches; a new VR session recalibrates it.
     """
-    head = np.asarray(head, dtype=float)
-    if head.shape != (4, 4) or not np.isfinite(head).all():
-        raise ValueError("invalid headset pose for behind-robot calibration")
+    yaw_frame = operator_yaw_frame(head)
     robot_from_operator = (
         np.eye(3)
         if robot_from_operator is None
@@ -120,15 +132,7 @@ def same_facing_map(head, robot_from_operator=None):
         or not np.isclose(np.linalg.det(robot_from_operator), 1, atol=1e-8)
     ):
         raise ValueError("operator-to-robot axes must form a proper rotation")
-    up = np.array([0.0, 1.0, 0.0])
-    forward = head[:3, :3] @ np.array([0.0, 0.0, -1.0])
-    forward -= up * (forward @ up)
-    if np.linalg.norm(forward) < 0.5:
-        raise ValueError("站在机器人背后，与机器人看向共同前方并平视，再接管校准")
-    forward = unit(forward)
-    left = unit(np.cross(up, forward))
-    # Rows project a tracking-space vector onto the operator's own axes.
-    # These map to the robot's identically named axes, without arm exchange.
-    # Explicit transform chain: VR tracking -> operator body -> robot world.
-    # Being behind the robot adds NO 180-degree turn to a direction vector.
-    return robot_from_operator @ np.stack((forward, left, up))
+    # Same reference chain for both translation and rotation conjugation:
+    # tracking world -> horizontal operator frame -> robot world.
+    # Both arms share this heading for the session; no per-hand recalibration.
+    return robot_from_operator @ ROBOT_FROM_XR @ yaw_frame.T

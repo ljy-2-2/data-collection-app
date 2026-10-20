@@ -72,8 +72,6 @@ class ArmControl:
     jacobian_condition: object = None
     rotation_weight_m: object = None
     shoulder_motion_weight: object = None
-    elbow_branch_sign: object = None
-    elbow_assist: bool = False
     limit_assist: bool = False
     joint_limit_margin_deg: object = None
     speed_limited: bool = False
@@ -162,8 +160,6 @@ class Controller:
                 "jacobian_condition": a.jacobian_condition,
                 "rotation_weight_m": a.rotation_weight_m,
                 "shoulder_motion_weight": a.shoulder_motion_weight,
-                "elbow_branch_sign": a.elbow_branch_sign,
-                "elbow_assist": a.elbow_assist,
                 "limit_assist": a.limit_assist,
                 "joint_limit_margin_deg": a.joint_limit_margin_deg,
                 "speed_limited": a.speed_limited,
@@ -218,7 +214,6 @@ class Controller:
         a.ik_detail, a.elbow_distance_deg = "", None
         a.shoulder_motion_weight = None
         a.jacobian_sigma_min = a.jacobian_condition = a.rotation_weight_m = None
-        a.elbow_branch_sign, a.elbow_assist = None, False
         a.limit_assist, a.joint_limit_margin_deg = False, None
         a.speed_limited = a.target_clamped = False
         a.elapsed = 0.0
@@ -301,6 +296,9 @@ class Controller:
                 self.pause_side(side, str(error))
                 return
             a.calibration_head = self.session_head.copy()
+        reset_tracking = getattr(self.models.arms[side], "reset_pose_tracking", None)
+        if reset_tracking:
+            reset_tracking()
         a.commanded = q[side].copy()
         a.joint_anchor = q[side].copy()
         self.holds[side] = q[side].copy()
@@ -360,35 +358,29 @@ class Controller:
         target = relative_target(hand, hand0, flange0, a.basis, self.cfg["scale"])
         a.target_clamped = False
         a.target_pose = target.copy()
-        desired = model.differential_ik(
+        desired = model.pose_tracking_ik(
             target,
             a.commanded,
             dt,
             self.cfg["max_joint_speed_deg_s"],
             velocity=a.velocity,
             max_accel=self.cfg["max_joint_accel_deg_s2"],
-            elbow_reference=a.joint_anchor,
-            elbow_branch_margin_deg=self.cfg["elbow_branch_margin_deg"],
             rotation_weight_m=self.cfg["ik_rotation_weight_m"],
             shoulder_motion_weight=self.cfg.get("ik_shoulder_motion_weight", 1.0),
             singular_rotation_weight_m=self.cfg["ik_singular_rotation_weight_m"],
             singular_sigma_low=self.cfg["ik_singular_sigma_low"],
             singular_sigma_high=self.cfg["ik_singular_sigma_high"],
-            elbow_posture_offset_deg=self.cfg["elbow_posture_offset_deg"],
-            elbow_posture_gain_s=self.cfg["elbow_posture_gain_s"],
             joint_limit_soft_margin_deg=self.cfg["joint_limit_soft_margin_deg"],
             joint_limit_reserve_deg=self.cfg["joint_limit_reserve_deg"],
             joint_limit_escape_speed_deg_s=self.cfg["joint_limit_escape_speed_deg_s"],
         )
         actual_flange = model.fk(q[side])
-        a.ik_detail = "厂家雅可比约束微分逆解（裸法兰 TCP）"
+        a.ik_detail = f"连续局部逆解（{model.control_point_name}）"
         a.elbow_distance_deg = abs(float(q[side][3]) - model.elbow_singularity_deg)
         a.jacobian_sigma_min = getattr(model, "last_jacobian_sigma_min", None)
         a.jacobian_condition = getattr(model, "last_jacobian_condition", None)
         a.rotation_weight_m = getattr(model, "last_rotation_weight_m", None)
         a.shoulder_motion_weight = getattr(model, "last_shoulder_motion_weight", None)
-        a.elbow_branch_sign = getattr(model, "last_elbow_branch_sign", None)
-        a.elbow_assist = getattr(model, "last_elbow_assist", False)
         a.limit_assist = getattr(model, "last_limit_assist", False)
         a.joint_limit_margin_deg = getattr(model, "last_joint_limit_margin_deg", None)
         position_error = np.linalg.norm(target[:3, 3] - actual_flange[:3, 3])
@@ -412,8 +404,6 @@ class Controller:
         if ik_constrained:
             a.ik_detail = "目标受关节、腕部限位或位姿方向约束，跟随当前可达分量"
             a.reason = a.ik_detail
-        if a.elbow_assist and not motion_constrained:
-            a.ik_detail = "接近奇异区：优先末端位置并保持启动时的肘部构型"
         if a.limit_assist and not motion_constrained:
             a.ik_detail = "接近关节边界：优先末端位置并主动恢复关节余量"
         if motion_constrained:

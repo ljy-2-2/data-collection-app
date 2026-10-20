@@ -35,6 +35,13 @@ class TcpViewer(QObject):
         # Read actual control definitions; reject a stale display export.
         config_path = ROOT / 'teleop_control/vendor/tianji/teleop/marvin_teleop/config.json'
         config = json.loads(config_path.read_text())
+        sys.path.insert(0, str(ROOT / 'teleop_control/vendor/tianji/teleop'))
+        from marvin_teleop.configuration import configuration
+        from marvin_teleop.model import Models
+        from marvin_teleop.preview import validate_preview
+        validate_preview(Models(configuration(config_path)), ROOT / 'public/tianji-model.json')
+        if config.get('arm_geometry', 'nominal') != self.scene.model.get('arm_geometry', 'nominal'):
+            raise ValueError('TCP viewer geometry does not match the active control URDF')
         joints = {j['name']: j for j in self.scene.model['joints']}
         for side, letter in [('left', 'L'), ('right', 'R')]:
             source = config['tool_tcp'][side]

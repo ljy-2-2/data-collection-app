@@ -1,4 +1,4 @@
-"""Idle-only cleanup of the App's local preview receiver. No remote restart."""
+"""Idle-only preview reconnection and one audited camera-service retry."""
 
 
 def require_idle(manager):
@@ -50,4 +50,20 @@ def restart_local_preview(manager):
         manager.frames.clear()
         manager.camera_error = ""
         manager.camera_phase = "connecting"
+    # Only an explicit Check Devices action reaches this code. The controller
+    # must have verified USB cleanup and unchanged robot tasks. No device reset,
+    # SSH, daemon restart or unconditional fault clearing happens here.
+    with manager.new_camera_client() as fresh:
+        status = fresh.status()
+        if status.get("fault"):
+            if (status.get("idle") is not True
+                    or status.get("camera_hotplug_recovery") is not True
+                    or status.get("recoverable_camera_fault") is not True):
+                raise RuntimeError("控制器相机故障尚不能安全重连：" + str(status["fault"]))
+            require_idle(manager)
+            _require_not_cancelled(manager)
+            fresh.recover_camera()
+            status = fresh.status()
+            if status.get("fault") or status.get("idle") is not True:
+                raise RuntimeError("控制器未完成相机重连")
     # The caller starts a fresh local receiver after checking cancellation.

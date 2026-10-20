@@ -108,6 +108,7 @@ class ArmModel:
         self.kine.remove_user_frame_kine()
         # LOADMvCfg outputs [positive, negative, velocity, acceleration], unlike file column order.
         pn = np.array(cfg["PNVA"][index])
+        self.hardware_lower, self.hardware_upper = pn[:, 1].copy(), pn[:, 0].copy()
         self.velocity_limits = pn[:, 2].copy()
         self.acceleration_limits = pn[:, 3].copy()
         self.lower = np.maximum(
@@ -246,6 +247,18 @@ class ArmModel:
         boundary = a * j6 * j6 + b * j6 + c
         return bool(j7 <= boundary - margin if j7 >= 0 else j7 >= boundary + margin)
 
+    def valid_hardware_joints(self, q):
+        """Exact vendor limits for recovery, excluding teleop's interior reserve.
+
+        URDF pi rounding narrows J4 by ~0.0016 degrees; do not misclassify an
+        actual -145° vendor boundary as outside the hardware recovery domain.
+        """
+        q = np.asarray(q, dtype=float)
+        return bool(q.shape == (7,) and np.isfinite(q).all()
+                    and np.all(q >= self.hardware_lower - 1e-6)
+                    and np.all(q <= self.hardware_upper + 1e-6)
+                    and abs(self.bd[0][1]) * abs(q[5]) + abs(q[6]) <= self.bd[0][2] + 1e-6)
+
     def differential_ik(
         self,
         target,
@@ -269,6 +282,19 @@ class ArmModel:
             **quality,
         )
 
+    def pose_tracking_ik(self, target, reference, dt, speed, velocity, max_accel, **quality):
+        from .pose_tracking import step
+        mirrored = getattr(self, "tracking_mirror", None)
+        if mirrored is not None:
+            return mirrored.step(self, target, reference, dt, speed, velocity, max_accel, **quality)
+        return step(self, target, reference, dt, speed, velocity, max_accel, **quality)
+
+    def reset_pose_tracking(self):
+        self._pose_tracking = None
+        mirrored = getattr(self, "tracking_mirror", None)
+        if mirrored is not None:
+            mirrored.reset()
+
     def joint_halfspaces(self, margin=0.2):
         """A q <= b, in degrees: joint boxes and all four vendor wrist faces."""
         wrist = np.zeros((4, 7))
@@ -282,13 +308,6 @@ class ArmModel:
                 np.full(4, self.bd[0][2] - margin),
             ],
         )
-
-    def tracking_ik(
-        self, target, reference, dt, max_speed_deg_s, velocity=None, max_accel=None
-    ):
-        from .vendor_tracking import step
-
-        return step(self, target, reference, dt, max_speed_deg_s, velocity, max_accel)
 
     def ik(self, target, reference, allow_redundant_singular=False):
         from SDK_PYTHON.fx_kine import FX_InvKineSolvePara
@@ -332,6 +351,8 @@ class Models:
     def __init__(self, config):
         from .tool_frame import validate_tool_config
 
+        if config.get("arm_geometry", "nominal") != "nominal":
+            raise ValueError("arm_geometry: mirrored physical models are retired; use manufacturer geometry")
         tools = validate_tool_config(config)
         tool_collision = config.get("tool_collision", {"left": None, "right": None})
         if not isinstance(tool_collision, dict) or set(tool_collision) != {
@@ -383,7 +404,24 @@ class Models:
             for side, arm in self.arms.items():
                 arm.base = bases[side]
                 arm.base_bound = (arm.base, *arm.base_bound[1:])
+        from .mirror import LeftFromRight
+        self.arms["left"].tracking_mirror = LeftFromRight(self.arms["left"], self.arms["right"])
         self.mapping_report = {
+            "coordinate_revision": "vendor_cad_same_facing_v2",
+            "ik_policy": "mirrored_reference_local_ik_v7",
+            "retarget_calculation": "test-teleop yaw frame and relative SE(3); shared session heading",
+            "left_solver_mapping": self.arms["left"].tracking_mirror.report,
+            "arm_geometry": "nominal",
+            "geometry_transform": {
+                "pose_rule": "world_from_base @ native_pose @ flange_to_tcp",
+                "linear_rule": "R_world_base @ native_linear + angular_cross_tcp_offset",
+                "angular_rule": "R_world_base @ native_angular",
+                "joint_coordinates": "unchanged_vendor_degrees",
+                "input_mapping": "same_facing_without_additional_reflection",
+            },
+            "validation_scope": "vendor_urdf_consistency; physical_installation_requires_measurements",
+            "world_from_stand": world_stand.tolist(),
+            "vendor_gravity_in_world": {s: (a.base[:3, :3] @ a.gravity).tolist() for s, a in self.arms.items()},
             "arm_model_sources": {s: str(a.path) for s, a in self.arms.items()},
             "operator_alignment": "same_facing",
             "operator_convention": behind_operator_convention(),
@@ -430,7 +468,6 @@ class Models:
 
     def validate(self):
         from .differential import jacobian
-
         rng = np.random.default_rng(696)
         report = {}
         for side, arm in self.arms.items():
@@ -475,9 +512,19 @@ class Models:
         for arm in nominal.values():
             arm.base = arm.nominal_base
         self.mapping_report["mirror_validation"] = validate_mirror(nominal)
+        self.mapping_report["left_solver_validation"] = self.arms["left"].tracking_mirror.validate(self.arms["left"])
         return report
 
-    def collision_reason(self, joints, margin=0.015):
+    def self_clearances(self, joints):
+        """Conservative separating-axis gaps for nonadjacent arm housings."""
+        gaps = {}
+        for side, arm in self.arms.items():
+            boxes = [(t, *bound) for t, bound in zip(arm.chain(joints[side]), arm.link_bounds)]
+            for i, j in self_link_pairs(len(boxes)):
+                gaps[(side, i + 1, j + 1)] = prepared_clearance(prepare_box(boxes[i]), prepare_box(boxes[j]))
+        return gaps
+
+    def collision_reason(self, joints, margin=0.015, *, self_clearance_floors=None):
         # Mesh AABBs in their own link frames; OBB SAT is conservative, no mesh dependencies.
         boxes = {}
         prepared = {}
@@ -503,12 +550,15 @@ class Models:
                 mesh_hits[id(box)] |= bool(hit)
         for side, arm in self.arms.items():
             # Adjacent links and the short coaxial wrist share housing by design.
-            for i in range(len(boxes[side])):
-                for j in range(i + 3, len(boxes[side])):
-                    if i >= 4 and j >= 4:
-                        continue
-                    if check_overlap(boxes[side][i], boxes[side][j], margin):
-                        return f"{side}: nonadjacent links {i + 1}/{j + 1} too close"
+            for i, j in self_link_pairs(len(boxes[side])):
+                key = (side, i + 1, j + 1)
+                clearance = margin
+                if self_clearance_floors and key in self_clearance_floors:
+                    clearance = self_clearance_floors[key]
+                    if not np.isfinite(clearance) or not 0 < clearance <= margin:
+                        raise ValueError('invalid recovery self-clearance floor')
+                if check_overlap(boxes[side][i], boxes[side][j], clearance):
+                    return f"{side}: nonadjacent links {i + 1}/{j + 1} too close"
             for i, box in enumerate(boxes[side]):
                 for base_side, base_arm in self.arms.items():
                     if base_side == side and i < 2:
@@ -536,6 +586,13 @@ class Models:
         return None
 
 
+def self_link_pairs(count):
+    for i in range(count):
+        for j in range(i + 3, count):
+            if i < 4 or j < 4:
+                yield i, j
+
+
 def prepare_box(box):
     t, center, half = box
     rotation = t[:3, :3]
@@ -556,6 +613,20 @@ def prepared_overlap(a, b, margin):
     axes = axes[valid] / lengths[valid, None]
     radii = np.abs(axes @ ra) @ ha + np.abs(axes @ rb) @ hb + margin
     return not bool(np.any(np.abs(axes @ d) > radii))
+
+
+def prepared_clearance(a, b):
+    """Positive means separated; nonpositive means overlapping OBBs.
+
+    This is a conservative lower bound, not an exact mesh distance.
+    """
+    ra, ca, ha, _ = a
+    rb, cb, hb, _ = b
+    axes = np.concatenate((ra.T, rb.T, np.cross(ra.T[:, None, :], rb.T[None, :, :]).reshape(-1, 3)))
+    lengths = np.linalg.norm(axes, axis=1)
+    valid = lengths >= 1e-8
+    axes = axes[valid] / lengths[valid, None]
+    return float(np.max(np.abs(axes @ (cb - ca)) - np.abs(axes @ ra) @ ha - np.abs(axes @ rb) @ hb))
 
 
 def overlap(a, b, margin):

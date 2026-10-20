@@ -105,3 +105,21 @@ def test_old_poll_failure_cannot_overwrite_state_after_stop(bridge):
     bridge.update(tianji={'state':'idle','devices':[]})
     callback('late timeout')
     assert bridge.state['tianji']['state']=='idle'
+
+
+@pytest.mark.parametrize('state',['idle','error'])
+def test_zero_recovery_available_without_vr_or_normal_device_precheck(bridge,state):
+    bridge.update(authenticated=True,robot='tianji',busy='',selectedPose='zero',
+                  paramSaved=True,paramSaving=False,tianji=dict(state=state,joints={},devices=[]))
+    calls=[]
+    bridge.action=lambda *a,**kw:calls.append(a)
+    bridge.restorePose()
+    assert calls==[('move','/tianji/move',dict(kind='zero',mode='dual'))]
+
+
+@pytest.mark.parametrize('state',['running','moving','unknown','checking'])
+def test_zero_recovery_cannot_start_during_unconfirmed_or_active_control(bridge,state):
+    bridge.update(authenticated=True,robot='tianji',busy='',selectedPose='zero',
+                  paramSaved=True,paramSaving=False,tianji=dict(state=state,joints={},devices=[]))
+    bridge.action=lambda *a,**kw:pytest.fail('Recovery must not interrupt active or unconfirmed motion')
+    bridge.restorePose()

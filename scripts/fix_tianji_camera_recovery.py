@@ -51,6 +51,8 @@ def main():
             app = json.load(response)
         status = client.status()
         check_idle(app, status)
+        if status.get('stream_camera_selection') is not True:
+            raise RuntimeError('请先运行 scripts/update_tianji_camera_stream.py，统一升级相机服务与原生取流程序')
         cameras = client.list_cameras()
         if {c['id'] for c in cameras if c.get('available')} != {'usb-1','usb-2','usb-4'}:
             raise RuntimeError('三路相机未全部识别')

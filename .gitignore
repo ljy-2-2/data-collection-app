@@ -69,3 +69,5 @@ __pycache__/
 /fusion_camera_stream/packet_diagnostics/*.pcap
 /fusion_camera_stream/packet_diagnostics/*.log
 /teleop_control/vendor/tianji/teleop/logs/
+/artifacts/**/*.log
+/artifacts/**/*.pid

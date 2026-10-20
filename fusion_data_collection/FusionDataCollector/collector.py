@@ -30,6 +30,8 @@ SIDES = ('left', 'right')
 CAMERAS = ('usb-1', 'usb-2', 'usb-4')
 PORT = 28765
 IMAGE_PROFILES = {'mjpeg': (1024, 768), 'yuyv': (640, 480)}
+NATIVE_SIZES = {'mjpeg': ((1024, 768), (1280, 1024), (1920, 1080)),
+                'yuyv': ((320, 240), (640, 480))}
 YUYV_FRAME_BYTES = 640*480*2
 YUYV_THREE_CAMERA_BYTES_PER_SECOND = YUYV_FRAME_BYTES*30*3
 JPEG_AND_STATE_BYTES_PER_SECOND = 15_000_000
@@ -47,6 +49,10 @@ def record_count_check(start, final, camera_counts, joint_count):
     result = dict(matches=False, scope='episode_after_subscription' if adopted else 'whole_stream',
                   stored=dict(frames=dict(camera_counts), joint_samples=joint_count))
     try:
+        selected = (start or {}).get('cameras', list(CAMERAS))
+        if (not isinstance(selected, list) or not selected or len(set(selected)) != len(selected)
+                or not set(selected) <= set(CAMERAS) or set(camera_counts) != set(selected)):
+            raise ValueError('Invalid episode camera selection')
         if not final or not isinstance(final.get('frames'), list) or len(final['frames']) != len(CAMERAS):
             raise ValueError('Missing server counts')
         total = dict(frames=dict(zip(CAMERAS, final['frames'])), joint_samples=final['joint_samples'])
@@ -59,7 +65,9 @@ def record_count_check(start, final, camera_counts, joint_count):
             raise ValueError('Invalid nonnegative integer count')
         if any(b > a for a, b in zip(values, excluded)):
             raise ValueError('Subscription baseline exceeds server total')
-        expected = dict(frames={k:total['frames'][k]-baseline['frames'][k] for k in CAMERAS},
+        if any(total['frames'][k] != baseline['frames'][k] for k in CAMERAS if k not in selected):
+            raise ValueError('Unselected camera produced records')
+        expected = dict(frames={k:total['frames'][k]-baseline['frames'][k] for k in selected},
                         joint_samples=total['joint_samples']-baseline['joint_samples'])
         result.update(server_total=total, excluded_preview=baseline, expected=expected)
         result['matches'] = expected == result['stored']
@@ -68,16 +76,32 @@ def record_count_check(start, final, camera_counts, joint_count):
     return result
 
 
-def storage_reserve_bytes(seconds, retain_native):
+def storage_reserve_bytes(seconds, retain_native, profiles=None):
     # Before stream start, reserve for the larger supported raw profile.
     # Disk-space monitoring still stops safely if actual JPEG sizes exceed the estimate.
     rate = JPEG_AND_STATE_BYTES_PER_SECOND
+    if profiles:
+        rate = int(sum(5_000_000 * max(1., p['width'] * p['height'] / (1024 * 768)) for p in profiles.values()))
     if retain_native:
         rate += YUYV_THREE_CAMERA_BYTES_PER_SECOND
     return seconds*rate+2_000_000_000
 
 
 def image_preprocessing(start, retain_native):
+    profiles = start.get('camera_profiles')
+    if profiles is not None:
+        selected = start.get('cameras')
+        if not isinstance(profiles, dict) or not profiles or not isinstance(selected, list) or set(profiles) != set(selected):
+            raise ValueError('Invalid per-camera stream profiles')
+        result = dict(native_format=start.get('format'), native_size=start.get('native_size'),
+                      stored_format='jpeg', stored_size=None, native_retained=bool(retain_native), per_camera={})
+        for camera, profile in profiles.items():
+            fmt, size = profile.get('format'), (profile.get('width'), profile.get('height'))
+            if fmt not in NATIVE_SIZES or size not in NATIVE_SIZES[fmt] or profile.get('fps') != 30:
+                raise ValueError('Unsupported per-camera native mode')
+            result['per_camera'][camera] = dict(native_format=fmt, native_size=list(size), stored_size=list(size),
+                brightness=profile.get('brightness'), method='native JPEG passthrough' if fmt == 'mjpeg' else 'YUYV decoded to RGB then JPEG encoded')
+        return result
     native_format = start.get('format', 'mjpeg')  # Historical MJPEG starts omitted format.
     native_size = start.get('native_size', [1024, 768] if native_format == 'mjpeg' else None)
     if native_format not in IMAGE_PROFILES or native_size != list(IMAGE_PROFILES[native_format]):
@@ -163,36 +187,51 @@ class Buttons:
         return None
 
 
-def encode(directory, event, index, name, retain_native):
+def encode(directory, event, index, name, retain_native, stored_size=None):
     m, data = dict(event.metadata), event.data
     native_format = m.get('format', 'mjpeg')
-    if native_format not in IMAGE_PROFILES or (m['width'], m['height']) != IMAGE_PROFILES[native_format]:
+    native_size = (m['width'], m['height'])
+    if native_format not in NATIVE_SIZES or native_size not in NATIVE_SIZES[native_format]:
         raise ValueError('Unexpected camera format or resolution')
+    target_size = tuple(stored_size) if stored_size is not None else (640, 480)
+    if target_size not in NATIVE_SIZES['mjpeg'] + NATIVE_SIZES['yuyv']:
+        raise ValueError('Unsupported stored image size')
     filename = '%08d.jpg' % index
     native_filename = '%08d%s' % (index, '.yuyv' if native_format == 'yuyv' else '.jpg')
     base = directory / 'camera' / name
     if native_format == 'yuyv':
-        if len(data) != YUYV_FRAME_BYTES:
-            raise ValueError('Invalid YUYV frame size: expected 614400 bytes')
+        if len(data) != m['width'] * m['height'] * 2:
+            raise ValueError('Invalid YUYV frame size')
         m.update(yuv_matrix_defaulted='yuv_matrix' not in m,
                  yuv_matrix=m.get('yuv_matrix','bt601'), yuv_range=m.get('yuv_range','limited'),
                  yuv_range_is_assumption=True)
         image = Frame(dict(m, format=native_format), data).to_pil()
     else:
         with Image.open(io.BytesIO(data)) as im:
-            if im.format != 'JPEG' or im.size != (1024,768):
+            if im.format != 'JPEG' or im.size != native_size:
                 raise ValueError('Invalid JPEG')
-            im.load()
-            image = im.convert('RGB').resize((640,480),Image.Resampling.BILINEAR)
-    try:
-        image.save(base/'frames'/filename, format='JPEG', quality=95, subsampling=0)
-    finally:
-        image.close()
+            if stored_size is not None and target_size == native_size:
+                im.verify()
+                image = None
+            else:
+                im.load()
+                image = im.convert('RGB')
+    if image is None:
+        (base/'frames'/filename).write_bytes(data)
+    else:
+        try:
+            if image.size != target_size:
+                resized = image.resize(target_size, Image.Resampling.BILINEAR)
+                image.close()
+                image = resized
+            image.save(base/'frames'/filename, format='JPEG', quality=95, subsampling=0)
+        finally:
+            image.close()
     if retain_native:
         (base/'native'/native_filename).write_bytes(data)
-    m.update(format=native_format, native_format=native_format, native_size=list(IMAGE_PROFILES[native_format]),
+    m.update(format=native_format, native_format=native_format, native_size=list(native_size),
              native_bytes=len(data), stored_format='jpeg',
-             camera_name=name, frame_index=index, stored_width=640, stored_height=480,
+             camera_name=name, frame_index=index, stored_width=target_size[0], stored_height=target_size[1],
              native_sha256=hashlib.sha256(data).hexdigest(),
              native_path=str(Path('camera')/name/'native'/native_filename) if retain_native else None,
              image_path=str(Path('camera')/name/'frames'/filename))
@@ -313,6 +352,8 @@ class Episode(threading.Thread):
     def __init__(self, args, mapping, trigger, client_factory=None, *, episode_index=1):
         super().__init__(name='episode-recorder',daemon=True)
         self.args, self.mapping, self.trigger = args, mapping, trigger
+        if not mapping or not set(mapping) <= set(CAMERAS) or len(set(mapping.values())) != len(mapping):
+            raise ValueError('Invalid episode camera mapping')
         self.episode_index = episode_index
         self.required_sides = tuple(getattr(args, 'controlled_sides', SIDES))
         self.action_rows = []
@@ -530,7 +571,7 @@ class Episode(threading.Thread):
     def _record(self, client):
         root = Path(self.args.output).expanduser().resolve()
         root.mkdir(parents=True,exist_ok=True)
-        reserved_bytes = storage_reserve_bytes(self.args.max_seconds, self.args.retain_native)
+        reserved_bytes = storage_reserve_bytes(self.args.max_seconds, self.args.retain_native, getattr(self.args, 'camera_profiles', None))
         if shutil.disk_usage(root).free < reserved_bytes:
             rate_mb = (reserved_bytes-2_000_000_000)/self.args.max_seconds/1e6
             raise RuntimeError('磁盘空间不足：为最长本轮预留每秒 %.3f MB，另留 2 GB%s' % (
@@ -551,6 +592,9 @@ class Episode(threading.Thread):
             'episode_index':self.episode_index,
             'task':self.args.task, 'robot_type':getattr(self.args,'robot_type','fusion_dual_arm'),
             'controlled_sides':list(self.required_sides), 'parameters':getattr(self.args,'parameters',{}),
+            'coordinate_mapping':getattr(self.args,'coordinate_mapping',None),
+            'teleop_runtime_mapping':getattr(self.args,'teleop_runtime_mapping',None),
+            'requested_camera_profiles':getattr(self.args,'camera_profiles',None),
             'collector':'fusion_teleop_passive_collection', 'complete':False,'status':'starting',
             'pc_start_ns':time.time_ns(),'start_trigger':self.trigger,
             'requested_image_hz':30,'requested_joint_hz':100,
@@ -592,7 +636,10 @@ class Episode(threading.Thread):
             if self.stopping.is_set():
                 raise RuntimeError(self.error or '开始录制前已收到结束指令，未采集数据')
             with (record/'teleop_feedback.jsonl').open('x') as tf, (record/'joints.jsonl').open('x') as jf, (record/'health.jsonl').open('x') as hf:
-                with closing(client.stream(seconds=self.args.max_seconds,hz=30,joint_hz=100,mode='teleop_observation')) as stream:
+                stream_options = {}
+                if getattr(self.args, 'camera_ids', None) is not None:
+                    stream_options['camera_ids'] = list(self.args.camera_ids)
+                with closing(client.stream(seconds=self.args.max_seconds,hz=30,joint_hz=100,mode='teleop_observation',**stream_options)) as stream:
                     for event in stream:
                         m, kind = event.metadata, event.metadata['type']
                         self._telemetry(tf,grippers)
@@ -601,6 +648,11 @@ class Episode(threading.Thread):
                         if self.stopping.is_set():
                             client.request_stop()
                         if kind == 'start':
+                            if set(m.get('cameras', CAMERAS)) != set(self.mapping):
+                                raise RuntimeError('Stream camera inventory differs from this episode')
+                            requested = getattr(self.args, 'camera_profiles', None)
+                            if requested is not None and requested != m.get('camera_profiles'):
+                                raise RuntimeError('Stream camera settings changed after this episode was prepared')
                             stream_start = m
                             if m.get('observation_mode') != 'teleop_observation' or not m.get('graceful_stop'):
                                 raise RuntimeError('控制器仍是静止测试接口，需要先更新独立相机服务到 v2.2')
@@ -612,7 +664,7 @@ class Episode(threading.Thread):
                             dump(record/'image_preprocessing.json',preprocessing)
                             dump(self.directory/'meta_info.json',meta)
                             dump(record/'stream_start.json',m)
-                            self.notice('数据流已连接，等待三路相机首帧和关节反馈…')
+                            self.notice('数据流已连接，等待 %d 路相机首帧和关节反馈…' % len(cameras))
                         elif kind == 'joints':
                             if len(m['position_deg']) != 14 or m['joint_names'] != meta['joint_order']:
                                 raise RuntimeError('Unexpected joint layout')
@@ -622,16 +674,21 @@ class Episode(threading.Thread):
                                 raise RuntimeError('Joint timestamp regression')
                             line(jf,m); joints.append(m)
                         elif kind == 'image':
+                            actual_profiles = (stream_start or {}).get('camera_profiles')
+                            if actual_profiles is not None and m.get('camera_settings') != actual_profiles.get(m.get('camera_id')):
+                                raise RuntimeError('Camera settings differ from this episode stream')
+                            frame_preprocessing = (preprocessing or {}).get('per_camera', {}).get(m.get('camera_id'), preprocessing)
                             if (preprocessing is None or
-                                    m.get('format','mjpeg') != preprocessing['native_format'] or
-                                    [m.get('width'),m.get('height')] != preprocessing['native_size']):
+                                    m.get('format','mjpeg') != frame_preprocessing['native_format'] or
+                                    [m.get('width'),m.get('height')] != frame_preprocessing['native_size']):
                                 raise RuntimeError('Camera image differs from negotiated stream profile')
                             cname = self.mapping[m['camera_id']]
                             while pending and pending[0].done():
                                 finish_one()
                             if len(pending) >= 48:
                                 raise RuntimeError('图像写入跟不上，停止采集以保留已收数据')
-                            pending.append(pool.submit(encode,self.directory,event,counts[cname],cname,self.args.retain_native))
+                            native_storage = frame_preprocessing['stored_size'] if preprocessing.get('per_camera') else None
+                            pending.append(pool.submit(encode,self.directory,event,counts[cname],cname,self.args.retain_native,native_storage))
                             counts[cname] += 1
                             self.frame_counts = dict(counts)
                         elif kind == 'health':
@@ -647,7 +704,7 @@ class Episode(threading.Thread):
                                 and final is None and joints and all(counts.values())):
                             self.state = 'recording'
                             self.started_monotonic = time.monotonic()
-                            self.notice('三路相机和关节反馈已就绪，正在录制；按 B/Y 结束并保存。')
+                            self.notice('%d 路相机和关节反馈已就绪，正在录制；按 B/Y 结束并保存。' % len(cameras))
                         if time.monotonic()-last_disk >= 2:
                             if shutil.disk_usage(self.directory).free < 2_000_000_000:
                                 raise RuntimeError('Disk reserve reached')
@@ -738,11 +795,11 @@ class Episode(threading.Thread):
         for name, rows in cameras.items():
             camera_stats[name]['sequence_gaps'] = sum((b['sequence']-a['sequence']-1)%2**32 for a,b in zip(rows,rows[1:]))
         count_comparison = record_count_check(stream_start, final,
-            {k:len(cameras[self.mapping[k]]) for k in CAMERAS}, len(joints))
+            {k:len(cameras[self.mapping[k]]) for k in self.mapping}, len(joints))
         count_ok = count_comparison['matches']
         both = sum(all(side in b.get('grippers',{}) for side in self.required_sides) for b in bundles)
         if not bundles or both != len(bundles):
-            self.error = self.error or '部分三路图像组合缺少 50 ms 内的所选夹爪反馈，详见 validation.json'
+            self.error = self.error or '部分图像组合缺少 50 ms 内的所选夹爪反馈，详见 validation.json'
         if not count_ok:
             self.error = self.error or '服务器和落盘数量不一致'
         validation = {
@@ -778,14 +835,15 @@ class Episode(threading.Thread):
             stop_requested_pc_monotonic_ns=self.stop_pc_ns,frames_recorded=len(bundles),
             first_bundle_ts_ns=bundles[0]['timestamp_ns'] if bundles else None,
             last_bundle_ts_ns=bundles[-1]['timestamp_ns'] if bundles else None,
-            cameras={k:{'frames':len(v),'encoding':'jpeg','width':640,'height':480,
-                        'native_format':meta['native_image_format'],'native_size':meta['native_image_size']}
+            cameras={k:{'frames':len(v),'encoding':'jpeg',
+                        'width':v[0]['stored_width'] if v else None,'height':v[0]['stored_height'] if v else None,
+                        'native_format':v[0]['native_format'] if v else None,'native_size':v[0]['native_size'] if v else None}
                      for k,v in cameras.items()},
             data_validate=validation['quality_passed'],integrity=validation)
         dump(record/'validation.json',validation)
         dump(self.directory/'meta_info.json',meta)
-        self.notice('本轮数据：三路图像组合 %d 组；关节 %d 条；左/右夹爪 %d/%d 条。' %
-                    (len(bundles),len(joints),len(grippers['left']),len(grippers['right'])))
+        self.notice('本轮数据：%d 路图像组合 %d 组；关节 %d 条；左/右夹爪 %d/%d 条。' %
+                    (len(cameras),len(bundles),len(joints),len(grippers['left']),len(grippers['right'])))
         def measured_hz(info):
             return '样本或时间跨度不足' if info['actual_hz'] is None else '%.2f Hz'%info['actual_hz']
         self.notice('实测遥操主循环：%s；以下接收帧率不代表控制指令频率。' %

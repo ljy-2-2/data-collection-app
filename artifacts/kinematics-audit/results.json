@@ -1,0 +1,168 @@
+{
+  "kinematic_validation": {
+    "left": {
+      "samples": 40,
+      "max_position_error_m": 7.556893787567373e-06,
+      "max_rotation_error_rad": 2.3844847268778676e-05,
+      "max_jacobian_error": 2.0386249835788184e-05
+    },
+    "right": {
+      "samples": 40,
+      "max_position_error_m": 6.982824332662727e-06,
+      "max_rotation_error_rad": 2.305305476087595e-05,
+      "max_jacobian_error": 2.1386567403185175e-05
+    }
+  },
+  "collision_tools": {
+    "left": false,
+    "right": false
+  },
+  "mount_source": "same_facing_y_half_turn",
+  "static": [
+    {
+      "side": "left",
+      "pose": "zero",
+      "sigma": 1.45650060936286e-17,
+      "rotation_weight": 0.05,
+      "min_margin": 0.0
+    },
+    {
+      "side": "left",
+      "pose": "bent",
+      "sigma": 0.1174253897880515,
+      "rotation_weight": 0.35,
+      "min_margin": 50.1303562670105
+    },
+    {
+      "side": "right",
+      "pose": "zero",
+      "sigma": 7.451650137579319e-18,
+      "rotation_weight": 0.05,
+      "min_margin": 0.0
+    },
+    {
+      "side": "right",
+      "pose": "bent",
+      "sigma": 0.11742538978805142,
+      "rotation_weight": 0.35,
+      "min_margin": 50.1303562670105
+    }
+  ],
+  "trajectory": [
+    {
+      "side": "left",
+      "pose": "zero",
+      "kind": "translate",
+      "final_position_error_mm": 50.00000059626145,
+      "final_rotation_error_deg": 0.0034152217954160186,
+      "max_position_error_mm": 50.000022812002946,
+      "max_rotation_error_deg": 0.02122483669835993,
+      "min_rotation_weight": 0.05,
+      "solver_ms_p50": 0.6219159986358136,
+      "solver_ms_p95": 0.7877511321566999,
+      "post_hold_position_error_increases": 0
+    },
+    {
+      "side": "left",
+      "pose": "zero",
+      "kind": "rotate",
+      "final_position_error_mm": 6.137674285132867,
+      "final_rotation_error_deg": 8.918496670756413,
+      "max_position_error_mm": 6.137675301513765,
+      "max_rotation_error_deg": 8.973726066708814,
+      "min_rotation_weight": 0.05,
+      "solver_ms_p50": 0.6954875134397298,
+      "solver_ms_p95": 0.9975269349524751,
+      "post_hold_position_error_increases": 2
+    },
+    {
+      "side": "left",
+      "pose": "bent",
+      "kind": "translate",
+      "final_position_error_mm": 1.3815057206862601e-11,
+      "final_rotation_error_deg": 0.0002726841290157795,
+      "max_position_error_mm": 0.5619127012796722,
+      "max_rotation_error_deg": 0.004295440005358464,
+      "min_rotation_weight": 0.35,
+      "solver_ms_p50": 0.3360204864293337,
+      "solver_ms_p95": 0.4461938282474876,
+      "post_hold_position_error_increases": 0
+    },
+    {
+      "side": "left",
+      "pose": "bent",
+      "kind": "rotate",
+      "final_position_error_mm": 6.877336544494496e-12,
+      "final_rotation_error_deg": 0.00024529319520869935,
+      "max_position_error_mm": 2.5921679610230575,
+      "max_rotation_error_deg": 1.3935604541012327,
+      "min_rotation_weight": 0.2436079159845751,
+      "solver_ms_p50": 0.4089155117981136,
+      "solver_ms_p95": 0.6895275408169255,
+      "post_hold_position_error_increases": 1
+    },
+    {
+      "side": "right",
+      "pose": "zero",
+      "kind": "translate",
+      "final_position_error_mm": 9.69029330556822e-11,
+      "final_rotation_error_deg": 1.1454575462498553e-05,
+      "max_position_error_mm": 5.874796506582591,
+      "max_rotation_error_deg": 0.4052216187547301,
+      "min_rotation_weight": 0.05,
+      "solver_ms_p50": 0.3995305160060525,
+      "solver_ms_p95": 0.49063309270422906,
+      "post_hold_position_error_increases": 0
+    },
+    {
+      "side": "right",
+      "pose": "zero",
+      "kind": "rotate",
+      "final_position_error_mm": 6.172365644444545,
+      "final_rotation_error_deg": 8.977664328858872,
+      "max_position_error_mm": 6.1723668499311035,
+      "max_rotation_error_deg": 9.032639438166392,
+      "min_rotation_weight": 0.05,
+      "solver_ms_p50": 0.6282170070335269,
+      "solver_ms_p95": 0.7897093921201304,
+      "post_hold_position_error_increases": 2
+    },
+    {
+      "side": "right",
+      "pose": "bent",
+      "kind": "translate",
+      "final_position_error_mm": 5.187843040690898e-12,
+      "final_rotation_error_deg": 0.0003797076104909771,
+      "max_position_error_mm": 0.4726807568534234,
+      "max_rotation_error_deg": 0.002854905966537279,
+      "min_rotation_weight": 0.35,
+      "solver_ms_p50": 0.34011201933026314,
+      "solver_ms_p95": 0.4364658409031108,
+      "post_hold_position_error_increases": 0
+    },
+    {
+      "side": "right",
+      "pose": "bent",
+      "kind": "rotate",
+      "final_position_error_mm": 1.2494449129920166e-11,
+      "final_rotation_error_deg": 0.00040741913798763186,
+      "max_position_error_mm": 0.14722761987496794,
+      "max_rotation_error_deg": 0.7850970274778839,
+      "min_rotation_weight": 0.3193876714889316,
+      "solver_ms_p50": 0.4020165069960058,
+      "solver_ms_p95": 0.5167927825823426,
+      "post_hold_position_error_increases": 0
+    }
+  ],
+  "collision_timing": {
+    "reason_at_zero": null,
+    "ms_p50": 0.7369400118477643,
+    "ms_p95": 0.8645808964502066,
+    "three_checks_ms_p50": 2.2108200355432928
+  },
+  "installed_defaults": {
+    "speed": 180,
+    "accel": 450,
+    "rate": 100
+  }
+}

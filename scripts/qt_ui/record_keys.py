@@ -24,9 +24,13 @@ class UmiRecordKeys(QObject):
             return True
         focus = self.window.activeFocusItem()
         while focus is not None:
-            if any(focus.inherits(name) for name in
-                   ('QQuickTextInput', 'QQuickTextEdit', 'QQuickPopupItem')):
+            if focus.inherits('QQuickPopupItem'):
                 return True
+            if any(focus.inherits(name) for name in ('QQuickTextInput', 'QQuickTextEdit')):
+                # A click on a read-only status label must not disable the
+                # pedal. Active text selection/editing still blocks recording.
+                if not focus.property('readOnly') or focus.property('selectedText'):
+                    return True
             focus = focus.parentItem()
         return False
 

@@ -21,6 +21,7 @@ def bounded_correction(
     dt=None,
     max_outward_speed_deg_s=None,
     joint_metric=None,
+    damping_sq=DAMPING_SQ,
 ):
     faces, bounds = arm.joint_halfspaces()
     raw_faces = faces.copy()
@@ -69,7 +70,7 @@ def bounded_correction(
     if np.all(faces @ unconstrained <= slack + 1e-12):
         return unconstrained, False
 
-    hessian = j.T @ j + DAMPING_SQ * (
+    hessian = j.T @ j + damping_sq * (
         np.eye(7) if joint_metric is None else np.diag(joint_metric)
     )
     # This equals -J.T@error for the ordinary damped least-squares solution.

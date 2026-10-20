@@ -26,6 +26,7 @@ def test_pedal_with_buttons_editors_popups_and_held_keys():
                 Button {objectName: "button"; text: "Other action"; onClicked: accidentalClicks++}
                 TextField {objectName: "editor"; y: 60}
                 TextArea {objectName: "textarea"; y: 110}
+                TextEdit {objectName: "label";y: 160;text: "Status detail";readOnly: true;selectByMouse: true}
                 Dialog {objectName: "dialog"; modal: true; standardButtons: Dialog.Ok}
             }
         """, QUrl('file:///pedal-test.qml'))
@@ -76,6 +77,12 @@ def test_pedal_with_buttons_editors_popups_and_held_keys():
             editor.forceActiveFocus(); space()
             assert editor.property('text') == ' ', (name, editor.property('text'))
             assert backend.calls == ['start', 'stop']
+        label = window.findChild(QObject, 'label')
+        label.forceActiveFocus()
+        assert not keys.editing_or_popup(), 'A read-only status does not block the pedal'
+        from PySide6.QtCore import QMetaObject
+        QMetaObject.invokeMethod(label, 'selectAll')
+        assert keys.editing_or_popup(), 'Copy selection blocks accidental recording'
         button.forceActiveFocus()
         window.setProperty('recordKeyBlocked', True); space()
         assert backend.calls == ['start', 'stop']

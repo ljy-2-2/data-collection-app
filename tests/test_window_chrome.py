@@ -106,8 +106,25 @@ class WindowChromeTests(unittest.TestCase):
                     QTest.qWait(30)
                     assert (stepper.y(), workspace.y(), workspace.height(), scroll.property('contentHeight')) == baseline
                     backend.update(notice='')
-                backend.update(page='teleop', teleopStep=2, tianji=dict(original_status, camera_error='相机预览不可用：fixture'))
-                QTest.qWait(30)
+                camera_ids = ['usb_2', 'usb_4', 'usb_1']
+                camera_roles = ['right', 'left', 'center']
+                for count in (0, 1, 2, 3, 2, 0, 3):
+                    inventory = [dict(id=key, connected=True, available=False) for key in camera_ids[:count]]
+                    backend.update(page='teleop', teleopStep=2, tianji=dict(original_status, cameras=inventory, camera_preview_mode='snapshot'))
+                    QTest.qWait(30)
+                    for idx, role in enumerate(camera_roles):
+                        assert (find_item('teleopCamera-' + role) is not None) == (idx < count)
+                    if count:
+                        ordered_roles = [r for r in ('left', 'center', 'right') if r in camera_roles[:count]]
+                        tiles = [find_item('teleopCameraTile-' + r) for r in ordered_roles]
+                        assert all(a.x() < b.x() and a.y() == b.y() for a, b in zip(tiles, tiles[1:])), 'Wrist previews must stay left/right regardless of discovery order'
+                        for key, role in zip(camera_ids[:count], camera_roles[:count]):
+                            assert find_item('teleopCameraTile-' + role).property('modelData') == key
+                        tile = find_item('teleopCamera-' + camera_roles[0])
+                        assert tile.staleInterval >= 10000
+                        backend.update(tianji=dict(backend.state['tianji'], cameras=[dict(c, updated_at=2) for c in reversed(inventory)]))
+                        QTest.qWait(10)
+                        assert tile is find_item('teleopCamera-' + camera_roles[0]), 'Polling must not recreate camera readers'
                 for role in ('left', 'center', 'right'):
                     camera = find_item('teleopCamera-' + role)
                     label = find_item('teleopCameraLabel-' + role)
@@ -118,10 +135,10 @@ class WindowChromeTests(unittest.TestCase):
                     camera._source = 'offline-fixture'
                     camera._decoded(camera.sequence, frame)
                     QTest.qWait(10)
-                    assert not label.isVisible() and not stale.isVisible()
+                    assert label.isVisible() and not stale.isVisible()
                     camera.offline()
                     QTest.qWait(10)
-                    assert not label.isVisible() and stale.isVisible()
+                    assert label.isVisible() and stale.isVisible()
                     camera.source = ''
                 target = dict(selected='local', web_url='http://127.0.0.1:5173', destinations=[dict(kind='local'), dict(kind='cloud')])
                 backend.update(uploadTarget=target, tianji=original_status)
@@ -148,7 +165,7 @@ class WindowChromeTests(unittest.TestCase):
                             assert window.grabWindow().save(str(Path(screenshot_dir) / f'{name}-{width}.png'))
                 assert 'ToolTip' not in Path('scripts/qt_ui/qml/Main.qml').read_text()
                 camera_qml = Path('scripts/qt_ui/qml/TeleopCameras.qml').read_text()
-                assert '等待相机画面' not in camera_qml and 'camera_error' not in camera_qml
+                assert 'cameraIds' in camera_qml
                 requests = []
                 backend.closeRequested.connect(lambda: requests.append('safe-close'))
                 backend.update(busy='record-stop')

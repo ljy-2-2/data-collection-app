@@ -12,10 +12,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionButton, StatusDot, classNames } from '../CollectionUi';
 import { CameraStream } from '../CameraStream';
+import { TianjiCameraSettings } from './TianjiCameraSettings';
 import { TianjiRobotPreview } from '../TianjiRobotPreview';
 import { requestJson } from '../../lib/http';
 import {
-  TIANJI_CAMERAS,
   TIANJI_DEFAULTS,
   TIANJI_FIELDS,
   TIANJI_JOG_STEP_DEG,
@@ -36,6 +36,7 @@ interface Pose {
 const POSES_KEY = 'tianji-pose-presets-v1';
 const primaryFields = TIANJI_FIELDS.slice(0, 3);
 const otherFields = TIANJI_FIELDS.slice(3);
+const cameraDisplayOrder: Record<string, number> = { usb_4: 0, usb_1: 1, usb_2: 2 };
 const emptyDevices: TianjiStatus['devices'] = [
   { id: 'robot', name: 'Tianji', status: 'offline' },
   { id: 'xr', name: 'Galaxis VR', status: 'offline' },
@@ -98,9 +99,12 @@ export function TianjiTeleopWorkspace({
     message: string;
   } | null>(null);
   const [state, setState] = useState<TianjiStatus | null>(null);
+  const [cameraBusy, setCameraBusy] = useState<Record<string, boolean>>({});
+  const updateCameraBusy = useCallback((key: string, busy: boolean) => {
+    setCameraBusy(previous => previous[key] === busy ? previous : {...previous, [key]:busy});
+  }, []);
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
-  const [camera, setCamera] = useState('usb_1');
   const [poses, setPoses] = useState<Pose[]>(loadPoses);
   const [selectedPose, setSelectedPose] = useState('zero');
   const mounted = useRef(true),
@@ -173,10 +177,12 @@ export function TianjiTeleopWorkspace({
   const collection = state?.collection;
   const collecting = Boolean(collection?.recording);
   const collectionBusy = Boolean(collection?.busy);
+  const cameraSettingsBusy = Boolean(state?.camera_settings_busy) || Object.values(cameraBusy).some(Boolean);
   const locked =
     !parametersLoaded ||
     Boolean(pending) ||
     collectionBusy ||
+    cameraSettingsBusy ||
     running ||
     moving ||
     state?.state === 'checking' ||
@@ -195,6 +201,8 @@ export function TianjiTeleopWorkspace({
     !saved || TIANJI_FIELDS.some(({ key }) => parameters[key] !== saved[key]);
   const valid = validTianjiParameters(parameters);
   const canMove = Boolean(state) && live && !locked && !saving && !dirty;
+  const canRecover = Boolean(state) && ['idle', 'error'].includes(state!.state)
+    && parametersLoaded && !pending && !saving && !dirty && !collectionBusy && !collecting && !cameraSettingsBusy;
   useEffect(() => {
     if (
       !parametersLoaded ||
@@ -242,13 +250,12 @@ export function TianjiTeleopWorkspace({
     parameterKey,
     saveFailure,
   ]);
-  const selectedCamera = state?.cameras.find((c) => c.id === camera);
-  const previewTransition = ['connecting', 'starting', 'streaming', 'cooldown', 'resuming', 'recovering'].includes(
-    state?.camera_phase ?? '',
-  );
-  const frame = selectedCamera?.available || previewTransition
-    ? `${baseUrl}/tianji/cameras/${camera}/stream`
-    : '';
+  const cameras = (state?.cameras ?? [])
+    .filter((c) => c.connected !== false)
+    .sort((a, b) => (cameraDisplayOrder[a.id] ?? 3) - (cameraDisplayOrder[b.id] ?? 3)
+      || a.id.localeCompare(b.id));
+  const cameraColumns = cameras.length <= 3
+    ? Math.max(1, cameras.length) : Math.ceil(Math.sqrt(cameras.length));
   const closure: Partial<Record<TianjiSide, number>> = {};
   for (const { id } of TIANJI_SIDES) {
     const f = state?.grippers?.motors[id]?.feedback;
@@ -292,13 +299,15 @@ export function TianjiTeleopWorkspace({
     }
   }
   async function resetPose() {
-    if (!canMove) return;
+    if (!(selectedPose === 'zero' ? canRecover : canMove)) return;
     const selected = poses.find((p) => p.id === selectedPose);
     const label = selectedPose === 'zero' ? '零点' : selected?.name;
     if (
       !label ||
       !window.confirm(
-        `将双臂移动到${label}，请确认运动范围内无人和障碍物。`,
+        selectedPose === 'zero'
+          ? '将清除已解除的故障并逐臂低速回零。请先释放硬件急停，确认整条回零路径无障碍物。'
+          : `将双臂移动到${label}，请确认运动范围内无人和障碍物。`,
       )
     )
       return;
@@ -553,6 +562,11 @@ export function TianjiTeleopWorkspace({
                   : null}
           </div>
         </dialog>
+        {moving && state?.recovery ? (
+          <div className="inline-alert teleop-panel-alert" role="status">
+            {state.recovery.detail}
+          </div>
+        ) : null}
         {error || state?.error || saveFailure ? (
           <div className="inline-alert teleop-panel-alert" role="alert">
             {error || state?.error || saveFailure?.message}
@@ -649,35 +663,32 @@ export function TianjiTeleopWorkspace({
             <div>
               <h3>相机画面</h3>
             </div>
-            <select
-              className="camera-switcher"
-              aria-label="切换天机相机"
-              value={camera}
-              onChange={(e) => setCamera(e.target.value)}
-            >
-              {TIANJI_CAMERAS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+            <span>{state?.camera_preview_mode === 'snapshot' ? '逐路刷新' : `${cameras.length} 路相机`}</span>
           </div>
-          <div className="teleop-camera-stage tianji-camera-stage">
-            {frame ? (
-              <CameraStream
-                key={camera}
-                scope="tianji"
-                src={frame}
-                waiting={!selectedCamera?.available || state?.camera_phase === 'resuming' || state?.camera_phase === 'cooldown'}
-                alt={`${TIANJI_CAMERAS.find((c) => c.id === camera)?.label}实时画面`}
-              />
-            ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cameraColumns}, minmax(0, 1fr))`, gap: 8 }}>
+            {cameras.map((camera) => (
+              <div key={camera.id}>
+                <div>{camera.label || camera.id}</div>
+                <div className="teleop-camera-stage tianji-camera-stage">
+                  <CameraStream
+                    scope="tianji"
+                    src={`${baseUrl}/tianji/cameras/${camera.id}/stream`}
+                    waiting={!camera.available}
+                    refreshTimeoutMs={state?.camera_preview_mode === 'snapshot' ? Math.max(10000, cameras.length * 8000) : 10000}
+                    alt={`${camera.label || camera.id}画面`}
+                  />
+                </div>
+                <TianjiCameraSettings baseUrl={baseUrl} cameraKey={camera.id} label={camera.label || camera.id}
+                  active={camera.connected !== false} blocked={cameraSettingsBusy}
+                  editable={parametersLoaded && !pending && !saving && !collection?.armed && !collectionBusy
+                    && !!state && ['idle','error'].includes(state.state)} onBusyChange={updateCameraBusy} />
+              </div>
+            ))}
+            {cameras.length === 0 && (
               <div className="tianji-camera-empty">
                 <VideoOff size={28} />
-                <strong>等待相机画面</strong>
-                <span>
-                  {state?.camera_error || '连接机械臂网线后，点击检查设备'}
-                </span>
+                <strong>等待识别已连接的相机</strong>
+                <span>{state?.camera_error || '连接机械臂网线后，点击检查设备'}</span>
               </div>
             )}
           </div>
@@ -699,7 +710,7 @@ export function TianjiTeleopWorkspace({
               <select
                 aria-label="天机姿态配置"
                 value={selectedPose}
-                disabled={locked}
+                disabled={locked && !canRecover}
                 onChange={(e) => setSelectedPose(e.target.value)}
               >
                 <option value="zero">零点（默认）</option>
@@ -709,7 +720,7 @@ export function TianjiTeleopWorkspace({
                   </option>
                 ))}
               </select>
-              <ActionButton disabled={!canMove} onClick={resetPose}>
+              <ActionButton disabled={!(selectedPose === 'zero' ? canRecover : canMove)} onClick={resetPose}>
                 复位
               </ActionButton>
               <ActionButton

@@ -111,6 +111,11 @@ class Service(object):
         self.fault = None
         self.count = 0
         self.last_stream = None
+        self.last_snapshot_error = None
+        self.recovery_audit = None
+        self.recovery_count = 0
+        self.settings_supported = True
+        self.camera_settings_rollback = {}
 
     def dispatch(self, request):
         if not isinstance(request, dict) or not secret_equal(request.get('token'), self.config['token']):
@@ -120,13 +125,34 @@ class Service(object):
             return {'ok':True,'controller_monotonic_ns':int(monotonic()*1e9),
                     'boot_id':read('/proc/sys/kernel/random/boot_id')}, b''
         if method == 'status':
-            return {'ok':True,'version':'2.2.0','mode':'snapshot_and_stream',
+            return {'ok':True,'version':'2.3.2','mode':'snapshot_and_stream',
                     'observation_modes':['stationary','teleop_observation'],'graceful_stop':True,
+                    'teleop_rt_policy':'teleop_observation_v1','stream_camera_selection':True,
+                    'camera_hotplug_recovery':True,'camera_inventory_events':True,
+                    'camera_controls':True,'per_camera_profiles':True,
                     'captures':self.count,'fault':self.fault,'idle':ACTIVE is None,
+                    'last_snapshot_error':self.last_snapshot_error,
+                    'recoverable_camera_fault':self.recovery_audit is not None,
+                    'recovery_count':self.recovery_count,
                     'stream_hz':30,'supported_joint_hz':[30,100],'max_stream_seconds':600,'last_stream':self.last_stream,
                     'cooldown_seconds':self.config['cooldown_seconds']}, b''
+        if method == 'recover':
+            from streaming import recover
+            return recover(self, sys.modules[__name__]), b''
         if method == 'list':
             return {'ok':True,'cameras':[device_info(c) for c in self.config['cameras']]}, b''
+        if method == 'camera_settings':
+            try:
+                from camera_controls import control
+                return control(self, request, sys.modules[__name__]), b''
+            except Exception as error:
+                return {'ok':False,'error':'camera_settings_rejected','detail':str(error)}, b''
+        if method == 'camera_settings_restore':
+            try:
+                from camera_controls import restore
+                return restore(self, request, sys.modules[__name__]), b''
+            except Exception as error:
+                return {'ok':False,'error':'camera_settings_restore_rejected','detail':str(error)}, b''
         if method != 'snapshot':
             return {'ok':False,'error':'unknown_method'}, b''
         camera = next((c for c in self.config['cameras'] if c['id']==request.get('camera_id')), None)
@@ -176,6 +202,8 @@ class Service(object):
                     self.fault = 'Worker timed out or service stopped; no automatic capture retries'
                     return {'ok':False,'error':'capture_paused','detail':self.fault}, b''
                 if ACTIVE.returncode != 0:
+                    err.flush()
+                    self.last_snapshot_error = read(directory+'/errors')[-2048:]
                     self.fault = 'Worker failed (exit %d); manual inspection required' % ACTIVE.returncode
                     return {'ok':False,'error':'capture_paused','detail':self.fault}, b''
             metadata = json.loads(read(directory+'/metadata'))

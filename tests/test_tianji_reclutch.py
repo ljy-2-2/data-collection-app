@@ -33,7 +33,7 @@ def session(models, monkeypatch):
     clock = [100.]
     monkeypatch.setattr('marvin_teleop.control.time.monotonic', lambda: clock[0])
     for arm in models.arms.values():
-        monkeypatch.setattr(arm, 'differential_ik', lambda target, reference, *args, **kwargs: reference.copy())
+        monkeypatch.setattr(arm, 'pose_tracking_ik', lambda target, reference, *args, **kwargs: reference.copy())
 
     def tick(grips, yaw=0., hands=None, head=None, connected=True, elapsed=.01, session_id=1):
         clock[0] += elapsed
@@ -199,3 +199,30 @@ def test_invalid_first_heading_does_not_poison_later_capture(session):
     frame = session.tick({'left': 0., 'right': 1.}, yaw=.4)
     np.testing.assert_allclose(session.controller.arms['right'].basis,
                                same_facing_map(frame.head, session.models.robot_from_operator))
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('direction', ['forward', 'backward', 'inward'])
+def test_zero_start_uses_the_same_solver_options_in_every_direction(session, monkeypatch, side, direction):
+    for s in session.robot.q:
+        session.robot.q[s] = np.zeros(7)
+    options=[]
+    def solve(target, reference, *args, **kwargs):
+        options.append(kwargs)
+        return reference.copy()
+    monkeypatch.setattr(session.models.arms[side], 'pose_tracking_ik', solve)
+    grips={'left':0.,'right':0.};grips[side]=1.
+    session.tick(grips)
+    hands={s:np.eye(4) for s in grips}
+    if direction=='forward':hands[side][2,3] = -.005
+    elif direction=='backward':hands[side][2,3] = .005
+    else:hands[side][0,3] = .005 if side=='left' else -.005
+    session.tick(grips,hands=hands)
+    expected=options[-1]
+    assert not any('elbow' in key or 'forward' in key for key in expected)
+    session.tick({**grips,side:0.},hands=hands)
+    session.tick(grips,hands=hands)
+    session.tick(grips,hands=hands)
+    assert options[-1].keys() == expected.keys()
+    for key in expected:
+        np.testing.assert_equal(options[-1][key], expected[key])

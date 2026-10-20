@@ -5,10 +5,12 @@ Item {
     id: root
     property string cameraKey: ""
     property string cameraName: "相机"
+    property string scope: "umi"
     property bool active: true
     property bool available: false
-    property var details: backend.umiCameraBrightness[cameraKey] || {}
-    property bool adjustable: available && !!details.supported && !details.busy && !details.error
+    property bool editable: true
+    property var details: scope === "tianji" ? ((backend.teleopCameraSettings[cameraKey] || {}).brightness || {}) : (backend.umiCameraBrightness[cameraKey] || {})
+    property bool adjustable: available && editable && !!details.supported && !details.busy && !details.error
     property real draftValue: 0
     readonly property real lower: details.supported ? details.min : 0
     readonly property real upper: details.supported ? details.max : 1
@@ -18,7 +20,10 @@ Item {
 
     function refresh() {
         debounce.stop()
-        if (available && cameraKey) backend.loadCameraBrightness(cameraKey)
+        if (available && cameraKey && (scope !== "tianji" || editable)) {
+            if (scope === "tianji") backend.loadTeleopCameraSettings(cameraKey)
+            else backend.loadCameraBrightness(cameraKey)
+        }
     }
     function syncValue() {
         if (details.supported && !details.busy && !slider.pressed && !number.editing) {
@@ -33,11 +38,16 @@ Item {
         var snapped = lower + index*increment
         draftValue = snapped
         number.text = String(snapped)
-        if (snapped !== details.value) backend.setCameraBrightness(cameraKey, snapped)
+        if (snapped !== details.value) {
+            if (scope === "tianji") backend.setTeleopCameraBrightness(cameraKey, snapped)
+            else backend.setCameraBrightness(cameraKey, snapped)
+        }
     }
     onCameraKeyChanged: { syncValue(); refresh() }
     onAvailableChanged: refresh()
-    onDetailsChanged: {syncValue();if (available && !details.loaded && !details.busy && !details.error) Qt.callLater(refresh)}
+    onEditableChanged: {if (editable && !details.loaded && !details.busy && !details.error) refresh()}
+    function refreshIfNeeded() {if (available && !details.loaded && !details.busy && !details.error) refresh()}
+    onDetailsChanged: {syncValue();Qt.callLater(refreshIfNeeded)}
     Component.onCompleted: { syncValue(); refresh() }
     Timer {id: debounce;interval: 200;onTriggered: root.commit(root.draftValue)}
 
@@ -46,7 +56,8 @@ Item {
         Slider {
             id: slider;objectName: "cameraBrightnessSlider"
             Layout.fillWidth: true;Layout.minimumWidth: 38;height: 28
-            from: root.lower;to: root.upper;stepSize: root.increment;value: root.draftValue
+            from: root.lower;to: root.upper;stepSize: root.increment
+            value: Math.max(root.lower, Math.min(root.upper, root.draftValue))
             enabled: root.adjustable;live: true;snapMode: Slider.SnapAlways
             focusPolicy: Qt.StrongFocus;Accessible.name: root.cameraName+"亮度"
             opacity: enabled?1:.45
@@ -77,14 +88,14 @@ Item {
         Btn {
             objectName: "cameraBrightnessDefault";Layout.preferredWidth: 38;height: 27;textSize: 10
             text: root.details.error?"重试":root.details.supported?"默认":"刷新"
-            enabled: root.available && !root.details.busy
+            enabled: root.available && root.editable && !root.details.busy
             Accessible.name: root.cameraName+(root.details.supported&&!root.details.error?"恢复默认亮度":"刷新亮度")
             onClicked: {if (root.details.error || !root.details.supported) root.refresh();else root.commit(root.details.default)}
         }
     }
     Txt {
         id: note;x: 8;y: 35;width: parent.width-16;height: 15;font.pixelSize: 10
-        text: !root.active?"未启用":!root.available?"等待相机画面":root.details.busy?"正在读取 / 应用亮度…":root.details.error?"亮度操作失败，可重试":root.details.supported?"范围 "+root.lower+" ～ "+root.upper:root.details.loaded?root.details.message||"相机不支持亮度调节":"正在读取亮度…"
+        text: !root.active?"未启用":root.details.busy?"正在读取 / 应用亮度…":root.details.error?root.details.error:root.scope==="tianji"&&!root.editable?"遥操及采集期间锁定设置":!root.available?"等待相机画面":root.details.supported?(root.scope==="tianji"?"硬件范围 ":"范围 ")+root.lower+" ～ "+root.upper:root.details.loaded?root.details.message||"相机不支持亮度调节":"正在读取亮度…"
         color: root.details.error?Theme.red:Theme.inkSoft
         HoverHandler {id: hover}
         ToolTip.visible: hover.hovered && !!(root.details.error || root.details.message)

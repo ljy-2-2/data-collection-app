@@ -16,6 +16,13 @@ def configuration(path):
         )
     from .tool_frame import validate_tool_config
 
+    c.setdefault("arm_geometry", "nominal")
+    if c["arm_geometry"] != "nominal":
+        raise ValueError("arm_geometry: 前后镜像模型已停用；请使用 nominal 厂家模型并实测安装方向")
+    c.setdefault("mount_orientation", "cad")
+    if c["mount_orientation"] != "cad":
+        raise ValueError("旧 mount_orientation 翻转已停用；使用 cad，安装差异请通过 installation_calibration 实测标定")
+
     c["tool_tcp_source"] = c.get("tool_tcp")
     c["tool_tcp"] = validate_tool_config(c, source_dir)
     # Reject old empirical reflections rather than silently reverse a physical axis.
@@ -45,9 +52,6 @@ def configuration(path):
         "ik_singular_rotation_weight_m": 0.05,
         "ik_singular_sigma_low": 0.02,
         "ik_singular_sigma_high": 0.08,
-        "elbow_branch_margin_deg": 8.0,
-        "elbow_posture_offset_deg": 58.0,
-        "elbow_posture_gain_s": 2.0,
         "joint_limit_soft_margin_deg": 30.0,
         "joint_limit_reserve_deg": 3.0,
         "joint_limit_escape_speed_deg_s": 20.0,
@@ -68,9 +72,6 @@ def configuration(path):
         "ik_singular_rotation_weight_m": (0.05, 1.0),
         "ik_singular_sigma_low": (0.001, 0.2),
         "ik_singular_sigma_high": (0.001, 0.3),
-        "elbow_branch_margin_deg": (0.1, 20.0),
-        "elbow_posture_offset_deg": (10.0, 65.0),
-        "elbow_posture_gain_s": (0.0, 5.0),
         "joint_limit_soft_margin_deg": (0.0, 45.0),
         "joint_limit_reserve_deg": (0.0, 10.0),
         "joint_limit_escape_speed_deg_s": (0.0, 30.0),

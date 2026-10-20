@@ -30,7 +30,9 @@ from marvin_teleop.configuration import configuration  # noqa: E402
 from marvin_teleop.control import Controller  # noqa: E402
 from marvin_teleop.launcher import PicoLauncher, ensure_service  # noqa: E402
 from marvin_teleop.model import Models  # noqa: E402
+from marvin_teleop.preview import validate_preview  # noqa: E402
 from marvin_teleop.robot import Robot  # noqa: E402
+from marvin_teleop.recovery import ZeroRecovery  # noqa: E402
 from marvin_teleop.xr_input import SDKInput  # noqa: E402
 
 sys.path.insert(
@@ -163,9 +165,12 @@ def main():
 
     config = load_configuration()
     models = Models(config)
+    validate_preview(models, Path(__file__).resolve().parents[3] / "public/tianji-model.json")
     models.validate()
     robot = None
     vr = launcher = ctrl = grippers = motion = None
+    recovery = None
+    recovery_report = None
     state, error, mode = "idle", "", "dual"
     upload_mode = "dual"
     last_lease = time.monotonic()
@@ -174,7 +179,7 @@ def main():
     robot_ready = False
 
     def halt():
-        nonlocal ctrl, grippers, motion, state
+        nonlocal ctrl, grippers, motion, state, recovery, recovery_report
         # Always try both stop paths; a failed stop is surfaced, never reported as idle.
         errors = []
         if grippers:
@@ -189,7 +194,11 @@ def main():
                 robot.stop()
             except Exception as exc:
                 errors.append(str(exc))
-        ctrl = motion = None
+        if recovery:
+            recovery_report = recovery.status()
+            if not recovery.done:
+                recovery_report['detail'] = '回零已停止：' + recovery.detail
+        ctrl = motion = recovery = None
         if robot:
             robot.last_command = None
         state = "error" if errors else "idle"
@@ -247,6 +256,20 @@ def main():
                             state, error = "running", ""
                         elif action == "move":
                             req = TianjiMove.model_validate(cmd["payload"])
+                            if req.kind == "zero":
+                                if state not in ("idle", "error") or ctrl or motion or recovery or grippers:
+                                    raise ValueError("请先停止当前控制，再执行回零恢复")
+                                config.update(req.parameters.model_dump())
+                                mode = req.mode
+                                if robot is None:
+                                    robot = RecordingRobot(config)
+                                # Recovery owns its fresh/error-aware read and
+                                # clear/idle sequence; no VR/check prerequisite.
+                                recovery = ZeroRecovery(robot, models, config, sides(mode), now)
+                                recovery_report = recovery.status()
+                                state, error, robot_ready = "moving", "", False
+                                emit({"reply": cmd.get("id"), "ok": True, "state": state})
+                                continue
                             if state != "idle" or robot is None or not robot_ready:
                                 raise ValueError("请先停止遥操作，并确认机械臂反馈在线")
                             config.update(req.parameters.model_dump())
@@ -298,7 +321,14 @@ def main():
                     error = "页面连接中断，控制已停止"
                 if now - last_lease > 60:
                     quitting.set()
-                if robot:
+                if recovery:
+                    recovery.tick(now)
+                    recovery_report = recovery.status()
+                    robot_ready = recovery.phase not in ("feedback", "idle_ack")
+                    if recovery.done:
+                        halt()
+                        error = ""
+                elif robot:
                     measured = robot.read()
                     robot_ready = True
                 if ctrl:
@@ -397,6 +427,15 @@ def main():
                     "grippers": grippers.status() if grippers else None,
                     "gripper_feedback": grippers.drain_feedback() if grippers else {},
                     "joint_command": getattr(robot, "last_command", None) if ctrl else None,
+                    "teleop_mapping": {
+                        "coordinate_revision": models.mapping_report.get("coordinate_revision"),
+                        "ik_policy": models.mapping_report.get("ik_policy"),
+                        "arm_geometry": config["arm_geometry"],
+                        "input_mapping": "same_facing",
+                        "model_world_from_tracking": ctrl.session_basis.tolist()
+                        if ctrl is not None and ctrl.session_basis is not None else None,
+                        "vr_session": ctrl.session if ctrl else None,
+                    },
                 },
                 frame,
                 connected,
@@ -420,6 +459,8 @@ def main():
                             else {},
                             "grippers": grippers.status() if grippers else None,
                             "reason": ctrl.reason if ctrl else "",
+                            "coordinate_mapping": models.mapping_report,
+                            "recovery": recovery_report,
                         }
                     }
                 )

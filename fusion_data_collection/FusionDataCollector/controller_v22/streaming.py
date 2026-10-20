@@ -17,7 +17,7 @@ import time
 from joints import JointReader
 
 HEADER = struct.Struct('<4sIIQIIIII')
-MAX_FRAME = 2*1024*1024
+MAX_FRAME = 6*1024*1024
 
 def stream_profile(manifest, mode):
     """Use an explicit native format; never silently substitute compressed frames."""
@@ -27,6 +27,28 @@ def stream_profile(manifest, mode):
     if profile not in allowed:
         raise ValueError('Unsupported native stream profile')
     return profile
+
+
+def camera_profiles(service, api, selected, fallback):
+    """Resolve verified native modes and actual hardware brightness while idle."""
+    if not getattr(service, 'settings_supported', False):
+        return {key:dict(fallback) for key in selected}, None
+    from camera_controls import profile_for, load_settings, camera_capabilities, brightness
+    saved = load_settings(service)
+    profiles, names = {}, []
+    for camera in service.config['cameras']:
+        key, profile = profile_for(service, camera['id'])
+        names.append(key)
+        if camera['id'] not in selected:
+            continue
+        capabilities = camera_capabilities(camera)
+        if key not in capabilities['modes']:
+            raise ValueError('Saved mode is not advertised at 30 fps: '+camera['id'])
+        profile['brightness'] = brightness(camera, api.device_info(camera), capabilities['brightness'],
+                                          saved.get(camera['id'], {}).get('brightness'))
+        profile['mode_id'] = key
+        profiles[camera['id']] = profile
+    return profiles, names
 
 def validate_header(record, profile):
     magic, cam, seq, stamp, size, width, height, pts, scr = record
@@ -102,10 +124,16 @@ def rt_snapshot(text):
 
 AUDIT_KEYS = ('robot_pids','modules','mounts','config_hashes','dmesg_sha256')
 
-def unchanged_for_recovery(before, after, mode='stationary'):
+def unchanged_for_recovery(before, after, mode='stationary', camera_hotplug=False):
     try:
         from camera_audit import audit_changed
-        if any(audit_changed(before, after, k, mode) for k in AUDIT_KEYS): return False
+        from camera_audit import camera_hotplug_only
+        for key in AUDIT_KEYS:
+            if not audit_changed(before, after, key, mode):
+                continue
+            if key == 'dmesg_sha256' and camera_hotplug and camera_hotplug_only(before, after, mode):
+                continue
+            return False
         old, new = rt_snapshot(before['xenomai']), rt_snapshot(after['xenomai'])
         for name in old:
             a, b = old[name], new[name]
@@ -146,20 +174,28 @@ def recover(service, api):
             raise RuntimeError('Camera cooldown has not finished')
         current = audit()
         mode = (service.last_stream or {}).get('observation_mode', 'stationary')
-        if not unchanged_for_recovery(baseline, current, mode):
+        if not unchanged_for_recovery(baseline, current, mode, camera_hotplug=True):
             raise RuntimeError('Controller audit changed; recovery refused')
         with open(os.path.join(os.path.dirname(service.config['helper']), 'stream-manifest.json')) as f:
             manifest = json.load(f)
         for path, digest in manifest['sha256'].items():
             if sha(path) != digest: raise RuntimeError('Helper integrity mismatch')
+        available = 0
         for camera in service.config['cameras']:
+            if camera['id'] not in (service.last_stream or {}).get('cameras', CAMERA_IDS):
+                continue
             info = api.device_info(camera)
-            if not info['available'] or not api.interface_idle(camera):
-                raise RuntimeError('Camera missing or busy')
+            if not info['available']:
+                continue
+            available += 1
+            if not api.interface_idle(camera):
+                raise RuntimeError('Camera busy')
             with open(os.devnull,'wb') as null:
                 result = subprocess.call(['/bin/fuser','/dev/bus/usb/%03d/%03d' % (info['bus'],info['address'])],
                                          stdout=null,stderr=null)
             if result != 1: raise RuntimeError('Camera busy or resource check failed')
+        if not available:
+            raise RuntimeError('No selected cameras connected')
     except Exception as exc:
         return {'ok':False,'error':'recovery_refused','detail':str(exc)}
     service.fault = None
@@ -227,6 +263,30 @@ class JointSampler(threading.Thread):
         with self.lock:
             return self.queue.popleft() if self.queue else None
 
+CAMERA_IDS = ('usb-1', 'usb-2', 'usb-4')
+
+
+def selection(request):
+    ids = request.get('camera_ids', list(CAMERA_IDS))
+    if (not isinstance(ids, list) or not ids or len(ids) > len(CAMERA_IDS)
+            or any(i not in CAMERA_IDS for i in ids) or len(set(ids)) != len(ids)):
+        raise ValueError('Invalid camera selection')
+    if request.get('observation_mode', 'stationary') != 'teleop_observation' and set(ids) != set(CAMERA_IDS):
+        raise ValueError('Subset capture requires teleop observation mode')
+    return [i for i in CAMERA_IDS if i in ids]
+
+
+def native_command(helper, seconds, infos, selected, format_name, mode):
+    addresses = [str(info['address']) if info['id'] in selected else '0' for info in infos]
+    if isinstance(format_name, (list, tuple)):
+        format_name = ','.join(format_name)
+    command = [helper, str(seconds)] + addresses + [format_name]
+    if mode == 'teleop_observation':
+        mask = sum(1 << i for i, camera_id in enumerate(CAMERA_IDS) if camera_id in selected)
+        command.append('mask=%d' % mask)
+    return command
+
+
 def run(service, sock, request, api):
     seconds = request.get('seconds', 60)
     joint_hz = request.get('joint_hz',30)
@@ -240,6 +300,12 @@ def run(service, sock, request, api):
     if service.fault or api.ACTIVE is not None:
         api.reply(sock, {'ok':False,'error':'capture_paused','detail':service.fault or 'busy'})
         return
+    try:
+        selected = selection(request)
+    except ValueError as exc:
+        api.reply(sock, {'ok':False,'error':'invalid_camera_selection','detail':str(exc)})
+        return
+    selected_configs = [c for c in service.config['cameras'] if c['id'] in selected]
     service.recovery_audit = None
     helper = os.path.join(os.path.dirname(service.config['helper']),
                           'capture-three-teleop' if mode == 'teleop_observation' else 'capture-three')
@@ -265,20 +331,26 @@ def run(service, sock, request, api):
             if sha(path) != digest: raise RuntimeError('Stream firmware/helper hash mismatch: '+path)
         infos = []
         for camera in service.config['cameras']:
+            if camera['id'] not in selected:
+                infos.append({'id':camera['id'], 'address':0})
+                continue
             info = api.device_info(camera)
             if not info['available'] or info['bus'] != 1 or not api.interface_idle(camera):
                 raise RuntimeError('Camera missing or busy: '+camera['id'])
             with open(os.devnull, 'wb') as null:
                 if subprocess.call(['/bin/fuser','/dev/bus/usb/%03d/%03d' % (info['bus'],info['address'])],
-                                   stdout=null,stderr=null) == 0:
-                    raise RuntimeError('Camera already opened')
+                                   stdout=null,stderr=null) != 1:
+                    raise RuntimeError('Camera already opened or ownership check failed')
             infos.append(info)
         if [i['id'] for i in infos] != ['usb-1','usb-2','usb-4']:
             raise RuntimeError('Unexpected camera order')
+        profiles, native_profiles = camera_profiles(service, api, selected, profile) if mode == 'teleop_observation' else ({key:dict(profile) for key in selected}, None)
         colors = {}
-        if profile['format'] == 'yuyv':
+        if any(p['format'] == 'yuyv' for p in profiles.values()):
             from camera_color import read_camera_color
-            colors = {c['id']:read_camera_color(c['usb_path']) for c in service.config['cameras']}
+            colors = {c['id']:read_camera_color(c['usb_path']) for c in selected_configs if profiles[c['id']]['format'] == 'yuyv'}
+        uniform_profile = len(set((p['format'],p['width'],p['height']) for p in profiles.values())) == 1
+        first_profile = profiles[selected[0]]
         before = audit()
         reader = JointReader(api.monotonic)
         sock.settimeout(1.0)
@@ -289,8 +361,10 @@ def run(service, sock, request, api):
                         'observation_mode':mode,'graceful_stop':True,
                         'timestamp_kind':timestamp_kind,
                         'rt_policy':'teleop_observation_v1' if mode == 'teleop_observation' else 'stationary',
-                        'cameras':['usb-1','usb-2','usb-4'],
-                        'format':profile['format'],'native_size':[profile['width'],profile['height']],
+                        'cameras':selected,
+                        'camera_profiles':profiles if native_profiles is not None else None,
+                        'format':first_profile['format'] if uniform_profile else 'mixed',
+                        'native_size':[first_profile['width'],first_profile['height']] if uniform_profile else None,
                         'camera_color_matching':colors,
                         'timestamp_clock':'FUSION CLOCK_MONOTONIC','joint_source':'/dev/FXDcss PROT_READ',
                         'boot_id':api.read('/proc/sys/kernel/random/boot_id'),
@@ -299,8 +373,7 @@ def run(service, sock, request, api):
         started = True
         if True:
             errors = tempfile.TemporaryFile(dir=service.runtime)
-            command = [helper,str(seconds)]+[str(i['address']) for i in infos]
-            command.append(profile['format'])
+            command = native_command(helper, seconds, infos, selected, native_profiles or profile['format'], mode)
             process = subprocess.Popen(command,
                 stdout=subprocess.PIPE,stderr=errors,preexec_fn=limits,close_fds=True)
             api.ACTIVE = process
@@ -339,18 +412,25 @@ def run(service, sock, request, api):
                         buf += chunk
                 while len(buf) >= HEADER.size:
                     record = HEADER.unpack(buf[:40])
-                    validate_header(record, profile)
+                    if record[1] >= len(infos):
+                        raise ValueError('Invalid native camera index')
+                    frame_profile = profiles.get(infos[record[1]]['id'], profile)
+                    validate_header(record, frame_profile)
                     magic, cam, seq, stamp, size, width, height, pts, scr = record
+                    if infos[cam]['id'] not in selected:
+                        raise RuntimeError('Native frame from unselected camera')
                     if len(buf)<40+size: break
                     body, buf = buf[40:40+size], buf[40+size:]
                     if sampler is None:
                         sampler = JointSampler(api,reader,seconds+30,joint_hz,mode == 'stationary')
                         sampler.start()
                     metadata = {'ok':True,'type':'image','camera_id':infos[cam]['id'],
-                        'sequence':seq,'timestamp_ns':stamp,'format':profile['format'],'width':width,'height':height,
+                        'sequence':seq,'timestamp_ns':stamp,'format':frame_profile['format'],'width':width,'height':height,
                         'device_pts_raw':pts,'device_scr_raw':scr,
                         'timestamp_kind':timestamp_kind}
                     metadata.update(colors.get(infos[cam]['id'], {}))
+                    if native_profiles is not None:
+                        metadata['camera_settings'] = dict(frame_profile)
                     api.reply(sock, metadata, body)
                     counts[cam] += 1
                 if api.monotonic()-last_monitor >= 2:
@@ -358,7 +438,8 @@ def run(service, sock, request, api):
                     # Teleop records RTPSI switches; page faults and FX_RtTask
                     # switches still stop capture. Stationary keeps strict checks.
                     api.reply(sock, {'ok':True,'type':'health','timestamp_ns':int(api.monotonic()*1e9),
-                                     'xenomai':rt,'frames':counts[:]})
+                                     'xenomai':rt,'frames':counts[:],
+                                     'cameras':[api.device_info(c) for c in service.config['cameras']]})
                     last_monitor = api.monotonic()
             if buf: raise RuntimeError('Truncated native frame')
             if sampler is not None:
@@ -376,7 +457,7 @@ def run(service, sock, request, api):
             if process.poll() != 0: raise NativeHelperError('Native helper failed')
             errors.seek(0)
             diagnostics = errors.read(1024*1024).decode('utf-8','replace').splitlines()
-            if not all(counts) or sampler is None or sampler.count == 0:
+            if not all(counts[i] for i, c in enumerate(CAMERA_IDS) if c in selected) or sampler is None or sampler.count == 0:
                 raise RuntimeError('Missing image or joint stream')
     except Exception as exc:
         native_failed = isinstance(exc, NativeHelperError)
@@ -432,7 +513,8 @@ def run(service, sock, request, api):
         api.ACTIVE = None
         if reader is not None: reader.close()
         service.last_finish = api.monotonic()
-        if process is not None and any(not api.interface_idle(c) for c in service.config['cameras']):
+        if process is not None and any(api.device_info(c)['available'] and not api.interface_idle(c)
+                                       for c in selected_configs):
             error = 'Camera interface did not return to idle'
             service.fault = error
         if before is not None:
@@ -444,18 +526,29 @@ def run(service, sock, request, api):
         # Retain the failed round and its error. Only a later authenticated
         # recover request may clear an isolated camera fault. Invalid frames
         # still fail this round; recovery never marks its data complete.
-        recoverable = bool(reason in ('Camera source sequence gap/regression; stop',
+        isolated_camera_failure = (
+            reason in ('Camera source sequence gap/regression; stop',
                 'Camera has no new frame for 2 seconds; stop',
                 'Camera did not produce first frame after bounded startup retry; stop',
+                'Camera open/start or negotiation failed',
                 'Invalid MJPEG frame or dimensions; stop')
-            and process is not None and process.returncode == 1 and not cleanup_timed_out
-            and (sampler is None or not sampler.error)
-            and error == 'Native helper failed (exit 1): '+reason
-            and native_rt_unchanged(diagnostics) and unchanged_for_recovery(before, after, mode))
+            and process is not None and process.returncode == 1
+            and error in ('Native helper failed (exit 1): '+reason,
+                          'Native helper failed (exit 1): '+reason+'; Audit changed: dmesg_sha256'))
+        # A preview may stop normally after its health event discovers a new
+        # camera. The interrupted round remains failed; only a NEW round may
+        # retry after the same cleanup/RT/integrity checks as a camera gap.
+        clean_inventory_stop = (
+            mode == 'teleop_observation' and process is not None
+            and process.returncode == 0 and error == 'Audit changed: dmesg_sha256')
+        recoverable = bool((isolated_camera_failure or clean_inventory_stop)
+            and not cleanup_timed_out and (sampler is None or not sampler.error)
+            and native_rt_unchanged(diagnostics)
+            and unchanged_for_recovery(before, after, mode, camera_hotplug=True))
         service.recovery_audit = after if recoverable else None
         if error is not None: stop_reason = 'stream_error'
         result = {'ok':error is None,'type':'end','error':error,'frames':counts,
-            'joint_hz':joint_hz,
+            'joint_hz':joint_hz, 'cameras':selected,
             'joint_samples':joint_sent, 'stop_reason':stop_reason, 'observation_mode':mode,
             'joint_skipped_ticks':sampler.skipped if sampler else 0,
             'joint_max_lateness_ns':sampler.max_lateness_ns if sampler else None,

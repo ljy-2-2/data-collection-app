@@ -427,11 +427,11 @@ def test_missing_camera_never_opens_or_latches_remote_stream(monkeypatch):
     client = preview_client()
     client.list_cameras.return_value[1]["available"] = False
     monkeypatch.setattr(manager, "new_camera_client", lambda: client)
-    manager._cameras()
+    assert manager._prepare_preview(client) == 600
     client.stream.assert_not_called()
     client.recover_camera.assert_not_called()
-    assert "右腕相机（usb-2）" in manager.camera_error
-    assert "未启动三路取流" in manager.camera_error
+    assert manager.camera_preview_mode == "snapshot"
+    assert set(manager.camera_inventory) == {"usb_1", "usb_4"}
     # A subsequent explicit preview request can proceed after enumeration
     # returns; the previous preflight did not latch a remote stream fault.
     client.list_cameras.return_value[1]["available"] = True
@@ -443,7 +443,7 @@ def test_preview_never_clears_remote_fault(recoverable):
     manager = TianjiManager(MockController())
     client = preview_client()
     client.status.return_value.update(fault="camera gap", recoverable_camera_fault=recoverable)
-    with pytest.raises(RuntimeError, match="本地重连无法解除"):
+    with pytest.raises(RuntimeError, match="需要检查控制器诊断"):
         manager._prepare_preview(client)
     client.recover_camera.assert_not_called()
     client.stream.assert_not_called()

@@ -40,6 +40,8 @@ def feedback(sequence, selected=("left", "right"), a=0, b=0):
         "buttons": {"A": False, "B": False},
         "button_press_counts": {"A": a, "B": b},
         "joints_deg": {s: [0] * 7 for s in ("left", "right")},
+        "teleop_mapping": {"arm_geometry": "nominal", "coordinate_revision": "vendor_cad_same_facing_v2", "input_mapping": "same_facing", "vr_session": 1,
+                           "model_world_from_tracking": [[0, 0, -1], [-1, 0, 0], [0, 1, 0]]},
         "joint_feedback": {
             s: {"frame": sequence, "unchanged_s": 0} for s in ("left", "right")
         },
@@ -114,12 +116,13 @@ def platform_client(seen, fail_upload=False):
 
 
 @pytest.mark.parametrize(
-    "mode,raw_format,upload_mode", [
-        ("dual", "mjpeg", None), ("left", "mjpeg", None), ("right", "yuyv", None),
-        ("dual", "mjpeg", "left"), ("dual", "mjpeg", "right"),
+    "mode,raw_format,upload_mode,two_wrists", [
+        ("dual", "mjpeg", None, False), ("left", "mjpeg", None, False), ("right", "yuyv", None, False),
+        ("dual", "mjpeg", "left", False), ("dual", "mjpeg", "right", False),
+        ("dual", "mjpeg", None, True), ("dual", "yuyv", None, True),
     ]
 )
-def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode):
+def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode, two_wrists):
     selected = ("left", "right") if mode == "dual" else (mode,)
     exported = selected if upload_mode is None else (upload_mode,)
     buf = io.BytesIO()
@@ -131,8 +134,15 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     )
     manager = SimpleNamespace(
         pause_cameras=Mock(), start_cameras=Mock(), collection_frame=Mock(),
-        resume_cameras_after_episode=Mock()
+        resume_cameras_after_episode=Mock(),
+        value={"coordinate_mapping": {"arm_geometry": "nominal", "coordinate_revision": "vendor_cad_same_facing_v2"}},
     )
+    mapping = {key: name for key, name in CAMERA_MAPPING.items() if not two_wrists or key != 'usb-1'}
+    size = [1024, 768] if raw_format == 'mjpeg' else [640, 480]
+    profiles = {key:dict(format=raw_format,width=size[0],height=size[1],fps=30,
+                         brightness=dict(supported=True,value=-8,min=-64,max=64,step=1,default=0)) for key in mapping} if two_wrists else None
+    if two_wrists:
+        manager.collection_camera_state = lambda:dict(ids=list(mapping),profiles=profiles)
     collection = TianjiCollection(manager, tmp_path)
     offset = 3_000_000_000
 
@@ -176,6 +186,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                     "boot_id": "synthetic",
                     "format": raw_format,
                     "native_size": size,
+                    "cameras":list(mapping), "camera_profiles":profiles,
                     "observation_mode": "teleop_observation",
                     "graceful_stop": True,
                     "adopted_preview_stream": True,
@@ -214,6 +225,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                     break
                 if i % 3 == 0:
                     for k, camera in enumerate(CAMERA_MAPPING):
+                        if camera not in mapping:continue
                         yield StreamEvent(
                             {
                                 "type": "image",
@@ -223,6 +235,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                                 "height": size[1],
                                 "timestamp_ns": stamp + k * 100_000,
                                 "sequence": counts[k],
+                                **({'camera_settings': profiles[camera]} if profiles is not None else {}),
                             },
                             pixels,
                         )
@@ -250,6 +263,9 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     directory = collection.episode.directory
     metadata = json.loads((directory / "meta_info.json").read_text())
     assert metadata["complete"] and metadata["actions_recorded"]
+    assert metadata['coordinate_mapping'] == manager.value['coordinate_mapping']
+    recorded = [json.loads(line) for line in (directory / 'record/teleop_feedback.jsonl').read_text().splitlines()]
+    assert recorded and all(row['teleop_mapping'] == feedback(1)['teleop_mapping'] for row in recorded)
     assert metadata["gripper_action_policy"] == "initial_feedback_then_last_target"
     comparison = metadata['integrity']['count_comparison']
     assert comparison['scope'] == 'episode_after_subscription'
@@ -258,15 +274,18 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     assert metadata["robot_type"] == "tianji"
     assert metadata["controlled_sides"] == list(selected)
     assert metadata["upload_sides"] == list(exported)
-    assert metadata["camera_mapping"] == CAMERA_MAPPING
+    assert metadata["camera_mapping"] == mapping
+    assert metadata["teleop_runtime_mapping"] == feedback(1)["teleop_mapping"]
+    if two_wrists:
+        assert metadata["requested_camera_profiles"] == profiles
     assert metadata["stop_reason"] == "B/Y"
     assert not list(directory.rglob("native"))
     assert set(p.name for p in (directory / "camera").iterdir()) == set(
-        CAMERA_MAPPING.values()
+        mapping.values()
     )
     for path in (directory / "camera").glob("*/frames/*.jpg"):
         with Image.open(path) as image:
-            assert image.size == (640, 480)
+            assert image.size == (tuple(size) if two_wrists else (640, 480))
             image.load()
     bundles = [
         json.loads(row)
@@ -313,7 +332,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     assert registered["author"] == "collector-test"
     assert registered["extra"]["missing_extra_cameras"] == []
     assert {c["key"] for c in registered["extra"]["cameras"]} == {
-        "observation.images." + n for n in CAMERA_MAPPING.values()
+        "observation.images." + n for n in mapping.values()
     }
     archive_request = next(r for r in seen if r.url.host == "storage.test")
     with tarfile.open(fileobj=io.BytesIO(archive_request.content)) as archive:
@@ -582,7 +601,7 @@ def test_gripper_reference_survives_episode_boundary_but_resets_on_rearm(tmp_pat
 def test_recorded_destination_is_written_to_both_metadata_and_ready_marker(tmp_path,account,monkeypatch):
     destination={'kind':'local','api_url':'http://127.0.0.1:8000','web_url':'http://127.0.0.1:5173'}
     monkeypatch.setattr(tianji_collection,'collection_context',lambda:{'author':'collector-test','upload_destination':dict(destination)})
-    test_ab_episode_and_platform_round_trip(tmp_path,account,'dual','mjpeg',None)
+    test_ab_episode_and_platform_round_trip(tmp_path,account,'dual','mjpeg',None,False)
     marker=next(tmp_path.glob('*/'+READY_MARKER))
     assert json.loads(marker.read_text())['upload_destination']==destination
     assert json.loads((marker.parent/'meta_info.json').read_text())['upload_destination']==destination

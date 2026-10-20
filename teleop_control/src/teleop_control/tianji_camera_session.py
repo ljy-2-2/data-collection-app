@@ -44,10 +44,14 @@ class CameraSession:
             now = time.monotonic()
             if self.attached or self.end or self.failure or self.finished.is_set():
                 raise RuntimeError('相机数据流当前无法接入采集，请检查设备')
+            selected = self.start.metadata.get('cameras', list(self.frame_counts)) if self.start else []
+            if (not isinstance(selected, list) or not selected or len(set(selected)) != len(selected)
+                    or not set(selected) <= set(self.frame_counts)):
+                raise RuntimeError('相机流未提供有效的本轮相机清单')
             if (self.start is None or self.start.metadata.get('boot_id') != self.clock.get('boot_id')
-                    or any(now-self.fresh.get(name, -1e9) >= 2 for name in ('usb-1','usb-2','usb-4'))
+                    or any(now-self.fresh.get(name, -1e9) >= 2 for name in selected)
                     or self.joint_time is None or now-self.joint_time >= .3):
-                raise RuntimeError('请等待三路相机和关节反馈正常后再按 A')
+                raise RuntimeError('请等待本轮 %d 路相机和关节反馈正常后再按 A' % len(selected))
             self.consumer = AdoptedCamera(self)
             self.attached = True
             return self.consumer
@@ -115,9 +119,12 @@ class AdoptedCamera:
         finally:
             client.close()
 
-    def stream(self, seconds=600, hz=30, joint_hz=100, mode='teleop_observation'):
+    def stream(self, seconds=600, hz=30, joint_hz=100, mode='teleop_observation', camera_ids=None):
         if self.stream_started or mode != 'teleop_observation' or hz != 30 or joint_hz != 100:
             raise ValueError('Invalid adopted camera stream request')
+        selected = self.session.start.metadata.get('cameras', list(self.session.frame_counts))
+        if camera_ids is not None and set(camera_ids) != set(selected):
+            raise ValueError('Requested camera selection differs from adopted stream')
         self.stream_started = True
         while True:
             with self.changed:

@@ -30,7 +30,7 @@ Button {
             spacing: 6
             layoutDirection: control.iconAfter ? Qt.RightToLeft : Qt.LeftToRight
             Image {width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter; visible: control.glyph!=="" || control.busy; source: !control.glyph && !control.busy ? "" : control.primary && !control.danger ? "../icons/"+(control.busy ? "LoaderCircle" : control.glyph)+"-ink.svg" : Theme.icon(control.busy ? "LoaderCircle" : control.glyph,"ink"); sourceSize.width: 32; sourceSize.height: 32; RotationAnimator on rotation {running: control.busy; from: 0; to: 360; duration: 1000; loops: Animation.Infinite}}
-            Txt {text: control.text; color: control.textColor; font.pixelSize: control.textSize; font.weight: Font.Medium; height: 20}
+            Txt {selectable: false;text: control.text; color: control.textColor; font.pixelSize: control.textSize; font.weight: Font.Medium; height: 20}
         }
     }
 }

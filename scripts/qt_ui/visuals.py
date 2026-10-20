@@ -199,13 +199,20 @@ class _PreviewDecodeJob(QRunnable):
 
 
 class CameraItem(QQuickPaintedItem):
-    sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal()
+    sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal();staleIntervalChanged=Signal()
     def __init__(self,parent=None):
         super().__init__(parent);self._source='';self._online=False;self.frame=QImage();self.buffer=b'';self.reply=None;self.sequence=0
         self._decode_job=None;self._decode_pending=None
         self.network=QNetworkAccessManager(self);self.retry=QTimer(self);self.retry.setSingleShot(True);self.retry.timeout.connect(self.connect_stream)
         self.stale=QTimer(self);self.stale.setInterval(2500);self.stale.setSingleShot(True);self.stale.timeout.connect(self.stream_stalled)
         self.setAntialiasing(True)
+    @Property(int,notify=staleIntervalChanged)
+    def staleInterval(self):return self.stale.interval()
+    @staleInterval.setter
+    def staleInterval(self,value):
+        value=max(500,min(int(value),60000))
+        if value!=self.stale.interval():
+            self.stale.setInterval(value);self.staleIntervalChanged.emit()
     @Property(str,notify=sourceChanged)
     def source(self):return self._source
     @source.setter

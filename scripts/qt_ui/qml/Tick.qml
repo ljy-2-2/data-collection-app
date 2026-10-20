@@ -15,5 +15,5 @@ CheckBox {
         border.color: control.activeFocus ? Theme.accentStrong : Theme.lineStrong
         Image {anchors.fill: parent;anchors.margins: 1;visible: control.checked;source: Theme.icon("Check","ink")}
     }
-    contentItem: Txt {id: label;text: control.text;leftPadding: control.indicator.width+control.spacing;color: Theme.inkMuted;font.pixelSize: control.font.pixelSize}
+    contentItem: Txt {selectable: false;id: label;text: control.text;leftPadding: control.indicator.width+control.spacing;color: Theme.inkMuted;font.pixelSize: control.font.pixelSize}
 }

@@ -198,6 +198,13 @@ def main() -> int:
         camera_package.mkdir(parents=True)
         for name in ("__init__.py", "client.py", "stream.py", "episode.py", "grippers.py"):
             shutil.copy2(ROOT / "fusion_camera_stream/fusion_camera" / name, camera_package / name)
+        # Self-contained, reviewed controller updater and its bounded UVC source.
+        for relative in ("fusion_data_collection/FusionDataCollector/controller_v22",
+                         "fusion_data_collection/FusionCameraSDK/vendor"):
+            shutil.copytree(ROOT / relative, app / relative, ignore=ignore_private)
+        audit_directory = app / "fusion_camera_stream/controller"
+        audit_directory.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / "fusion_camera_stream/controller/camera_audit.py", audit_directory)
         for relative in ("FusionDataCollector/__init__.py", "FusionDataCollector/collector.py",
                          "FusionDataCollector/camera_map.json", "teleop_patch/marvin_teleop/collection_telemetry.py"):
             destination = app / "fusion_data_collection" / relative

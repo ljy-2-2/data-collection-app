@@ -1,45 +1,14 @@
 """Bounded TCP steps using the vendor Jacobian, independently checked by URDF.
 
 All joint increments here are radians; ArmModel and the vendor API use degrees.
-The controller preserves the elbow branch present at clutch engagement and only
-adds a bounded redundancy correction when the measured Jacobian becomes weak.
+Every joint uses the same task, regularization and physical-limit constraints.
 """
 
 import math
 import numpy as np
 from .constrained_ik import DAMPING_SQ
 
-ERROR_GAIN_S = None  # Full Newton task step, as in the reference control flow.
 ROTATION_WEIGHT_M = 0.35
-
-
-class ElbowBranchDomain:
-    """Keep a 7-DoF arm on the elbow branch present when control starts."""
-
-    def __init__(self, arm, reference, margin_deg):
-        self.arm = arm
-        distance = float(reference[3] - arm.elbow_singularity_deg)
-        self.sign = 1.0 if distance >= 0 else -1.0
-        # A pose already closer than the requested margin remains valid, but it
-        # may only move away from the singular surface rather than cross it.
-        self.clearance = min(float(margin_deg), abs(distance))
-
-    def __getattr__(self, name):
-        return getattr(self.arm, name)
-
-    def valid_joints(self, q, margin=0.2):
-        return (
-            self.arm.valid_joints(q, margin)
-            and self.sign * (q[3] - self.arm.elbow_singularity_deg)
-            >= self.clearance - 1e-10
-        )
-
-    def joint_halfspaces(self, margin=0.2):
-        faces, bounds = self.arm.joint_halfspaces(margin)
-        face = np.zeros(7)
-        face[3] = -self.sign
-        bound = -self.sign * self.arm.elbow_singularity_deg - self.clearance
-        return np.vstack((faces, face)), np.r_[bounds, bound]
 
 
 def rotation_vector(r):
@@ -77,14 +46,10 @@ def step(
     velocity=None,
     max_accel=None,
     motion_limiter=None,
-    elbow_reference=None,
-    elbow_branch_margin_deg=0.0,
     rotation_weight_m=ROTATION_WEIGHT_M,
     singular_rotation_weight_m=ROTATION_WEIGHT_M,
     singular_sigma_low=0.02,
     singular_sigma_high=0.08,
-    elbow_posture_offset_deg=58.0,
-    elbow_posture_gain_s=0.0,
     joint_limit_soft_margin_deg=0.0,
     joint_limit_reserve_deg=0.0,
     joint_limit_escape_speed_deg_s=0.0,
@@ -102,9 +67,6 @@ def step(
         or max_speed_deg_s <= 0
         or not 0 < singular_rotation_weight_m <= rotation_weight_m
         or not 0 < singular_sigma_low < singular_sigma_high
-        or elbow_branch_margin_deg < 0
-        or not 0 < elbow_posture_offset_deg <= 65
-        or elbow_posture_gain_s < 0
         or not 0 <= joint_limit_soft_margin_deg <= 45
         or not 0 <= joint_limit_reserve_deg < max(joint_limit_soft_margin_deg, 1e-12)
         or not math.isfinite(shoulder_motion_weight)
@@ -133,12 +95,7 @@ def step(
             1.0,
         )
     )
-    domain = (
-        ElbowBranchDomain(arm, np.asarray(elbow_reference), elbow_branch_margin_deg)
-        if elbow_reference is not None and elbow_branch_margin_deg > 0
-        else arm
-    )
-    faces, bounds = domain.joint_halfspaces()
+    faces, bounds = arm.joint_halfspaces()
     joint_slack_deg = bounds - faces @ q
     minimum_slack_deg = float(np.min(joint_slack_deg))
     limit_blend = (
@@ -166,26 +123,6 @@ def step(
     )
     pseudo_inverse = weighted_transpose @ inverse_task
     correction = pseudo_inverse @ weighted_error
-    assist = 0.0
-    if (
-        elbow_posture_gain_s > 0
-        and singular_blend < 1.0
-        and isinstance(domain, ElbowBranchDomain)
-    ):
-        # Only assist while tracking a nonzero task. Holding a still target must
-        # never make the arm quietly reconfigure itself.
-        activity = min(1.0, float(np.linalg.norm(weighted_error)) / 0.01)
-        assist = (1.0 - singular_blend) * activity
-        preferred = arm.elbow_singularity_deg + domain.sign * elbow_posture_offset_deg
-        posture = np.zeros(7)
-        posture[3] = np.radians(preferred - q[3])
-        correction += (
-            (np.eye(7) - pseudo_inverse @ j)
-            @ posture
-            * elbow_posture_gain_s
-            * dt
-            * assist
-        )
     limit_assist = 0.0
     if (
         joint_limit_escape_speed_deg_s > 0
@@ -224,18 +161,14 @@ def step(
     arm.last_jacobian_sigma_min = sigma_min
     arm.last_jacobian_condition = float(singular_values[0] / max(sigma_min, 1e-15))
     arm.last_rotation_weight_m = float(rotation_weight)
-    arm.last_elbow_assist = bool(assist > 0)
     arm.last_limit_assist = bool(limit_assist > 0)
     arm.last_joint_limit_margin_deg = minimum_slack_deg
-    arm.last_elbow_branch_sign = (
-        domain.sign if isinstance(domain, ElbowBranchDomain) else None
-    )
     from .constrained_ik import bounded_correction
 
     correction, arm.last_ik_constrained = bounded_correction(
         j,
         correction,
-        domain,
+        arm,
         q,
         soft_margin_deg=(
             joint_limit_soft_margin_deg if joint_limit_reserve_deg > 0 else 0.0
@@ -245,14 +178,14 @@ def step(
         max_outward_speed_deg_s=max_speed_deg_s,
         joint_metric=joint_metric,
     )
-    dq = np.degrees(correction) * (1.0 if ERROR_GAIN_S is None else ERROR_GAIN_S * dt)
+    dq = np.degrees(correction)
     if not np.isfinite(dq).all():
         raise ValueError("non-finite differential IK step")
     if velocity is not None:
         from .motion import advance
 
         result, arm.last_motion_constrained = (motion_limiter or advance)(
-            domain, q, q + dq, np.asarray(velocity), dt, max_speed_deg_s, max_accel
+            arm, q, q + dq, np.asarray(velocity), dt, max_speed_deg_s, max_accel
         )
         return result
     maximum = max_speed_deg_s * dt
