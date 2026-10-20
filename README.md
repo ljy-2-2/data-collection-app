@@ -298,4 +298,6 @@ bash scripts/push_github.sh "本次修改说明"
 
 脚本按 `.gitignore` 排除本地文件，检查当前分支和目标地址后提交到 `main`，再推送至 `git@github.com:ljy-2-2/data-collection-app.git`（远程名 `ljy`）。没有新改动时跳过提交、直接检查推送；不会强制覆盖远程历史。需要本机已经配置好 GitHub SSH 密钥及仓库写入权限。
 
+脚本使用系统 Git 和 SSH，并在脚本进程内清除 `LD_LIBRARY_PATH`、`LD_PRELOAD`，避免 Conda 或机器人 SDK 的 OpenSSL 库引发 `OpenSSL version mismatch`；不会改变当前终端的 Conda 环境。如果提交成功但推送失败，提交仍保留在本地，排除连接问题后重新运行同一命令即可。
+
 本机已配置 `ljy`。在其它电脑首次克隆后，若没有这个远程名，可运行 `git remote add ljy git@github.com:ljy-2-2/data-collection-app.git`，然后在 `main` 分支执行上述脚本。
