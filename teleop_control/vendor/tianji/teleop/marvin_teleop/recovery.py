@@ -146,6 +146,6 @@ class ZeroRecovery:
                 self.index += 1
                 if self.index == len(self.sides):
                     self.done = True
-                    self.detail = '所选机械臂已逐臂回零并下使能'
+                    self.detail = ''
                 else:
                     self._phase('plan', '回零：检查下一臂路径', now)

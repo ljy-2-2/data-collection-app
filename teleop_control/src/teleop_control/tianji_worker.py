@@ -105,8 +105,11 @@ def manual_plan(models, measured, request, config):
     else:
         raise ValueError("无效的机械臂动作")
     from marvin_teleop.point_to_point import pose_plan
+    # Saved poses use a faster smooth trajectory; zero recovery has its own
+    # unchanged state machine, and joint jogging keeps the existing limits.
     return pose_plan(models, measured, goal, selected, config,
-                     acceleration=5.0 if request.kind == "zero" else 4.0)
+                     acceleration=20.0 if request.kind == "pose" else 5.0 if request.kind == "zero" else 4.0,
+                     speed_limit=20.0 if request.kind == "pose" else 10.0)
 
 
 def main():

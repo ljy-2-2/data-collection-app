@@ -238,12 +238,12 @@ def main():
         assert start['parameters']['left_gripper_accel']==12 and start['parameters']['right_gripper_accel']==35
         before=len(requests);bridge.jog('left',1,1);wait();assert len(requests)==before,'Motion must be blocked while teleoperating'
         click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='idle')
-        bridge.jog('left',1,1);wait(lambda:not bridge.state['busy']);assert requests[-1]==('/tianji/move',dict(kind='jog',mode='dual',side='left',joint=1,delta=10))
+        bridge.jog('left',1,1);wait(lambda:not bridge.state['busy']);assert requests[-1]==('/tianji/move',dict(kind='jog',mode='dual',side='left',joint=1,delta=-10))
         bridge.savePose('测试姿态');assert len(bridge.state['poses'])==1
         bridge.restorePose();wait(lambda:not bridge.state['busy']);assert requests[-1][1]['kind']=='pose'
         scroll=item('pageScroll');scroll.setProperty('contentY',500);wait();snap('tianji-model')
         control=item('jog-left0-1');point=control.mapToScene(QPointF(0,0));scroll.setProperty('contentY',scroll.property('contentY')+point.y()-230);wait()
-        click('jog-left0-1');wait(lambda:not bridge.state['busy']);assert requests[-1][1]['joint']==1 and requests[-1][1]['delta']==10
+        click('jog-left0-1');wait(lambda:not bridge.state['busy']);assert requests[-1][1]['joint']==1 and requests[-1][1]['delta']==-10
         snap('manual');scroll.setProperty('contentY',0)
         # Qt transforms every visual from the original CAD file, without proxies.
         assert len(scene.parts_value)==sum(len(link['visuals']) for link in scene.model['links'])

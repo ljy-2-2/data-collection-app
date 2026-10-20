@@ -97,7 +97,7 @@ Column {
             active: root.visible && s.page==="teleop" && s.teleopStep===2
         }
     }
-    Txt {visible: root.tianji && root.moving && !!root.status.recovery;width: parent.width;text: (root.status.recovery||{}).detail||"";color: Theme.inkMuted}
+    Txt {visible: root.tianji && root.moving && !!text && (root.status.recovery||{}).phase!=="moving";width: parent.width;text: (root.status.recovery||{}).detail||"";color: Theme.inkMuted}
     Manual {width: parent.width;tianji: root.tianji;canMove: root.canMove;canRecover: root.canRecover;live: root.live;locked: root.locked}
     Dialog {
         id: parameterDialog;objectName: "parameterDialog";parent: Overlay.overlay;anchors.centerIn: parent

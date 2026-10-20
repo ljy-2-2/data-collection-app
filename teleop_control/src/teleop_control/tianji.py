@@ -223,6 +223,8 @@ class TianjiManager:
             self.check_cameras_in_background()
         elif action == "start":
             self.collection.arm(payload)
+        if action in ("move", "stop") and box.get("state") in ("idle", "moving", "error"):
+            return {"ok": True, "state": box["state"]}
         return {"ok": True}
 
     def check_cameras_in_background(self):

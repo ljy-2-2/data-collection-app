@@ -193,7 +193,12 @@ class Bridge(QObject):
         self.update(busy=name,error='')
         def finish(value):
             if revision != self.revision:return
-            self.update(busy='')
+            updates=dict(busy='')
+            # Apply the worker acknowledgement before releasing the button.
+            # Polling alone leaves a brief stale idle/moving state at this point.
+            if path in ('/tianji/move','/tianji/stop') and isinstance(value,dict) and value.get('state') in ('idle','moving','error'):
+                updates['tianji']={**self._state['tianji'],'state':value['state']}
+            self.update(**updates)
             if done:done(value)
             self.last_poll.clear();self.poll()
             self.result.emit(name,True)
@@ -397,12 +402,18 @@ class Bridge(QObject):
                     and s['tianji'].get('state') in ('idle','error')
                     and not collection.get('busy') and not collection.get('recording'))
 
+    @Slot(str,int,int,result=float)
+    def jogDelta(self,side,joint,direction):
+        if side not in ('left','right') or not 1<=joint<=7 or direction not in (-1,1):return 0.
+        return direction*10*(-1 if side=='left' and joint in (1,3,5,7) else 1)
+
     @Slot(str,int,int)
     def jog(self,side,joint,direction):
         if not self.can_move() or side not in ('left','right') or not 1<=joint<=7 or direction not in (-1,1):return
         value=self._state['tianji'].get('joints',{}).get(side,[])
-        if len(value)!=7 or not LIMITS[joint-1][0]<=value[joint-1]+direction*10<=LIMITS[joint-1][1]:return
-        self.action('move','/tianji/move',dict(kind='jog',mode='dual',side=side,joint=joint,delta=direction*10))
+        delta=self.jogDelta(side,joint,direction)
+        if len(value)!=7 or not LIMITS[joint-1][0]<=value[joint-1]+delta<=LIMITS[joint-1][1]:return
+        self.action('move','/tianji/move',dict(kind='jog',mode='dual',side=side,joint=joint,delta=delta))
 
     @Slot(str,float)
     def gripper(self,side,closure):
@@ -433,6 +444,7 @@ class Bridge(QObject):
         valid=[]
         for pose in values if isinstance(values,list) else []:
             if not isinstance(pose,dict) or not isinstance(pose.get('id'),str) or not isinstance(pose.get('name'),str):continue
+            if pose['id']=='zero':continue
             targets=pose.get('targets',{})
             vectors=[targets.get(side,[]) for side in ('left','right')] if self._state['robot']=='tianji' else [list(targets.values())]
             if self._state['robot']=='tianji' and any(len(v)!=7 for v in vectors):continue
@@ -461,6 +473,7 @@ class Bridge(QObject):
     @Slot()
     def deletePose(self):
         selected=self._state['selectedPose']
+        if selected=='zero':return
         if self.persist_poses([p for p in self._state['poses'] if p['id']!=selected]):
             self.update(selectedPose='zero' if self._state['robot']=='tianji' else '')
 
