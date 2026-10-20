@@ -2,15 +2,17 @@
 import hashlib
 import re
 
-POLICY = 'known-servo-transitions-v2'
+POLICY = 'known-servo-transitions-v3'
 SERVO_LINE = re.compile(
     b'^\\[\\s*[0-9]+\\.[0-9]+\\]\\s+'
-    b'(?:Mot\\[[01]\\]\\[[0-6]\\] process (?:enable|disable|change to position mode)'
+    b'(?:Mot\\[[01]\\]\\[[0-6]\\] process (?:enable|disable|reset|change to position mode)'
     b'|_FX_ServoFsmWaitPositionMode set ctrl\\.b15=0, ctrl\\.b14=0'
     b'|_FX_ServoFsmShutDown 0x8006'
     b'|_FX_ServoFsmSwitchOnAndEnableOperation 0x800f'
     b'|_FX_ServoFsmEnableOperation 0x800f'
-    b'|_FX_ServoFsmDisableOperation 0x8007)\\s*$'
+    b'|_FX_ServoFsmDisableOperation 0x8007'
+    b'|_FX_ServoFsmFaultResetRising (?:0x80|0x8087)'
+    b'|_FX_ServoFsmFaultResetFalling (?:0x0|0x8007))\\s*$'
 )
 
 

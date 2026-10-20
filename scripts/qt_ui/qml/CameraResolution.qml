@@ -13,7 +13,7 @@ Item {
     implicitHeight: 58
     function refresh() { if (available && cameraKey && (scope !== "tianji" || editable)) {if (scope === "tianji") backend.loadTeleopCameraSettings(cameraKey);else backend.loadCameraResolution(cameraKey)} }
     onCameraKeyChanged: refresh()
-    onAvailableChanged: refresh()
+    onAvailableChanged: {if (scope !== "tianji" || !details.loaded) refresh()}
     onEditableChanged: {if (editable && !details.loaded && !details.busy && !details.error) refresh()}
     function refreshIfNeeded() {if (available && !details.selected && !details.busy && !details.error) refresh()}
     onDetailsChanged: Qt.callLater(refreshIfNeeded)

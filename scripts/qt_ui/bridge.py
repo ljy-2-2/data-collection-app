@@ -613,6 +613,16 @@ class Bridge(QObject):
     @Slot(str)
     def loadTeleopCameraSettings(self,key):self.teleop_camera_settings_request(key)
 
+    @Slot()
+    def reconnectTeleopCameras(self):
+        s=self._state;collection=s['tianji'].get('collection') or {}
+        if (not s['authenticated'] or s['closing'] or s['robot']!='tianji' or s['page']!='teleop'
+                or s['teleopStep']!=2 or s['busy'] or collection.get('busy') or collection.get('recording')
+                or s['tianji'].get('camera_settings_busy')):return
+        if self.demo:return
+        self.request('/tianji/camera-preview/reconnect',data={},method='POST',timeout=3000,
+                     failed=lambda error:self.update(notice='视频重连请求未完成：'+str(error)))
+
     @Slot(str,str)
     def setTeleopCameraResolution(self,key,mode_id):self.teleop_camera_settings_request(key,mode_id=mode_id)
 

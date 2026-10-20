@@ -92,3 +92,24 @@ def test_missing_audited_end_never_becomes_success():
     with pytest.raises(RuntimeError,match='真实审计'):next(adopted.stream())
     with pytest.raises(RuntimeError,match='真实停止'):adopted.clock_sync();adopted.clock_sync()
     adopted.close()
+
+
+def test_joint_gap_keeps_video_but_blocks_new_episode_until_fresh_feedback():
+    session, transport, _ = ready()
+    bad = StreamEvent(dict(type='health',ok=True,joint_feedback_ok=False,
+                           joint_feedback_error='Joint sampler delayed over 100 ms'))
+    session.publish(bad)
+    session.publish(StreamEvent(dict(type='image',camera_id='usb-2'),b'live'))
+    assert session.frame_counts['usb-2'] == 2
+    transport.request_stop.assert_not_called()
+    with pytest.raises(RuntimeError,match='关节反馈尚未恢复'): session.subscribe()
+    session.publish(StreamEvent(dict(type='health',ok=True,joint_feedback_ok=True)))
+    with pytest.raises(RuntimeError,match='关节反馈正常'): session.subscribe()
+    session.publish(StreamEvent(dict(type='joints')))
+    adopted = session.subscribe()
+    session.publish(bad)
+    events = adopted.stream()
+    assert next(events).metadata['type'] == 'start'
+    assert next(events) is bad  # Episode must receive the gap, even if recovery follows.
+    session.finish('test cleanup')
+    adopted.close()

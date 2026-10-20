@@ -693,6 +693,10 @@ class Episode(threading.Thread):
                             self.frame_counts = dict(counts)
                         elif kind == 'health':
                             line(hf,m)
+                            if m.get('joint_feedback_ok') is False:
+                                self.stop('joint_feedback_gap', '关节反馈中断：'+str(
+                                    m.get('joint_feedback_error') or '关节采样不可用'))
+                                client.request_stop()
                         elif kind == 'end':
                             final = m; dump(record/'stream_end.json',m)
                             if not self.stopping.is_set():

@@ -48,12 +48,16 @@ class URDFToolTests(unittest.TestCase):
                 j=next(j for j in cad['joints'] if j['name']==joint)
                 expected=expected@transform(j['xyz'],j['rpy'])
             np.testing.assert_allclose(T,expected,atol=1e-12)
-            delta=np.pi/2 if side=='left' else -np.pi/2
+            delta=-np.pi/2 if side=='left' else np.pi/2
             mount=next(joint for joint in cad['joints'] if joint['name']==f'gripper_mount_{letter}')
             self.assertAlmostEqual(mount['rpy'][2],np.pi/4+delta)
             original=transform([0,0,0],[0,0,np.pi/4])@transform([0,0,.142225549599],[0,-np.pi/2,-np.pi/4])
             np.testing.assert_allclose(T,transform([0,0,0],[0,0,delta])@original,atol=1e-12)
             np.testing.assert_allclose(T[:3,3],[0,0,.142225549599],atol=1e-12)
+            old_yaw=3*np.pi/4 if side=='left' else -np.pi/4
+            before=transform([0,0,0],[0,0,old_yaw])@transform([0,0,.142225549599],[0,-np.pi/2,-np.pi/4])
+            # Half turn around the tool's longitudinal +X: tip/axis unchanged.
+            np.testing.assert_allclose(T,before@transform([0,0,0],[np.pi,0,0]),atol=1e-12)
     def test_tcp_is_on_motor_axis_and_both_jaw_pivot_plane(self):
         config_path=VENDOR/'teleop/marvin_teleop/config.json'
         config=json.loads(config_path.read_text())

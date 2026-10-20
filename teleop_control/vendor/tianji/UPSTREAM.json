@@ -42,7 +42,7 @@
     "teleop/marvin_teleop/geometry.py": "643a8ee72033ed65436eabca5ff41d865585ece5b1107ef0d74d345dc46ff7cd",
     "teleop/marvin_teleop/installation.py": "b146c130dc7c4e8157f58684949a754d4b85b709a702c52cff59963db0b8825e",
     "teleop/marvin_teleop/launcher.py": "711d68aae58af3c4462327bad345c6a13f6ddf1fe2fa74da4fe2b1d3601d4247",
-    "teleop/marvin_teleop/mapping.py": "1c72b25b44324cbad61e1fe86bdd8465884f557568d217f90170e63d9857fe18",
+    "teleop/marvin_teleop/mapping.py": "70cb95ac3812bd2b7fcc63622178deecdb9cf4f3be8b33fc30fd74375443027a",
     "teleop/marvin_teleop/mirror.py": "c7aa566e661a5e3306a7d44da4a877c5ec5a488fb7f20482f27fc4973c997376",
     "teleop/marvin_teleop/model.py": "7d1a520bd0c2ab5ff25c3036453df694e6c27e24e3c4da82ced4665ed243c958",
     "teleop/marvin_teleop/motion.py": "f3d5957f089c9deeb65eb05d8c648b2b958a10e06fdf7485f2c78aafd5eded45",
@@ -56,7 +56,9 @@
     "双臂底座支架图纸260811/固定件/固定件urdf/Dual_arm_mount-m6/urdf/Dual_arm_mount-m6.urdf": "789c02c70d88a97b201f4f5f16d0f85b71ee116b38b802685f697853329bf11e",
     "双臂底座支架图纸260811/底座支架/底座支架urdf/base_m6/meshes/base_link.STL": "29f13fe1103a20a5849fcac0199a79c56ea2b9736acd6783547a396b7a52792d",
     "双臂底座支架图纸260811/底座支架/底座支架urdf/base_m6/urdf/base_m6.urdf": "ab3cb047c0460fcd5ad68666f4d50ebce309d9ff1183c8ad324052e03169088e",
-    "teleop/marvin_teleop/pose_tracking.py": "5658ac45be87109e7a5d18fac1b3e6e0714d83e145f84afbc4c9ec81b077926c"
+    "teleop/marvin_teleop/pose_tracking.py": "5658ac45be87109e7a5d18fac1b3e6e0714d83e145f84afbc4c9ec81b077926c",
+    "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf": "15fba6e22edd8537974002d9fc4b695a23dfd943dfb764e598e6fcad83d942c9",
+    "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf": "aa5ab707a2d0c9360f3408c5fd9f7b091ec8a47a154d1e7c7158f4487f42cc23"
   },
   "adaptations": {
     "teleop/marvin_teleop/control.py": "Selected arms own enables and commands; collision checks retain both arms.",
@@ -64,16 +66,17 @@
   },
   "shared_clients": {
     "fusion_camera_stream/fusion_camera/client.py": "4648095cd6d484e3e782edbcfb3cf5b8f2039f170be4664fdd3dbe984634fccf",
-    "fusion_camera_stream/fusion_camera/stream.py": "13c286e4fc8212a3b5b2c67fb984d35180a6ef82a8dcab571702da993bbfc86b"
+    "fusion_camera_stream/fusion_camera/stream.py": "35bbbcbdfb4caa8891799c917c0621bf6adfab80bb70bc03ec0ffd385089ab1d"
   },
   "preview": {
     "source": "dual_arm_sim/dual_arm_with_grippers.urdf",
     "source_sha256": "891e4f526d340c7c032b7e4edee022cae3d2ac7ec61f6b2da552cbf7d31a0197",
     "artifact": "public/tianji-model.json",
-    "method": "CAD mesh vertex clustering, URDF transforms and mimic joints retained"
+    "method": "CAD mesh vertex clustering, URDF transforms and mimic joints retained",
+    "artifact_sha256": "e0d78efbb73105e7be2afa9807f1d5712bb5366969f37f2d9ec923399744288a"
   },
   "shared_collection": {
-    "fusion_data_collection/FusionDataCollector/collector.py": "cd8a130fd5ff989bbefa70d6980b357443a80511d246f10c0e3c23a0ca28da16",
+    "fusion_data_collection/FusionDataCollector/collector.py": "51bb4509b5db3849fc66efb0c3ea476fcffc739c9e2e9bd40d710b8759a28aba",
     "fusion_data_collection/teleop_patch/marvin_teleop/collection_telemetry.py": "a5f303c0ef263f8d3d97dbd0bfeb886af69bfb14ae39066e747458d6b8a81df6"
   },
   "collection_adaptations": "App camera handoff; actual connected-camera subset frozen per episode; native JPEG passthrough at selected resolution; hardware brightness readback and current runtime retarget metadata; selected gripper validation and accepted SDK command log; complete-only account-bound platform queue. No native duplicates.",
@@ -88,16 +91,22 @@
       "scope": "XR yaw frame, relative spatial rotation conjugation and local accepted-command integration only; G2 geometry, limits and hardware code are not used. Shared first-clutch session heading retained for both arms.",
       "reference_cases": "tests/fixtures/test_teleop_retarget_reference.json"
     },
-    "camera_controls": "Authenticated idle-only native 30 fps MJPEG resolution and hardware UVC brightness controls; verify actual preview dimensions, preserve old preferences and failed-round diagnostics on errors. Raw modes exceeding the deployed transport are not selectable. Recording uses the same actual camera subset, formats and hardware readback as preview; no robot commands."
+    "camera_controls": "Active stream carries verified resolution/brightness/control options. UI reads only local stream snapshots, never pauses video for GET. Explicit idle-only writes retain measured-frame verification and rollback. Camera checks/reconnects run outside robot command_lock; armed teleoperation without an active episode may recover an audited preview. Recording failures remain incomplete. UVC probe errors propagate and redundant probe/brightness writes are avoided; no USB reset or robot commands.",
+    "camera_reset_isolation": "Explicit negotiated joint-health events keep preview alive through passive sampling delays or robot reset feedback gaps. Any gap seen during an Episode remains incomplete; new recording requires recovered fresh joints. Exact observed servo reset logs are recognized; USB errors and unknown kernel messages remain audited."
   },
   "tool_frames": {
     "definition": "description/grasp_center.txt",
-    "source": "CAD rubber-pad OBB centers at URDF full opening; fixed, nominal, not measured calibration",
+    "source": "CAD motor-axis intersection with both jaw pivot axes plane; nominal P at flange +142.225549599 mm",
     "links": [
       "grasp_center_L",
       "grasp_center_R"
     ],
-    "local_geometry_report": "outputs/gripper-tcp/tcp_geometry.json"
+    "local_geometry_report": "outputs/gripper-tcp/tcp_geometry.json",
+    "mount_revision": "longitudinal_half_turn_v2",
+    "mount_yaw_deg": {
+      "left": -45,
+      "right": 135
+    }
   },
   "retired_files": {
     "teleop/marvin_teleop/vendor_tracking.py": {

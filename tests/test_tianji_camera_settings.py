@@ -68,6 +68,8 @@ def rig():
     manager.pause_cameras=MagicMock(side_effect=pause)
     manager.start_cameras=MagicMock(side_effect=start)
     controls=CameraSettings(manager)
+    controls.observe_stream(dict(cameras=[key.replace('_','-') for key in state],
+                                 camera_controls={key.replace('_','-'):copy.deepcopy(value) for key,value in state.items()}))
     return SimpleNamespace(manager=manager,client=client,controls=controls,state=state)
 
 
@@ -75,8 +77,8 @@ def test_one_query_loads_both_cameras_and_second_control_uses_cache(rig):
     result = rig.controls.get('usb_2')
     assert result['brightness']['min'] == -64
     assert rig.controls.get('usb_4')['resolution']['selected']['id'] == 'mjpeg'
-    assert rig.manager.pause_cameras.call_count == 1
-    assert rig.client.camera_settings.call_count == 2
+    assert rig.manager.pause_cameras.call_count == 0
+    assert rig.client.camera_settings.call_count == 0
 
 
 @pytest.mark.parametrize('busy', ['running', 'moving', 'armed', 'recording'])
@@ -112,6 +114,8 @@ def test_failed_real_frame_verification_restores_previous_camera_settings(rig, m
 def test_replug_invalidates_only_the_device_that_changed(rig):
     inventory=[dict(id=k.replace('_','-'),available=True,bus=1,address=i+3,vid='32e4',pid='9230') for i,k in enumerate(rig.state)]
     rig.controls.inventory(inventory)
+    rig.controls.observe_stream(dict(cameras=[key.replace('_','-') for key in rig.state],
+        camera_controls={key.replace('_','-'):copy.deepcopy(value) for key,value in rig.state.items()}))
     rig.controls.get('usb_2')
     inventory[0]['address'] += 2
     rig.controls.inventory(inventory)
@@ -179,3 +183,21 @@ def test_hardware_capabilities_exclude_raw_modes_that_overload_transport(monkeyp
     monkeypatch.setattr(builtins,'open',fake_open)
     monkeypatch.setattr(protocol,'parse_capabilities',lambda data:dict(modes=['yuyv','mjpeg','yuyv-320x240'],brightness=(0,2)))
     assert protocol.camera_capabilities(camera)['modes']==['mjpeg']
+
+
+def test_repeated_settings_reads_never_pause_live_teleoperation_or_query_usb(rig):
+    rig.manager.value['state']='running';rig.manager.collection.armed=True
+    rig.controls.loaded_at={key:0 for key in rig.state}
+    for _ in range(100):
+        assert rig.controls.get('usb_2')['brightness']['value']==0
+        assert rig.controls.get('usb_4')['resolution']['selected']['id']=='mjpeg'
+    rig.manager.pause_cameras.assert_not_called()
+    rig.manager.new_camera_client.assert_not_called()
+    assert not rig.controls.busy
+
+
+def test_missing_stream_settings_does_not_interrupt_preview_or_query_controller(rig):
+    rig.controls.cache.clear()
+    with pytest.raises(RuntimeError,match='设置快照'):rig.controls.get('usb_2')
+    rig.manager.pause_cameras.assert_not_called()
+    rig.manager.new_camera_client.assert_not_called()

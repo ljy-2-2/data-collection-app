@@ -148,6 +148,8 @@ export interface TianjiStatus {
   error?: string;
   camera_error?: string;
   camera_phase?: string;
+  camera_checking?: boolean;
+  camera_joint_error?: string | null;
   reason?: string;
   recovery?: { phase: string; detail: string; sides: TianjiSide[] } | null;
 }

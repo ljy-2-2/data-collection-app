@@ -479,13 +479,8 @@ static int open_camera(uvc_context_t *context, Camera *camera, int address) {
     result = uvc_get_stream_ctrl_format_size(camera->device, &ctrl, profile->uvc_format,
                                              profile->width, profile->height, 30);
     if (result < 0) return result;
-    /* libuvc 0.0.6's probe wrapper ignores transfer errors: verify explicitly. */
-    ctrl.dwFrameInterval = 333333;
-    ctrl.bmHint |= 1;
-    result = uvc_query_stream_ctrl(camera->device, &ctrl, 1, UVC_SET_CUR);
-    if (result < 0) return result;
-    result = uvc_query_stream_ctrl(camera->device, &ctrl, 1, UVC_GET_CUR);
-    if (result < 0) return result;
+    /* The vendored probe now propagates every USB error. Its returned readback
+     * is verified below; do not SET the same probe a second time. */
     description = uvc_find_frame_desc(camera->device, ctrl.bFormatIndex, ctrl.bFrameIndex);
     if (!description || description->wWidth != profile->width || description->wHeight != profile->height ||
         !format_guid_matches(profile, description->parent->guidFormat) || ctrl.dwFrameInterval != 333333 ||

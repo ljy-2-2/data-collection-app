@@ -379,6 +379,7 @@ uvc_error_t uvc_get_stream_ctrl_format_size(
     int width, int height,
     int fps) {
   uvc_streaming_interface_t *stream_if;
+  uvc_error_t result;
 
   /* find a matching frame descriptor and interval */
   DL_FOREACH(devh->info->stream_ifs, stream_if) {
@@ -398,9 +399,11 @@ uvc_error_t uvc_get_stream_ctrl_format_size(
 
         ctrl->bInterfaceNumber = stream_if->bInterfaceNumber;
         UVC_DEBUG("claiming streaming interface %d", stream_if->bInterfaceNumber );
-        uvc_claim_if(devh, ctrl->bInterfaceNumber);
+        result = uvc_claim_if(devh, ctrl->bInterfaceNumber);
+        if (result != UVC_SUCCESS) return result;
         /* get the max values */
-        uvc_query_stream_ctrl( devh, ctrl, 1, UVC_GET_MAX);
+        result = uvc_query_stream_ctrl(devh, ctrl, 1, UVC_GET_MAX);
+        if (result != UVC_SUCCESS) return result;
 
         if (frame->intervals) {
           for (interval = frame->intervals; *interval; ++interval) {
@@ -452,16 +455,13 @@ uvc_error_t uvc_probe_stream_ctrl(
     uvc_device_handle_t *devh,
     uvc_stream_ctrl_t *ctrl) {
  
-  uvc_query_stream_ctrl(
+  uvc_error_t result = uvc_query_stream_ctrl(
       devh, ctrl, 1, UVC_SET_CUR
   );
-
-  uvc_query_stream_ctrl(
+  if (result != UVC_SUCCESS) return result;
+  return uvc_query_stream_ctrl(
       devh, ctrl, 1, UVC_GET_CUR
   );
-
-  /** @todo make sure that worked */
-  return UVC_SUCCESS;
 }
 
 /** @internal

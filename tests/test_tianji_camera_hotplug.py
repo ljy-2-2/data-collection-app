@@ -31,7 +31,7 @@ def test_clean_camera_hotplug_is_retryable_but_does_not_validate_failed_stream(p
     'usb 1-2: reset high-speed USB device number 10 using xhci_hcd',
     'usb 1-3: USB disconnect, device number 3',
     'usb 1-2: New USB device found, idVendor=ffff, idProduct=9230',
-    'Mot[0][0] process reset', 'EtherCAT: link down'])
+    'Mot[0][0] process reset ERROR', 'EtherCAT: link down'])
 def test_kernel_and_robot_errors_never_become_ordinary_hotplug(line):
     before, after = audit(), audit()
     after.update(camera_audit.dmesg_fingerprint(BASE+('[ 2.000001] '+line+'\n').encode()))

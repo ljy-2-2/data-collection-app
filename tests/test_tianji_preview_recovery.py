@@ -26,8 +26,8 @@ def test_only_clean_passive_preview_gap_recovers(fault):
     if fault=='cancelled':m.camera_stop.is_set=lambda:True
     if fault=='stale':m.last_access-=10
     c.status.side_effect=[bad,dict(idle=True,fault=None)]
-    assert recover_preview_gap(m,c,session,3 if fault=='budget' else 0) is (fault=='clean')
-    if fault=='clean':c.recover_camera.assert_called_once();m._diagnostic_event.assert_called_once()
+    assert recover_preview_gap(m,c,session,3 if fault=='budget' else 0) is (fault in ('clean','armed'))
+    if fault in ('clean','armed'):c.recover_camera.assert_called_once();m._diagnostic_event.assert_called_once()
     else:c.recover_camera.assert_not_called()
 
 

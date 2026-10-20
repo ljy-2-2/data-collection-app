@@ -122,7 +122,7 @@ try:
     for p in (path+'c', path+'o', policy_path+'c', policy_path+'o'):
         if os.path.isfile(p): os.unlink(p)
     subprocess.check_call([sys.executable, '-c',
-        'import streaming; from camera_audit import POLICY; assert POLICY == "known-servo-transitions-v2"'], cwd=root)
+        'import streaming; from camera_audit import POLICY; assert POLICY == "known-servo-transitions-v3"'], cwd=root)
     subprocess.check_call(['/sbin/start','fusion-camera'])
     time.sleep(1)
     result = subprocess.check_output(['/sbin/status','fusion-camera'])

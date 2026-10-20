@@ -816,7 +816,7 @@
   <joint name="gripper_mount_R" type="fixed">
     <parent link="flange_R" />
     <child link="gripper_R" />
-    <origin xyz="0 0 0" rpy="0 0 -0.7853981633974483" />
+    <origin xyz="0 0 0" rpy="0 0 2.356194490192345" />
   </joint>
   <!-- Nominal fixed TCP: intersection of motor axis with the plane containing both fixed jaw pivot axes; NOT physical calibration. xyz in metres; tool X=finger approach, Y=jaw opening, Z=right-handed normal. See description/grasp_center.txt. -->
   <link name="grasp_center_R" />

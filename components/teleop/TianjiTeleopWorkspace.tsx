@@ -100,6 +100,7 @@ export function TianjiTeleopWorkspace({
   } | null>(null);
   const [state, setState] = useState<TianjiStatus | null>(null);
   const [cameraBusy, setCameraBusy] = useState<Record<string, boolean>>({});
+  const [cameraReconnecting, setCameraReconnecting] = useState(false);
   const updateCameraBusy = useCallback((key: string, busy: boolean) => {
     setCameraBusy(previous => previous[key] === busy ? previous : {...previous, [key]:busy});
   }, []);
@@ -638,7 +639,7 @@ export function TianjiTeleopWorkspace({
           </div>
         ) : null}
       </section>
-      <div className="teleop-observation-grid">
+      <div className="teleop-observation-grid tianji-observation-grid">
         <section className="surface teleop-visualizer">
           <div className="preview-head">
             <div>
@@ -663,8 +664,20 @@ export function TianjiTeleopWorkspace({
             <div>
               <h3>相机画面</h3>
             </div>
-            <span>{state?.camera_preview_mode === 'snapshot' ? '逐路刷新' : `${cameras.length} 路相机`}</span>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span>{state?.camera_preview_mode === 'snapshot' ? '逐路刷新' : `${cameras.length} 路相机`}</span>
+              <button type="button" disabled={cameraReconnecting || state?.camera_checking || cameraSettingsBusy || collectionBusy || collecting}
+                onClick={async () => {
+                  setCameraReconnecting(true);
+                  try {await api('/camera-preview/reconnect',{method:'POST',body:'{}'});}
+                  catch (failure) {setError(failure instanceof Error ? failure.message : '视频重连失败');}
+                  finally {setCameraReconnecting(false);}
+                }}>重连视频</button>
+            </div>
           </div>
+          {state?.camera_joint_error && (
+            <p role="status">关节反馈中断，暂不能采集；视频继续显示。{state.camera_joint_error}</p>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cameraColumns}, minmax(0, 1fr))`, gap: 8 }}>
             {cameras.map((camera) => (
               <div key={camera.id}>

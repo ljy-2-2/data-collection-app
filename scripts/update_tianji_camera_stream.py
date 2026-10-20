@@ -22,10 +22,15 @@ EXPECTED['streaming.py'].append('5a5a726f4a78a5728f521a1f8bb1183a1b50313c58beb2d
 
 EXPECTED['server.py'].append('8ccfa04294e3edc008dc60e02c70dfaf2d3f5e5c729064116d6c0ad64fb1d460')
 EXPECTED['streaming.py'].append('19ddebc8727b33e0d3fbeedbb4dd07a58961d3442012c152cf6879514efc76f9')
+EXPECTED['server.py'].append('953d069e22b39427f65689213dc8e2a848aec39e722374d59650e83fa51bab2f')
+EXPECTED['streaming.py'].append('212d2ee650f9c9c222e84af695ab29fa8aa24768e00416f495dd78d92ad5da11')
 # Reviewed deployed inventory-recovery service, before camera controls.
 EXPECTED['server.py'].append('5f1e3d8faf68f56278afb73e85af4ebc416378ffb2e8bc1c5a05b9a08dd80ffc')
 EXPECTED['streaming.py'].append('79df00c97198d17834e6f4e4f77232fd97d306b0a6fa69df7a1114de109473c6')
 EXPECTED['streaming.py'].append('96e6b7d9fc82aaeb5f7f2f0f846234310faf322f66333832b44fe680d7f2d8b8')
+# Reviewed active-stream settings and independent reconnect release.
+EXPECTED['server.py'].append('a3b4ece52c7651c156c53e6b423b6b2f876c6d8e8c9f628f3f3e07f8bc2281d5')
+EXPECTED['streaming.py'].append('ecd4b8a6af05e9383fb6d77db22a5bd4f275be46f33211e84edd0a25d6c0f263')
 
 REMOTE = r'''
 from __future__ import print_function
@@ -108,6 +113,8 @@ manifest['sha256'][target] = digest(open(new_helper,'rb').read())
 manifest['teleop_profile'] = payload['profile']
 manifest['stream_camera_selection'] = True
 manifest['camera_controls'] = True
+manifest['stream_camera_controls'] = True
+manifest['stream_joint_health'] = True
 manifest['sha256'][root+'/camera_controls.py'] = digest(base64.b64decode(
     payload['source']['FusionDataCollector/controller_v22/camera_controls.py']))
 manifest['sha256'][root+'/camera_color.py'] = digest(base64.b64decode(
@@ -182,6 +189,19 @@ def reviewed_stream_fault(status):
             and last.get('native_exit') == 1 and last.get('native_cleanup_timed_out') is False)
 
 
+def reviewed_joint_fault(status):
+    """Manually reviewed sampling delay; native video exited and cleaned normally."""
+    last = status.get('last_stream') or {}
+    error = 'Joint sampler delayed over 100 ms'
+    return (status.get('fault') in (error, error+'; Audit changed: dmesg_sha256')
+            and last.get('error') == status['fault'] and last.get('ok') is False
+            and last.get('native_exit') == 0 and last.get('native_cleanup_timed_out') is False
+            and last.get('native_termination') == 'error_cleanup'
+            and not last.get('native_failure_reason')
+            and last.get('observation_mode') == 'teleop_observation'
+            and (last.get('joint_max_lateness_ns') or 0) > 100000000)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host',default='192.168.1.190')
@@ -194,6 +214,8 @@ def main():
                         help='Allow a manually inspected idle dmesg audit failure; archive it without changing the failed recording')
     parser.add_argument('--recover-reviewed-queue-fault',action='store_true',
                         help='Allow an inspected and fully cleaned camera transport queue failure')
+    parser.add_argument('--recover-reviewed-joint-fault',action='store_true',
+                        help='Allow the inspected passive sampler delay after reviewing controller logs')
     parser.add_argument('--prepare',type=Path,help='Write reviewed payload locally without connecting')
     args=parser.parse_args()
     files=source_files()
@@ -225,7 +247,8 @@ def main():
         and last.get('error') == queue_error and last.get('ok') is False
         and last.get('native_exit') == 1 and last.get('native_cleanup_timed_out') is False
         and last.get('native_failure_reason') == queue_reason)
-    if status.get('idle') is not True or (status.get('fault') and not (reviewed_snapshot_fault or reviewed_start_fault or reviewed_dmesg_fault or reviewed_queue_fault)):
+    reviewed_sampler_fault = args.recover_reviewed_joint_fault and reviewed_joint_fault(status)
+    if status.get('idle') is not True or (status.get('fault') and not (reviewed_snapshot_fault or reviewed_start_fault or reviewed_dmesg_fault or reviewed_queue_fault or reviewed_sampler_fault)):
         raise RuntimeError('Camera service must be idle and fault-free before update')
     # Desktop and SDK must both remain closed for the entire update transaction.
     import fcntl
@@ -247,6 +270,8 @@ def main():
     if (after.get('idle') is not True or after.get('fault')
             or after.get('stream_camera_selection') is not True
             or after.get('camera_controls') is not True
+            or after.get('stream_camera_controls') is not True
+            or after.get('stream_joint_health') is not True
             or after.get('camera_hotplug_recovery') is not True):
         raise RuntimeError('Updated camera service verification failed')
     print('相机服务升级完成：原生分辨率、硬件亮度、动态路数与受校验的热插拔重连；尚未验证实机出帧。')

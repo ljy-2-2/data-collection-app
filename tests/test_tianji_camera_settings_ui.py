@@ -58,6 +58,13 @@ def test_native_teleop_settings_controls_and_recording_lock():
             bridge.setTeleopCameraResolution('usb_2','mjpeg');assert len(calls)==before
             for item in items:item.setProperty('editable',False)
             assert not select.property('enabled') and not slider.property('enabled')
+            bridge._state['tianji'].update(state='running',collection={'armed':True})
+            bridge.reconnectTeleopCameras()
+            assert calls[-1][0]=='/tianji/camera-preview/reconnect'
+            assert bridge.state['busy']==''
+            before=len(calls)
+            bridge._state['tianji']['collection']={'armed':True,'recording':True}
+            bridge.reconnectTeleopCameras();assert len(calls)==before
             for item in items:item.setProperty('available',False);item.deleteLater()
             app.processEvents()
         print('PASS teleop settings and guarded requests, no duplicate refresh or recording changes')

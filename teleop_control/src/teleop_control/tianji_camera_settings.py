@@ -67,25 +67,40 @@ class CameraSettings:
     def get(self, key):
         return self.request(key)
 
+    def observe_stream(self, metadata):
+        """Populate controls from the live stream, without stopping it for GETs."""
+        snapshots = metadata.get('camera_controls')
+        if snapshots is None:
+            return
+        selected = metadata.get('cameras')
+        if not isinstance(snapshots, dict) or not isinstance(selected, list) or set(snapshots) != set(selected):
+            raise RuntimeError('相机流返回无效的设置快照')
+        checked = {key.replace('-', '_'): self._checked(key.replace('-', '_'), value)
+                   for key, value in snapshots.items()}
+        with self.lock:
+            for key, value in checked.items():
+                device = snapshots[key.replace('_', '-')].get('device')
+                if device and key in self.identities:
+                    if tuple(device.get(n) for n in ('bus','address','vid','pid')) != self.identities[key]:
+                        raise RuntimeError('相机设置快照与当前设备身份不一致')
+            self.cache.update(checked)
+            self.loaded_at.update({key:time.monotonic() for key in checked})
+
     def request(self, key, *, mode_id=None, brightness=None):
         if key not in CAMERAS:
             raise ValueError('未知天机相机')
         changing = mode_id is not None or brightness is not None
         with self.lock:
             cached = copy.deepcopy(self.cache.get(key))
-            recent = time.monotonic() - self.loaded_at.get(key, -1e9) < 2
-        if not changing and cached and (recent or self.manager.value.get('state') not in ('idle', 'error')):
-            return cached
+        if not changing:
+            if cached:
+                return cached
+            raise RuntimeError('尚未收到当前相机流的设置快照，请等待视频连接；旧控制器服务需要升级')
         manager = self.manager
         with manager.command_lock:
-            # Two UI controls can ask concurrently. The first query populates
-            # every connected camera, so the next request never restarts video.
+            # Only an explicit write may pause/reconfigure the camera.
             with self.lock:
-                cached = copy.deepcopy(self.cache.get(key))
-                recent = time.monotonic() - self.loaded_at.get(key, -1e9) < 2
                 generation = self.generation
-            if not changing and cached and recent:
-                return cached
             self._idle()
             if key not in manager.camera_inventory:
                 raise ValueError('相机未连接，请先检查设备')

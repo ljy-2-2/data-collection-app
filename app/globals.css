@@ -889,6 +889,11 @@ input[type='number']::-webkit-outer-spin-button { appearance: none; margin: 0; }
   white-space: nowrap;
 }
 .teleop-observation-grid { gap: 12px; }
+.tianji-observation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; align-items: stretch; }
+.tianji-observation-grid > .surface { display: flex; flex-direction: column; min-width: 0; }
+.tianji-observation-grid .teleop-visual-stage { flex: 1; }
+.tianji-observation-grid .tianji-robot-preview { position: absolute; inset: 0; max-width: none; width: 100%; height: 100%; }
+.tianji-observation-grid .teleop-robot-canvas { height: 100%; }
 .teleop-visual-stage, .teleop-camera-stage { min-height: 300px; margin: 10px; }
 .teleop-visual-stage { background: var(--robot-stage); }
 .teleop-robot-preview, .teleop-robot-canvas { height: 300px; }

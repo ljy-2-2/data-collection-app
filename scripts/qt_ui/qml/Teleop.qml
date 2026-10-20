@@ -71,13 +71,16 @@ Column {
         }
     }
     GridLayout {
+        objectName: "teleopVisualGrid"
         width: parent.width;columns: app.width<=1180 ? 1 : 2;columnSpacing: 12;rowSpacing: 12
         Card {
-            Layout.fillWidth: true;Layout.preferredWidth: 410;Layout.preferredHeight: 373
+            objectName: "teleopRobotCard"
+            Layout.fillWidth: true;Layout.preferredWidth: 500;Layout.preferredHeight: cameraCard.implicitHeight
             Heading {width: parent.width;title: "机器人姿态";height: 51}
             Txt {anchors.right: parent.right;anchors.rightMargin: 14;y: 17;text: "● "+(root.live ? "遥测在线" : "无遥测");font.pixelSize: 11;color: root.live ? Theme.green : Theme.inkSoft}
             Rectangle {
-                x: 10;y: 61;width: parent.width-20;height: 302;radius: 10;border.color: Theme.line;color: Theme.stage;clip: true
+                objectName: "teleopRobotStage"
+                x: 10;y: 61;width: parent.width-20;height: parent.height-y-10;radius: 10;border.color: Theme.line;color: Theme.stage;clip: true
                 Loader {anchors.fill: parent;anchors.margins: 1;active: root.tianji;source: "RobotView.qml"}
                 G2View {id: g2;visible: !root.tianji;anchors.fill: parent;anchors.margins: 1;dark: Theme.dark;live: root.live;values: {let v={};backend.g2Joints.forEach(j=>v[j.name]=s.preview.joint_positions[j.name]===undefined?j.default:s.preview.joint_positions[j.name]);return v}}
                 MouseArea {objectName: "g2OrbitArea";anchors.fill: parent;enabled: !root.tianji;preventStealing: true;property real px: 0;property real py: 0;cursorShape: pressed?Qt.ClosedHandCursor:Qt.OpenHandCursor;onPressed: m=>{px=m.x;py=m.y};onPositionChanged: m=>{if(pressed){g2.drag(m.x-px,m.y-py);px=m.x;py=m.y}};onWheel: w=>g2.changeZoom(w.angleDelta.y>0?1.12:.88)}
@@ -88,7 +91,8 @@ Column {
             }
         }
         TeleopCameras {
-            Layout.fillWidth: true;Layout.preferredWidth: 590;Layout.preferredHeight: 373+controlsHeight
+            id: cameraCard
+            Layout.fillWidth: true;Layout.preferredWidth: 500;Layout.preferredHeight: implicitHeight
             tianji: root.tianji;status: root.status;previewStatus: s.preview;locked: root.locked
             active: root.visible && s.page==="teleop" && s.teleopStep===2
         }

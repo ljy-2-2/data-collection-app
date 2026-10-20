@@ -44,7 +44,8 @@ class FusionStreamClient(FusionCameraClient):
         best=min(rows,key=lambda r:r['rtt_ns'])
         return dict(best,measurements=rows,method='minimum_RTT_midpoint_estimate')
 
-    def stream(self, seconds=60, hz=30, joint_hz=100, mode='stationary', camera_ids=None):
+    def stream(self, seconds=60, hz=30, joint_hz=100, mode='stationary', camera_ids=None,
+               isolate_joint_feedback=False):
         """Yield start/image/joints/health/end events. Closing iterator stops capture.
 
         Joint order: left 1..7, right 1..7. Joint sampling defaults to 100 Hz; image
@@ -57,11 +58,15 @@ class FusionStreamClient(FusionCameraClient):
             raise ValueError('joint_hz must be 30 or 100')
         if mode not in ('stationary', 'teleop_observation'):
             raise ValueError('Unknown observation mode')
+        if type(isolate_joint_feedback) is not bool or (isolate_joint_feedback and mode != 'teleop_observation'):
+            raise ValueError('Invalid joint feedback policy')
         if self.closed: raise RuntimeError('Client is closed')
         if getattr(self, '_stream_socket', None) is not None:
             raise RuntimeError('Only one active stream per client')
         request_data = {'method':'stream','token':self.token,'seconds':seconds,'hz':hz,
                         'joint_hz':joint_hz,'observation_mode':mode}
+        if isolate_joint_feedback:
+            request_data['isolate_joint_feedback'] = True
         if camera_ids is not None:
             if (not isinstance(camera_ids, (list, tuple)) or not camera_ids
                     or any(c not in ('usb-1','usb-2','usb-4') for c in camera_ids)

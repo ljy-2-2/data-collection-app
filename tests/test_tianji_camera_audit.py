@@ -32,6 +32,9 @@ KEY = 'dmesg_sha256'
     '_FX_ServoFsmWaitPositionMode set ctrl.b15=0, ctrl.b14=0',
     '_FX_ServoFsmShutDown 0x8006',
     '_FX_ServoFsmSwitchOnAndEnableOperation 0x800f',
+    'Mot[0][0] process reset', 'Mot[1][6] process reset',
+    '_FX_ServoFsmFaultResetRising 0x80', '_FX_ServoFsmFaultResetRising 0x8087',
+    '_FX_ServoFsmFaultResetFalling 0x0', '_FX_ServoFsmFaultResetFalling 0x8007',
 ])
 def test_exact_reported_servo_transitions_only_allowed_during_teleop(message):
     before = audit.dmesg_fingerprint(BASE)
@@ -51,6 +54,9 @@ def test_exact_reported_servo_transitions_only_allowed_during_teleop(message):
     '_FX_ServoFsmSwitchOnAndEnableOperation 0x8008',
     '_FX_ServoFsmWaitPositionMode set ctrl.b15=0, ctrl.b14=1',
     'Mot[0][0] process change to position mode ERROR',
+    'Mot[0][0] process reset ERROR', 'Mot[1][7] process reset',
+    '_FX_ServoFsmFaultResetRising 0x800f', '_FX_ServoFsmFaultResetFalling 0x80',
+    'xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD',
 ])
 def test_unknown_or_error_logs_still_fault_even_with_normal_servo_logs(message):
     before = audit.dmesg_fingerprint(BASE)

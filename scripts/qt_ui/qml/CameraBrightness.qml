@@ -44,7 +44,7 @@ Item {
         }
     }
     onCameraKeyChanged: { syncValue(); refresh() }
-    onAvailableChanged: refresh()
+    onAvailableChanged: {if (scope !== "tianji" || !details.loaded) refresh()}
     onEditableChanged: {if (editable && !details.loaded && !details.busy && !details.error) refresh()}
     function refreshIfNeeded() {if (available && !details.loaded && !details.busy && !details.error) refresh()}
     onDetailsChanged: {syncValue();Qt.callLater(refreshIfNeeded)}

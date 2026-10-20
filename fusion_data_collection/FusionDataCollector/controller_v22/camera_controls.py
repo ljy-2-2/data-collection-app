@@ -161,8 +161,9 @@ def brightness(camera, info, unit, value=None):
         if value is not None:
             if type(value) is not int or not values['min'] <= value <= values['max'] or (value - values['min']) % values['step']:
                 raise ValueError('Brightness outside hardware range or step')
-            transfer(0x01, value)
-            values['value'] = transfer(0x81)
+            if values['value'] != value:
+                transfer(0x01, value)
+                values['value'] = transfer(0x81)
             if values['value'] != value:
                 raise RuntimeError('Hardware brightness readback differs from requested value')
         return values
@@ -212,6 +213,15 @@ def profile_for(service, camera_id):
     return selected, dict(PROFILES[selected])
 
 
+def stream_snapshot(camera, info, capabilities, mode_id, actual):
+    """Describe the already verified stream; no additional USB requests."""
+    options = [dict(PROFILES[key], id=key, label=u'%d × %d · 30 帧/秒 · %s' % (
+        PROFILES[key]['width'], PROFILES[key]['height'], PROFILES[key]['format'].upper())) for key in capabilities['modes']]
+    return dict(camera_id=camera['id'], brightness=dict(actual),
+                device=dict((key, info.get(key)) for key in ('bus', 'address', 'vid', 'pid')),
+                resolution=dict(options=options, selected=next(p for p in options if p['id'] == mode_id), editable=True))
+
+
 def control(service, request, api):
     """Idle-only authenticated camera request; caller already verified the token."""
     if api.ACTIVE is not None or service.fault:
@@ -249,10 +259,9 @@ def control(service, request, api):
             saved['brightness'] = actual['value']
         settings[camera['id']] = saved
         save_settings(service, settings)
-    options = [dict(PROFILES[key], id=key, label=u'%d × %d · 30 帧/秒 · %s' % (
-        PROFILES[key]['width'], PROFILES[key]['height'], PROFILES[key]['format'].upper())) for key in capabilities['modes']]
-    return dict(ok=True, camera_id=camera['id'], brightness=actual,
-                resolution=dict(options=options, selected=next(p for p in options if p['id'] == mode_id), editable=True))
+    result = stream_snapshot(camera, info, capabilities, mode_id, actual)
+    result['ok'] = True
+    return result
 
 
 def restore(service, request, api):

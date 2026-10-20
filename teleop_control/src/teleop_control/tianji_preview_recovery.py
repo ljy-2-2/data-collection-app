@@ -5,7 +5,7 @@ import time
 
 def preview_only(manager, session):
     return (not (session and session.attached)
-            and not manager.collection.armed and not manager.collection.active())
+            and not manager.collection.active())
 
 
 def recover_preview_gap(manager, client, session, attempt):

@@ -17,6 +17,7 @@ class CameraSession:
         self.frame_counts = dict.fromkeys(('usb-1', 'usb-2', 'usb-4'), 0)
         self.joint_count = 0
         self.joint_time = None
+        self.joint_error = None
         self.attached = False
         self.failure = None
 
@@ -32,6 +33,12 @@ class CameraSession:
             elif kind == 'joints':
                 self.joint_time = time.monotonic()
                 self.joint_count += 1
+            elif kind == 'health' and 'joint_feedback_ok' in event.metadata:
+                if event.metadata['joint_feedback_ok'] is False:
+                    self.joint_error = event.metadata.get('joint_feedback_error') or '关节反馈不可用'
+                    self.joint_time = None
+                elif event.metadata['joint_feedback_ok'] is True:
+                    self.joint_error = None
             elif kind == 'end':
                 self.end = event
             if self.consumer is not None:
@@ -44,6 +51,8 @@ class CameraSession:
             now = time.monotonic()
             if self.attached or self.end or self.failure or self.finished.is_set():
                 raise RuntimeError('相机数据流当前无法接入采集，请检查设备')
+            if self.joint_error:
+                raise RuntimeError('视频正常，关节反馈尚未恢复，暂不能采集：'+self.joint_error)
             selected = self.start.metadata.get('cameras', list(self.frame_counts)) if self.start else []
             if (not isinstance(selected, list) or not selected or len(set(selected)) != len(selected)
                     or not set(selected) <= set(self.frame_counts)):

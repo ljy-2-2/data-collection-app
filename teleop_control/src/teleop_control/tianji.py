@@ -56,8 +56,10 @@ class TianjiManager:
         self.camera_inventory = {}
         self.camera_preview_mode = "stream"
         self.camera_thread = None
+        self.camera_check_thread = None
         self.camera_client = None
         self.camera_session = None
+        self.camera_joint_health_supported = False
         self.camera_resume_session = None
         self.camera_stop = threading.Event()
         self.camera_cooldown = 2.0
@@ -217,13 +219,41 @@ class TianjiManager:
             with self.lock:
                 self.pending.pop(ident, None)
         if action == "check":
-            self.check_camera_recovery()
-            if not self.camera_recovery_cancel.is_set():
-                self.last_access = time.monotonic()
-                self.start_cameras()
+            self.last_access = time.monotonic()
+            self.check_cameras_in_background()
         elif action == "start":
             self.collection.arm(payload)
         return {"ok": True}
+
+    def check_cameras_in_background(self):
+        # Robot/VR checks have already succeeded. Camera errors stay separate
+        # and camera network/cleanup delays must never hold command_lock.
+        with self.lock:
+            if self.camera_check_thread and self.camera_check_thread.is_alive():
+                return
+            def check():
+                try:
+                    self.check_camera_recovery(allow_teleop=True)
+                except Exception as error:
+                    self.camera_error = str(error)
+                    self.camera_phase = 'fault'
+                    self._diagnostic_event('camera_check_failed', error=str(error))
+                finally:
+                    if not self.camera_recovery_cancel.is_set():
+                        self.start_cameras()
+            self.camera_check_thread = threading.Thread(target=check, name='tianji-camera-check', daemon=True)
+            self.camera_check_thread.start()
+
+    def reconnect_camera_preview(self):
+        with self.lock:
+            session = self.camera_session
+            if (self.collection.active() or self.camera_settings.busy
+                    or (session and session.attached and not session.finished.is_set())):
+                raise RuntimeError('请先结束本轮采集或相机设置，再重连视频')
+            self.camera_recovery_cancel.clear()
+            self.last_access = time.monotonic()
+            self.check_cameras_in_background()
+        return {'ok': True}
 
     def _diagnostic_event(self, kind, **details):
         # Bounded in-memory metadata only; never perform file I/O on the SDK reader.
@@ -304,6 +334,8 @@ class TianjiManager:
                         feedback["age_s"] = time.monotonic() - feedback.get("received", 0)
             value["camera_error"] = self.camera_error
             value["camera_phase"] = self.camera_phase
+            value['camera_checking'] = bool(self.camera_check_thread and self.camera_check_thread.is_alive())
+            value['camera_joint_error'] = getattr(self.camera_session, 'joint_error', None)
             value["camera_preview_mode"] = self.camera_preview_mode
             value['camera_settings'], value['camera_settings_busy'] = self.camera_settings.snapshot()
             value["collection"] = self.collection.snapshot()
@@ -342,7 +374,7 @@ class TianjiManager:
             self.camera_thread = threading.Thread(target=self._cameras, daemon=True)
             self.camera_thread.start()
 
-    def check_camera_recovery(self):
+    def check_camera_recovery(self, *, allow_teleop=False):
         # Explicit idle-only reconnect; the controller classifies recoverable faults.
         with self.lock:
             healthy = (self.camera_thread and self.camera_thread.is_alive()
@@ -354,7 +386,7 @@ class TianjiManager:
             return
         self.camera_preview_restarting = True
         try:
-            restart_local_preview(self)
+            restart_local_preview(self, allow_teleop=allow_teleop)
         except Exception as exc:
             self.camera_error = str(exc)
             self.camera_phase = "fault"
@@ -420,10 +452,13 @@ class TianjiManager:
         threading.Thread(target=resume, name="tianji-preview-resume", daemon=True).start()
 
     def adopt_camera_stream(self):
-        session = self.camera_session
-        if session is None:
-            raise RuntimeError("当前为逐路相机预览，采集需要连续相机流" if self.camera_preview_mode == "snapshot" else "相机预览尚未就绪，请先检查设备")
-        client = session.subscribe()
+        with self.lock:
+            if self.camera_preview_restarting:
+                raise RuntimeError('相机正在重连，请等待真实画面后再开始采集')
+            session = self.camera_session
+            if session is None:
+                raise RuntimeError("当前为逐路相机预览，采集需要连续相机流" if self.camera_preview_mode == "snapshot" else "相机预览尚未就绪，请先检查设备")
+            client = session.subscribe()
         self._diagnostic_event("collection_adopted_preview")
         return client
 
@@ -470,6 +505,7 @@ class TianjiManager:
             for camera in set(self.frames) - set(inventory):
                 del self.frames[camera]
             self.camera_selection_supported = status.get("stream_camera_selection") is True
+            self.camera_joint_health_supported = status.get('stream_joint_health') is True
             self.camera_preview_mode = "stream" if (
                 self.camera_selection_supported or set(inventory) == set(CAMERAS)
             ) else "snapshot"
@@ -479,7 +515,7 @@ class TianjiManager:
             action = ("停止控制和采集后点击“检查设备”重连：" if
                       status.get("camera_hotplug_recovery") is True and
                       status.get("recoverable_camera_fault") is True else
-                      "控制器 USB/相机故障，需要检查控制器诊断：")
+                      "控制器取流服务已停止，需要检查控制器诊断：")
             raise RuntimeError(action + str(status["fault"]))
         seconds = status.get("max_stream_seconds", 60)
         if type(seconds) is not int or seconds < 1:
@@ -560,8 +596,14 @@ class TianjiManager:
                         options = {}
                         if self.camera_selection_supported:
                             options["camera_ids"] = list(self.camera_inventory.values())
+                        if self.camera_joint_health_supported:
+                            options['isolate_joint_feedback'] = True
                         for event in client.stream(seconds=seconds, mode="teleop_observation", **options):
+                            if event.metadata.get('type') == 'start':
+                                self.camera_settings.observe_stream(event.metadata)
                             session.publish(event)
+                            if 'joint_feedback_ok' in event.metadata:
+                                self._diagnostic_event('preview_joint_health', metadata=event.metadata)
                             if event.metadata.get("type") in ("start", "end"):
                                 self._diagnostic_event("preview_" + event.metadata["type"], metadata=event.metadata)
                             if self.camera_stop.is_set() or time.monotonic() - self.last_access > 8:
@@ -703,6 +745,10 @@ def tianji_router(manager):
     @router.post("/close")
     def close():
         return call(manager.close)
+
+    @router.post('/camera-preview/reconnect')
+    def reconnect_camera_preview():
+        return call(manager.reconnect_camera_preview)
 
     @router.get('/camera-controls/{camera_id}/settings')
     def camera_settings(camera_id: str):

@@ -33,9 +33,9 @@ def camera_profiles(service, api, selected, fallback):
     """Resolve verified native modes and actual hardware brightness while idle."""
     if not getattr(service, 'settings_supported', False):
         return {key:dict(fallback) for key in selected}, None
-    from camera_controls import profile_for, load_settings, camera_capabilities, brightness
+    from camera_controls import profile_for, load_settings, camera_capabilities, brightness, stream_snapshot
     saved = load_settings(service)
-    profiles, names = {}, []
+    profiles, names, controls = {}, [], {}
     for camera in service.config['cameras']:
         key, profile = profile_for(service, camera['id'])
         names.append(key)
@@ -44,10 +44,13 @@ def camera_profiles(service, api, selected, fallback):
         capabilities = camera_capabilities(camera)
         if key not in capabilities['modes']:
             raise ValueError('Saved mode is not advertised at 30 fps: '+camera['id'])
-        profile['brightness'] = brightness(camera, api.device_info(camera), capabilities['brightness'],
+        info = api.device_info(camera)
+        profile['brightness'] = brightness(camera, info, capabilities['brightness'],
                                           saved.get(camera['id'], {}).get('brightness'))
         profile['mode_id'] = key
         profiles[camera['id']] = profile
+        controls[camera['id']] = stream_snapshot(camera, info, capabilities, key, profile['brightness'])
+    service.stream_camera_controls = controls
     return profiles, names
 
 def validate_header(record, profile):
@@ -210,12 +213,15 @@ def limits():
     resource.setrlimit(resource.RLIMIT_FSIZE, (1024*1024,)*2)
 
 class JointSampler(threading.Thread):
-    def __init__(self, api, reader, seconds, hz=100, stationary_only=True):
+    def __init__(self, api, reader, seconds, hz=100, stationary_only=True, isolate_faults=False):
         threading.Thread.__init__(self)
         self.daemon = True
         self.api, self.reader, self.seconds = api, reader, seconds
         self.hz = hz
         self.stationary_only = stationary_only
+        self.isolate_faults = isolate_faults
+        self.feedback_error = None
+        self.gap_count = 0
         self.done = threading.Event()
         self.queue = collections.deque()
         self.lock = threading.Lock()
@@ -225,6 +231,75 @@ class JointSampler(threading.Thread):
         self.max_lateness_ns = 0
 
     def run(self):
+        if self.isolate_faults and not self.stationary_only:
+            return self.run_observation()
+        return self.run_strict()
+
+    def put(self, sample):
+        with self.lock:
+            if len(self.queue) >= 128:
+                raise RuntimeError('Joint output queue overflow')
+            self.queue.append(sample)
+
+    def feedback_health(self, error, now):
+        if error == self.feedback_error:
+            return
+        if error and not self.feedback_error:
+            self.gap_count += 1
+        self.feedback_error = error
+        self.put(dict(type='health', ok=True, timestamp_ns=int(now*1e9),
+                      joint_feedback_ok=error is None, joint_feedback_error=error,
+                      joint_gap_count=self.gap_count))
+
+    def run_observation(self):
+        # Video is independent of passive joint sampling. Report every gap so
+        # an attached Episode fails; never synthesize samples or stop healthy USB.
+        start = scheduled = self.api.monotonic()
+        previous, last_change = None, start
+        period = 1.0/self.hz
+        try:
+            while scheduled < start+self.seconds:
+                if self.done.wait(max(0, scheduled-self.api.monotonic())):
+                    break
+                now = self.api.monotonic()
+                late = max(0, int((now-scheduled)*1e9))
+                self.max_lateness_ns = max(self.max_lateness_ns, late)
+                tick = int(round((scheduled-start)*self.hz))
+                if late > 100000000:
+                    self.feedback_health('Joint sampler delayed over 100 ms', now)
+                    self.skipped += max(1, int((now-scheduled)*self.hz))
+                    scheduled = now+period
+                    continue
+                if late > int(1e9/self.hz):
+                    self.skipped += max(1, int((now-scheduled)*self.hz))
+                    scheduled = now+period
+                    continue
+                scheduled += period
+                try:
+                    sample = self.reader.sample()
+                    sampled = self.api.monotonic()
+                    if sampled-now > .1:
+                        raise RuntimeError('Joint snapshot read delayed over 100 ms')
+                    if sample['frame_serial'] != previous:
+                        previous, last_change = sample['frame_serial'], sampled
+                    if sampled-last_change > .1:
+                        raise RuntimeError('Joint feedback stale for 100 ms')
+                    if sample['arm_state'][2] or sample['arm_state'][5]:
+                        raise RuntimeError('Robot reports arm error; joint feedback unavailable')
+                except Exception as error:
+                    self.feedback_health(str(error), self.api.monotonic())
+                    scheduled = self.api.monotonic()+.05
+                    continue
+                self.feedback_health(None, sampled)
+                sample.update(type='joints', ok=True, tick=tick, sequence=self.count,
+                              scheduled_monotonic_ns=int((start+tick*period)*1e9),
+                              lateness_ns=late)
+                self.put(sample)
+                self.count += 1
+        except Exception as error:
+            self.error = str(error)
+
+    def run_strict(self):
         start = self.api.monotonic()
         previous = None
         last_change = start
@@ -291,6 +366,10 @@ def run(service, sock, request, api):
     seconds = request.get('seconds', 60)
     joint_hz = request.get('joint_hz',30)
     mode = request.get('observation_mode', 'stationary')
+    isolate_joints = request.get('isolate_joint_feedback', False)
+    if type(isolate_joints) is not bool or (isolate_joints and mode != 'teleop_observation'):
+        api.reply(sock, {'ok':False,'error':'invalid_joint_feedback_policy'})
+        return
     if mode not in ('stationary', 'teleop_observation'):
         api.reply(sock, {'ok':False,'error':'invalid_observation_mode'})
         return
@@ -359,10 +438,12 @@ def run(service, sock, request, api):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         api.reply(sock, {'ok':True,'type':'start','version':'2.3.2','seconds':seconds,'hz':30,'joint_hz':joint_hz,
                         'observation_mode':mode,'graceful_stop':True,
+                        'isolated_joint_feedback':isolate_joints,
                         'timestamp_kind':timestamp_kind,
                         'rt_policy':'teleop_observation_v1' if mode == 'teleop_observation' else 'stationary',
                         'cameras':selected,
                         'camera_profiles':profiles if native_profiles is not None else None,
+                        'camera_controls':getattr(service, 'stream_camera_controls', None) if native_profiles is not None else None,
                         'format':first_profile['format'] if uniform_profile else 'mixed',
                         'native_size':[first_profile['width'],first_profile['height']] if uniform_profile else None,
                         'camera_color_matching':colors,
@@ -392,7 +473,7 @@ def run(service, sock, request, api):
                         sample = sampler.pop()
                         if sample is None: break
                         api.reply(sock, sample)
-                        joint_sent += 1
+                        if sample['type'] == 'joints': joint_sent += 1
                 # Detect a closed client even between camera frames.
                 ready = select.select(([fd] if not eof else [])+[sock], [], [], .005)[0]
                 if sock in ready:
@@ -422,7 +503,7 @@ def run(service, sock, request, api):
                     if len(buf)<40+size: break
                     body, buf = buf[40:40+size], buf[40+size:]
                     if sampler is None:
-                        sampler = JointSampler(api,reader,seconds+30,joint_hz,mode == 'stationary')
+                        sampler = JointSampler(api,reader,seconds+30,joint_hz,mode == 'stationary',isolate_joints)
                         sampler.start()
                     metadata = {'ok':True,'type':'image','camera_id':infos[cam]['id'],
                         'sequence':seq,'timestamp_ns':stamp,'format':frame_profile['format'],'width':width,'height':height,
@@ -447,7 +528,7 @@ def run(service, sock, request, api):
                     sample = sampler.pop()
                     if sample is None: break
                     api.reply(sock,sample)
-                    joint_sent += 1
+                    if sample['type'] == 'joints': joint_sent += 1
             # EOF does not necessarily mean the helper has finished its final cleanup.
             until = api.monotonic()+3
             while process.poll() is None and api.monotonic()<until: time.sleep(.01)
@@ -457,7 +538,8 @@ def run(service, sock, request, api):
             if process.poll() != 0: raise NativeHelperError('Native helper failed')
             errors.seek(0)
             diagnostics = errors.read(1024*1024).decode('utf-8','replace').splitlines()
-            if not all(counts[i] for i, c in enumerate(CAMERA_IDS) if c in selected) or sampler is None or sampler.count == 0:
+            if (not all(counts[i] for i, c in enumerate(CAMERA_IDS) if c in selected)
+                    or sampler is None or (not isolate_joints and sampler.count == 0)):
                 raise RuntimeError('Missing image or joint stream')
     except Exception as exc:
         native_failed = isinstance(exc, NativeHelperError)
@@ -477,7 +559,7 @@ def run(service, sock, request, api):
                         sample = sampler.pop()
                         if sample is None: break
                         api.reply(sock, sample)
-                        joint_sent += 1
+                        if sample['type'] == 'joints': joint_sent += 1
                 except Exception as exc:
                     error = str(exc)
         if process is not None:
@@ -551,6 +633,9 @@ def run(service, sock, request, api):
             'joint_hz':joint_hz, 'cameras':selected,
             'joint_samples':joint_sent, 'stop_reason':stop_reason, 'observation_mode':mode,
             'joint_skipped_ticks':sampler.skipped if sampler else 0,
+            'isolated_joint_feedback':isolate_joints,
+            'joint_feedback_error':sampler.feedback_error if sampler else None,
+            'joint_gap_count':sampler.gap_count if sampler else 0,
             'joint_max_lateness_ns':sampler.max_lateness_ns if sampler else None,
             'native_exit':process.returncode if process else None,
             'native_failure_reason':reason,

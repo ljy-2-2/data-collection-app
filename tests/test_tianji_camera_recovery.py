@@ -131,3 +131,69 @@ def test_recovery_allows_known_teleop_transitions_but_rejects_other_changes(monk
     assert service.fault is None
     assert service.last_stream['ok'] is False  # Failed dataset stays failed.
     assert not streaming.recover(service, api)['ok']
+
+
+@pytest.mark.parametrize('isolate', [False, True])
+def test_live_camera_stream_survives_only_negotiated_joint_gap(monkeypatch, isolate):
+    cameras = [dict(id=name) for name in ('usb-1','usb-2','usb-4')]
+    service = SimpleNamespace(config=dict(helper='/unused/capture',cameras=cameras),
+                              runtime='/unused',fault=None,last_stream=None)
+    process = Mock(pid=43210,returncode=0)
+    process.poll.return_value = 0
+    process.stdout.fileno.return_value = 10
+    rows = [dict(event=e,task=t,cpu=1,pid=2,msw=0,csw=1,pf=0,process_start_ticks=123)
+            for e in ('rt_baseline','rt_final') for t in ('RTPSI','FX_RtTask')]
+    logs = '\n'.join(json.dumps(r) for r in rows).encode()
+    before,after = audit(),audit()
+    after.update(camera_audit.dmesg_fingerprint(
+        b'[ 1.000001] baseline\n[ 2.000001] Mot[0][0] process reset\n'
+        b'[ 2.000002] _FX_ServoFsmFaultResetRising 0x80\n'
+        b'[ 2.000003] _FX_ServoFsmFaultResetFalling 0x0\n'))
+    replies = []
+    now = iter(i/100 for i in range(1000))
+    api = SimpleNamespace(ACTIVE=None,STOP=False,monotonic=lambda:next(now),
+                          interface_idle=lambda c:True,
+                          device_info=lambda c:dict(c,available=True,bus=1,address=2),
+                          read=lambda p:'boot',reply=lambda sock,row,*args:replies.append(row))
+    class Sampler:
+        def __init__(self,*args):
+            assert args[-1] == isolate
+            self.error = None if isolate else 'Joint sampler delayed over 100 ms'
+            self.feedback_error = 'Joint sampler delayed over 100 ms'
+            self.gap_count = 1
+            self.count = 0
+            self.skipped = 16
+            self.max_lateness_ns = 161000000
+            self.done = Mock()
+            self.events = [dict(type='health',ok=True,joint_feedback_ok=False,
+                                joint_feedback_error=self.feedback_error)]
+        def start(self): pass
+        def is_alive(self): return False
+        def join(self,*args): pass
+        def pop(self): return self.events.pop(0) if self.events else None
+    monkeypatch.setitem(streaming.__dict__,'open',mock_open(read_data=json.dumps(
+        {'sha256':{'/unused/capture-three-teleop':'hash'}})))
+    for key,value in dict(sha=lambda p:'hash',audit=Mock(side_effect=[before,after]),
+                          JointReader=Mock(),JointSampler=Sampler).items():
+        monkeypatch.setitem(streaming.__dict__,key,value)
+    monkeypatch.setattr(streaming.subprocess,'call',lambda *a,**kw:1)
+    monkeypatch.setattr(streaming.subprocess,'Popen',lambda *a,**kw:process)
+    monkeypatch.setattr(streaming.tempfile,'TemporaryFile',lambda **kw:io.BytesIO(logs))
+    monkeypatch.setattr(streaming.fcntl,'fcntl',lambda *a:0)
+    monkeypatch.setattr(streaming.select,'select',lambda *a:([10],[],[]))
+    def frame(camera):
+        return streaming.HEADER.pack(b'FJM1',camera,1,100,128,1024,768,0,0)+b'x'*128
+    chunks = iter([frame(1)+frame(2),b''])
+    monkeypatch.setattr(streaming.os,'read',lambda *a:next(chunks))
+    streaming.run(service,Mock(),dict(seconds=1,observation_mode='teleop_observation',
+                                     camera_ids=['usb-2','usb-4'],isolate_joint_feedback=isolate),api)
+    assert len([r for r in replies if r['type']=='image']) == 2
+    end = replies[-1]
+    assert end['ok'] is isolate
+    assert end['joint_samples'] == 0  # Health events are never counted as samples.
+    assert end['joint_gap_count'] == 1
+    if isolate:
+        assert service.fault is None
+        assert any(r.get('joint_feedback_ok') is False for r in replies)
+    else:
+        assert 'Joint sampler delayed' in service.fault

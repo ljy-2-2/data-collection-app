@@ -116,13 +116,14 @@ def platform_client(seen, fail_upload=False):
 
 
 @pytest.mark.parametrize(
-    "mode,raw_format,upload_mode,two_wrists", [
-        ("dual", "mjpeg", None, False), ("left", "mjpeg", None, False), ("right", "yuyv", None, False),
-        ("dual", "mjpeg", "left", False), ("dual", "mjpeg", "right", False),
-        ("dual", "mjpeg", None, True), ("dual", "yuyv", None, True),
+    "mode,raw_format,upload_mode,two_wrists,joint_gap", [
+        ("dual", "mjpeg", None, False, False), ("left", "mjpeg", None, False, False), ("right", "yuyv", None, False, False),
+        ("dual", "mjpeg", "left", False, False), ("dual", "mjpeg", "right", False, False),
+        ("dual", "mjpeg", None, True, False), ("dual", "yuyv", None, True, False),
+        ("dual", "mjpeg", None, True, True),
     ]
 )
-def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode, two_wrists):
+def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode, two_wrists, joint_gap):
     selected = ("left", "right") if mode == "dual" else (mode,)
     exported = selected if upload_mode is None else (upload_mode,)
     buf = io.BytesIO()
@@ -199,6 +200,10 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
             )
             counts, samples = [0, 0, 0], 0
             for i in range(75):
+                if joint_gap and i == 20:
+                    yield StreamEvent(dict(type='health',ok=True,joint_feedback_ok=False,
+                                           joint_feedback_error='Joint sampler delayed over 100 ms'))
+                    yield StreamEvent(dict(type='health',ok=True,joint_feedback_ok=True))
                 row = feedback(i + 3, selected, a=1, b=int(i >= 65))
                 collection.accept(row)
                 stamp = row["pc_monotonic_ns"] + offset
@@ -258,6 +263,16 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     collection.accept(feedback(2, selected, a=1))
     collection.job.join(timeout=15)
     assert not collection.active()
+    if joint_gap:
+        assert collection.snapshot()['completed'] == 0
+        directory = collection.episode.directory
+        metadata = json.loads((directory/'meta_info.json').read_text())
+        assert not metadata['complete']
+        assert '关节反馈中断' in collection.error
+        assert not (directory/READY_MARKER).exists()
+        assert collection.armed  # Recording failure does not stop robot control.
+        collection.disarm()
+        return
     assert collection.snapshot()["completed"] == 1, collection.error
     assert collection.armed  # B ends the Episode without stopping teleoperation.
     directory = collection.episode.directory
@@ -601,7 +616,7 @@ def test_gripper_reference_survives_episode_boundary_but_resets_on_rearm(tmp_pat
 def test_recorded_destination_is_written_to_both_metadata_and_ready_marker(tmp_path,account,monkeypatch):
     destination={'kind':'local','api_url':'http://127.0.0.1:8000','web_url':'http://127.0.0.1:5173'}
     monkeypatch.setattr(tianji_collection,'collection_context',lambda:{'author':'collector-test','upload_destination':dict(destination)})
-    test_ab_episode_and_platform_round_trip(tmp_path,account,'dual','mjpeg',None,False)
+    test_ab_episode_and_platform_round_trip(tmp_path,account,'dual','mjpeg',None,False,False)
     marker=next(tmp_path.glob('*/'+READY_MARKER))
     assert json.loads(marker.read_text())['upload_destination']==destination
     assert json.loads((marker.parent/'meta_info.json').read_text())['upload_destination']==destination

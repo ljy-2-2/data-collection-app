@@ -18,6 +18,7 @@ Card {
         : "hand_left_color|head_color|hand_right_color"
     readonly property var cameraIds: cameraKeys ? cameraKeys.split("|") : []
     readonly property int controlsHeight: tianji ? 113 : 0
+    implicitHeight: 373+controlsHeight
     function role(id) {
         return ({usb_4:"left",usb_1:"center",usb_2:"right",hand_left_color:"left",head_color:"center",hand_right_color:"right"})[id] || id
     }
@@ -35,11 +36,20 @@ Card {
             ? backend.baseUrl + (tianji ? "/tianji/cameras/"+id+"/stream" : "/cameras/"+id+"/frame") : ""
     }
     Heading {width: parent.width;title: "相机画面";height: 51}
-    Txt {anchors.top: parent.top;anchors.right: parent.right;anchors.margins: 16;text: root.tianji && root.status.camera_preview_mode === "snapshot" ? "逐路刷新" : "";font.pixelSize: 11;color: "#8793a5"}
+    Txt {anchors.top: parent.top;anchors.right: parent.right;anchors.margins: 16;anchors.rightMargin: root.tianji ? 124 : 16;text: root.tianji && root.status.camera_preview_mode === "snapshot" ? "逐路刷新" : "";font.pixelSize: 11;color: "#8793a5"}
+    Btn {
+        objectName: "teleopReconnectCameras";visible: root.tianji
+        anchors.top: parent.top;anchors.right: parent.right;anchors.topMargin: 10;anchors.rightMargin: 12
+        text: "重连视频";glyph: "RefreshCw";height: 31;textSize: 11
+        busy: !!root.status.camera_checking
+        enabled: root.active && !root.status.camera_checking && !root.status.camera_settings_busy
+                 && !(root.status.collection||{}).busy && !(root.status.collection||{}).recording
+        onClicked: backend.reconnectTeleopCameras()
+    }
     Item {
         id: images
         objectName: "teleopCameraImages"
-        x: 10;y: 61;width: parent.width-20;height: 302+root.controlsHeight
+        x: 10;y: 61;width: parent.width-20;height: root.height-y-10
         readonly property int columns: root.cameraIds.length <= 3
             ? Math.max(1, root.cameraIds.length) : Math.ceil(Math.sqrt(root.cameraIds.length))
         readonly property int rows: Math.max(1, Math.ceil(root.cameraIds.length / columns))
@@ -86,12 +96,12 @@ Card {
             anchors.left: parent.left;anchors.right: parent.right;anchors.bottom: parent.bottom
             anchors.bottomMargin: root.controlsHeight
             height: Math.min(76, cameraFailure.implicitHeight+16)
-            visible: !!root.status.camera_error && root.cameraIds.length>0
+            visible: (!!root.status.camera_error || !!root.status.camera_joint_error) && root.cameraIds.length>0
             color: Theme.redSoft;radius: 6;border.color: Theme.line
             Txt {
                 id: cameraFailure;objectName: "teleopCameraError"
                 anchors.fill: parent;anchors.margins: 8
-                text: root.status.camera_error || "";color: Theme.red
+                text: root.status.camera_error || (root.status.camera_joint_error ? "关节反馈中断，暂不能采集；视频继续显示。\n"+root.status.camera_joint_error : "");color: Theme.red
                 wrapMode: Text.Wrap;font.pixelSize: 11
             }
         }

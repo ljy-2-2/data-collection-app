@@ -125,6 +125,34 @@ class WindowChromeTests(unittest.TestCase):
                         backend.update(tianji=dict(backend.state['tianji'], cameras=[dict(c, updated_at=2) for c in reversed(inventory)]))
                         QTest.qWait(10)
                         assert tile is find_item('teleopCamera-' + camera_roles[0]), 'Polling must not recreate camera readers'
+                for robot in ('agibot-g2', 'tianji'):
+                    backend.update(robot=robot)
+                    for width in (360, 780, 1024, 1180, 1280, 1440, 1920):
+                        window.resize(width, 1000)
+                        QTest.qWait(30)
+                        model = find_item('teleopRobotCard')
+                        cameras = find_item('teleopCameraCard')
+                        stage = find_item('teleopRobotStage')
+                        images = find_item('teleopCameraImages')
+                        assert abs(model.width()-cameras.width()) < 1, (robot, width, model.width(), cameras.width())
+                        assert abs(model.height()-cameras.height()) < 1
+                        assert abs(stage.width()-images.width()) < 1
+                        assert abs(stage.height()-images.height()) < 1
+                        assert stage.y() == images.y()
+                        if width > 1180:
+                            assert abs(model.y()-cameras.y()) < 1
+                        else:
+                            assert abs(model.x()-cameras.x()) < 1
+                            assert cameras.y() >= model.y()+model.height()
+                        screenshot_dir = os.environ.get('TELEOP_LAYOUT_SCREENSHOT_DIR')
+                        if screenshot_dir and robot == 'tianji' and width in (780, 1440):
+                            def disable_panel_shadow(item):
+                                if not isValid(item): return
+                                QQmlProperty.write(item, 'layer.enabled', False)
+                                for child in item.childItems(): disable_panel_shadow(child)
+                            disable_panel_shadow(window.contentItem())
+                            QTest.qWait(80)
+                            assert window.grabWindow().save(str(Path(screenshot_dir) / f'teleop-panels-{width}.png'))
                 for role in ('left', 'center', 'right'):
                     camera = find_item('teleopCamera-' + role)
                     label = find_item('teleopCameraLabel-' + role)

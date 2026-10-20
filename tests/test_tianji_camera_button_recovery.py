@@ -127,6 +127,7 @@ def test_button_cleans_local_receiver_before_starting_new_one(manager, monkeypat
     monkeypatch.setattr(m, 'start_cameras', lambda: order.append('start'))
     m.last_access = 0
     assert m.command('check')['ok']
+    m.camera_check_thread.join(timeout=2)
     assert time.monotonic() - m.last_access < 1
     assert order == ['close', 'start']
     monkeypatch.setattr(m, 'active', lambda: False)
@@ -195,3 +196,37 @@ def test_check_devices_preserves_unknown_or_busy_controller_fault(manager, chang
         m.check_camera_recovery()
     client.recover_camera.assert_not_called()
     assert m.camera_phase == 'fault'
+
+
+def test_camera_check_failure_does_not_fail_robot_check_or_hold_motion_lock(manager,monkeypatch):
+    import threading
+    m,_=manager;entered=threading.Event();release=threading.Event()
+    def reply(message):
+        event,box=m.pending[message['id']];box['ok']=True;event.set()
+    def delayed_camera_check(**kwargs):
+        assert kwargs['allow_teleop'];entered.set();release.wait(2)
+        raise RuntimeError('camera USB unavailable')
+    monkeypatch.setattr(m,'_write',reply)
+    monkeypatch.setattr(m,'active',lambda:True)
+    monkeypatch.setattr(m,'check_camera_recovery',delayed_camera_check)
+    monkeypatch.setattr(m,'start_cameras',Mock())
+    try:
+        assert m.command('check')=={'ok':True}
+        assert entered.wait(1)
+        assert m.command_lock.acquire(blocking=False)
+        m.command_lock.release()
+        assert m.command('stop')=={'ok':True}
+    finally:
+        release.set();m.camera_check_thread.join(2)
+        monkeypatch.setattr(m,'active',lambda:False)
+    assert m.camera_error=='camera USB unavailable'
+    assert m.error=='' and m.value.get('state','idle')=='idle'
+    m.start_cameras.assert_not_called()
+
+
+def test_background_camera_reconnect_allows_armed_teleop_without_recording(manager,monkeypatch):
+    m,c=manager
+    monkeypatch.setattr(m,'snapshot',lambda **kwargs:dict(state='running',collection=dict(armed=True,busy=False,recording=False)))
+    m.check_camera_recovery(allow_teleop=True)
+    c.status.assert_called_once()
+    c.recover_camera.assert_not_called()
