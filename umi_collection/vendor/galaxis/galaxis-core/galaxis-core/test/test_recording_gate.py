@@ -1666,3 +1666,77 @@ def test_pico_timing_blocks_start_only_and_recovers(gate_module, monkeypatch):
         now=3+i/90;monkeypatch.setattr(gate_module.time,'monotonic',lambda:now)
         checker._cb(SimpleNamespace(device_time_ns=10**18+round(now*1e9),pc_monotonic_ns=10**12+round(now*1e9),seq=i,pico_id='pico'))
     assert checker.evaluate().passed
+
+@pytest.mark.parametrize('gap,level', [(0.05,0), (0.19,0), (0.21,1), (0.99,1), (1.01,2)])
+def test_generated_gripper_policy_only_stops_severe_missing_data(gate_module, monkeypatch, gap, level):
+    import importlib.util
+    from types import SimpleNamespace
+    from pathlib import Path
+    path=Path(__file__).resolve().parents[3]/'galaxis_bringup/tools/build_runtime_configs.py'
+    spec=importlib.util.spec_from_file_location('gripper_gate_config',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    config=module.apply_collection_profile('recording_gate.yaml', {'groups':{}},
+        {'active_arms':['left','right'], 'active_cameras':['left','right','center']})
+    now=[100.]
+    monkeypatch.setattr(gate_module.time,'monotonic',lambda:now[0])
+    checkers=[]
+    for name, rule in config['groups']['health']['conditions'].items():
+        checker=gate_module.TopicConditionChecker(name,rule)
+        checker.setup(MagicMock())
+        checker._subscribed=True
+        checker._cb(SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=100,nanosec=0))))
+        checkers.append(checker)
+    now[0]+=gap
+    results=[c.evaluate() for c in checkers]
+    assert max([int(r.escalation) for r in results if not r.passed] or [0]) == level
+    # One resumed real sample immediately clears loss; no fabricated values.
+    for checker in checkers:
+        checker._cb(SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=100,nanosec=10_000_000))))
+        assert checker.evaluate().passed
+
+
+def test_delayed_callbacks_with_continuous_source_do_not_stop(gate_module, monkeypatch):
+    from types import SimpleNamespace
+    now=[10.]
+    monkeypatch.setattr(gate_module.time,'monotonic',lambda:now[0])
+    checker=gate_module.TopicConditionChecker('encoder',dict(topic='/encoder',timeout_sec=.5,source_max_gap_sec=.1,escalation=2))
+    checker.setup(MagicMock());checker._subscribed=True
+    def sample(ns):
+        checker._cb(SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=10,nanosec=ns))))
+    sample(0)
+    now[0]+=.3
+    assert checker.evaluate().passed
+    # Queued samples retain their original 10 ms spacing despite late delivery.
+    for ns in range(10_000_000,310_000_000,10_000_000):sample(ns)
+    assert checker.evaluate().passed
+    # A real source gap > 100 ms cannot be concealed by rapid delivery.
+    sample(500_000_000)
+    assert not checker.evaluate().passed
+    assert checker.evaluate().escalation == 2
+    assert '200.0 ms' in checker.evaluate().reason
+
+
+def test_single_invalid_source_pose_is_not_hidden_by_next_valid_callback(gate_module, monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(gate_module.time,'monotonic',lambda:10.)
+    checker=gate_module.TopicConditionChecker('pose',dict(topic='/pico/controller/left/state',
+        source_max_gap_sec=.1, require_tracked_pose=True, escalation=2))
+    checker.setup(MagicMock());checker._subscribed=True
+    for i,valid in enumerate((True,False,True)):
+        checker._cb(SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=10,nanosec=i*10_000_000)),tracked=True,valid=valid))
+    assert not checker.evaluate().passed
+    assert checker.evaluate().escalation==2
+    assert '跟踪无效' in checker.evaluate().reason
+
+
+def test_source_gap_warning_does_not_end_round_or_hide_one_second_timeout(gate_module, monkeypatch):
+    from types import SimpleNamespace
+    now=[10.];monkeypatch.setattr(gate_module.time,'monotonic',lambda:now[0])
+    checker=gate_module.TopicConditionChecker('encoder',dict(topic='/encoder',
+        timeout_sec=1., source_max_gap_sec=.2, source_gap_escalation=1, escalation=2))
+    checker.setup(MagicMock());checker._subscribed=True
+    for ns in (0,300_000_000):
+        checker._cb(SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=10,nanosec=ns))))
+    assert checker.evaluate().escalation==1
+    now[0]+=1.01
+    assert checker.evaluate().escalation==2 and not checker.evaluate().passed

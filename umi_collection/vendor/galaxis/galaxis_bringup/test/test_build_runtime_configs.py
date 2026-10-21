@@ -58,6 +58,53 @@ def _build_unified_runtime(tmp_path: Path, profile_file=None) -> Path:
 # TestUnifiedConfigInvariants — unified config structure assertions
 # ---------------------------------------------------------------------------
 class TestUnifiedConfigInvariants:
+    @pytest.mark.parametrize('profile_name,arms', [
+        ('dual', ['left', 'right']), ('single-left', ['left']),
+        ('single-right', ['right']),
+    ])
+    @pytest.mark.parametrize('legacy', [False, True])
+    def test_episodes_have_no_duration_gate_in_new_or_retained_configs(
+        self, tmp_path, profile_name, arms, legacy
+    ):
+        doc = yaml.safe_load(SINGLE_CONFIG.read_text())
+        assert 'duration_limits' not in doc['recording_gate']['groups']
+        if legacy:
+            for side in ('left', 'right'):
+                doc['recording_gate']['groups']['health']['conditions'][f'{side}_gripper_joint_state_timeout_stop']['timeout_sec'] = 0.1
+            # Reproduce the installed pre-upgrade config, not just new defaults.
+            doc['recording_gate']['groups']['duration_limits'] = {
+                'default_type': 'topic_condition',
+                'conditions': {
+                    'subtask_warn': dict(topic='/task_sequence_manager/subtask_elapsed_sec',
+                                         condition='msg.data < 90.0', escalation=1, timeout_sec=-1.0),
+                    'subtask_limit': dict(topic='/task_sequence_manager/subtask_elapsed_sec',
+                                          condition='msg.data < 120.0', escalation=2, timeout_sec=-1.0),
+                },
+            }
+        single = tmp_path / 'saved.yaml'
+        profile_file = tmp_path / 'profile.yaml'
+        _write_yaml(single, doc)
+        _write_yaml(profile_file, dict(collection_profile=profile_name,
+                                       active_arms=arms, active_cameras=arms+['center']))
+        out = tmp_path / 'runtime'
+        merger.build_from_single(single, out, profile_file)
+        gate = yaml.safe_load((out / 'recording_gate.yaml').read_text())
+        assert 'duration_limits' not in gate['groups']
+        conditions = [c for g in gate['groups'].values() for c in g['conditions'].values()]
+        assert not any('elapsed' in c.get('topic', '') for c in conditions)
+        # Device/data failure handling is still present and still hard-stops.
+        for side in arms:
+            for name in [f'{side}_camera_timeout_stop', f'{side}_gripper_joint_state_timeout_stop']:
+                assert gate['groups']['health']['conditions'][name]['escalation'] == 2
+            assert gate['groups']['vr_tracking']['conditions'][f'{side}_valid_stop']['escalation'] == 2
+        assert gate['groups']['tf']['conditions']['pico_hands_stop']['escalation'] == 2
+        health = gate['groups']['health']['conditions']
+        for side in arms:
+            assert health[f'{side}_gripper_joint_state_timeout_stop']['timeout_sec'] == 1.0
+            assert health[f'{side}_gripper_joint_state_timeout_warn']['timeout_sec'] == 0.2
+            assert health[f'{side}_gripper_joint_state_timeout_warn']['escalation'] == 1
+        assert yaml.safe_load(single.read_text()) == doc
+
     @pytest.fixture(scope="class")
     def portable_runtime(self, tmp_path_factory):
         return _build_unified_runtime(tmp_path_factory.mktemp("dual"))

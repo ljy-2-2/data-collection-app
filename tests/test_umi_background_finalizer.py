@@ -108,20 +108,19 @@ def test_paused_group_stops_children_and_shutdown_cleans_up(tmp_path, monkeypatc
     assert not (folder / '.mp4-converting').exists()
 
 
-def test_failed_job_does_not_block_next_and_retry_does_not_upload(tmp_path):
-    first, _ = job(tmp_path, '001')
+def test_failed_encoder_recovers_raw_then_continues_next_job(tmp_path, monkeypatch):
+    first, source = job(tmp_path, '001')
     second, _ = job(tmp_path, '002')
+    import os
+    monkeypatch.setenv('PYTHONPATH', str(ROOT/'umi_collection/vendor/galaxis/galaxis-core/galaxis-core') + os.pathsep + os.environ.get('PYTHONPATH', ''))
     worker = BackgroundFinalizer(tmp_path, command_factory=lambda folder: [sys.executable, '-c', 'raise SystemExit(7)' if folder == first else 'import time; time.sleep(60)'])
     thread = threading.Thread(target=worker.run); thread.start()
     try:
-        wait_until(lambda: (first / 'recording-failure.json').exists())
-        wait_until(lambda: worker.folder == second)
-        uploader = UmiRosbagUploader(tmp_path.parent, 'https://unused.test', client=Mock())
-        uploader.root = tmp_path
-        uploader.request_scan()
-        assert not (first / 'recording-failure.json').exists()
-        assert (first / '.mp4-pending.json').exists()
-        uploader.client.put.assert_not_called()
+        wait_until(lambda: worker.folder == second, timeout=8)
+        assert source.exists() and (first/'recovered.mcap').exists()
+        assert not UmiRosbagUploader._processing(first)
+        meta = json.loads((first/'meta.json').read_text())
+        assert meta['interruption']['recovered'] and meta['episode']['success'] is False
     finally:
         worker.stop_event.set(); thread.join(4)
 

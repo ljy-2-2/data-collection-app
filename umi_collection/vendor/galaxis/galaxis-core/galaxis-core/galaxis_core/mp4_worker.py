@@ -47,6 +47,8 @@ def finalize_episode(folder):
     pending = folder / '.mp4-pending.json'
     meta = json.loads(pending.read_text())
     crf = meta.pop('_video_crf', 14)
+    from .capture_recovery import validate_recorded_continuity
+    validate_recorded_continuity(folder)
     cleanup_interrupted_encodes(folder)
     started = time.monotonic()
     manifest = convert_bundle(folder, crf=crf)
@@ -72,9 +74,11 @@ class BackgroundFinalizer:
         self.command_factory = command_factory or (
             lambda folder: [sys.executable, '-m', 'galaxis_core.mp4_worker', '--episode', str(folder)])
         self.process = None
+        self.recovery_journal = None
         self.folder = None
         self.log = None
         self.resources = None
+        self._next_scan = 0.
         self.started = 0.
         self.deadline = 0.
         self.paused_at = None
@@ -161,15 +165,35 @@ class BackgroundFinalizer:
         if self.folder:
             (self.folder / '.mp4-converting').unlink(missing_ok=True)
         self.process = None
+        self.recovery_journal = None
         self.folder = None
         self.paused_at = None
         self._release_resources()
 
     def _fail(self, reason):
         folder = self.folder
+        recovery = self.recovery_journal
         self._stop_conversion()
         if folder and folder.is_dir():
-            atomic_json(folder / 'recording-failure.json', {'reason': reason, 'stage': 'mp4'})
+            # An encoder crash/timeout also preserves the round for upload.
+            # Persist recovery intent before changing the old queue marker.
+            retry_after = time.time() + 60
+            if not recovery and (folder / '.mp4-pending.json').exists():
+                from .capture_recovery import begin_capture, interrupt_capture, episode_folder, TERMINAL
+                for path in (self.root / '.capture-journals').glob('*.json'):
+                    value = json.loads(path.read_text())
+                    if value['state'] not in TERMINAL and episode_folder(path, value) == folder.resolve():
+                        recovery = path
+                        break
+                if recovery is None:
+                    meta = json.loads((folder / '.mp4-pending.json').read_text())
+                    meta.pop('_video_crf', None)
+                    recovery = begin_capture(self.root, folder, meta, [])
+                interrupt_capture(recovery, reason)
+                (folder / '.recovery-pending').touch()
+                retry_after = time.time()
+            atomic_json(folder / 'recording-failure.json', {'reason': reason,
+                        'stage': 'recovery' if recovery else 'mp4', 'retry_after': retry_after})
 
     def tick(self):
         self._schedule_processing()
@@ -201,23 +225,31 @@ class BackgroundFinalizer:
                 elif time.monotonic() > self.deadline:
                     self._fail('MP4 后台保存超时，原始数据保留，可重试处理')
                 return
+            if time.monotonic() < self._next_scan:
+                return
+            self._next_scan = time.monotonic() + 1.0
+            from .capture_recovery import pending_recoveries
+            recovery = next(pending_recoveries(self.root), None)
             pending = next((p for p in sorted(self.root.glob('*/*/.mp4-pending.json'))
                             if not (p.parent / 'recording-failure.json').exists()), None)
-            if pending is None:
+            if pending is None and recovery is None:
                 return
             self.resources = open_lock(self.root, '.video-processing.lock')
             if not try_lock(self.resources):
                 self._release_resources()
                 return
             from .video_bundle import conversion_timeout
-            self.folder = pending.parent
+            self.recovery_journal = recovery[0] if recovery else None
+            self.folder = recovery[1] if recovery else pending.parent
             self.deadline = time.monotonic() + max(900, 4 * conversion_timeout(self.folder))
             # A retry should report its own failure, not the traceback from a
             # previous intentional interruption. Bound repeated retry storage.
             self.log = (self.folder / '.mp4-finalize.log').open('w')
             (self.folder / '.mp4-converting').touch()
             try:
-                self.process = subprocess.Popen(self.command_factory(self.folder),
+                command = ([sys.executable, '-m', 'galaxis_core.mp4_worker', '--recover', str(self.recovery_journal)]
+                           if self.recovery_journal else self.command_factory(self.folder))
+                self.process = subprocess.Popen(command,
                     stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True,
                     env={**os.environ, 'GALAXIS_MANAGED_FINALIZER': '1'})
             except Exception:
@@ -240,12 +272,29 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path)
     parser.add_argument('--episode', type=Path)
+    parser.add_argument('--recover', type=Path)
     args = parser.parse_args()
+    if args.recover:
+        from .capture_recovery import recover_episode
+        recover_episode(args.recover)
+        return
     if args.episode:
         def interrupt(*_):
             raise KeyboardInterrupt()
         signal.signal(signal.SIGTERM, interrupt)
-        finalize_episode(args.episode)
+        try:
+            finalize_episode(args.episode)
+        except Exception as exc:
+            # Encoding/quality failure is not an operator discard. Upload the
+            # recoverable raw data with an interruption report instead.
+            from .capture_recovery import begin_capture, interrupt_capture, recover_episode
+            pending = args.episode / '.mp4-pending.json'
+            meta = json.loads(pending.read_text())
+            meta.pop('_video_crf', None)
+            journal = begin_capture(args.episode.parent.parent, args.episode, meta, [])
+            interrupt_capture(journal, f'video_finalization_failed: {exc}')
+            recover_episode(journal)
+            pending.unlink(missing_ok=True)
         return
     if not args.root:
         parser.error('--root or --episode is required')

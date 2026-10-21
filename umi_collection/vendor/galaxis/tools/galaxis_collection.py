@@ -460,7 +460,7 @@ def ensure_background_finalizer() -> None:
     # A source digest restarts only this worker on software updates. Its queue
     # lives in the mounted data folder, so interrupted work is recoverable.
     digest = hashlib.sha256()
-    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py"):
+    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py"):
         digest.update((source / "galaxis_core" / name).read_bytes())
     cpu_budget = finalizer_cpu_budget()
     version = image + ":" + digest.hexdigest() + f":cpu{cpu_budget}"

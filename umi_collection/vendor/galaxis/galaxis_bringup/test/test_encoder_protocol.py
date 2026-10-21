@@ -80,3 +80,21 @@ def test_open_encoder_serial_disables_control_lines_before_open(monkeypatch):
         ("open", "/dev/galaxis_left_esp32c6", False, False),
         ("reset_input_buffer",),
     ]
+
+
+def test_encoder_port_exclusive_across_preview_and_capture():
+    import os
+    import pty
+    import serial
+    master, slave = pty.openpty()
+    try:
+        name = os.ttyname(slave)
+        with encoder_protocol.open_encoder_serial(name):
+            with pytest.raises(serial.SerialException, match='exclusiv'):
+                encoder_protocol.open_encoder_serial(name)
+        # Closing the old owner releases the port for the next page/collector.
+        with encoder_protocol.open_encoder_serial(name) as connection:
+            assert connection.is_open
+    finally:
+        os.close(master)
+        os.close(slave)

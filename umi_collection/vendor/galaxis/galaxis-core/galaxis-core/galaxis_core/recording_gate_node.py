@@ -123,6 +123,10 @@ class TopicConditionChecker(ConditionChecker):
         self._first_absent: float | None = None
         self._last_stamp: float | None = None
         self._last_msg = None
+        self._source_max_gap = self.config.get('source_max_gap_sec')
+        self._source_previous_ns = None
+        self._source_fault_until = -1.0
+        self._source_fault_reason = ''
 
         # Absence
         self._absence_timeout = self.config.get("absence_timeout_sec", 0.0)
@@ -192,6 +196,8 @@ class TopicConditionChecker(ConditionChecker):
         self._subscribed = False
         self._last_stamp = None
         self._last_msg = None
+        self._source_previous_ns = None
+        self._source_fault_until = -1.0
         self._msg_times.clear()
         if self._camera_cadence:
             self._camera_cadence.samples.clear()
@@ -222,9 +228,10 @@ class TopicConditionChecker(ConditionChecker):
                         f"for '{self._topic}' — staying fail-closed"
                     )
                     return
-                qos = 10
+                depth = int(self.config.get('qos_depth', 10))
+                qos = depth
                 if self.config.get('best_effort'):
-                    qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+                    qos = QoSProfile(depth=depth, reliability=ReliabilityPolicy.BEST_EFFORT)
                 if self._latch:
                     qos = QoSProfile(
                         depth=1,
@@ -239,6 +246,18 @@ class TopicConditionChecker(ConditionChecker):
 
     def _cb(self, msg) -> None:
         now = time.monotonic()
+        if self._source_max_gap is not None:
+            stamp = msg.header.stamp
+            source_ns = stamp.sec * 1_000_000_000 + stamp.nanosec
+            if self._source_previous_ns is not None:
+                gap = (source_ns - self._source_previous_ns) / 1e9
+                if gap <= 0 or gap > self._source_max_gap:
+                    self._source_fault_until = now + 1.0
+                    self._source_fault_reason = f'源数据时间间隔 {gap*1000:.1f} ms（提醒阈值 {self._source_max_gap*1000:g} ms）'
+            self._source_previous_ns = source_ns
+            if self.config.get('require_tracked_pose') and not (msg.tracked and msg.valid):
+                self._source_fault_until = now + 1.0
+                self._source_fault_reason = '手柄源数据跟踪无效，请恢复跟踪；原始数据继续保留'
         self._last_stamp = now
         self._last_msg = msg
         self._msg_times.append(now)
@@ -264,6 +283,10 @@ class TopicConditionChecker(ConditionChecker):
             if time.monotonic()-getattr(self, '_selection_changed_at', -1e9) < 5.0:
                 return ConditionResult(self.name, False, '正在连接所选相机并验证画面', escalation=1)
         result = self._evaluate()
+        if (self._source_max_gap is not None and time.monotonic() <= self._source_fault_until
+                and (result.passed or result.escalation <= self.config.get('source_gap_escalation', self.escalation))):
+            result = ConditionResult(self.name, False, self._source_fault_reason,
+                                     escalation=self.config.get('source_gap_escalation', self.escalation))
         if self.config.get('diagnostic_only', False):
             result.escalation = 0
             result.settle_exempt = True

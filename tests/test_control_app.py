@@ -786,3 +786,22 @@ def test_umi_missing_head_data_reports_reason_without_hiding_other_streams(tmp_p
     assert '头盔' in manager._live_readiness_message(monitor)
     monitor['vr']['hmd']['online']=True
     assert manager._live_readiness_message(monitor)==''
+
+
+def test_umi_exit_accepts_durable_interrupted_round_without_finished_meta(tmp_path, monkeypatch):
+    data_root = tmp_path/'data'
+    manager = UmiManager(tmp_path, data_root, python=sys.executable, runtime_dir=tmp_path/'runtime')
+    state = SimpleNamespace(session_id='session-1', recording=True, monitor_connected=True)
+    monkeypatch.setattr(manager, 'status', lambda: state)
+    events = []
+    def save_round(action):
+        events.append(action)
+        journals=data_root/'rosbags'/'.capture-journals';journals.mkdir(parents=True)
+        (journals/'round.json').write_text(json.dumps({'state':'interrupted', 'folder':'task/round'}))
+        return state
+    monkeypatch.setattr(manager, 'record', save_round)
+    monkeypatch.setattr(manager, '_wait_for_hdf5_finalizations', lambda: None)
+    monkeypatch.setattr(manager, 'stop', lambda _: events.append('collector-stop'))
+    monkeypatch.setattr(manager, '_stop_owned_stack', lambda: events.append('stack-stop'))
+    manager.shutdown_for_app()
+    assert events == ['stop','collector-stop','stack-stop']

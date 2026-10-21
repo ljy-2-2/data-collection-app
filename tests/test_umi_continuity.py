@@ -118,3 +118,21 @@ def test_poll_uses_persistent_subscriptions_without_starting_ros_nodes(monkeypat
     monkeypatch.setattr(gc.urllib.request, 'build_opener', lambda *_: Opener())
     monkeypatch.setattr(gc.subprocess, 'run', lambda *_a, **_k: pytest.fail('poll must not launch a subprocess'))
     assert gc.read_monitor_recording_state() == expected
+
+
+def test_pending_conversion_and_interrupted_journal_are_visible_before_meta(tmp_path):
+    import json
+    root=tmp_path/'rosbags'
+    pending=root/'task/normal';pending.mkdir(parents=True)
+    (pending/'.mp4-pending.json').write_text(json.dumps({'upload_destination':LOCAL}))
+    recovering=root/'task/interrupted';recovering.mkdir()
+    journals=root/'.capture-journals';journals.mkdir()
+    (journals/'intent.json').write_text(json.dumps({'state':'interrupted','folder':'task/interrupted',
+        'metadata':{'upload_destination':LOCAL}}))
+    summary=queue_summary(tmp_path,LOCAL)
+    assert summary['processing']==2 and summary['pending']==0
+    (recovering/'recording-failure.json').write_text('{}')
+    summary=queue_summary(tmp_path,LOCAL)
+    assert summary['processing']==1 and summary['failed_processing']==1
+    (recovering/'.discarded').touch()
+    assert queue_summary(tmp_path,LOCAL)['failed_processing']==0

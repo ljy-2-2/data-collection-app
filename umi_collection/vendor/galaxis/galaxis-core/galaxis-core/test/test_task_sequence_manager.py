@@ -867,6 +867,7 @@ class TestDoStopRecording:
         manager.wait_for_trigger_future_done = MagicMock(return_value=metadata_ok)
         manager.stop_recording = MagicMock(return_value=recorder_ok)
         manager._last_service_error = "MCAP flush or metadata validation failed"
+        manager._save_interrupted_round = MagicMock(return_value=False)
         ok, message = manager._do_stop_recording(save=True)
         assert not ok
         assert "failed" in message
@@ -905,8 +906,10 @@ class TestDoStopRecording:
 
         ok, msg = manager._do_stop_recording(save=True)
 
-        assert ok is False
-        assert "no segments" in msg
+        assert ok is True
+        assert "retained" in msg
+        manager.interrupt_recording_client.call_async.assert_called_once()
+        manager.cancel_recording_client.call_async.assert_not_called()
 
     def test_discard(self, manager, sample_tasks):
         TSS, _ = _get_states(manager)
@@ -1700,7 +1703,7 @@ def _make_gate_msg(level: int):
 class TestGateLevelCallback:
     """Gate level changes drive cancel / block behaviour."""
 
-    def test_level_0_to_2_during_record_subtask_cancels(self, manager, sample_tasks):
+    def test_level_0_to_2_during_record_subtask_saves(self, manager, sample_tasks):
         TSS, AC = _get_states(manager)
         prepare_state(manager, TSS.RECORD_SUBTASK, sample_tasks, cur_subtask_index=0)
         manager._gate_level = 0
@@ -1708,10 +1711,11 @@ class TestGateLevelCallback:
 
         manager._gate_level_callback(_make_gate_msg(2))
 
-        manager.transit_state.assert_called_once_with(
-            AC.CANCEL,
-            reason="Recording gate hard-stop (level 2)",
-        )
+        manager.transit_state.assert_not_called()
+        manager.interrupt_recording_client.call_async.assert_called_once()
+        request = manager.interrupt_recording_client.call_async.call_args.args[0]
+        assert request.message == "Recording gate hard-stop (level 2)"
+        manager.cancel_recording_client.call_async.assert_not_called()
         assert manager._gate_level == 2
 
     def test_level_0_to_1_during_record_subtask_no_cancel(self, manager, sample_tasks):
@@ -1725,7 +1729,7 @@ class TestGateLevelCallback:
         manager.transit_state.assert_not_called()
         assert manager._gate_level == 1
 
-    def test_level_0_to_2_during_wait_subtask_cancels(self, manager, sample_tasks):
+    def test_level_0_to_2_during_wait_subtask_saves(self, manager, sample_tasks):
         TSS, AC = _get_states(manager)
         prepare_state(manager, TSS.WAIT_SUBTASK, sample_tasks, cur_subtask_index=0)
         manager._gate_level = 0
@@ -1733,10 +1737,11 @@ class TestGateLevelCallback:
 
         manager._gate_level_callback(_make_gate_msg(2))
 
-        manager.transit_state.assert_called_once_with(
-            AC.CANCEL,
-            reason="Recording gate hard-stop (level 2)",
-        )
+        manager.transit_state.assert_not_called()
+        manager.interrupt_recording_client.call_async.assert_called_once()
+        request = manager.interrupt_recording_client.call_async.call_args.args[0]
+        assert request.message == "Recording gate hard-stop (level 2)"
+        manager.cancel_recording_client.call_async.assert_not_called()
 
     def test_level_0_to_2_during_confirm_task_no_cancel(self, manager, sample_tasks):
         TSS, _ = _get_states(manager)
@@ -2276,3 +2281,28 @@ def test_recorder_service_error_reaches_caller(manager, sample_tasks):
     assert not ok
     assert "/pico/hmd/state" in message
     assert manager.wait_for_trigger_future_done.call_args.kwargs["timeout"] >= 20
+
+
+def test_metadata_failure_can_save_interrupted_round(manager, sample_tasks):
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.COMPLETE_TASK, sample_tasks,
+                  meta_data={'segments':[{'start_time':0,'end_time':1}]},
+                  has_subtasks_successed=[True,True,True])
+    manager.wait_for_trigger_future_done = MagicMock(side_effect=[False, True])
+    assert manager._do_stop_recording(save=True)[0]
+    manager.interrupt_recording_client.call_async.assert_called_once()
+    manager.cancel_recording_client.call_async.assert_not_called()
+    assert manager.status == TSS.COMFIRM_TASK
+
+
+@pytest.mark.parametrize('state', ['RECORD_SUBTASK','WAIT_SUBTASK','COMPLETE_TASK','REWIND_SUBTASK'])
+def test_hard_stop_in_every_recording_phase_preserves_round(manager, sample_tasks, state):
+    TSS,_=_get_states(manager)
+    prepare_state(manager,getattr(TSS,state),sample_tasks)
+    manager._gate_level=0
+    manager.wait_for_trigger_future_done=MagicMock(return_value=True)
+    manager._gate_level_callback(_make_gate_msg(2))
+    manager.interrupt_recording_client.call_async.assert_called_once()
+    manager.cancel_recording_client.call_async.assert_not_called()
+    manager._mock_backend.finish_episode.assert_called_once_with('ep-1')
+    assert manager.status==TSS.COMFIRM_TASK

@@ -174,6 +174,7 @@ Column {
                     Rectangle {y: 104;width: parent.width;height: 1;color: Theme.line}
                     Column {id: recordActions;x: 10;y: 113;spacing: 3;width: parent.width-20
                         Txt {text: root.recording?"正在录制":root.ready?"可以开始采集":root.status.monitor_connected?"等待设备实时数据稳定":"启动中";font.pixelSize: 12;font.weight: Font.DemiBold}
+                        Txt {objectName: "umiReadinessReason";width: parent.width;visible: !!text;text: root.status.message||"";font.pixelSize: 10;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
                         Txt {text: root.recording?"手柄 B/Y 或空格踏板保存本段":"手柄 A/X 或空格踏板开始";font.pixelSize: 10;color: Theme.inkSoft}
                         Txt {objectName: "umiPedalFeedback";width: parent.width;text: s.umiPedalMessage || "空格踏板：保持本窗口在前台，每踩一次切换录制";font.pixelSize: 9;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
                         Txt {width: parent.width;visible: (root.status.pending_processing||0)>0 || (root.status.failed_processing||0)>0;text: "后台视频压缩与校验 " + (root.status.pending_processing||0) + " 段 · 处理失败 " + (root.status.failed_processing||0) + " 段，可继续采集";font.pixelSize: 10;color: (root.status.failed_processing||0)>0?Theme.red:Theme.inkSoft;wrapMode: Text.Wrap}

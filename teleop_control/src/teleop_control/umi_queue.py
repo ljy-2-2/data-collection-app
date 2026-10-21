@@ -18,11 +18,23 @@ def queue_summary(data_root, destination=None):
     result = dict(pending=0, uploaded=0, processing=0, failed_processing=0,
                   other_pending=0, waiting_auth=0, uploading=0, failed=0, message='')
     reasons = []
-    for path in (root / 'rosbags').glob('*/*/meta.json'):
-        folder, meta = path.parent, read_json(path)
+    bags = (root / 'rosbags').resolve()
+    recovery = {}
+    for path in (bags / '.capture-journals').glob('*.json'):
+        intent = read_json(path)
+        if intent.get('state') != 'interrupted':
+            continue
+        folder = (bags / intent.get('folder', '')).resolve()
+        if folder != bags and folder.is_relative_to(bags) and folder.is_dir():
+            recovery[folder] = intent.get('metadata') or {}
+    folders = {p.parent for name in ('meta.json', '.mp4-pending.json') for p in bags.glob('*/*/' + name)} | recovery.keys()
+    for folder in sorted(folders):
+        if (folder / '.discarded').exists():
+            continue
+        meta = read_json(folder / 'meta.json') or read_json(folder / '.mp4-pending.json') or recovery.get(folder, {})
         target = meta.get('upload_destination') or default
         receipt = (folder / '.data-platform-uploaded.json').is_file()
-        processing = (folder / '.mp4-pending.json').is_file()
+        processing = ((folder / '.mp4-pending.json').is_file() or (folder / '.recovery-pending').exists() or folder in recovery)
         failure = (folder / 'recording-failure.json').is_file()
         complete = ((folder / 'media/video-manifest.json').is_file() or
                     ((folder / 'metadata.yaml').is_file() and any(folder.glob('*.mcap'))))

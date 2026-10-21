@@ -70,7 +70,7 @@ class DualEncoderJointStateNode(Node):
         self.declare_parameter("left_encoder_offset_topic", "/galaxis/gripper/left/encoder_offset")
         self.declare_parameter("right_encoder_offset_topic", "/galaxis/gripper/right/encoder_offset")
         self.declare_parameter("publish_rate_hz", 100.0)
-        self.declare_parameter("data_timeout_sec", 0.5)
+        self.declare_parameter("data_timeout_sec", 0.05)
         
         # Raw minimum values for offset
         self.declare_parameter("left_min_raw", 0.0)
@@ -146,9 +146,9 @@ class DualEncoderJointStateNode(Node):
             thread.start()
 
         # --- Publisher/timer ---
-        self.pub = self.create_publisher(JointState, topic, 10)
-        self.left_pub = self.create_publisher(JointState, left_joint_state_topic, 10)
-        self.right_pub = self.create_publisher(JointState, right_joint_state_topic, 10)
+        self.pub = self.create_publisher(JointState, topic, 100)
+        self.left_pub = self.create_publisher(JointState, left_joint_state_topic, 100)
+        self.right_pub = self.create_publisher(JointState, right_joint_state_topic, 100)
         self.timer = self.create_timer(1.0 / rate, self.on_timer)
 
         # --- Device ID publisher (transient_local so rosbag captures it) ---
@@ -260,6 +260,11 @@ class DualEncoderJointStateNode(Node):
                 continue
 
             if v is None:
+                continue
+            if device_id and device_id[:1].upper() in ('L', 'R') and device_id[:1].lower() != side[:1]:
+                self._mark_disconnected(side, st, f'wrong encoder identity: {device_id}')
+                if self._stop.wait(RECONNECT_INTERVAL_SEC):
+                    return
                 continue
 
             v_wrapped = self._apply_offset_invert(side, v)

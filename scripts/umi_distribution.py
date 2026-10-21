@@ -53,10 +53,15 @@ def configure_umi_runtime(project: Path, manifest: dict):
         volumes.append('/etc/galaxis:/etc/galaxis:ro')
     # Runtime images use symlink-installed Python modules. Bind reviewed patches
     # at the real source paths, otherwise a deb source update is ignored by ROS.
-    for name in ("recording_gate_node.py", "pico_timing.py"):
-        services["galaxis_core"].setdefault("volumes", []).append(
-            f"./galaxis-core/galaxis-core/galaxis_core/{name}:"
-            f"/root/ros2_ws/src/galaxis-core/galaxis_core/{name}:ro")
+    # Bind the whole Python package, including new recovery modules and their
+    # callers. Updating just the gate left the image's destructive stop handler
+    # active even though the desktop workspace contained the new implementation.
+    volumes.append("./galaxis-core/galaxis-core/galaxis_core:"
+                   "/root/ros2_ws/src/galaxis-core/galaxis_core:ro")
+    for name in ('encoder_protocol.py', 'encoder_node.py'):
+        services["galaxis"].setdefault("volumes", []).append(
+            f"./galaxis_bringup/galaxis_bringup/{name}:"
+            f"/root/ros2_ws/src/galaxis_bringup/galaxis_bringup/{name}:ro")
     for name in ("pico_bridge_node.py", "transport/galaxis_tcp.py"):
         services["galaxis"].setdefault("volumes", []).append(
             f"./galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/{name}:"

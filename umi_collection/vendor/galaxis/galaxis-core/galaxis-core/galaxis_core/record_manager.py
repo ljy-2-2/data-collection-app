@@ -42,6 +42,8 @@ class RecordManager(Node):
         self._recording_started_monotonic = None
         self._recording_elapsed_sec = 0.0
         self._recording_start_lock = threading.Lock()
+        self._capture_journal = None
+        self._snapshot_future = None
         self.recent_record_dir: Optional[str] = None
         self.task_name: Optional[str] = None
         self.reent_cg = ReentrantCallbackGroup()
@@ -59,6 +61,7 @@ class RecordManager(Node):
         self.__setup_clients()
         self.__setup_services()
         self._recover_hdf5_finalizations()
+        self.create_timer(1.0, self._checkpoint_capture, callback_group=self.reent_cg)
 
     def __setup_parameters(self):
         # fixed parameters
@@ -273,6 +276,9 @@ class RecordManager(Node):
         self.set_devices_client = self.create_client(
             StringTrigger, "/metadata_handler/set_devices", callback_group=self.reent_cg
         )
+        self.get_metadata_snapshot_client = self.create_client(
+            Trigger, "/metadata_handler/get_metadata_snapshot", callback_group=self.reent_cg
+        )
         self.get_verified_metadata_client = self.create_client(
             Trigger, "/metadata_handler/get_verified_metadata", callback_group=self.reent_cg
         )
@@ -285,12 +291,14 @@ class RecordManager(Node):
             self.extend_programs_client,
             self.set_devices_client,
             self.get_verified_metadata_client,
+            self.get_metadata_snapshot_client,
         ]:
             while not c.wait_for_service(timeout_sec=1.0):
                 self.get_logger().info(f"Waiting for service {c.srv_name} to become available...")
 
     def __setup_services(self):
         self.create_service(StringTrigger, "~/start_recording", self.start_recording_srv, callback_group=self.reent_cg)
+        self.create_service(StringTrigger, "~/interrupt_recording", self.interrupt_recording_srv, callback_group=self.reent_cg)
         self.create_service(Trigger, "~/stop_recording", self.stop_recording_srv, callback_group=self.reent_cg)
         self.create_service(Trigger, "~/cancel_recording", self.cancel_recording_srv, callback_group=self.reent_cg)
         self.create_service(Trigger, "~/delete_recording", self.delete_recording_srv)
@@ -340,6 +348,7 @@ class RecordManager(Node):
                     self._capture_priority.acquire()
                 except RuntimeError as exc:
                     return False, str(exc)
+            self._capture_journal = None
             return self._start_recording(message)
         finally:
             if not self.is_recording and self.rosbag_process is None:
@@ -530,8 +539,29 @@ class RecordManager(Node):
 
         self.get_logger().info(f"Recording command: {' '.join(command)}")
 
+        options = {}
+        if getattr(self, "video_mp4_enabled", False):
+            if Path(record_dir).exists():
+                return False, "回合目录已存在，已有数据保持不变"
+            from galaxis_core.capture_recovery import begin_capture
+            snapshot = self.get_metadata_snapshot_client.call_async(Trigger.Request())
+            self.wait_for_future_done(snapshot, timeout=5.)
+            if not snapshot.done() or not snapshot.result() or not snapshot.result().success:
+                return False, "无法持久化回合信息，未开始录制"
+            metadata = self._capture_metadata(json.loads(snapshot.result().message))
+            self._capture_journal = begin_capture(self.record_base_dir, record_dir, metadata,
+                required_recording_topics(self.record_topics), gate_file)
+            self.recent_record_dir = record_dir
+            self.task_name = task_name
+            priority = self._capture_priority
+            fds = (priority.intent.fileno(), priority.resources.fileno())
+            options = dict(pass_fds=fds, env={**os.environ,
+                           'GALAXIS_CAPTURE_FDS': ','.join(map(str, fds))})
+            command = [sys.executable, '-m', 'galaxis_core.capture_guard',
+                       '--journal', str(self._capture_journal), '--parent-pid', str(os.getpid()),
+                       '--', *command]
         try:
-            self.rosbag_process = subprocess.Popen(command)
+            self.rosbag_process = subprocess.Popen(command, **options)
         except FileNotFoundError as exc:
             if self.record_format == "hdf5" and os.path.isdir(record_dir):
                 shutil.rmtree(record_dir)
@@ -788,6 +818,88 @@ class RecordManager(Node):
 
         future.add_done_callback(finished)
 
+    def _capture_metadata(self, meta):
+        meta = dict(meta)
+        if getattr(self, 'collection_author', None):
+            meta['author'] = self.collection_author
+        if getattr(self, 'collection_destination', None):
+            meta['upload_destination'] = dict(self.collection_destination)
+        return meta
+
+    def _checkpoint_capture(self):
+        journal = getattr(self, '_capture_journal', None)
+        if not journal or not self.is_recording:
+            return
+        if self.rosbag_process is not None and self.rosbag_process.poll() is not None:
+            self.interrupt_recording('recorder_stopped_unexpectedly')
+            return
+        if self._snapshot_future is not None and not self._snapshot_future.done():
+            return
+        self._snapshot_future = self.get_metadata_snapshot_client.call_async(Trigger.Request())
+        def received(future):
+            # A late response from an old episode must never change the next.
+            if self._capture_journal != journal or not self.is_recording:
+                return
+            try:
+                result = future.result()
+                if result and result.success:
+                    from galaxis_core.capture_recovery import update_journal
+                    update_journal(journal, metadata=self._capture_metadata(json.loads(result.message)))
+            except Exception as exc:
+                self.get_logger().error(f'回合恢复记录更新失败：{exc}')
+        self._snapshot_future.add_done_callback(received)
+
+    def _flush_recorder(self):
+        process = self.rosbag_process
+        if process is None:
+            return 0
+        if process.poll() is None:
+            process.send_signal(signal.SIGINT)
+        try:
+            code = process.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            process.terminate()
+            try:
+                code = process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                code = process.wait(timeout=5)
+        self.rosbag_process = None
+        return code
+
+    def _queue_interrupted_capture(self, reason):
+        from galaxis_core.capture_recovery import interrupt_capture
+        journal = getattr(self, '_capture_journal', None)
+        if not journal:
+            return False, reason
+        value = json.loads(Path(journal).read_text())
+        if value['state'] in ('discarded', 'saved', 'recovered'):
+            return True, "回合已经结束"
+        interrupt_capture(journal, reason)
+        self._flush_recorder()
+        self.is_recording = False
+        self.publish_recording_state()
+        if self.recent_record_dir and Path(self.recent_record_dir).is_dir():
+            Path(self.recent_record_dir, 'recording-failure.json').unlink(missing_ok=True)
+        self.recording_saved_pub.publish(String(data=self.recent_record_dir or ''))
+        return True, "异常回合已保留，将恢复完整数据并自动上传"
+
+    def interrupt_recording(self, reason):
+        if not self._recording_start_lock.acquire(blocking=False):
+            return False, "录制器正在切换状态，请稍候"
+        try:
+            if not getattr(self, '_capture_journal', None):
+                return self._stop_recording()
+            return self._queue_interrupted_capture(reason)
+        finally:
+            if not self.is_recording and self.rosbag_process is None:
+                self._release_capture_priority()
+            self._recording_start_lock.release()
+
+    def interrupt_recording_srv(self, request, response):
+        response.success, response.message = self.interrupt_recording(request.message)
+        return response
+
     def stop_recording(self) -> Tuple[bool, str]:
         if not self._recording_start_lock.acquire(blocking=False):
             return False, "录制器正在切换状态，请稍候"
@@ -809,11 +921,22 @@ class RecordManager(Node):
         self.wait_for_future_done(get_verified_metadata_future, timeout=5.0)
 
         # Now stop the selected recording backend and wait for a clean flush.
-        self.rosbag_process.send_signal(signal.SIGINT)
-        recorder_returncode = self.rosbag_process.wait()
-        self.rosbag_process = None
+        journal = getattr(self, '_capture_journal', None)
+        if journal:
+            value = json.loads(Path(journal).read_text())
+            if value.get('interruption'):
+                return self._queue_interrupted_capture(value['interruption']['reason'])
+        recorder_returncode = self._flush_recorder()
+        # A disconnect may happen while the writer is flushing after the
+        # first journal check. Preserve its original interruption boundary.
+        if journal:
+            value = json.loads(Path(journal).read_text())
+            if value.get('interruption'):
+                return self._queue_interrupted_capture(value['interruption']['reason'])
 
         if isinstance(recorder_returncode, int) and recorder_returncode != 0:
+            if journal:
+                return self._queue_interrupted_capture(f"recorder_exit_{recorder_returncode}")
             self.is_recording = False
             self.get_logger().error(
                 f"Recorder exited with status {recorder_returncode}."
@@ -828,10 +951,12 @@ class RecordManager(Node):
         self.is_recording = False
         self.publish_recording_state()
 
-        if get_verified_metadata_future.result() is None or not get_verified_metadata_future.result().success:
-            result = get_verified_metadata_future.result()
+        if not get_verified_metadata_future.done() or get_verified_metadata_future.result() is None or not get_verified_metadata_future.result().success:
+            result = get_verified_metadata_future.result() if get_verified_metadata_future.done() else None
             detail = result.message if result is not None else "metadata service timed out"
             message = f"Metadata verification failed: {detail}. Data preserved at {self.recent_record_dir}"
+            if journal:
+                return self._queue_interrupted_capture(message)
             self._preserve_recording_failure(message)
             return False, message
 
@@ -864,6 +989,8 @@ class RecordManager(Node):
                 self._queue_mp4_recording(Path(self.recent_record_dir), meta_dict)
             except Exception as exc:
                 message = f"MP4 任务保存失败，原始数据已保留: {exc}"
+                if journal:
+                    return self._queue_interrupted_capture(message)
                 self._preserve_recording_failure(message)
                 return False, message
         else:
@@ -884,6 +1011,9 @@ class RecordManager(Node):
         if not getattr(self, "video_mp4_enabled", False):
             self.recording_completed_pub.publish(completed_msg)
 
+        if journal:
+            from galaxis_core.capture_recovery import update_journal
+            update_journal(journal, state='saved')
         self.get_logger().info("Rosbag recording stopped; local data saved.")
         return True, "Success"
 
@@ -963,9 +1093,12 @@ class RecordManager(Node):
             self.get_logger().warn("Rosbag is not recording.")
             return False, "Rosbag is not recording."
 
-        self.rosbag_process.send_signal(signal.SIGINT)
-        self.rosbag_process.wait()
-        self.rosbag_process = None
+        if getattr(self, '_capture_journal', None):
+            from galaxis_core.capture_recovery import update_journal
+            update_journal(self._capture_journal, state='discarded')
+            if self.recent_record_dir and Path(self.recent_record_dir).is_dir():
+                Path(self.recent_record_dir, '.discarded').touch()
+        self._flush_recorder()
         self.is_recording = False
 
         # Notify storage node of cancellation (no upload)

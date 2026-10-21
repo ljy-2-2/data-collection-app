@@ -58,6 +58,7 @@ def open_encoder_serial(
 ) -> serial.Serial:
     """Open one encoder port without pulsing the board's reset/boot lines."""
     connection = serial.Serial(port=None, baudrate=baud, timeout=timeout)
+    connection.exclusive = True
     connection.dtr = False
     connection.rts = False
     connection.port = port

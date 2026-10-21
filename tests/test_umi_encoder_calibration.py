@@ -292,3 +292,29 @@ def test_mcap_packaging_preserves_actual_published_relative_angles(
     assert [f"{math.degrees(value):.2f}" for value in saved_positions] == [
         f"{math.degrees(value):.2f}" for value in monitor_positions
     ] == ["0.00", "0.00", "0.00", "0.01", "0.02", "15.00", "0.00", "0.00"]
+
+
+def test_wrong_side_encoder_never_publishes_as_selected_hand(encoder_factory):
+    node=encoder_factory('left',0)
+    state=node._states['left']
+    def readline():
+        node._stop.set()
+        return b'R003,0.2\n'
+    state.ser=SimpleNamespace(readline=readline,close=lambda:None)
+    state.connected=True
+    node._reader_loop('left',state)
+    node.on_timer()
+    assert not node.left_pub.messages and not node.pub.messages
+    assert not state.connected
+
+
+def test_stale_encoder_not_republished_with_fresh_timestamp(encoder_factory,monkeypatch):
+    node=encoder_factory('left',0)
+    read_and_publish(node,'left',2)
+    node.data_timeout_sec=.05
+    state=node._states['left']
+    import time
+    monkeypatch.setattr(time,'monotonic',lambda:state.last_update_time+.06)
+    before=len(node.pub.messages)
+    node.on_timer()
+    assert len(node.pub.messages)==before

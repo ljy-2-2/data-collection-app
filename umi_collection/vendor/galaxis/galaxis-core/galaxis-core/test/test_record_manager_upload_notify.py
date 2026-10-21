@@ -532,3 +532,52 @@ def test_recording_elapsed_freezes_after_stop_and_resets_for_next_round(record_m
     with patch('galaxis_core.record_manager.time.monotonic', return_value=201.25):
         node.publish_recording_state()
     assert node.recording_elapsed_pub.publish.call_args.args[0].data == 1.25
+
+
+def interrupted_manager(node, tmp_path):
+    from galaxis_core.capture_recovery import begin_capture
+    folder = tmp_path/'task'/'interrupted'
+    folder.mkdir(parents=True)
+    node._capture_journal = begin_capture(tmp_path, folder, {'author':'original'}, ['/camera'])
+    node.is_recording = True
+    node.recent_record_dir = str(folder)
+    node.rosbag_process = MagicMock()
+    node.rosbag_process.poll.return_value = None
+    node.rosbag_process.wait.return_value = 0
+    node.recording_cancelled_pub = MagicMock()
+    return folder, node._capture_journal
+
+
+def test_interrupted_stop_queues_recovery_instead_of_deleting(record_manager, tmp_path):
+    folder, journal = interrupted_manager(record_manager, tmp_path)
+    (folder/'source.mcap').write_bytes(b'original')
+    process=record_manager.rosbag_process
+    ok, _ = record_manager.interrupt_recording('device_lost')
+    assert ok and not record_manager.is_recording
+    process.send_signal.assert_called_once()
+    assert json.loads(journal.read_text())['state']=='interrupted'
+    assert (folder/'source.mcap').read_bytes()==b'original'
+    record_manager.recording_saved_pub.publish.assert_called_once()
+    record_manager.recording_cancelled_pub.publish.assert_not_called()
+
+
+def test_explicit_discard_is_durable_before_writer_is_stopped(record_manager, tmp_path):
+    folder, journal = interrupted_manager(record_manager, tmp_path)
+    def check(_):
+        assert json.loads(journal.read_text())['state']=='discarded'
+        assert (folder/'.discarded').exists()
+    record_manager.rosbag_process.send_signal.side_effect=check
+    ok,_=record_manager.cancel_recording()
+    assert ok
+    assert json.loads(journal.read_text())['state']=='discarded'
+    record_manager.recording_saved_pub.publish.assert_not_called()
+
+
+def test_failed_metadata_on_exit_preserves_durable_capture(record_manager, tmp_path):
+    folder,journal=interrupted_manager(record_manager,tmp_path)
+    future=MagicMock();future.done.return_value=True
+    future.result.return_value=MagicMock(success=False,message='no end_time')
+    record_manager.get_verified_metadata_client.call_async.return_value=future
+    assert record_manager.stop_recording()[0]
+    assert json.loads(journal.read_text())['state']=='interrupted'
+    assert not (folder/'recording-failure.json').exists()

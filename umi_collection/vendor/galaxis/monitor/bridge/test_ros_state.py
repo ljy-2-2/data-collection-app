@@ -220,3 +220,16 @@ class TestPicoTimingAlerts(unittest.TestCase):
         status.level=0;status.message='ok'
         collector._on_camera_quality(SimpleNamespace(status=[status]))
         self.assertEqual(collector.snapshot()['camera_quality_issues'],[])
+
+
+class TestGripperGateAlerts(unittest.TestCase):
+    def test_encoder_timeout_visible_and_cleared_after_reconnection(self):
+        collector = RosStateCollector(Settings(profile_path=''))
+        status = SimpleNamespace(name='recording_gate/health/right_gripper_joint_state_timeout_warn',
+                                 level=b'\x01', message='timeout (0.8s > 0.5s)')
+        collector._on_camera_quality(SimpleNamespace(status=[status]))
+        self.assertEqual(collector.snapshot()['recording_gate_issues'],
+                         ['右磁编码器：timeout (0.8s > 0.5s)'])
+        status.level = b'\x00'; status.message = 'ok'
+        collector._on_camera_quality(SimpleNamespace(status=[status]))
+        self.assertEqual(collector.snapshot()['recording_gate_issues'], [])

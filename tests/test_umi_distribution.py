@@ -44,12 +44,13 @@ def test_distribution_has_no_capture_time_downloads_or_compilation(tmp_path):
         assert "colcon build" not in str(service)
         bindings = [v for v in service.get("volumes", []) if ":/root/ros2_ws/src/" in v]
         assert all(v.endswith(':ro') and v.split(':')[0] in {
-            './galaxis-core/galaxis-core/galaxis_core/recording_gate_node.py',
-            './galaxis-core/galaxis-core/galaxis_core/pico_timing.py',
+            './galaxis-core/galaxis-core/galaxis_core',
+            './galaxis_bringup/galaxis_bringup/encoder_protocol.py',
+            './galaxis_bringup/galaxis_bringup/encoder_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/pico_bridge_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/transport/galaxis_tcp.py'} for v in bindings)
-    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 2
-    assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 2
+    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 4
+    assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 1
     assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
     assert services["config-init"]["entrypoint"] == ["python3"]
     assert "galaxis_studio_bridge" in services["galaxis_monitor"]["command"]

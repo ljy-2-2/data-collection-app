@@ -107,12 +107,18 @@ class UmiRosbagUploader:
                     failure.unlink(missing_ok=True)
             except (OSError, ValueError):
                 pass
+        for failure in self.root.glob("*/*/recording-failure.json"):
+            try:
+                if json.loads(failure.read_text()).get("stage") == "recovery":
+                    failure.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass
         self._wake.set()
 
     @staticmethod
     def _processing(episode_dir: Path) -> bool:
         return any((episode_dir / name).exists() for name in
-                   (".mp4-pending.json", ".mp4-converting", "recording-failure.json"))
+                   (".mp4-pending.json", ".mp4-converting", ".recovery-pending", ".discarded", "recording-failure.json"))
 
     def scan_once(self) -> None:
         if not self._scan_lock.acquire(blocking=False):
@@ -294,6 +300,7 @@ class UmiRosbagUploader:
                       "collection_source": "umi",
                       "recording_format": "umi-mp4-v1" if compact else "rosbag2-mcap",
                       "episode_metadata": meta.get("episode", {}),
+                      "interruption": meta.get("interruption"),
                       "segments": meta.get("segments", [])},
             "author": meta.get("author") or self._owner or current_platform_username(),
         }
