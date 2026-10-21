@@ -29,7 +29,24 @@ Button {
             anchors.centerIn: parent
             spacing: 6
             layoutDirection: control.iconAfter ? Qt.RightToLeft : Qt.LeftToRight
-            Image {width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter; visible: control.glyph!=="" || control.busy; source: !control.glyph && !control.busy ? "" : control.primary && !control.danger ? "../icons/"+(control.busy ? "LoaderCircle" : control.glyph)+"-ink.svg" : Theme.icon(control.busy ? "LoaderCircle" : control.glyph,"ink"); sourceSize.width: 32; sourceSize.height: 32; RotationAnimator on rotation {running: control.busy; from: 0; to: 360; duration: 1000; loops: Animation.Infinite}}
+            Item {
+                width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter
+                visible: control.glyph!=="" || control.busy
+                Image {
+                    objectName: "buttonGlyph"
+                    anchors.fill: parent; visible: !control.busy
+                    source: !control.glyph ? "" : control.primary && !control.danger ? "../icons/"+control.glyph+"-ink.svg" : Theme.icon(control.glyph,"ink")
+                    sourceSize.width: 32; sourceSize.height: 32
+                }
+                Image {
+                    objectName: "buttonSpinner"
+                    anchors.fill: parent; visible: control.busy
+                    source: control.primary && !control.danger ? "../icons/LoaderCircle-ink.svg" : Theme.icon("LoaderCircle","ink")
+                    sourceSize.width: 32; sourceSize.height: 32
+                    transformOrigin: Item.Center
+                    RotationAnimator on rotation {running: control.busy; from: 0; to: 360; duration: 1000; loops: Animation.Infinite}
+                }
+            }
             Txt {selectable: false;text: control.text; color: control.textColor; font.pixelSize: control.textSize; font.weight: Font.Medium; height: 20}
         }
     }

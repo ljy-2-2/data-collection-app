@@ -8,8 +8,8 @@ Item {
         environment: SceneEnvironment {backgroundMode: SceneEnvironment.Transparent;clearColor: Theme.stage;antialiasingMode: SceneEnvironment.MSAA;antialiasingQuality: SceneEnvironment.High;tonemapMode: SceneEnvironment.TonemapModeNone}
         camera: OrthographicCamera {
             position: robotScene.cameraPosition;rotation: robotScene.cameraOrientation
-            horizontalMagnification: Math.max(1,view.height*.51*robotScene.zoomValue)
-            verticalMagnification: Math.max(1,view.height*.51*robotScene.zoomValue)
+            horizontalMagnification: Math.max(1,Math.min(view.height*.51,view.width*.35)*robotScene.zoomValue)
+            verticalMagnification: Math.max(1,Math.min(view.height*.51,view.width*.35)*robotScene.zoomValue)
             clipNear: .01;clipFar: 100
         }
         Repeater3D {

@@ -5,7 +5,9 @@ Item {
     id: root
     property string cameraKey: ""
     property string cameraName: "相机"
+    property bool sidePanel: false
     property string scope: "umi"
+    readonly property bool compact: scope === "tianji"
     property bool active: true
     property bool available: false
     property bool editable: true
@@ -15,7 +17,7 @@ Item {
     readonly property real lower: details.supported ? details.min : 0
     readonly property real upper: details.supported ? details.max : 1
     readonly property real increment: details.supported ? details.step : 1
-    implicitHeight: 55
+    implicitHeight: compact ? (sidePanel ? 50 : 28)+(note.text ? 16 : 0) : sidePanel ? 79 : 55
     implicitWidth: 230
 
     function refresh() {
@@ -26,7 +28,7 @@ Item {
         }
     }
     function syncValue() {
-        if (details.supported && !details.busy && !slider.pressed && !number.editing) {
+        if (details && slider && number && details.supported && !details.busy && !slider.pressed && !number.editing) {
             draftValue = details.value
             number.text = String(draftValue)
         }
@@ -51,18 +53,19 @@ Item {
     Component.onCompleted: { syncValue(); refresh() }
     Timer {id: debounce;interval: 200;onTriggered: root.commit(root.draftValue)}
 
-    RowLayout {x: 8;y: 4;width: parent.width-16;height: 28;spacing: 5
-        Txt {text: "亮度";font.pixelSize: 11;color: Theme.inkMuted}
+    Txt {visible: root.sidePanel;x: 8;y: 5;text: "亮度";font.pixelSize: root.compact ? 10 : 11;color: Theme.inkMuted}
+    RowLayout {x: 8;y: root.sidePanel ? (root.compact ? 22 : 26) : 4;width: parent.width-16;height: root.compact ? 22 : 28;spacing: 4
+        Txt {visible: !root.sidePanel;text: "亮度";font.pixelSize: root.compact ? 10 : 11;color: Theme.inkMuted}
         Slider {
             id: slider;objectName: "cameraBrightnessSlider"
-            Layout.fillWidth: true;Layout.minimumWidth: 38;height: 28
+            Layout.fillWidth: true;Layout.minimumWidth: 38;Layout.preferredHeight: root.compact ? 22 : 28
             from: root.lower;to: root.upper;stepSize: root.increment
             value: Math.max(root.lower, Math.min(root.upper, root.draftValue))
             enabled: root.adjustable;live: true;snapMode: Slider.SnapAlways
             focusPolicy: Qt.StrongFocus;Accessible.name: root.cameraName+"亮度"
             opacity: enabled?1:.45
-            onMoved: {root.draftValue=value;if (!pressed) debounce.restart()}
-            onPressedChanged: {if (!pressed) root.commit(value)}
+            onMoved: {root.draftValue=value;number.text=String(value);if (!pressed) debounce.restart()}
+            onPressedChanged: {if (pressed) debounce.stop();else root.commit(value)}
             background: Rectangle {
                 x: slider.leftPadding;y: slider.topPadding+slider.availableHeight/2-height/2
                 width: slider.availableWidth;height: 4;radius: 2;color: Theme.lineStrong
@@ -78,7 +81,7 @@ Item {
         Field {
             id: number;objectName: "cameraBrightnessNumber"
             property bool editing: false
-            Layout.preferredWidth: 43;height: 27;padding: 4;font.pixelSize: 11
+            Layout.preferredWidth: root.compact ? 36 : 43;Layout.preferredHeight: root.compact ? 22 : 27;padding: 3;font.pixelSize: root.compact ? 10 : 11
             text: root.details.supported?String(root.draftValue):"—";enabled: root.adjustable
             horizontalAlignment: Text.AlignHCenter;Accessible.name: root.cameraName+"亮度数值"
             validator: IntValidator {bottom: root.lower;top: root.upper}
@@ -86,7 +89,7 @@ Item {
             onEditingFinished: {var next=Number(text);var valid=acceptableInput;editing=false;if (valid) root.commit(next);else root.syncValue()}
         }
         Btn {
-            objectName: "cameraBrightnessDefault";Layout.preferredWidth: 38;height: 27;textSize: 10
+            objectName: "cameraBrightnessDefault";Layout.preferredWidth: root.compact ? 32 : 38;Layout.preferredHeight: root.compact ? 22 : 27;textSize: root.compact ? 9 : 10
             text: root.details.error?"重试":root.details.supported?"默认":"刷新"
             enabled: root.available && root.editable && !root.details.busy
             Accessible.name: root.cameraName+(root.details.supported&&!root.details.error?"恢复默认亮度":"刷新亮度")
@@ -94,11 +97,11 @@ Item {
         }
     }
     Txt {
-        id: note;x: 8;y: 35;width: parent.width-16;height: 15;font.pixelSize: 10
-        text: !root.active?"未启用":root.details.busy?"正在读取 / 应用亮度…":root.details.error?root.details.error:root.scope==="tianji"&&!root.editable?"遥操及采集期间锁定设置":!root.available?"等待相机画面":root.details.supported?(root.scope==="tianji"?"硬件范围 ":"范围 ")+root.lower+" ～ "+root.upper:root.details.loaded?root.details.message||"相机不支持亮度调节":"正在读取亮度…"
+        id: note;visible: !!text;x: 8;y: root.compact ? (root.sidePanel ? 48 : 28) : root.sidePanel ? 59 : 35;width: parent.width-16;height: 15;font.pixelSize: 10
+        text: root.compact ? (root.details.error || "") : !root.active?"未启用":root.details.busy?"正在读取 / 应用亮度…":root.details.error?root.details.error:!root.available?"等待相机画面":root.details.supported?"范围 "+root.lower+" ～ "+root.upper:root.details.loaded?root.details.message||"相机不支持亮度调节":"正在读取亮度…"
         color: root.details.error?Theme.red:Theme.inkSoft
         HoverHandler {id: hover}
-        ToolTip.visible: hover.hovered && !!(root.details.error || root.details.message)
+        ToolTip.visible: !root.compact && hover.hovered && !!(root.details.error || root.details.message)
         ToolTip.text: root.details.error || root.details.message || ""
     }
 }

@@ -169,14 +169,20 @@ def main():
             left,main,right=tiles
             assert main.x()==0 and left.x()==right.x()>main.x()+main.width()
             assert main.y()==left.y()==0 and right.y()>left.height()
-            assert main.width()>left.width() and main.height()>left.height()
+            assert main.height()>left.height()
+            if robot=='tianji':
+                main_view=item('teleopCameraViewport-center');main_params=item('teleopCameraParameters-center')
+                assert main_view.width()>item('teleopCameraViewport-left').width()
+                assert main_params.y()>=main_view.y()+main_view.height()
             assert abs(right.y()+right.height()-main.height())<.01
             sources=[camera.source for camera in cameras]
             geometry=[(t.x(),t.y(),t.width(),t.height()) for t in tiles]
             bridge.setValue(robot+'CameraLayout','right-center-left');wait()
             assert [(t.x(),t.y(),t.width(),t.height()) for t in tiles]==geometry
             assert [camera.source for camera in cameras]==sources
-            assert item('teleopCameraCard').height()==373 and item('teleopCameraImages').height()==302
+            card=item('teleopCameraCard')
+            assert abs(card.height()-card.implicitHeight())<.01
+            assert abs(item('teleopCameraImages').height()-(card.height()-71))<.01
             for name in ('teleopCameraLayout','teleopCameraImport','teleopCameraFileDialog'):
                 assert window.findChild(QObject,name) is None,name
             scroll=item('pageScroll');card=item('teleopCameraCard')

@@ -48,6 +48,7 @@ def test_hd_bursts_reconnect_staleness_and_source_changes():
         first.readyRead.emit(); drain()
         assert not first.aborted and camera.online and camera.hasFrame
         assert camera.frame.width() == 32 and len(camera.buffer) < len(part)
+        assert abs(camera.aspectRatio-4/3)<1e-6
         # A brief connection failure does not clear a recently received image.
         first.abort()
         assert camera.online and camera.hasFrame
@@ -64,7 +65,7 @@ def test_hd_bursts_reconnect_staleness_and_source_changes():
         assert camera.online
         # Changing camera/session must clear the previous camera's image.
         camera.source = 'http://localhost/umi/cameras/left'
-        assert not camera.online and not camera.hasFrame
+        assert not camera.online and not camera.hasFrame and camera.aspectRatio==0
         # Oversized incomplete data is still rejected, bounding memory use.
         invalid = camera.reply
         invalid.payload = b'x' * (9 * 1024 * 1024)
@@ -81,6 +82,12 @@ def test_hd_bursts_reconnect_staleness_and_source_changes():
         camera.reply.payload=bytes(blob);camera.reply.readyRead.emit(); drain()
         assert camera.online and camera.frame.width()==640 and camera.frame.height()==360
         assert QImage.fromData(blob,'JPEG').width()==1920
+        assert abs(camera.aspectRatio-16/9)<1e-6
+        # A size change on the same stream must update QML's aspect ratio.
+        ratios=[];camera.frameChanged.connect(lambda:ratios.append(camera.aspectRatio))
+        camera._decoded(camera.sequence,image)
+        camera._decoded(camera.sequence,image)
+        assert len(ratios)==1 and abs(ratios[0]-4/3)<1e-6
         camera.source=''
 
         # A real JPEG thumbnail in an APP segment contains another end marker.

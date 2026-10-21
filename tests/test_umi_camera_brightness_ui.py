@@ -159,5 +159,72 @@ class CameraBrightnessTests(unittest.TestCase):
         ''')
 
 
+    def test_drag_updates_number_immediately_but_writes_only_on_release(self):
+        self.run_qt('''
+            from pathlib import Path
+            from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl, QPointF, Qt
+            from PySide6.QtGui import QGuiApplication
+            from PySide6.QtQml import QQmlApplicationEngine
+            from PySide6.QtQuick import QQuickItem
+            from PySide6.QtTest import QTest
+            app = QGuiApplication([])
+            class Backend(QObject):
+                changed = Signal()
+                value = 0
+                writes = []
+                @Property('QVariantMap', notify=changed)
+                def state(self): return dict(theme='light')
+                @Property('QVariantMap', notify=changed)
+                def umiCameraBrightness(self): return {}
+                @Property('QVariantMap', notify=changed)
+                def teleopCameraSettings(self):
+                    return dict(usb_2=dict(brightness=dict(supported=True, loaded=True,
+                        value=self.value, min=-64, max=64, step=1, default=0)))
+                @Slot(str)
+                def loadTeleopCameraSettings(self, key): pass
+                @Slot(str)
+                def loadCameraBrightness(self, key): pass
+                @Slot(str, int)
+                def setTeleopCameraBrightness(self, key, value): self.writes.append((key, value))
+            backend = Backend()
+            engine = QQmlApplicationEngine()
+            warnings = []
+            engine.warnings.connect(lambda errors: warnings.extend(error.toString() for error in errors))
+            engine.rootContext().setContextProperty('backend', backend)
+            engine.rootContext().setContextProperty('systemDark', False)
+            engine.loadData(b"""
+                import QtQuick
+                import QtQuick.Controls
+                ApplicationWindow {width: 400; height: 140; visible: true
+                    CameraBrightness {x: 20; y: 20; width: 350; height: implicitHeight
+                        scope: "tianji"; cameraKey: "usb_2"; available: true}
+                }
+            """, QUrl.fromLocalFile(str(Path('scripts/qt_ui/qml/BrightnessDragTest.qml').resolve())))
+            assert engine.rootObjects()
+            window = engine.rootObjects()[0]
+            slider = window.findChild(QQuickItem, 'cameraBrightnessSlider')
+            number = window.findChild(QObject, 'cameraBrightnessNumber')
+            QTest.qWait(50)
+            def point(fraction):
+                return slider.mapToScene(QPointF(slider.width()*fraction, slider.height()/2)).toPoint()
+            # Repeat after a hardware readback: syncValue() has assigned number.text.
+            for initial in (0, -20):
+                backend.value = initial; backend.changed.emit(); QTest.qWait(20)
+                before = len(backend.writes)
+                QTest.mousePress(window, Qt.LeftButton, Qt.NoModifier, point((initial+64)/128))
+                assert slider.property('pressed')
+                for fraction in (.8, .3, .7):
+                    QTest.mouseMove(window, point(fraction)); QTest.qWait(250)
+                    assert number.property('text') == str(round(slider.property('value')))
+                    assert len(backend.writes) == before, 'Dragging or pausing with the mouse held must not apply brightness'
+                final = round(slider.property('value'))
+                QTest.mouseRelease(window, Qt.LeftButton, Qt.NoModifier, point(.7))
+                QTest.qWait(250)
+                assert backend.writes[before:] == [('usb_2', final)], backend.writes
+            assert not warnings, warnings
+            window.hide()
+        ''')
+
+
 if __name__ == '__main__':
     unittest.main()

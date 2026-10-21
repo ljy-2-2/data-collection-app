@@ -157,16 +157,17 @@ class WindowChromeTests(unittest.TestCase):
                     camera = find_item('teleopCamera-' + role)
                     label = find_item('teleopCameraLabel-' + role)
                     stale = find_item('teleopCameraStale-' + role)
+                    assert stale is None
                     assert label.isVisible()
                     frame = QImage(32, 24, QImage.Format_RGB32)
                     frame.fill(QColor('blue'))
                     camera._source = 'offline-fixture'
                     camera._decoded(camera.sequence, frame)
                     QTest.qWait(10)
-                    assert label.isVisible() and not stale.isVisible()
+                    assert label.isVisible() and camera.online
                     camera.offline()
                     QTest.qWait(10)
-                    assert label.isVisible() and stale.isVisible()
+                    assert label.isVisible() and not camera.online
                     camera.source = ''
                 target = dict(selected='local', web_url='http://127.0.0.1:5173', destinations=[dict(kind='local'), dict(kind='cloud')])
                 backend.update(uploadTarget=target, tianji=original_status)

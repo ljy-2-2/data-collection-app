@@ -38,8 +38,8 @@ ApplicationWindow {
             Row {x: 12;y: 12;spacing: 8
                 Logo {width: 32;height: 32;source: backend.assetRoot+(Theme.dark?"K_dark.png":"K.png")}
                 Column {spacing: 1
-                    Txt {text: "ROBOT DATA PLATFORM";font.pixelSize: 9;font.weight: Font.Bold;color: Theme.accentStrong;height: 13}
-                    Txt {text: "数据采集";font.pixelSize: 14;font.weight: Font.Bold;height: 18}
+                    Txt {objectName: "headerEnglishTitle";text: "G-Lab Data Collection";font.pixelSize: 9;font.weight: Font.Bold;color: Theme.accentStrong;height: 13}
+                    Txt {objectName: "headerChineseTitle";text: "小凯实验室数据采集";font.pixelSize: 14;font.weight: Font.Bold;height: 18}
                 }
             }
             Rectangle {
@@ -73,13 +73,15 @@ ApplicationWindow {
                 }
             }
             Rectangle {visible: !app.narrow;x: 8;y: 118;width: parent.width-16;height: 1;color: Theme.line}
-            Button {visible: !app.narrow;x: 6;y: 125;width: parent.width-12;height: 53;hoverEnabled: true
+            Button {objectName: "platformLink";visible: !app.narrow;x: 6;y: 125;width: parent.width-12;height: 53;hoverEnabled: true
                 background: Rectangle {radius: 7;color: parent.hovered?Theme.muted:"transparent"}
                 contentItem: Item {
-                    Image {x: 9;y: 7;width: 16;height: 16;source: Theme.icon("Database")}
-                    Txt {selectable: false;x: 32;y: 6;text: "跳转平台";font.pixelSize: 13;color: Theme.inkMuted}
-                    Image {anchors.right: parent.right;anchors.rightMargin: 7;y: 9;width: 13;height: 13;source: Theme.icon("ExternalLink")}
-                    Txt {selectable: false;x: 32;y: 31;text: backend.platformLocation;font.pixelSize: 11;color: Theme.inkSoft}
+                    Image {objectName: "platformLinkIcon";x: 9;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon("Database")}
+                    Column {x: 32;anchors.verticalCenter: parent.verticalCenter;spacing: 4
+                        Txt {selectable: false;text: "跳转平台";font.pixelSize: 13;color: Theme.inkMuted}
+                        Txt {selectable: false;text: backend.platformLocation;font.pixelSize: 11;color: Theme.inkSoft}
+                    }
+                    Image {objectName: "platformExternalIcon";anchors.right: parent.right;anchors.rightMargin: 7;anchors.verticalCenter: parent.verticalCenter;width: 13;height: 13;source: Theme.icon("ExternalLink")}
                 }
                 onClicked: backend.openPlatform()
             }

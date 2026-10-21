@@ -227,6 +227,8 @@ class CameraItem(QQuickPaintedItem):
     def online(self):return self._online
     @Property(bool,notify=frameChanged)
     def hasFrame(self):return not self.frame.isNull()
+    @Property(float,notify=frameChanged)
+    def aspectRatio(self):return self.frame.width()/self.frame.height() if not self.frame.isNull() else 0.0
     def offline(self):
         # Keep the last frame on transient transport failures. The QML overlay
         # explicitly marks a stalled image, so it can never masquerade as live.
@@ -288,8 +290,8 @@ class CameraItem(QQuickPaintedItem):
     def _decoded(self,sequence,image):
         self._decode_job=None
         if sequence==self.sequence and self._source and not image.isNull():
-            first=self.frame.isNull();self.frame=image;self.update();self.stale.start()
-            if first:self.frameChanged.emit()
+            size_changed=self.frame.size()!=image.size();self.frame=image;self.update();self.stale.start()
+            if size_changed:self.frameChanged.emit()
             if not self._online:self._online=True;self.onlineChanged.emit()
         self._decode_next()
     def paint(self,painter):

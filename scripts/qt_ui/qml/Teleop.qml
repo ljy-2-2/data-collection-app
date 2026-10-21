@@ -10,6 +10,8 @@ Column {
     property bool running: tianji ? status.state==="running" : (status.session||{}).state==="running"
     property bool moving: tianji ? status.state==="moving" : (status.motion||{}).state!=="idle"
     property bool uncertain: tianji ? ["unknown","error"].indexOf(status.state)>=0 : (status.session||{}).state==="unknown"
+    property bool manualMotion: moving || s.busy==="move"
+    property bool teleopStop: !manualMotion && (running || uncertain)
     property bool cameraSettingsBusy: tianji && (!!status.camera_settings_busy || Object.values(backend.teleopCameraSettings).some(v=>v.busy))
     property bool locked: !!s.busy || running || moving || uncertain || !!(status.collection||{}).busy || !!(status.collection||{}).recording || cameraSettingsBusy
     property bool live: tianji ? !!((status.joints||{}).left && (status.joints||{}).left.length) : !!s.preview.available
@@ -55,7 +57,15 @@ Column {
             id: footer;y: setupGrid.height;width: parent.width;height: footerFlow.implicitHeight+12;color: Theme.muted;radius: 0
             Rectangle {width: parent.width;height: 1;color: Theme.line}
             Flow {id: footerFlow;x: 12;y: 6;width: parent.width-24;spacing: 6;layoutDirection: Qt.RightToLeft
-                Btn {objectName: "teleopStartStop";text: root.running || root.moving || root.uncertain ? (root.tianji ? "停止控制" : "结束遥操作") : (root.tianji ? "开始遥操作" : "开始遥操作采集");glyph: root.running || root.moving || root.uncertain ? "Square" : "Play";primary: true;danger: root.running || root.moving || root.uncertain;busy: ["start","stop","move"].indexOf(s.busy)>=0;enabled: (root.running || root.moving || root.uncertain || s.busy==="start") ? s.busy!=="stop" : !root.locked && root.status.devices.filter(d=>d.status==="connected").length===3 && (!root.tianji || (s.paramSaved && !s.paramSaving));onClicked: backend.teleop(root.running || root.moving || root.uncertain || s.busy==="start" ? "stop" : "start")}
+                Btn {
+                    objectName: "teleopStartStop"
+                    text: root.teleopStop ? (root.tianji ? "停止控制" : "结束遥操作") : (root.tianji ? "开始遥操作" : "开始遥操作采集")
+                    glyph: root.teleopStop ? "Square" : "Play"
+                    primary: true; danger: root.teleopStop
+                    busy: !root.manualMotion && ["start","stop"].indexOf(s.busy)>=0
+                    enabled: !root.manualMotion && ((root.teleopStop || s.busy==="start") ? s.busy!=="stop" : !root.locked && root.status.devices.filter(d=>d.status==="connected").length===3 && (!root.tianji || (s.paramSaved && !s.paramSaving)))
+                    onClicked: backend.teleop(root.teleopStop || s.busy==="start" ? "stop" : "start")
+                }
                 Btn {objectName: "teleopCheck";text: "检查设备";glyph: "RefreshCw";busy: s.busy==="check";enabled: !root.locked && !s.paramSaving;onClicked: backend.teleop("check")}
                 Row {visible: root.tianji;spacing: 14;height: 34;layoutDirection: Qt.LeftToRight
                     Txt {height: 34;text: "本次已完成  "+(root.collection.completed||0)+" Episode";font.pixelSize: 12;color: Theme.inkMuted}
@@ -71,11 +81,11 @@ Column {
         }
     }
     GridLayout {
-        objectName: "teleopVisualGrid"
-        width: parent.width;columns: app.width<=1180 ? 1 : 2;columnSpacing: 12;rowSpacing: 12
+        id: visualGrid;objectName: "teleopVisualGrid"
+        width: parent.width;columns: width<1080 ? 1 : 2;columnSpacing: 12;rowSpacing: 12
         Card {
             objectName: "teleopRobotCard"
-            Layout.fillWidth: true;Layout.preferredWidth: 500;Layout.preferredHeight: cameraCard.implicitHeight
+            Layout.fillWidth: true;Layout.preferredWidth: 444;Layout.minimumWidth: visualGrid.columns===2 ? 340 : 0;Layout.maximumWidth: visualGrid.columns===2 ? 504 : Infinity;Layout.preferredHeight: visualGrid.columns===2 ? cameraCard.implicitHeight : 340
             Heading {width: parent.width;title: "机器人姿态";height: 51}
             Txt {anchors.right: parent.right;anchors.rightMargin: 14;y: 17;text: "● "+(root.live ? "遥测在线" : "无遥测");font.pixelSize: 11;color: root.live ? Theme.green : Theme.inkSoft}
             Rectangle {
@@ -92,12 +102,11 @@ Column {
         }
         TeleopCameras {
             id: cameraCard
-            Layout.fillWidth: true;Layout.preferredWidth: 500;Layout.preferredHeight: implicitHeight
+            Layout.fillWidth: true;Layout.preferredWidth: 716;Layout.minimumWidth: visualGrid.columns===2 ? 700 : 0;Layout.preferredHeight: implicitHeight
             tianji: root.tianji;status: root.status;previewStatus: s.preview;locked: root.locked
             active: root.visible && s.page==="teleop" && s.teleopStep===2
         }
     }
-    Txt {visible: root.tianji && root.moving && !!text && (root.status.recovery||{}).phase!=="moving";width: parent.width;text: (root.status.recovery||{}).detail||"";color: Theme.inkMuted}
     Manual {width: parent.width;tianji: root.tianji;canMove: root.canMove;canRecover: root.canRecover;live: root.live;locked: root.locked}
     Dialog {
         id: parameterDialog;objectName: "parameterDialog";parent: Overlay.overlay;anchors.centerIn: parent
