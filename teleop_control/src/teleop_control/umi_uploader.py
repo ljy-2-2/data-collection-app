@@ -274,10 +274,30 @@ class UmiRosbagUploader:
                 return
         presign.raise_for_status()
         targets = {item["filename"]: item for item in presign.json()["urls"]}
+        signed_at = {name: time.monotonic() for name in targets}
         transfer_started = time.monotonic()
         for path in files:
-            target = targets[path.name]
-            self._put_file(path, target["put_url"])
+            def upload_url(force=False):
+                target = targets[path.name]
+                # A large earlier file can outlive the URLs for later files.
+                # Refresh only this unregistered object's URL; acknowledged
+                # files stay uploaded and existing episodes remain immutable.
+                expires_in = float(target.get("expires_in", 3600))
+                if force or time.monotonic() - signed_at[path.name] >= max(0, expires_in - 60):
+                    fresh = self.client.post(
+                        f"{self.api_url}/uploads/presign",
+                        json={"episode_id": str(episode_id), "filenames": [path.name]},
+                        extensions=self._auth_extensions(),
+                    )
+                    fresh.raise_for_status()
+                    replacement = next(item for item in fresh.json()["urls"] if item["filename"] == path.name)
+                    if replacement["key"] != target["key"]:
+                        raise ValueError("续期上传地址与原文件不一致，保留本地数据")
+                    targets[path.name] = target = replacement
+                    signed_at[path.name] = time.monotonic()
+                return target["put_url"]
+
+            self._put_file(path, upload_url(), refresh_url=upload_url)
         transfer_seconds = time.monotonic() - transfer_started
         started_at, ended_at, duration_s = _episode_times(meta)
         storage = {
@@ -298,7 +318,7 @@ class UmiRosbagUploader:
             "extra": {"import_task_id": batch_id, "import_folder": episode_dir.name,
                       "source_files": [path.name for path in files],
                       "collection_source": "umi",
-                      "recording_format": "umi-mp4-v1" if compact else "rosbag2-mcap",
+                      "recording_format": "umi-mp4-v1" if compact else meta.get('recording_format', 'rosbag2-mcap'),
                       "episode_metadata": meta.get("episode", {}),
                       "interruption": meta.get("interruption"),
                       "segments": meta.get("segments", [])},
@@ -321,12 +341,14 @@ class UmiRosbagUploader:
         except OSError:
             logger.warning('Upload completed but could not save timing metrics for %s', episode_id)
 
-    def _put_file(self, path: Path, url: str) -> None:
+    def _put_file(self, path: Path, url: str, *, refresh_url=None) -> None:
         # A signed PUT is idempotent for this reserved episode/object. Retry
         # only this file after a transient disconnect, reopening it at byte 0;
         # do not resend earlier acknowledged videos or register a partial bag.
         for attempt in range(3):
             try:
+                if refresh_url is not None:
+                    url = refresh_url()
                 response = self.client.put(
                     url, content=_chunks(path),
                     # The observed cloud storage takes 40–70 s to acknowledge
@@ -340,7 +362,12 @@ class UmiRosbagUploader:
                 response.raise_for_status()
                 return
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code not in {408, 429, 500, 502, 503, 504} or attempt == 2:
+                expired = exc.response.status_code == 403 and any(
+                    marker in exc.response.text for marker in
+                    ("RequestExpired", "ExpiredToken", "Request has expired"))
+                if expired and refresh_url is not None and attempt < 2:
+                    url = refresh_url(force=True)
+                elif exc.response.status_code not in {408, 429, 500, 502, 503, 504} or attempt == 2:
                     raise
             except httpx.TransportError:
                 if attempt == 2:

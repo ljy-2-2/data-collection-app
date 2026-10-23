@@ -6,7 +6,7 @@ ApplicationWindow {
     id: root
     visible: true
     width: 1280; height: 900
-    title: "天机 TCP 三维仿真 · P 点位置"
+    title: "天机 Marvin M6 TCP 三维仿真 · P 点位置"
     color: "#101923"
     property bool translucent: true
     property int projectionTick: 0

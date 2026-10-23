@@ -1,0 +1,211 @@
+{
+  "schema_version": 2,
+  "transport": "leju_can_owner",
+  "frame_format": "classic_standard",
+  "can_bitrate_bps": 1000000,
+  "owner_directory": "/home/lab/kuavo5-gripper-r8-restart-20261015-a6d66d7e/deployment/sockets",
+  "occupied_ids": {
+    "canbus0": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      15,
+      16,
+      1537,
+      1538,
+      1539,
+      1540,
+      1541,
+      1542,
+      1543,
+      1551,
+      1552
+    ],
+    "canbus1": [
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      1544,
+      1545,
+      1546,
+      1547,
+      1548,
+      1549,
+      1550
+    ]
+  },
+  "purpose": "Supervised teleoperation test; motion and shared-bus compatibility not certified",
+  "motors": {
+    "left": {
+      "profile": {
+        "bus": "canbus0",
+        "motor_id": 8,
+        "master_id": 0,
+        "open_rad": -2.67,
+        "closed_rad": -1.15,
+        "margin_rad": 0.02,
+        "speed_rad_s": 15.0,
+        "accel_rad_s2": 200.0,
+        "current_fraction": 0.1,
+        "max_current_a": 2.5,
+        "imax_a": 20.522388458251953,
+        "pmax": 12.5,
+        "vmax": 50.0,
+        "tmax": 10.0,
+        "feedback_timeout_ms": 150,
+        "max_temperature_c": 60,
+        "control_mode": 4,
+        "kp": 80.0,
+        "kd": 4.0,
+        "max_torque_nm": 0.2,
+        "position_recovery": true,
+        "closed_target_reserve_rad": 0.02,
+        "open_target_reserve_rad": 0.03
+      },
+      "commissioned": true,
+      "calibration": {
+        "source": "measured_manual_endpoints",
+        "minimum_travel_rad": 0.08726646259971647,
+        "marks": {
+          "open": {
+            "position_rad": -2.7803845273517975,
+            "xout_rad": -2.4664721488952637,
+            "received_ns": 9656355145079,
+            "sequence": 6,
+            "xout_received_ns": 9656350994867,
+            "state": 0,
+            "mos_c": 34,
+            "rotor_c": 31
+          },
+          "closed": {
+            "position_rad": -1.3502327000839252,
+            "xout_rad": -1.0605323314666748,
+            "received_ns": 9672010298377,
+            "sequence": 8,
+            "xout_received_ns": 9672006155145,
+            "state": 0,
+            "mos_c": 34,
+            "rotor_c": 31
+          }
+        },
+        "motor_zero_written": false,
+        "motor_flash_written": false
+      },
+      "readback": {
+        "master_id": 0,
+        "motor_id": 8,
+        "watchdog_ticks": 4000,
+        "mode": 4,
+        "bitrate_code": 4,
+        "pmax": 12.5,
+        "vmax": 50.0,
+        "tmax": 10.0,
+        "imax_a": 20.522388458251953,
+        "hardware_version": 1445998644,
+        "software_version": 808595767,
+        "sub_version": 825241648
+      },
+      "closed_endpoint_source": "operator_adjusted",
+      "open_endpoint_source": "operator_adjusted"
+    },
+    "right": {
+      "profile": {
+        "bus": "canbus1",
+        "motor_id": 1,
+        "master_id": 0,
+        "open_rad": -2.27,
+        "closed_rad": -0.75,
+        "margin_rad": 0.02,
+        "speed_rad_s": 15.0,
+        "accel_rad_s2": 200.0,
+        "current_fraction": 0.1,
+        "max_current_a": 2.5,
+        "imax_a": 20.522388458251953,
+        "pmax": 12.5,
+        "vmax": 50.0,
+        "tmax": 10.0,
+        "feedback_timeout_ms": 150,
+        "max_temperature_c": 60,
+        "control_mode": 4,
+        "kp": 80.0,
+        "kd": 4.0,
+        "max_torque_nm": 0.2,
+        "position_recovery": true,
+        "closed_target_reserve_rad": 0.02,
+        "open_target_reserve_rad": 0.03
+      },
+      "commissioned": true,
+      "calibration": {
+        "source": "measured_manual_endpoints",
+        "minimum_travel_rad": 0.08726646259971647,
+        "marks": {
+          "open": {
+            "position_rad": -2.3195620660715655,
+            "xout_rad": -2.011653184890747,
+            "received_ns": 9707082277756,
+            "sequence": 4,
+            "xout_received_ns": 9707078131868,
+            "state": 0,
+            "mos_c": 34,
+            "rotor_c": 31
+          },
+          "closed": {
+            "position_rad": -0.9622720683604182,
+            "xout_rad": -0.6785694360733032,
+            "received_ns": 9713846534033,
+            "sequence": 6,
+            "xout_received_ns": 9713842390593,
+            "state": 0,
+            "mos_c": 34,
+            "rotor_c": 31
+          }
+        },
+        "motor_zero_written": false,
+        "motor_flash_written": false
+      },
+      "readback": {
+        "master_id": 0,
+        "motor_id": 1,
+        "watchdog_ticks": 4000,
+        "mode": 4,
+        "bitrate_code": 4,
+        "pmax": 12.5,
+        "vmax": 50.0,
+        "tmax": 10.0,
+        "imax_a": 20.522388458251953,
+        "hardware_version": 1445998644,
+        "software_version": 808595767,
+        "sub_version": 825241648
+      },
+      "closed_endpoint_source": "operator_adjusted",
+      "open_endpoint_source": "operator_adjusted"
+    }
+  },
+  "preparation": {
+    "source": "operator_supervised_timeout_preparation",
+    "shared_bus_compatibility_verified": false,
+    "operator_accepted_unverified_shared_bus": true,
+    "motion_acceptance_completed": false,
+    "flash_written": false,
+    "bus_config_sha256": "dbfa52947ef56ee156a4faf72cc20cb45864cc4d50f103ddf39a65a1a8a5f563",
+    "measured_config_sha256": "9f59387f1361804bc3d8e75d20750eb58072a253763767c274e7f2ed546a108e",
+    "evidence_directory": "/home/lab/kuavo5-gripper-r8-restart-20261015-a6d66d7e/package/run-23d70ca7477f4a7db5e3a9e885aeb197"
+  },
+  "closing_tuning": {
+    "created_utc": "2026-10-19T02:08:56.047858+00:00",
+    "source": "/home/yuan/Work/Project/G2-VLA-Workspace/projects/Teleoperation/teleop-runtime/config/robots/kuavo5_w/grippers-r8-restart-ready-20261015-141531.json",
+    "source_sha256": "0f7fbf48cfe6a7dd076dd1703015e5810410e9a494ffd6f67f94972c3b026dbd",
+    "physical_validation_completed": false,
+    "historical_readbacks_preserved": true,
+    "current_robot_readiness_verified": false
+  },
+  "history_archive": "artifacts/gripper-config-cleanup-20261019/explicit-endpoints-277e466e/preparation-history.json"
+}

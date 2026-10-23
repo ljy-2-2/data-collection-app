@@ -113,11 +113,17 @@ class WindowChromeTests(unittest.TestCase):
                     backend.update(page='teleop', teleopStep=2, tianji=dict(original_status, cameras=inventory, camera_preview_mode='snapshot'))
                     QTest.qWait(30)
                     for idx, role in enumerate(camera_roles):
-                        assert (find_item('teleopCamera-' + role) is not None) == (idx < count)
+                        preview = find_item('teleopCamera-' + role)
+                        assert preview is not None
+                        assert bool(preview.source) == (idx < count)
                     if count:
-                        ordered_roles = [r for r in ('left', 'center', 'right') if r in camera_roles[:count]]
+                        ordered_roles = ['center', 'left', 'right']
                         tiles = [find_item('teleopCameraTile-' + r) for r in ordered_roles]
-                        assert all(a.x() < b.x() and a.y() == b.y() for a, b in zip(tiles, tiles[1:])), 'Wrist previews must stay left/right regardless of discovery order'
+                        if find_item('teleopCameraCard').property('splitView'):
+                            assert tiles[0].x() < tiles[1].x() == tiles[2].x()
+                            assert tiles[0].y() == tiles[1].y() < tiles[2].y()
+                        else:
+                            assert tiles[0].y() < tiles[1].y() < tiles[2].y()
                         for key, role in zip(camera_ids[:count], camera_roles[:count]):
                             assert find_item('teleopCameraTile-' + role).property('modelData') == key
                         tile = find_item('teleopCamera-' + camera_roles[0])
@@ -134,14 +140,22 @@ class WindowChromeTests(unittest.TestCase):
                         cameras = find_item('teleopCameraCard')
                         stage = find_item('teleopRobotStage')
                         images = find_item('teleopCameraImages')
-                        assert abs(model.width()-cameras.width()) < 1, (robot, width, model.width(), cameras.width())
-                        assert abs(model.height()-cameras.height()) < 1
-                        assert abs(stage.width()-images.width()) < 1
-                        assert abs(stage.height()-images.height()) < 1
+                        # Imported teleop layout gives the camera panel more width
+                        # for its fixed main/left/right slots. Narrow windows stack.
+                        grid = find_item('teleopVisualGrid')
+                        assert model.width() > 0 and cameras.width() > 0
+                        assert stage.width() == model.width()-20
+                        assert images.width() == cameras.width()-20
+                        assert stage.height() > 0 and images.height() > 0
                         assert stage.y() == images.y()
-                        if width > 1180:
+                        if grid.property('columns') == 2:
+                            assert cameras.width() >= model.width()
+                            assert abs(model.height()-cameras.height()) < 1
                             assert abs(model.y()-cameras.y()) < 1
+                            assert cameras.x() >= model.x()+model.width()
                         else:
+                            assert abs(model.width()-cameras.width()) < 1
+                            assert abs(model.height()-340) < 1
                             assert abs(model.x()-cameras.x()) < 1
                             assert cameras.y() >= model.y()+model.height()
                         screenshot_dir = os.environ.get('TELEOP_LAYOUT_SCREENSHOT_DIR')
@@ -157,16 +171,17 @@ class WindowChromeTests(unittest.TestCase):
                     camera = find_item('teleopCamera-' + role)
                     label = find_item('teleopCameraLabel-' + role)
                     stale = find_item('teleopCameraStale-' + role)
+                    assert stale is None
                     assert label.isVisible()
                     frame = QImage(32, 24, QImage.Format_RGB32)
                     frame.fill(QColor('blue'))
                     camera._source = 'offline-fixture'
                     camera._decoded(camera.sequence, frame)
                     QTest.qWait(10)
-                    assert label.isVisible() and not stale.isVisible()
+                    assert label.isVisible() and camera.online
                     camera.offline()
                     QTest.qWait(10)
-                    assert label.isVisible() and stale.isVisible()
+                    assert label.isVisible() and not camera.online
                     camera.source = ''
                 target = dict(selected='local', web_url='http://127.0.0.1:5173', destinations=[dict(kind='local'), dict(kind='cloud')])
                 backend.update(uploadTarget=target, tianji=original_status)
@@ -175,13 +190,14 @@ class WindowChromeTests(unittest.TestCase):
                     for authenticated, page, step, name in ((False, 'teleop', 1, 'loginUploadTarget'), (True, 'teleop', 1, 'teleopUploadTarget'), (True, 'umi', 2, 'umiUploadTarget')):
                         backend.update(authenticated=authenticated, page=page, teleopStep=step, umiStep=step)
                         QTest.qWait(30)
-                        selector = find_item(name, visible=True)
+                        selector = find_item(name+"Label" if name=="teleopUploadTarget" else name, visible=True)
                         assert selector is not None, (name, width)
                         assert selector.isVisible(), (name, width, backend.state['page'], backend.state['teleopStep'], backend.state['umiStep'])
                         content = selector.parentItem()
                         assert abs(selector.y() + selector.height()/2 - content.height()/2) < 1
                         assert selector.x() + selector.width() <= content.width() + 1
-                        assert selector.height() == 32
+                        if name != "teleopUploadTarget": assert selector.height() == 32
+                        else: assert selector.property("text") == "本机平台"
                         screenshot_dir = os.environ.get('NOTICE_LAYOUT_SCREENSHOT_DIR')
                         if screenshot_dir:
                             def disable_target_shadow(item):

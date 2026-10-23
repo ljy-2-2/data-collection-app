@@ -7,6 +7,7 @@ setup(
     name=package_name,
     version="0.0.0",
     packages=find_packages(exclude=["test"]),
+    package_data={package_name: ["native/mpp-jpeg-h264", "native/librockchip_mpp.so.1", "native/build.json", "native/LICENSE.rockchip-mpp"]},
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),

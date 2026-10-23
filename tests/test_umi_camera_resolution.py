@@ -213,7 +213,7 @@ def test_local_slow_segment_is_not_hidden_by_a_good_overall_average():
     assert '帧率' in timing_failure(times)
 
 
-def test_transient_jitter_warns_without_stopping_and_sustained_low_rate_stops():
+def test_transient_jitter_and_sustained_low_rate_are_recording_warnings():
     limits=dict(min_rate_hz=29.,stop_min_rate_hz=27.,stop_low_rate_sec=2.,
                 rate_window_sec=3.,max_frame_gap_sec=1.,warn_frame_gap_sec=.2)
     times=[i/30 for i in range(120)]
@@ -227,8 +227,8 @@ def test_transient_jitter_warns_without_stopping_and_sustained_low_rate_stops():
         guard.push(t,stamp)
         if t>=3:assert not guard.failure(t)
     ns=[i*50_000_000 for i in range(160)]
-    problem,_=recording_timing_result(ns,ns,limits)
-    assert '帧率' in problem
+    problem,warnings=recording_timing_result(ns,ns,limits)
+    assert not problem and any('帧率' in warning for warning in warnings)
 
 
 def test_twenty_nine_point_ninety_seven_never_fails_count_window_rounding():

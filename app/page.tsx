@@ -1157,7 +1157,7 @@ export default function Home() {
             {active !== 'ego' ? (
               <div className="page-tools">
                 {active === 'teleop'
-                  ? <UsageGuide image="/teleop-usage-guide.png" alt="遥操作手柄按键使用说明" />
+                  ? (teleopRobotModel === 'kuavo-5w' ? null : <UsageGuide image="/teleop-usage-guide.png" alt="遥操作手柄按键使用说明" />)
                   : <UsageGuide image="/umi-usage-guide.png" alt="UMI 手柄、脚踏板和键盘按键使用说明" />}
               </div>
             ) : null}

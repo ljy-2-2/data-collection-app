@@ -190,6 +190,13 @@ def main() -> int:
         app.mkdir(parents=True)
         for name in ("scripts", "teleop_control", "umi_collection", "public"):
             shutil.copytree(ROOT / name, app / name, ignore=ignore_private)
+        encoder_core = app / 'umi_collection/vendor/galaxis/galaxis-core/galaxis-core'
+        if target.deb_arch == 'arm64' and not args.desktop_only:
+            run(python_bin, ROOT / 'scripts/build_umi_mpp_encoder.py', '--core', encoder_core)
+            verify_elf(encoder_core / 'galaxis_core/native/mpp-jpeg-h264', target)
+        elif target.deb_arch == 'amd64':
+            # A source checkout copied from an ARM board must not ship its ELF files.
+            shutil.rmtree(encoder_core / 'galaxis_core/native', ignore_errors=True)
         if target.deb_arch == "arm64":
             for library in tianji_libraries:
                 shutil.copy2(library, app / "teleop_control/vendor/tianji/SDK_PYTHON" / library.name)

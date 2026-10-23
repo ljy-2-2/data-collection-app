@@ -1,0 +1,71 @@
+{
+  "issue": "Frame pipe closed or blocked for 1 second; stop",
+  "recording": "20261022_105513_fusion_322c8983",
+  "observed_pc_receive_gap_ms": 1422.3,
+  "camera_interval_across_gap_ms": 31.9,
+  "hypothesis": "Long-lived recording object graphs can pause the shared Python process during full garbage collection; reproduced offline, not yet confirmed with live GC instrumentation.",
+  "offline_replay": {
+    "rows": 1134933,
+    "before": {
+      "peak_rss_MiB": 4321,
+      "max_generation_2_gc_ms": 1114.35
+    },
+    "after": {
+      "rows": 1134933,
+      "peak_rss_MiB": 32,
+      "gen2_gc_pauses_rows_ms": [
+        [
+          1134933,
+          2.23
+        ]
+      ],
+      "tracked_object_growth": 71,
+      "index_bytes": 9079464,
+      "elapsed_s": 20.4
+    }
+  },
+  "validation": {
+    "pytest_passed": 100,
+    "live_camera_verified": false,
+    "controller_recovered": true,
+    "running_app_reloaded": false
+  },
+  "blocker": null,
+  "recordings_modified": false,
+  "controller_timeout_changed": false,
+  "controller_readonly_diagnosis": {
+    "ssh_connected": true,
+    "scope": "Read-only only; user instructed not to control physical hardware.",
+    "service_process_running": true,
+    "service_idle": true,
+    "fault": "Stream stopped: Native helper failed (exit 1): Frame pipe closed or blocked for 1 second; stop",
+    "recoverable_camera_fault": false,
+    "native_cleanup_timed_out": false,
+    "cameras_enumerated": [
+      "usb-2",
+      "usb-4"
+    ],
+    "head_camera_enumerated": false,
+    "camera_interfaces_idle": true,
+    "camera_device_owners_absent": true,
+    "manifest_files_checked": 8,
+    "manifest_integrity_ok": true,
+    "kernel_log_finding": "No camera USB disconnect/reset or OOM entries observed in available dmesg after initial enumeration.",
+    "network_finding": "Current interface counters report zero RX/TX errors and drops; this does not exclude transient stalls.",
+    "interpretation": "Findings support the PC receive-stall explanation, but do not constitute a live GC trace of the original failure.",
+    "remote_mutations": false,
+    "robot_commands_sent": false,
+    "camera_stream_started": false,
+    "services_restarted": false,
+    "evidence_files": [
+      "teleop_control/runtime/tianji/camera-pipe-readonly-diagnostics.json",
+      "teleop_control/runtime/tianji/camera-pipe-readonly-status.json",
+      "teleop_control/runtime/tianji/camera-pipe-readonly-integrity.json"
+    ]
+  },
+  "remaining_work": [
+    "Reload the PC application to use the local fix.",
+    "Verify live preview and sustained acquisition when explicitly authorized."
+  ],
+  "deployment_report": "reports/tianji-camera-manual-recovery-deployment-20261022.json"
+}

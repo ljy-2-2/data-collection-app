@@ -19,14 +19,14 @@ def docker(tmp_path, monkeypatch):
     project = tmp_path / "current-workspace"
     source = project / "galaxis-core/galaxis-core"
     (source / "galaxis_core").mkdir(parents=True)
-    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py"):
+    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py", "mcap_video.py"):
         (source / "galaxis_core" / name).write_bytes(b"fixture")
     data = tmp_path / "operator-data"
     episode = data / "rosbags/task/001"
     episode.mkdir(parents=True)
     (episode / "source.mcap").write_bytes(b"original recording")
     (episode / ".mp4-pending.json").write_text('{"author":"operator"}')
-    version = "galaxis-core:latest:" + hashlib.sha256(b"fixture" * 6).hexdigest() + ":cpu2"
+    version = "galaxis-core:latest:" + hashlib.sha256(b"fixture" * 7).hexdigest() + ":cpu2"
     template = {
         "Id": "a" * 64,
         "Config": {"Labels": {gc._FINALIZER_LABEL: str(data), gc._FINALIZER_LABEL + ".version": version},

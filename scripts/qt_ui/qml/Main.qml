@@ -15,9 +15,10 @@ ApplicationWindow {
     readonly property string pageError: {
         let messages=[s.error]
         if(s.page==="teleop" && s.teleopStep===2){
-            let status=s.robot==="tianji"?s.tianji:s.g2
+            let status=s.robot==="kuavo-5w"?s.kuavo:s.robot==="tianji"?s.tianji:s.g2
             let collection=status.collection||{}
             messages.push(status.error,status.camera_error,collection.error,(collection.upload||{}).error)
+            if(s.robot==="tianji")messages.push(s.cameraApplyError)
         }
         if(s.page==="umi")messages.push(s.umi.error)
         return messages.filter((message,index,list)=>!!message && list.indexOf(message)===index).join("\n")
@@ -38,8 +39,8 @@ ApplicationWindow {
             Row {x: 12;y: 12;spacing: 8
                 Logo {width: 32;height: 32;source: backend.assetRoot+(Theme.dark?"K_dark.png":"K.png")}
                 Column {spacing: 1
-                    Txt {text: "ROBOT DATA PLATFORM";font.pixelSize: 9;font.weight: Font.Bold;color: Theme.accentStrong;height: 13}
-                    Txt {text: "数据采集";font.pixelSize: 14;font.weight: Font.Bold;height: 18}
+                    Txt {objectName: "headerEnglishTitle";text: "G-Lab Data Collection";font.pixelSize: 9;font.weight: Font.Bold;color: Theme.accentStrong;height: 13}
+                    Txt {objectName: "headerChineseTitle";text: "小凯实验室数据采集";font.pixelSize: 14;font.weight: Font.Bold;height: 18}
                 }
             }
             Rectangle {
@@ -73,13 +74,15 @@ ApplicationWindow {
                 }
             }
             Rectangle {visible: !app.narrow;x: 8;y: 118;width: parent.width-16;height: 1;color: Theme.line}
-            Button {visible: !app.narrow;x: 6;y: 125;width: parent.width-12;height: 53;hoverEnabled: true
+            Button {objectName: "platformLink";visible: !app.narrow;x: 6;y: 125;width: parent.width-12;height: 53;hoverEnabled: true
                 background: Rectangle {radius: 7;color: parent.hovered?Theme.muted:"transparent"}
                 contentItem: Item {
-                    Image {x: 9;y: 7;width: 16;height: 16;source: Theme.icon("Database")}
-                    Txt {selectable: false;x: 32;y: 6;text: "跳转平台";font.pixelSize: 13;color: Theme.inkMuted}
-                    Image {anchors.right: parent.right;anchors.rightMargin: 7;y: 9;width: 13;height: 13;source: Theme.icon("ExternalLink")}
-                    Txt {selectable: false;x: 32;y: 31;text: backend.platformLocation;font.pixelSize: 11;color: Theme.inkSoft}
+                    Image {objectName: "platformLinkIcon";x: 9;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon("Database")}
+                    Column {x: 32;anchors.verticalCenter: parent.verticalCenter;spacing: 4
+                        Txt {selectable: false;text: "跳转平台";font.pixelSize: 13;color: Theme.inkMuted}
+                        Txt {selectable: false;text: backend.platformLocation;font.pixelSize: 11;color: Theme.inkSoft}
+                    }
+                    Image {objectName: "platformExternalIcon";anchors.right: parent.right;anchors.rightMargin: 7;anchors.verticalCenter: parent.verticalCenter;width: 13;height: 13;source: Theme.icon("ExternalLink")}
                 }
                 onClicked: backend.openPlatform()
             }
@@ -113,11 +116,12 @@ ApplicationWindow {
                         Txt {objectName: "pageNoticeText";anchors.fill: parent;anchors.leftMargin: 10;anchors.rightMargin: 36;text: pageNotice.message;font.pixelSize: 12;color: app.pageError?Theme.red:Theme.inkMuted;wrapMode: Text.NoWrap}
                         Btn {objectName: "pageNoticeDismiss";visible: !!s.error;anchors.right: parent.right;anchors.rightMargin: 3;anchors.verticalCenter: parent.verticalCenter;glyph: "X";ghost: true;width: 24;height: 24;Accessible.name: "关闭错误提示";onClicked: backend.clearError()}
                     }
-                    UsageGuide {id: usageGuide;objectName: "usageGuide";visible: s.page!=="ego";anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}
+                    UsageGuide {id: usageGuide;objectName: "usageGuide";visible: s.page!=="ego" && !(s.page==="teleop" && s.robot==="kuavo-5w");anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}
                 }
-                Stepper {objectName: "pageStepper";visible: s.page!=="ego";width: parent.width;titles: s.page==="umi"?["选择配置","检查硬件","采集监控"]:["选择配置","遥操作采集"];step: s.page==="umi"?s.umiStep:s.teleopStep;returnVisible: s.page==="teleop"&&s.teleopStep===2;returnEnabled: !teleop.locked;onReturnClicked: backend.returnTeleop()}
+                Stepper {objectName: "pageStepper";visible: s.page!=="ego";width: parent.width;titles: s.page==="umi"?["选择配置","检查硬件","采集监控"]:["选择配置","遥操作采集"];step: s.page==="umi"?s.umiStep:s.teleopStep;returnVisible: s.page==="teleop"&&s.teleopStep===2;returnEnabled: s.robot==="kuavo-5w" ? !kuavoTeleop.locked : !teleop.locked;onReturnClicked: backend.returnTeleop()}
                 Setup {width: parent.width;visible: s.page==="teleop"&&s.teleopStep===1}
-                Teleop {id: teleop;objectName: "teleopWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2}
+                Teleop {id: teleop;objectName: "teleopWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2&&s.robot!=="kuavo-5w"}
+                Kuavo {id: kuavoTeleop;objectName: "kuavoWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2&&s.robot==="kuavo-5w"}
                 Umi {id: umiPanel;objectName: "umiWorkspace";width: parent.width;visible: s.page==="umi"}
                 Card {visible: s.page==="ego";width: parent.width;height: 580}
                 Btn {visible: app.narrow;text: "退出登录";glyph: "LogOut";ghost: true;enabled: !s.busy;onClicked: backend.logout()}

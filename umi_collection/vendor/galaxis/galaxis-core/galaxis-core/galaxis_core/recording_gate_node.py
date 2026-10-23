@@ -123,6 +123,7 @@ class TopicConditionChecker(ConditionChecker):
         self._first_absent: float | None = None
         self._last_stamp: float | None = None
         self._last_msg = None
+        self._condition_failed_since = None
         self._source_max_gap = self.config.get('source_max_gap_sec')
         self._source_previous_ns = None
         self._source_fault_until = -1.0
@@ -157,6 +158,7 @@ class TopicConditionChecker(ConditionChecker):
         self._condition_expr = ""
         self._condition_ref_codes: list[tuple[str, object]] = []
         self._reason_template = self.config.get("reason", "")
+        self._failure_hold_sec = float(self.config.get("failure_hold_sec", 0.0))
         condition_expr = self.config.get("condition")
         if condition_expr:
             self._condition_code = compile_condition(condition_expr)
@@ -196,6 +198,7 @@ class TopicConditionChecker(ConditionChecker):
         self._subscribed = False
         self._last_stamp = None
         self._last_msg = None
+        self._condition_failed_since = None
         self._source_previous_ns = None
         self._source_fault_until = -1.0
         self._msg_times.clear()
@@ -258,6 +261,17 @@ class TopicConditionChecker(ConditionChecker):
             if self.config.get('require_tracked_pose') and not (msg.tracked and msg.valid):
                 self._source_fault_until = now + 1.0
                 self._source_fault_reason = '手柄源数据跟踪无效，请恢复跟踪；原始数据继续保留'
+        # Measure continuous invalid source content from callbacks, not from
+        # the slower gate timer. A valid sample resets the failure interval.
+        if self._failure_hold_sec > 0 and self._condition_code is not None:
+            try:
+                valid = bool(eval(self._condition_code, {"__builtins__": {}}, {"msg": msg}))
+            except Exception:
+                valid = False
+            if valid:
+                self._condition_failed_since = None
+            elif self._condition_failed_since is None:
+                self._condition_failed_since = now
         self._last_stamp = now
         self._last_msg = msg
         self._msg_times.append(now)
@@ -399,12 +413,14 @@ class TopicConditionChecker(ConditionChecker):
                     escalation=self.escalation,
                 )
             if not result:
-                return ConditionResult(
-                    self.name,
-                    False,
-                    self._format_reason(self._last_msg),
-                    escalation=self.escalation,
-                )
+                elapsed = (now - self._condition_failed_since
+                           if self._condition_failed_since is not None else 0.0)
+                level = self.escalation
+                reason = self._format_reason(self._last_msg)
+                if elapsed < self._failure_hold_sec:
+                    level = min(level, EscalationLevel.BLOCK_START)
+                    reason += f" (持续 {elapsed:.2f}s / {self._failure_hold_sec:g}s)"
+                return ConditionResult(self.name, False, reason, escalation=level)
 
         # 5. Rate
         if self._camera_cadence:
@@ -564,7 +580,9 @@ class DebouncedChecker:
                     self.name,
                     False,
                     f"debouncing ({elapsed:.1f}s / {self._debounce_sec}s)",
-                    escalation=self.escalation,
+                    # Waiting for healthy samples to settle may block a new
+                    # start, but cannot terminate a healthy active recorder.
+                    escalation=min(self.escalation, EscalationLevel.BLOCK_START),
                 )
             return result
         self._passing_since = None

@@ -209,6 +209,14 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
         # Platform UMI screening rejects source timestamp gaps > 100 ms.
         # Warn at 200 ms; end only after 1 s without delivery. Offline validation
         # isolates real gaps > 100 ms before preparing training data.
+        # Legacy debounce only delays recovery; it does not delay failure.
+        # Do not terminate a round for one transient invalid tracking sample.
+        tracking = data['groups'].get('vr_tracking', {}).get('conditions', {})
+        for side in profile['active_arms']:
+            for state in ('tracked', 'valid'):
+                rule = tracking.get(f'{side}_{state}_stop')
+                if isinstance(rule, dict):
+                    rule.update(failure_hold_sec=1.0, debounce_sec=0.5)
         health = data['groups'].setdefault('health', {}).setdefault('conditions', {})
         for side in profile['active_arms']:
             for suffix, timeout, level in [('warn', 0.2, 1), ('stop', 1.0, 2)]:
@@ -299,6 +307,7 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
                     ]
                     if not condition["frames"]:
                         del conditions[name]
+                        continue
         return data
 
     return data

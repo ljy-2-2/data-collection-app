@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 ComboBox {
     id: control
+    property int optionHeight: 34
     implicitHeight: 34
     implicitWidth: 160
     leftPadding: 9
@@ -10,9 +11,10 @@ ComboBox {
     font.family: Theme.font
     font.pixelSize: 13
     delegate: ItemDelegate {
-        width: control.width
-        height: 34
-        contentItem: Txt {selectable: false;text: control.textRole ? modelData[control.textRole] : modelData; color: highlighted ? Theme.accentStrong : Theme.ink}
+        width: control.popup.availableWidth
+        height: control.optionHeight
+        verticalPadding: 2
+        contentItem: Txt {selectable: false;text: control.textRole ? modelData[control.textRole] : modelData; color: highlighted ? Theme.accentStrong : Theme.ink; font.pixelSize: control.font.pixelSize}
         highlighted: control.highlightedIndex === index
         background: Rectangle {color: highlighted ? Theme.accentSoft : Theme.surface}
     }

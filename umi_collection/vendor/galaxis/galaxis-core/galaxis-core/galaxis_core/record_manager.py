@@ -78,6 +78,8 @@ class RecordManager(Node):
         self.declare_parameter("record_format", "rosbag")
         self.declare_parameter("video_mp4_enabled", False)
         self.video_mp4_enabled = bool(self.get_parameter("video_mp4_enabled").value)
+        self.declare_parameter("compressed_mcap_enabled", False)
+        self.compressed_mcap_enabled = bool(self.get_parameter("compressed_mcap_enabled").value)
         self.declare_parameter("collection_gate_file", "")
         self.collection_gate_file = str(self.get_parameter("collection_gate_file").value)
         self.declare_parameter("qos_overrides_file", "")
@@ -633,6 +635,13 @@ class RecordManager(Node):
     def _recording_command(self, record_dir: str, payload_filename: str) -> list[str]:
         """Build the backend command without process-launch side effects."""
         del payload_filename
+        if self.record_format == 'rosbag' and getattr(self, 'compressed_mcap_enabled', False):
+            if self.use_sim_time:
+                raise ValueError('压缩原始录制暂不支持仿真时钟，未开始录制')
+            command = [sys.executable, '-m', 'galaxis_core.compressed_recorder', '-o', record_dir]
+            if self.qos_overrides_file:
+                command.extend(['--qos-profile-overrides-path', self.qos_overrides_file])
+            return [*command, *self.record_topics]
         output_dir = record_dir
         if self.record_format == "hdf5":
             output_dir = os.path.join(record_dir, ".rosbag_staging")
@@ -820,6 +829,8 @@ class RecordManager(Node):
 
     def _capture_metadata(self, meta):
         meta = dict(meta)
+        if getattr(self, 'compressed_mcap_enabled', False):
+            meta['recording_format'] = 'umi-mcap-h264-v1'
         if getattr(self, 'collection_author', None):
             meta['author'] = self.collection_author
         if getattr(self, 'collection_destination', None):
@@ -1008,7 +1019,8 @@ class RecordManager(Node):
         # Notify uploader of completed recording
         completed_msg = String()
         completed_msg.data = self.recent_record_dir
-        if not getattr(self, "video_mp4_enabled", False):
+        if (not getattr(self, "video_mp4_enabled", False)
+                or getattr(self, 'compressed_mcap_enabled', False)):
             self.recording_completed_pub.publish(completed_msg)
 
         if journal:
@@ -1019,6 +1031,7 @@ class RecordManager(Node):
 
     def _queue_mp4_recording(self, record_dir: Path, meta: dict) -> None:
         from galaxis_core.mp4_worker import atomic_json
+        from galaxis_core.video_bundle import DEFAULT_VIDEO_CRF
         # Durable metadata is captured per episode, before accepting the next
         # start. Uploaders must ignore this episode until pending is removed.
         meta = dict(meta)
@@ -1026,7 +1039,22 @@ class RecordManager(Node):
             meta["author"] = self.collection_author
         if getattr(self, 'collection_destination', None):
             meta['upload_destination'] = dict(self.collection_destination)
-        atomic_json(record_dir / ".mp4-pending.json", dict(meta, _video_crf=14))
+        compressed = record_dir / '.compressed-raw.json'
+        if compressed.is_file():
+            from galaxis_core.mcap_video import FORMAT
+            saved = json.loads(compressed.read_text())
+            if saved.get('format') != FORMAT or saved.get('state') != 'complete':
+                raise ValueError('压缩原始包未完成，保留回合等待恢复')
+            if saved.get('continuity_issue'):
+                raise ValueError('采集源数据存在真实缺口，原始包已保留，将恢复并上传连续区间')
+            meta['recording_format'] = FORMAT
+            meta['raw_compression'] = saved['encoder']
+            meta['raw_sha256'] = saved['sha256']
+            # The original MCAP is the canonical dataset. It is not converted
+            # into a disposable signal-only bag and is never deleted on upload.
+            atomic_json(record_dir / 'meta.json', meta)
+            return
+        atomic_json(record_dir / ".mp4-pending.json", dict(meta, _video_crf=DEFAULT_VIDEO_CRF))
         atomic_json(record_dir / "meta.json", meta)
 
     def toggle_recording(self, message: Optional[str]) -> Tuple[bool, str]:

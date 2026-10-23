@@ -41,15 +41,20 @@ def atomic_json(path, value):
 
 
 def finalize_episode(folder):
-    from .video_bundle import convert_bundle, cleanup_source, cleanup_interrupted_encodes
+    from .video_bundle import DEFAULT_VIDEO_CRF, convert_bundle, cleanup_source, cleanup_interrupted_encodes
     from .ownership import normalize_tree_access, resolve_record_owner
     folder = Path(folder)
     pending = folder / '.mp4-pending.json'
     meta = json.loads(pending.read_text())
-    crf = meta.pop('_video_crf', 14)
+    crf = meta.pop('_video_crf', DEFAULT_VIDEO_CRF)
     from .capture_recovery import validate_recorded_continuity
     validate_recorded_continuity(folder)
     cleanup_interrupted_encodes(folder)
+    # Compress every successful MP4 recording before upload, including large
+    # recordings targeting a same-machine platform. Raw handoff would retain
+    # JPEG bags locally and duplicate them in object storage indefinitely.
+    # The supervisor still preempts encoding for live capture and tracks CPU
+    # progress, so long conversions have no fixed wall-clock deadline.
     started = time.monotonic()
     manifest = convert_bundle(folder, crf=crf)
     converted = time.monotonic()
@@ -82,6 +87,8 @@ class BackgroundFinalizer:
         self.started = 0.
         self.deadline = 0.
         self.paused_at = None
+        self._activity_signature = None
+        self._activity_sample_at = 0.0
         self._allowed_cpus = set(os.sched_getaffinity(0))
         self._efficiency_cpus = efficiency_cpus(self._allowed_cpus)
         self._applied_cpus = self._allowed_cpus
@@ -106,6 +113,39 @@ class BackgroundFinalizer:
                 except (ProcessLookupError, FileNotFoundError):
                     pass
         self._applied_cpus = wanted
+
+    def _processing_activity(self):
+        """CPU and I/O counters of this conversion and its encoders only."""
+        result = []
+        for entry in Path('/proc').glob('[0-9]*'):
+            try:
+                fields = (entry / 'stat').read_text().rsplit(')', 1)[1].split()
+                if int(fields[2]) != self.process.pid:
+                    continue
+                # Some board kernels omit CONFIG_TASK_IO_ACCOUNTING entirely.
+                # Missing /proc/PID/io must not discard valid CPU counters: that
+                # would turn this watchdog back into a fixed 15-minute limit.
+                try:
+                    io = (entry / 'io').read_text()
+                except OSError:
+                    io = None
+                result.append((int(entry.name), fields[11], fields[12], io))
+            except (OSError, ValueError, IndexError):
+                continue
+        return tuple(sorted(result))
+
+    def _refresh_processing_deadline(self):
+        now = time.monotonic()
+        if now < self._activity_sample_at:
+            return
+        self._activity_sample_at = now + 1.0
+        signature = self._processing_activity()
+        if not signature or signature != self._activity_signature:
+            # This is an inactivity watchdog, never a total-duration limit.
+            # Long recordings can keep processing for as long as they advance.
+            # Unavailable telemetry is not evidence that a process is stalled.
+            self.deadline = now + 900
+        self._activity_signature = signature
 
     @staticmethod
     def _can_keep_encoder_memory():
@@ -222,8 +262,10 @@ class BackgroundFinalizer:
                         self._fail(f'MP4 后台保存失败（退出码 {code}），原始数据保留：{detail}')
                     else:
                         self._clear_process()
-                elif time.monotonic() > self.deadline:
-                    self._fail('MP4 后台保存超时，原始数据保留，可重试处理')
+                else:
+                    self._refresh_processing_deadline()
+                    if time.monotonic() > self.deadline:
+                        self._fail('MP4 后台保存连续 15 分钟无 CPU/读写进展，原始数据保留，可重试处理')
                 return
             if time.monotonic() < self._next_scan:
                 return
@@ -238,10 +280,11 @@ class BackgroundFinalizer:
             if not try_lock(self.resources):
                 self._release_resources()
                 return
-            from .video_bundle import conversion_timeout
             self.recovery_journal = recovery[0] if recovery else None
             self.folder = recovery[1] if recovery else pending.parent
-            self.deadline = time.monotonic() + max(900, 4 * conversion_timeout(self.folder))
+            self.deadline = time.monotonic() + 900
+            self._activity_signature = None
+            self._activity_sample_at = 0.0
             # A retry should report its own failure, not the traceback from a
             # previous intentional interruption. Bound repeated retry storage.
             self.log = (self.folder / '.mp4-finalize.log').open('w')

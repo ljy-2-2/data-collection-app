@@ -155,13 +155,28 @@ def test_single_arm_zero_keeps_other_arm_in_path(models):
     assert plan["duration"] >= 1
 
 
+@pytest.mark.parametrize("action,state", [("move", "moving"), ("stop", "idle")])
+def test_motion_ack_returns_worker_state_before_next_poll(monkeypatch, action, state):
+    manager = TianjiManager(MockController())
+    monkeypatch.setattr(manager.collection, "disarm", lambda: None)
+
+    def reply(command):
+        event, box = manager.pending[command["id"]]
+        box.update(ok=True, state=state)
+        event.set()
+
+    monkeypatch.setattr(manager, "_write", reply)
+    assert manager._command(action, {}) == {"ok": True, "state": state}
+    assert not manager.pending
+
+
 @pytest.mark.parametrize("speed,accel", [(180, 450), (1.5, 2)])
-@pytest.mark.parametrize("kind,distance,accel_cap,previous_speed", [
-    ("zero", 10, 5, 5), ("pose", 10, 4, 4),
-    ("zero", 60, 5, 5), ("pose", 60, 4, 4),
-    ("jog", 1, 4, 4), ("jog", 10, 4, 4),
+@pytest.mark.parametrize("kind,distance,speed_cap,accel_cap,previous_speed,previous_accel", [
+    ("zero", 10, 10, 5, 5, 5), ("pose", 10, 20, 20, 10, 4),
+    ("zero", 60, 10, 5, 5, 5), ("pose", 60, 20, 20, 10, 4),
+    ("jog", 1, 10, 4, 4, 4), ("jog", 10, 10, 4, 4, 4),
 ])
-def test_manual_move_bounds_ten_degree_speed_and_existing_acceleration(models, speed, accel, kind, distance, accel_cap, previous_speed):
+def test_manual_move_respects_limits_and_saved_poses_are_faster(models, speed, accel, kind, distance, speed_cap, accel_cap, previous_speed, previous_accel):
     cfg = configuration(ROOT / "teleop/marvin_teleop/config.json")
     cfg.update(max_joint_speed_deg_s=speed, max_joint_accel_deg_s2=accel)
     measured = {"left": np.array([float(distance), 0, 0, 0, 0, 0, 0]), "right": np.zeros(7)}
@@ -172,11 +187,11 @@ def test_manual_move_bounds_ten_degree_speed_and_existing_acceleration(models, s
     u = np.linspace(0, 1, 1001)
     peak_v = np.max(np.abs(distance * (30*u**2 - 60*u**3 + 30*u**4) / t))
     peak_a = np.max(np.abs(distance * (60*u - 180*u**2 + 120*u**3) / t**2))
-    assert peak_v <= min(10, speed)
+    assert peak_v <= min(speed_cap, speed)
     assert peak_a <= min(accel_cap, accel)
     if speed == 180:
         previous_duration = 1.05 * max(1, 1.875 * distance / previous_speed,
-                                       np.sqrt(10 / np.sqrt(3) * distance / accel_cap))
+                                       np.sqrt(10 / np.sqrt(3) * distance / previous_accel))
         assert t <= previous_duration
         if distance == 60:
             assert t < previous_duration
@@ -308,6 +323,7 @@ def test_status_renews_operator_lease_and_stale_feedback_goes_offline(monkeypatc
     monkeypatch.setattr(manager, "_write", Mock())
     value = manager.snapshot()
     assert value["state"] == "unknown"
+    assert value['control_active'] is True
     assert value["joints"] == {}
     assert all(d["status"] == "offline" for d in value["devices"])
     assert value["recording"] is False
@@ -333,6 +349,7 @@ def test_device_check_distinguishes_initial_connection_from_lost_motion_feedback
         assert action == "check"
         status = manager.snapshot(touch=False)
         assert status["state"] == expected
+        assert status['control_active'] is (previous_state in ('running','moving'))
         assert all(d["status"] == "offline" for d in status["devices"])
         raise RuntimeError("simulated check timeout")
 
@@ -366,6 +383,51 @@ def test_completed_device_check_returns_idle(monkeypatch):
         assert manager.snapshot(touch=False)["state"] == "unknown"
     finally:
         connected[0] = False
+
+
+def test_control_intent_retained_on_process_loss_but_check_is_not_control(monkeypatch):
+    manager=TianjiManager(MockController())
+    manager.value={'state':'error'}
+    assert manager.snapshot(touch=False)['control_active'] is False
+    manager.control_requested=True
+    result=manager.snapshot(touch=False)
+    assert result['control_active'] is True and result['state']=='unknown'
+    manager.control_requested=False
+
+
+def test_idle_status_cannot_clear_a_pending_start_and_confirmed_stop_can(monkeypatch):
+    import io
+    from types import SimpleNamespace
+    import threading
+    manager=TianjiManager(MockController())
+    manager.control_requested=True
+    manager.control_pending.add('start-id')
+    process=SimpleNamespace(stdout=io.StringIO('TIANJI:{"status":{"state":"idle"}}\n'),wait=lambda:0)
+    manager.process=process
+    manager._read(process)
+    assert manager.control_requested
+    manager.pending['start-id']=(threading.Event(),{})
+    process.stdout=io.StringIO('TIANJI:{"reply":"start-id","state":"idle","ok":false}\n')
+    manager._read(process)
+    assert not manager.control_requested
+    manager.process=None
+
+
+@pytest.mark.parametrize('active',[False,True])
+def test_feedback_failure_only_requests_halt_when_control_was_active(active):
+    from types import SimpleNamespace
+    from teleop_control.tianji_worker import loop_fault
+    halt=Mock()
+    state,error=loop_fault(RuntimeError('feedback stale'),robot=SimpleNamespace(enabled=active),
+        ctrl=None,motion=None,recovery=None,grippers=None,halt=halt)
+    assert state==('error' if active else 'idle')
+    assert error=='feedback stale'
+    assert halt.call_count==int(active)
+    if active:
+        halt.side_effect=RuntimeError('stop unconfirmed')
+        state,error=loop_fault(RuntimeError('feedback stale'),robot=SimpleNamespace(enabled=True),
+            ctrl=None,motion=None,recovery=None,grippers=None,halt=halt)
+        assert state=='error' and 'stop unconfirmed' in error
 
 
 def test_diagnostics_never_renews_operator_lease_or_starts_hardware(monkeypatch):
@@ -482,11 +544,13 @@ def test_manager_adopts_running_preview_and_waits_for_its_real_end(monkeypatch, 
     manager = TianjiManager(MockController())
     manager.collection.armed = armed
     client = preview_client()
+    client.status.return_value['stream_unlimited'] = True
     holder = {}
     monkeypatch.setattr(manager, "new_camera_client", lambda: client)
 
     def stream(**kwargs):
-        yield StreamEvent(dict(type="start",boot_id="test-boot",observation_mode="teleop_observation",graceful_stop=True))
+        yield StreamEvent(dict(type="start",boot_id="test-boot",observation_mode="teleop_observation",
+                               graceful_stop=True,seconds=kwargs['seconds']))
         for camera in ("usb-1", "usb-2", "usb-4"):
             yield StreamEvent(dict(type="image",camera_id=camera,format="mjpeg"),b"before A")
         yield StreamEvent(dict(type="joints"))

@@ -16,7 +16,7 @@ def upload_sides(metadata):
     if (not isinstance(selected, list) or not selected
             or any(side not in SIDES or side not in controlled for side in selected)
             or len(set(selected)) != len(selected)):
-        raise ValueError("天机上传曲线选择无效")
+        raise ValueError("天机 Marvin M6上传曲线选择无效")
     return tuple(side for side in SIDES if side in selected)
 
 
@@ -32,17 +32,17 @@ def _side_maps(value, selected):
 def _select_vectors(row, name_key, vector_keys, selected):
     names = row.get(name_key)
     if not isinstance(names, list) or not names or any(not isinstance(n, str) for n in names):
-        raise ValueError("天机上传曲线缺少有效关节名称")
+        raise ValueError("天机 Marvin M6上传曲线缺少有效关节名称")
     indices = [i for i, name in enumerate(names)
                if any(name.startswith(side + "_") for side in selected)]
     if not indices:
-        raise ValueError("天机上传曲线中没有所选机械臂")
+        raise ValueError("天机 Marvin M6上传曲线中没有所选机械臂")
     for key in vector_keys:
         if key not in row:
             continue
         values = row[key]
         if not isinstance(values, list) or len(values) != len(names):
-            raise ValueError("天机上传曲线名称与数值维度不一致：" + key)
+            raise ValueError("天机 Marvin M6上传曲线名称与数值维度不一致：" + key)
         row[key] = [values[i] for i in indices]
     row[name_key] = [names[i] for i in indices]
 
@@ -72,7 +72,7 @@ def project_row(relative, original, selected):
     elif relative == "record/bundles.jsonl":
         tensors = row.get("tensors")
         if not isinstance(tensors, dict):
-            raise ValueError("天机上传回合缺少曲线 tensors")
+            raise ValueError("天机 Marvin M6上传回合缺少曲线 tensors")
         for prefix in ("state", "action"):
             name_key = prefix + "__joint__name"
             keys = [key for key in tensors if key.startswith(prefix + "__joint__") and key != name_key]

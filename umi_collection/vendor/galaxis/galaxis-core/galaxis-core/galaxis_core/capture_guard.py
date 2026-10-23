@@ -20,6 +20,7 @@ def main():
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
     value = json.loads(args.journal.read_text())
     lease_file = value.get('lease_file')
+    local_raw = value.get('metadata', {}).get('recording_format') == 'umi-mcap-h264-v1'
     stopped = []
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.append(True))
@@ -39,7 +40,7 @@ def main():
             elif lease_file:
                 try:
                     lease = json.loads(Path(lease_file).read_text())
-                    if not lease.get('available'):
+                    if not lease.get('available') and not local_raw:
                         reason = 'platform_connection_lost'
                     elif not 0 <= time.time()-lease['checked_at'] < 10:
                         reason = 'desktop_heartbeat_lost'

@@ -1740,3 +1740,45 @@ def test_source_gap_warning_does_not_end_round_or_hide_one_second_timeout(gate_m
     assert checker.evaluate().escalation==1
     now[0]+=1.01
     assert checker.evaluate().escalation==2 and not checker.evaluate().passed
+
+
+def test_tracking_flap_blocks_new_starts_without_ending_active_recording(gate_module, monkeypatch):
+    from types import SimpleNamespace
+    now=[10.]
+    monkeypatch.setattr(gate_module.time,'monotonic',lambda:now[0])
+    inner=gate_module.TopicConditionChecker('left_tracked_stop',dict(topic='/tracked',
+        condition='msg.data',timeout_sec=1.,failure_hold_sec=1.,escalation=2))
+    inner.setup(MagicMock());inner._subscribed=True
+    checker=gate_module.DebouncedChecker(inner,.5)
+    inner._cb(SimpleNamespace(data=True));assert checker.evaluate().escalation==1
+    now[0]+=.6;inner._cb(SimpleNamespace(data=True));assert checker.evaluate().passed
+    inner._cb(SimpleNamespace(data=False));assert checker.evaluate().escalation==1
+    now[0]+=.1;inner._cb(SimpleNamespace(data=True));assert checker.evaluate().escalation==1
+    now[0]+=.6;inner._cb(SimpleNamespace(data=True));assert checker.evaluate().passed
+    # Repeated source failures separated by valid samples must not accumulate.
+    for _ in range(4):
+        inner._cb(SimpleNamespace(data=False));now[0]+=.8
+        inner._cb(SimpleNamespace(data=False));assert checker.evaluate().escalation==1
+        inner._cb(SimpleNamespace(data=True));now[0]+=.01
+    inner._cb(SimpleNamespace(data=False));now[0]+=1.01
+    inner._cb(SimpleNamespace(data=False));assert checker.evaluate().escalation==2
+    inner._cb(SimpleNamespace(data=True));assert checker.evaluate().escalation==1
+    now[0]+=.6;inner._cb(SimpleNamespace(data=True));assert checker.evaluate().passed
+
+
+def test_existing_tracking_config_migrates_failure_hold_without_changing_devices(gate_module):
+    import importlib.util
+    from pathlib import Path
+    path=Path(__file__).resolve().parents[3]/'galaxis_bringup/tools/build_runtime_configs.py'
+    spec=importlib.util.spec_from_file_location('tracking_migration',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    rules={f'{side}_{state}_stop':dict(topic=f'/{side}/{state}',condition='msg.data',
+        debounce_sec=1.0,escalation=2) for side in ('left','right') for state in ('tracked','valid')}
+    config=module.apply_collection_profile('recording_gate.yaml',{'groups':{'vr_tracking':{'conditions':rules}}},
+        {'active_arms':['left','right'],'active_cameras':['left','right','center']})
+    for name,rule in config['groups']['vr_tracking']['conditions'].items():
+        side,state,_=name.split('_')
+        assert rule['topic']==f'/{side}/{state}'
+        assert rule['failure_hold_sec']==1.0
+        assert rule['debounce_sec']==0.5
+        assert rule['escalation']==2

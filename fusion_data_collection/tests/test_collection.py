@@ -41,12 +41,12 @@ class CollectionTests(unittest.TestCase):
         r = telemetry(a=5);r['session']='reconnected'
         self.assertIsNone(b.accept(r))
 
-    def test_missing_stale_simulated_feedback_never_ready(self):
+    def test_delayed_feedback_allowed_but_missing_and_simulated_feedback_rejected(self):
         r = telemetry();self.assertIsNone(readiness(r))
         r['mode']='simulation';self.assertIsNotNone(readiness(r))
         r=telemetry();r['grippers']=None;self.assertIsNotNone(readiness(r))
         r=telemetry();r['grippers']['motors']['right']['feedback']['received']-=1
-        self.assertIsNotNone(readiness(r))
+        self.assertIsNone(readiness(r))
         r=telemetry();r['buttons']['A']=None;self.assertIsNotNone(readiness(r))
 
     def test_mapping_does_not_allow_path_traversal_or_duplicates(self):
@@ -141,7 +141,7 @@ class CollectionTests(unittest.TestCase):
 
     def test_overflow_or_disconnect_stops_only_recorder(self):
         r=telemetry()
-        ep=Episode(None,None,r)
+        ep=Episode(None,{'usb-1':'head_color'},r)
         for i in range(1100):ep.submit(dict(r,sequence=i+2))
         self.assertTrue(ep.stopping.is_set());self.assertIsNotNone(ep.error)
 

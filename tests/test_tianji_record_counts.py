@@ -7,6 +7,24 @@ import pytest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'fusion_data_collection'))
 from FusionDataCollector.collector import record_count_check
+from FusionDataCollector.collector import camera_queue_quality
+
+
+@pytest.mark.parametrize('last,affected', [(800,False), (1099,False), (1100,True), (1500,True)])
+def test_camera_overflow_distinguishes_preview_from_recording_with_clock_uncertainty(last, affected):
+    start = dict(adopted_preview_stream=True, episode_subscription_pc_monotonic_ns=1000)
+    clock = dict(offset_ns=200, uncertainty_ns=100)
+    final = dict(camera_queue_overflow={'usb-2':dict(dropped=3, last_timestamp_ns=last)})
+    result = camera_queue_quality(start, final, clock)
+    assert bool(result['possibly_affected_episode_cameras']) is affected
+    assert result['stream_totals'] == final['camera_queue_overflow']
+    assert result['counter_scope'] == 'whole_stream_including_preview'
+
+
+def test_camera_overflow_without_boundary_is_flagged_conservatively():
+    final = dict(camera_queue_overflow={'usb-4':dict(dropped=1, last_timestamp_ns=900)})
+    assert camera_queue_quality({}, final, {})['possibly_affected_episode_cameras'] == ['usb-4']
+    assert not camera_queue_quality({}, {}, {})['possibly_affected_episode_cameras']
 
 
 @pytest.mark.parametrize('bad', ['none','image_missing','joint_missing','image_extra','baseline_missing',

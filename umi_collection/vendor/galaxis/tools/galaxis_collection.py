@@ -205,8 +205,26 @@ def recording_base_dir(record_format: str) -> Path:
     raise CollectionError(f"不支持的数据格式: {record_format}")
 
 
+def require_storage_mount() -> None:
+    """Never create an external recording directory on the underlying root disk."""
+    path = DATA_DIR.resolve()
+    if path.parts[1:2] not in (("media",), ("mnt",), ("run",)):
+        return
+    if path.parts[1:2] == ('run',) and path.parts[2:3] != ('media',):
+        raise CollectionError(f'不能将临时内存文件系统作为采集盘：{path}')
+    # /run paths other than the desktop's removable-media mount are not a
+    # supported persistent data destination either.
+    for parent in (path, *path.parents):
+        if parent == Path('/') or len(parent.parts) < 3:
+            break
+        if parent.is_mount():
+            return
+    raise CollectionError(f"采集磁盘未挂载：{path}。请先挂载外接盘，不会改写到系统盘。")
+
+
 def ensure_recording_base_dir(record_format: str) -> Path:
     """Create the host output directory with the operator's ownership."""
+    require_storage_mount()
     path = recording_base_dir(record_format)
     operator_uid = int(os.environ.get("SUDO_UID", os.getuid()))
     operator_gid = int(os.environ.get("SUDO_GID", os.getgid()))
@@ -266,6 +284,9 @@ def apply_offline_runtime(record_format: str = "rosbag") -> None:
     if record_format not in RECORD_FORMATS:
         raise CollectionError(f"不支持的数据格式: {record_format}")
     params["record_format"] = record_format
+    params['compressed_mcap_enabled'] = record_format == 'rosbag'
+    if record_format == 'rosbag':
+        params['video_mp4_enabled'] = True  # Retain the durable capture/recovery journal.
     params["collection_gate_file"] = ("/opt/data/.collection-platform.json"
                                       if os.environ.get("DATA_COLLECTION_GATE_FILE") else "")
     params["record_base_dir"] = (
@@ -452,6 +473,7 @@ def _can_recreate_finalizer(reason: str) -> bool:
 
 def ensure_background_finalizer() -> None:
     """Own one offline worker per data root, outside the camera/ROS lifecycle."""
+    require_storage_mount()
     root = DATA_DIR.resolve()
     (root / "rosbags").mkdir(parents=True, exist_ok=True)
     manifest = PROJECT_DIR / "umi-runtime.json"
@@ -460,7 +482,7 @@ def ensure_background_finalizer() -> None:
     # A source digest restarts only this worker on software updates. Its queue
     # lives in the mounted data folder, so interrupted work is recoverable.
     digest = hashlib.sha256()
-    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py"):
+    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py", "mcap_video.py"):
         digest.update((source / "galaxis_core" / name).read_bytes())
     cpu_budget = finalizer_cpu_budget()
     version = image + ":" + digest.hexdigest() + f":cpu{cpu_budget}"

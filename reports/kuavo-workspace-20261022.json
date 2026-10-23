@@ -1,0 +1,27 @@
+{
+  "task": "KUAVO workspace layout, arm selection and URDF feedback display",
+  "date": "2026-10-22",
+  "hardware_actions": [],
+  "vendor_sources": "unchanged; manifest verified",
+  "checks": {
+    "kuavo_and_qt_tests": 24,
+    "tianji_regression_tests": 25,
+    "typescript": "passed",
+    "diff_check": "passed"
+  },
+  "implemented": [
+    "dual/left/right input selection with inactive Grip/Trigger masked",
+    "single-arm disables bilateral Y return, B cancellation preserved",
+    "PC displacement scale 0.1–1, default identity",
+    "three device categories with measured input freshness",
+    "URDF schematic updated only from measured arm feedback",
+    "three empty camera areas",
+    "original gripper reference values inside app"
+  ],
+  "limitations": [
+    "robot service contract provides no writable velocity/acceleration/gripper configuration API",
+    "only arm telemetry during operator-started sessions; other joints are reference zero",
+    "backup has URDF but lacks the referenced shell meshes",
+    "no real robot verification or service restart"
+  ]
+}

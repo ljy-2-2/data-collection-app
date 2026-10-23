@@ -103,7 +103,7 @@ def test_new_resolution_and_hardware_brightness_have_verified_preview(rig):
 
 def test_failed_real_frame_verification_restores_previous_camera_settings(rig, monkeypatch):
     rig.controls.get('usb_2')
-    monkeypatch.setattr(rig.controls, '_verify_preview', lambda generation: (_ for _ in ()).throw(RuntimeError('wrong actual frame')))
+    monkeypatch.setattr(rig.controls, '_verify_preview', lambda generation, expected: (_ for _ in ()).throw(RuntimeError('wrong actual frame')))
     with pytest.raises(RuntimeError, match='wrong actual frame'):
         rig.controls.request('usb_2', mode_id='mjpeg-1920x1080', brightness=10)
     assert rig.state['usb_2']['brightness']['value'] == 0
@@ -166,7 +166,7 @@ def test_manager_restore_after_usb_fault_preserves_failure_and_rolls_back_prefer
         return actual(key,**kwargs)
     rig.client.camera_settings.side_effect=settings
     rig.client.restore_camera_settings.return_value={'restored_configuration':True,'hardware_readback_deferred':True}
-    monkeypatch.setattr(rig.controls,'_verify_preview',lambda generation:(_ for _ in ()).throw(RuntimeError('camera capture failed')))
+    monkeypatch.setattr(rig.controls,'_verify_preview',lambda generation, expected:(_ for _ in ()).throw(RuntimeError('camera capture failed')))
     with pytest.raises(RuntimeError,match='已恢复原采集配置，硬件故障仍需排除后验证'):
         rig.controls.request('usb_2',mode_id='mjpeg-1920x1080')
     rig.client.restore_camera_settings.assert_called_once_with('usb-2')
@@ -201,3 +201,229 @@ def test_missing_stream_settings_does_not_interrupt_preview_or_query_controller(
     with pytest.raises(RuntimeError,match='设置快照'):rig.controls.get('usb_2')
     rig.manager.pause_cameras.assert_not_called()
     rig.manager.new_camera_client.assert_not_called()
+
+
+def test_existing_preview_fault_rejects_settings_without_restarting_or_writing(rig):
+    rig.manager.camera_phase = 'fault'
+    rig.manager.camera_error = 'Audit changed: dmesg_sha256'
+    with pytest.raises(RuntimeError, match='请先检查设备.*Audit changed'):
+        rig.controls.request('usb_2', brightness=7)
+    rig.manager.new_camera_client.assert_not_called()
+    rig.manager.pause_cameras.assert_not_called()
+    rig.manager.start_cameras.assert_not_called()
+    assert not rig.controls.busy
+
+
+def test_controller_fault_is_checked_after_stopping_stream_before_writing(rig):
+    rig.client.status.return_value = dict(camera_controls=True, fault='Audit changed: dmesg_sha256')
+    with pytest.raises(RuntimeError, match='控制器相机服务存在故障'):
+        rig.controls.request('usb_2', brightness=7)
+    rig.client.camera_settings.assert_not_called()
+    rig.manager.pause_cameras.assert_called_once()
+    rig.manager.start_cameras.assert_not_called()
+    assert not rig.controls.busy and not rig.manager.camera_preview_restarting
+
+
+def test_first_frame_failure_restores_preferences_without_another_usb_write_or_restart(rig):
+    def fail_start():
+        rig.manager.camera_phase = 'fault'
+        rig.manager.camera_error = 'Camera did not produce first frame after bounded startup retry; stop'
+        rig.client.status.return_value = dict(camera_controls=True, fault=rig.manager.camera_error)
+    rig.manager.start_cameras.side_effect = fail_start
+    rig.client.restore_camera_settings.return_value = dict(restored_configuration=True)
+    with pytest.raises(RuntimeError, match='first frame.*已恢复原采集配置'):
+        rig.controls.request('usb_2', brightness=7)
+    # One read and the requested write. Rollback only restores saved preferences
+    # while the controller's hardware fault is latched.
+    assert rig.client.camera_settings.call_count == 2
+    rig.client.restore_camera_settings.assert_called_once_with('usb-2')
+    rig.manager.start_cameras.assert_called_once()
+    assert rig.controls.cache['usb_2']['brightness']['value'] == 0
+    assert rig.manager.camera_phase == 'fault'
+    assert not rig.controls.busy and not rig.manager.camera_preview_restarting
+
+
+def test_batch_stops_once_and_never_connects_to_controller_during_live_preview(rig):
+    running = [True]
+    pause, start = rig.manager.pause_cameras.side_effect, rig.manager.start_cameras.side_effect
+    def stop_preview():
+        running[0] = False
+        pause()
+    def start_preview():
+        running[0] = True
+        start()
+    def connect():
+        assert not running[0], 'Serial TLS service cannot accept settings/status during stream'
+        return rig.client
+    rig.manager.pause_cameras.side_effect = stop_preview
+    rig.manager.start_cameras.side_effect = start_preview
+    rig.manager.new_camera_client.side_effect = connect
+    result = rig.controls.apply({'usb_4': {'brightness': 7}, 'usb_2': {'brightness': 10}})
+    assert result['usb_4']['brightness']['value'] == 7
+    assert result['usb_2']['brightness']['value'] == 10
+    rig.manager.pause_cameras.assert_called_once()
+    rig.manager.start_cameras.assert_called_once()
+    assert [c.kwargs for c in rig.client.camera_settings.call_args_list if c.kwargs] == [
+        {'brightness': 7}, {'brightness': 10}]
+
+
+def test_later_camera_write_failure_rolls_back_entire_batch_before_preview_reopens(rig):
+    settings = rig.client.camera_settings.side_effect
+    def fail_second(key, **fields):
+        result = settings(key, **fields)
+        if key == 'usb-2' and fields.get('brightness') == 10:
+            raise TimeoutError('reply lost after committed write')
+        return result
+    rig.client.camera_settings.side_effect = fail_second
+    with pytest.raises(RuntimeError, match='右相机写入参数失败.*已回写'):
+        rig.controls.apply({'usb_4': {'brightness': 7}, 'usb_2': {'brightness': 10}})
+    assert all(v['brightness']['value'] == 0 for v in rig.state.values())
+    assert all(v['brightness']['value'] == 0 for v in rig.controls.cache.values())
+    rig.manager.pause_cameras.assert_called_once()
+    rig.manager.start_cameras.assert_called_once()
+    assert all('mode_id' not in c.kwargs for c in rig.client.camera_settings.call_args_list)
+
+
+@pytest.mark.parametrize('fields', [{'brightness': 1.5}, {'brightness': True}, {'brightness': 999}, {'mode_id': 'unknown'}])
+def test_invalid_later_draft_rejects_whole_batch_without_pausing(rig, fields):
+    with pytest.raises(ValueError):
+        rig.controls.apply({'usb_4': {'brightness': 7}, 'usb_2': fields})
+    rig.manager.pause_cameras.assert_not_called()
+    rig.manager.new_camera_client.assert_not_called()
+
+
+def test_unchanged_confirm_does_not_pause_or_query_hardware(rig):
+    rig.controls.apply({'usb_2': {'brightness': 0, 'mode_id': 'mjpeg'}})
+    rig.manager.pause_cameras.assert_not_called()
+    rig.manager.new_camera_client.assert_not_called()
+
+
+def test_new_stream_cannot_overwrite_expected_brightness_and_falsely_pass_verification(rig):
+    start = rig.manager.start_cameras.side_effect
+    def wrong_readback():
+        start()
+        rig.controls.cache['usb_2']['brightness']['value'] = 0
+    rig.manager.start_cameras.side_effect = wrong_readback
+    with pytest.raises(RuntimeError, match='取流读回的参数与请求不一致'):
+        rig.controls.request('usb_2', brightness=7)
+    assert rig.state['usb_2']['brightness']['value'] == 0
+
+
+def test_stopping_failure_never_opens_another_tls_connection(rig):
+    rig.manager.pause_cameras.side_effect = RuntimeError('preview has not released')
+    with pytest.raises(RuntimeError, match='停止相机预览失败'):
+        rig.controls.request('usb_2', brightness=7)
+    rig.manager.new_camera_client.assert_not_called()
+    rig.manager.start_cameras.assert_not_called()
+    assert not rig.controls.busy
+
+
+def test_serial_tls_stream_reproduces_old_timeout_and_batch_api_stops_it_first(rig, tmp_path):
+    """Real loopback TLS and SDK, fake images/USB. No robot/controller access."""
+    import json
+    import socket
+    import ssl
+    import struct
+    import subprocess
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from fusion_camera.client import _exact
+    from fusion_camera.stream import FusionStreamClient
+    from teleop_control.tianji import tianji_router
+
+    cert, key = tmp_path/'cert.pem', tmp_path/'key.pem'
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                    '-keyout', str(key), '-out', str(cert), '-days', '1',
+                    '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'],
+                   check=True, capture_output=True, timeout=10)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    listener = socket.socket()
+    listener.bind(('127.0.0.1', 0));listener.listen(5);listener.settimeout(.1)
+    credentials = tmp_path/'client.json'
+    credentials.write_text(json.dumps(dict(port=listener.getsockname()[1],
+        token='offline-test-only', certificate=cert.name)))
+    stopped, streaming = threading.Event(), threading.Event()
+    calls, failures = [], []
+    settings = rig.client.camera_settings.side_effect
+
+    def reply(sock, metadata):
+        data = json.dumps(dict(metadata, ok=True, bytes=0)).encode()
+        sock.sendall(struct.pack('!I', len(data)) + data)
+
+    def serve():
+        while not stopped.is_set():
+            try:
+                raw, _ = listener.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                with raw:
+                    raw.settimeout(3)
+                    with context.wrap_socket(raw, server_side=True) as sock:
+                        request = json.loads(_exact(sock, struct.unpack('!I', _exact(sock, 4))[0]))
+                        assert request['token'] == 'offline-test-only'
+                        method = request['method'];calls.append(method)
+                        if method == 'stream':
+                            reply(sock, dict(type='start'))
+                            streaming.set()
+                            assert sock.recv(1) == b'S'
+                            calls.append('stream_stopped')
+                            reply(sock, dict(type='end'))
+                            streaming.clear()
+                        elif method == 'status':
+                            reply(sock, dict(camera_controls=True, idle=True, fault=None))
+                        elif method == 'camera_settings':
+                            reply(sock, settings(request['camera_id'], **{
+                                k: request[k] for k in ('mode_id', 'brightness') if k in request}))
+                        else:
+                            raise AssertionError(method)
+            except ssl.SSLError:
+                pass  # The deliberately timed-out pre-stop handshake is abandoned.
+            except Exception as error:
+                failures.append(error)
+    server = threading.Thread(target=serve, daemon=True);server.start()
+    preview = FusionStreamClient('127.0.0.1', credentials=credentials, timeout=2)
+    def read_preview():
+        try:
+            for _ in preview.stream(seconds=0, mode='teleop_observation'):
+                pass
+        except Exception as error:
+            failures.append(error)
+    receiver = threading.Thread(target=read_preview, daemon=True);receiver.start()
+    try:
+        assert streaming.wait(2)
+        # Reproduce the former preflight ordering, with the production SDK.
+        with pytest.raises(TimeoutError, match='handshake'):
+            with FusionStreamClient('127.0.0.1', credentials=credentials, timeout=.2):
+                pass
+        assert streaming.is_set()
+        pause = rig.manager.pause_cameras.side_effect
+        def stop_preview():
+            preview.request_stop();receiver.join(timeout=3)
+            assert not receiver.is_alive()
+            pause()
+        rig.manager.pause_cameras.side_effect = stop_preview
+        rig.manager.new_camera_client.side_effect = lambda: FusionStreamClient(
+            '127.0.0.1', credentials=credentials, timeout=2)
+        rig.manager.camera_settings = rig.controls
+        app = FastAPI();app.include_router(tianji_router(rig.manager))
+        with TestClient(app) as api:
+            for invalid in ({}, {'usb_2': {'brightness': 10.0}}, {'unknown': {'brightness': 10}}):
+                response = api.post('/tianji/camera-controls/settings', json={'changes': invalid})
+                assert response.status_code == 422, response.text
+            rig.manager.pause_cameras.assert_not_called()
+            response = api.post('/tianji/camera-controls/settings', json={'changes': {
+                'usb_4': {'brightness': 7}, 'usb_2': {'brightness': 10}}})
+        assert response.status_code == 200, response.text
+        assert response.json()['usb_2']['brightness']['value'] == 10
+        assert response.json()['usb_4']['brightness']['value'] == 7
+        assert calls.index('stream_stopped') < calls.index('status') < calls.index('camera_settings')
+        rig.manager.pause_cameras.assert_called_once()
+        rig.manager.start_cameras.assert_called_once()
+        assert not failures
+    finally:
+        preview.close();stopped.set();listener.close()
+        receiver.join(timeout=3);server.join(timeout=3)

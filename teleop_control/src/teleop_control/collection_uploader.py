@@ -15,6 +15,7 @@ from pathlib import Path
 import httpx
 
 from .collection_gate import collection_available
+from .robot_names import TIANJI_DISPLAY_NAME
 from .platform_auth import (
     current_platform_username,
     platform_api_client,
@@ -44,7 +45,7 @@ def _tianji_playback_timing(metadata: dict) -> tuple[float, float | None]:
     """
     rate = metadata.get("requested_image_hz", 30)
     if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not math.isfinite(rate) or rate <= 0:
-        raise ValueError("Tianji 图像帧率无效，不能生成正确的回放时基")
+        raise ValueError("天机 Marvin M6 图像帧率无效，不能生成正确的回放时基")
     first, last = metadata.get("first_bundle_ts_ns"), metadata.get("last_bundle_ts_ns")
     duration = None
     if all(isinstance(t, int) and not isinstance(t, bool) for t in (first, last)) and last >= first:
@@ -480,15 +481,15 @@ class CollectionUploader:
                 or not metadata.get("actions_recorded")
                 or missing_extra_cameras
             ):
-                raise ValueError("天机回合未完整保存，拒绝上传")
+                raise ValueError("天机 Marvin M6回合未完整保存，拒绝上传")
             if any(
                 not (episode_dir / "record" / name).is_file()
                 or not (episode_dir / "record" / name).stat().st_size
                 for name in ("actions.jsonl", "bundles.jsonl")
             ):
-                raise ValueError("天机回合缺少动作或对齐记录，拒绝上传")
+                raise ValueError("天机 Marvin M6回合缺少动作或对齐记录，拒绝上传")
             if any("native" in Path(name).parts for name in local_relative_files):
-                raise ValueError("天机回合包含不应上传的 native 图像")
+                raise ValueError("天机 Marvin M6回合包含不应上传的 native 图像")
         presign = self.client.post(
             f"{self.api_url}/uploads/presign",
             extensions={"expected_platform_username": info.get("author")},
@@ -591,6 +592,7 @@ class CollectionUploader:
             extra.update(
                 {
                     "robot_type": "tianji",
+                    "robot_name": TIANJI_DISPLAY_NAME,
                     "fps": fps,
                     "cameras": camera_features,
                     "camera_mapping": metadata.get("camera_mapping"),
@@ -669,7 +671,9 @@ class CollectionUploader:
             "source": info["source"],
             "format": "gdk",
             "task": metadata.get("task") or "web-teleop",
-            "robot_id": metadata.get("robot_type") or "agibot_g2",
+            # The platform shows robot_id as its robot label. Keep extra.robot_type
+            # as the legacy identifier used for decoding and curve projections.
+            "robot_id": TIANJI_DISPLAY_NAME if metadata.get("robot_type") == "tianji" else metadata.get("robot_type") or "agibot_g2",
             "started_at": started_at,
             "ended_at": ended_at,
             "duration_s": duration_s,

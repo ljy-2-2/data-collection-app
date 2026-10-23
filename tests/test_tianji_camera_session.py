@@ -19,7 +19,7 @@ def ready():
     factory = Mock()
     factory.return_value.clock_sync.return_value = dict(clock, pc_midpoint_ns=1000)
     session = CameraSession(transport, clock, factory)
-    session.publish(StreamEvent(dict(type='start',boot_id='test-boot',observation_mode='teleop_observation',graceful_stop=True)))
+    session.publish(StreamEvent(dict(type='start',boot_id='test-boot',seconds=0,observation_mode='teleop_observation',graceful_stop=True)))
     for camera in ('usb-1','usb-2','usb-4'):
         session.publish(StreamEvent(dict(type='image',camera_id=camera),b'pre-A-frame'))
     session.publish(StreamEvent(dict(type='joints')))
@@ -65,8 +65,8 @@ def test_adoption_does_not_restart_cameras_and_preserves_real_end(ok):
 @pytest.mark.parametrize('problem',['camera','joints','boot','ended','duplicate'])
 def test_rejects_unready_or_already_owned_preview(problem):
     session, _, _ = ready()
-    if problem == 'camera':session.fresh['usb-2'] = time.monotonic()-3
-    if problem == 'joints':session.joint_time = time.monotonic()-1
+    if problem == 'camera':session.fresh.pop('usb-2')
+    if problem == 'joints':session.joint_time = None
     if problem == 'boot':session.clock['boot_id'] = 'other'
     if problem == 'ended':session.finish('Stream failed')
     if problem == 'duplicate':session.subscribe()
@@ -94,7 +94,7 @@ def test_missing_audited_end_never_becomes_success():
     adopted.close()
 
 
-def test_joint_gap_keeps_video_but_blocks_new_episode_until_fresh_feedback():
+def test_joint_timing_gap_keeps_video_and_allows_recording():
     session, transport, _ = ready()
     bad = StreamEvent(dict(type='health',ok=True,joint_feedback_ok=False,
                            joint_feedback_error='Joint sampler delayed over 100 ms'))
@@ -102,10 +102,6 @@ def test_joint_gap_keeps_video_but_blocks_new_episode_until_fresh_feedback():
     session.publish(StreamEvent(dict(type='image',camera_id='usb-2'),b'live'))
     assert session.frame_counts['usb-2'] == 2
     transport.request_stop.assert_not_called()
-    with pytest.raises(RuntimeError,match='关节反馈尚未恢复'): session.subscribe()
-    session.publish(StreamEvent(dict(type='health',ok=True,joint_feedback_ok=True)))
-    with pytest.raises(RuntimeError,match='关节反馈正常'): session.subscribe()
-    session.publish(StreamEvent(dict(type='joints')))
     adopted = session.subscribe()
     session.publish(bad)
     events = adopted.stream()
@@ -113,3 +109,49 @@ def test_joint_gap_keeps_video_but_blocks_new_episode_until_fresh_feedback():
     assert next(events) is bad  # Episode must receive the gap, even if recovery follows.
     session.finish('test cleanup')
     adopted.close()
+
+
+def test_actual_joint_fault_still_blocks_recording():
+    session, _, _ = ready()
+    session.publish(StreamEvent(dict(type='health', ok=True, joint_feedback_ok=False,
+                                    joint_feedback_error='Robot reports arm error')))
+    with pytest.raises(RuntimeError, match='关节反馈尚未恢复'):
+        session.subscribe()
+
+
+def test_old_received_frames_and_event_silence_do_not_end_recording(monkeypatch):
+    session, transport, _ = ready()
+    session.fresh = dict.fromkeys(session.fresh, time.monotonic()-3600)
+    session.joint_time = time.monotonic()-3600
+    adopted = session.subscribe()
+    stream = adopted.stream()
+    assert next(stream).metadata['type'] == 'start'
+    waits = []
+    image = StreamEvent(dict(type='image', camera_id='usb-1'), b'new-frame')
+    def wait(timeout):
+        waits.append(timeout)
+        if len(waits) == 5:
+            session.publish(image)
+        return False  # A timed-out condition wait is not a recording failure.
+    monkeypatch.setattr(adopted.changed, 'wait', wait)
+    assert next(stream) is image
+    assert len(waits) == 5 and adopted.error is None
+    transport.request_stop.assert_not_called()
+    adopted.request_stop()
+    session.publish(StreamEvent(dict(type='end', ok=True)))
+    session.finish()
+    assert next(stream).metadata['type'] == 'end'
+    adopted.close()
+
+
+@pytest.mark.parametrize('seconds', [600, 0])
+def test_adopted_unlimited_stream_keeps_true_start_metadata(seconds):
+    session, transport, _ = ready()
+    session.start.metadata['seconds'] = seconds
+    adopted = session.subscribe()
+    if seconds == 0:
+        assert next(adopted.stream(seconds=0)).metadata['seconds'] == 0
+    else:
+        with pytest.raises(ValueError, match='unlimited preview'):
+            next(adopted.stream(seconds=0))
+    transport.request_stop.assert_not_called()

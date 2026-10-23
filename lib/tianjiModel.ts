@@ -77,6 +77,7 @@ export function tianjiCameraMatrix(
   );
 }
 export interface TianjiModel {
+  root_link?: string;
   source: string;
   meshes: Record<string, { vertices: number[][]; faces: number[][] }>;
   links: {
@@ -105,7 +106,7 @@ export function linkTransforms(
   model: TianjiModel,
   angles: Record<string, number>,
 ): Record<string, Matrix> {
-  const result: Record<string, Matrix> = { stand: identity() };
+  const result: Record<string, Matrix> = { [model.root_link ?? "stand"]: identity() };
   let pending = [...model.joints];
   while (pending.length) {
     const next = pending.filter((j) => {
@@ -118,7 +119,7 @@ export function linkTransforms(
         result[j.parent],
         multiply(
           transform(j.xyz, j.rpy),
-          j.type === 'revolute' ? axisRotation(j.axis, a) : identity(),
+          (j.type === 'revolute' || j.type === 'continuous') ? axisRotation(j.axis, a) : identity(),
         ),
       );
       return false;

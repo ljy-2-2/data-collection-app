@@ -469,11 +469,16 @@ def test_completed_metadata_atomically_carries_collection_owner(record_manager, 
     assert not (tmp_path / 'meta.json.tmp').exists()
 
 
-def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager, tmp_record_dir):
+@pytest.mark.parametrize('compressed_raw', [False, True])
+def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager, tmp_record_dir, compressed_raw):
     folder = tmp_record_dir / 'task' / 'first'; folder.mkdir(parents=True)
     source = folder / 'source.mcap'; source.write_bytes(b'original camera and joint data')
     record_manager.is_recording = True
     record_manager.video_mp4_enabled = True
+    record_manager.compressed_mcap_enabled = compressed_raw
+    if compressed_raw:
+        (folder / '.compressed-raw.json').write_text(json.dumps({
+            'format': 'umi-mcap-h264-v1', 'state': 'complete', 'encoder': 'test', 'sha256': 'test-digest'}))
     record_manager.recent_record_dir = str(folder)
     record_manager.collection_author = 'first-author'
     record_manager.collection_destination = {'kind': 'local', 'api_url': 'http://127.0.0.1:8000', 'web_url': 'http://127.0.0.1:5173'}
@@ -489,8 +494,15 @@ def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager,
     with patch('subprocess.Popen', side_effect=AssertionError('Stop must not start encoder')):
         success, _ = record_manager.stop_recording()
     assert success and not record_manager.is_recording
+    if compressed_raw:
+        assert not (folder / '.mp4-pending.json').exists()
+        saved = json.loads((folder / 'meta.json').read_text())
+        assert saved['recording_format'] == 'umi-mcap-h264-v1' and saved['raw_sha256'] == 'test-digest'
+        assert source.exists()
+        record_manager.recording_completed_pub.publish.assert_called_once()
+        return
     pending = json.loads((folder / '.mp4-pending.json').read_text())
-    assert pending['author'] == 'first-author' and pending['_video_crf'] == 14
+    assert pending['author'] == 'first-author' and pending['_video_crf'] == 18
     assert pending['upload_destination'] == record_manager.collection_destination
     assert (folder / 'meta.json').exists() and source.exists()
     record_manager.recording_saved_pub.publish.assert_called_once()

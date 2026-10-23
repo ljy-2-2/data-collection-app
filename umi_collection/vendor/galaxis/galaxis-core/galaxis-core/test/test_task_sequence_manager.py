@@ -2306,3 +2306,45 @@ def test_hard_stop_in_every_recording_phase_preserves_round(manager, sample_task
     manager.cancel_recording_client.call_async.assert_not_called()
     manager._mock_backend.finish_episode.assert_called_once_with('ep-1')
     assert manager.status==TSS.COMFIRM_TASK
+
+
+def test_accept_after_interruption_does_not_stop_new_recorder(manager, sample_tasks):
+    """ACCEPT runs process_step before queued ROS recording=True can be handled."""
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.COMFIRM_TASK, sample_tasks)
+    manager._recovery_done = True
+    manager.is_recording = False
+    manager._recorder_stopped_at = 1.0  # previous round stopped long ago
+    manager.start_recording = MagicMock(return_value=(True, 'ready'))
+    manager.record_runner = MagicMock()
+    manager._set_episode_uuid = MagicMock()
+    manager._save_interrupted_round = MagicMock(return_value=True)
+    response = MagicMock()
+    manager.accept(MagicMock(), response)
+    assert response.success
+    assert manager.status == TSS.WAIT_SUBTASK
+    manager._save_interrupted_round.assert_not_called()
+    assert manager._recorder_stopped_at is None
+
+
+def test_actual_recorder_death_still_saves_current_round(manager, sample_tasks):
+    from types import SimpleNamespace
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.WAIT_SUBTASK, sample_tasks)
+    manager._recovery_done = True
+    manager.is_recording = True
+    manager._save_interrupted_round = MagicMock(return_value=True)
+    with patch('galaxis_core.task_sequence_manager.time.monotonic', return_value=10.):
+        manager.rosbag_status_callback(SimpleNamespace(data=False))
+    with patch('galaxis_core.task_sequence_manager.time.monotonic', return_value=12.1):
+        manager.process_step()
+    manager._save_interrupted_round.assert_called_once_with('recorder_stopped_unexpectedly')
+
+
+def test_idle_stop_notification_does_not_arm_next_round(manager, sample_tasks):
+    from types import SimpleNamespace
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.COMFIRM_TASK, sample_tasks)
+    manager.is_recording = True
+    manager.rosbag_status_callback(SimpleNamespace(data=False))
+    assert manager._recorder_stopped_at is None

@@ -4,6 +4,7 @@ import threading
 import time
 
 CAMERAS = {'usb_1', 'usb_2', 'usb_4'}
+CAMERA_LABELS = {'usb_1': '主相机', 'usb_2': '右相机', 'usb_4': '左相机'}
 
 
 class CameraSettings:
@@ -88,7 +89,7 @@ class CameraSettings:
 
     def request(self, key, *, mode_id=None, brightness=None):
         if key not in CAMERAS:
-            raise ValueError('未知天机相机')
+            raise ValueError('未知天机 Marvin M6相机')
         changing = mode_id is not None or brightness is not None
         with self.lock:
             cached = copy.deepcopy(self.cache.get(key))
@@ -96,98 +97,213 @@ class CameraSettings:
             if cached:
                 return cached
             raise RuntimeError('尚未收到当前相机流的设置快照，请等待视频连接；旧控制器服务需要升级')
+        changes = {}
+        if mode_id is not None:
+            changes['mode_id'] = mode_id
+        if brightness is not None:
+            changes['brightness'] = brightness
+        return self.apply({key: changes})[key]
+
+    def _validate(self, key, changes, settings=None):
+        if (key not in CAMERAS or not isinstance(changes, dict) or not changes
+                or set(changes) - {'mode_id', 'brightness'}):
+            raise ValueError('无效的相机设置')
+        if 'mode_id' in changes and (not isinstance(changes['mode_id'], str) or not changes['mode_id']):
+            raise ValueError('请选择支持的分辨率')
+        if 'brightness' in changes and type(changes['brightness']) is not int:
+            raise ValueError('亮度必须为整数')
+        if settings is None:
+            return
+        if 'mode_id' in changes:
+            resolution = settings['resolution']
+            if (not resolution.get('editable')
+                    or changes['mode_id'] not in [v['id'] for v in resolution['options']]):
+                raise ValueError('请选择支持的分辨率')
+        if 'brightness' in changes:
+            value, limits = changes['brightness'], settings['brightness']
+            if (not limits['supported'] or not limits['min'] <= value <= limits['max']
+                    or (value - limits['min']) % limits['step']):
+                raise ValueError('亮度超出支持范围或不符合步长')
+
+    @staticmethod
+    def _matches(settings, changes):
+        return (('mode_id' not in changes or settings['resolution']['selected']['id'] == changes['mode_id'])
+                and ('brightness' not in changes or settings['brightness'].get('value') == changes['brightness']))
+
+    def apply(self, changes):
+        """One confirmed dialog: stop once, write while idle, then verify once.
+
+        The controller accepts TLS connections serially. Even status queries
+        must wait for the existing stream's normal end and USB cooldown.
+        """
+        if not isinstance(changes, dict) or not changes or len(changes) > len(CAMERAS):
+            raise ValueError('请提供相机设置')
+        changes = copy.deepcopy(changes)
+        for key, fields in changes.items():
+            self._validate(key, fields)
         manager = self.manager
         with manager.command_lock:
-            # Only an explicit write may pause/reconfigure the camera.
+            self._idle()
             with self.lock:
                 generation = self.generation
-            self._idle()
-            if key not in manager.camera_inventory:
-                raise ValueError('相机未连接，请先检查设备')
-            previous = cached
+                cached = copy.deepcopy(self.cache)
+            for key, fields in changes.items():
+                if key not in manager.camera_inventory:
+                    raise ValueError('相机未连接，请先检查设备')
+                self._validate(key, fields, cached.get(key))
+            if manager.camera_phase == 'fault':
+                raise RuntimeError('相机预览存在故障，暂不能应用参数。请先检查设备并恢复真实画面：' + manager.camera_error)
+            pending = {key: fields for key, fields in changes.items()
+                       if key not in cached or not self._matches(cached[key], fields)}
+            if not pending:
+                return {key: cached[key] for key in changes}
             with self.lock:
                 self.busy = True
             manager.camera_preview_restarting = True
-            applied = False
+            attempted, previous = [], {}
+            paused, preview_started, resume = False, False, True
+            stage = '停止相机预览'
             try:
+                # __enter__ also sends a status RPC. Never construct/enter a
+                # controller connection here until pause_cameras has joined.
                 manager.pause_cameras()
+                paused = True
                 if self.generation != generation:
                     raise RuntimeError('相机设置操作已取消')
+                stage = '连接相机设置服务'
                 with manager.new_camera_client() as client:
-                    if client.status().get('camera_controls') is not True:
+                    status = client.status()
+                    if status.get('fault'):
+                        resume = False
+                        raise RuntimeError('控制器相机服务存在故障，请先检查设备：' + str(status['fault']))
+                    if status.get('camera_controls') is not True:
                         raise RuntimeError('控制器相机服务需要升级以支持分辨率和硬件亮度')
                     keys = list(manager.camera_inventory)
-                    for camera_key in keys:
-                        if changing and camera_key != key and camera_key in self.cache:
+                    # Read and validate every target before writing any target.
+                    for key in keys:
+                        if key not in pending and key in cached:
                             continue
-                        value = client.camera_settings(camera_key.replace('_', '-'))
-                        value = self._checked(camera_key, value)
+                        stage = CAMERA_LABELS[key] + '读取原参数'
+                        value = self._checked(key, client.camera_settings(key.replace('_', '-')))
                         with self.lock:
-                            self.cache[camera_key] = value
-                    if changing:
-                        previous = copy.deepcopy(self.cache[key])
-                        applied = True  # A lost reply can still follow a committed write.
-                        value = client.camera_settings(key.replace('_', '-'), mode_id=mode_id, brightness=brightness)
+                            self.cache[key] = value
+                        if key in pending:
+                            self._validate(key, pending[key], value)
+                            previous[key] = copy.deepcopy(value)
+                    for key, fields in pending.items():
+                        if self.generation != generation:
+                            raise RuntimeError('相机设置操作已取消')
+                        if self._matches(previous[key], fields):
+                            continue
+                        stage = CAMERA_LABELS[key] + '写入参数'
+                        attempted.append(key)  # A lost reply may follow a committed write.
+                        value = self._checked(key, client.camera_settings(key.replace('_', '-'), **fields))
+                        if not self._matches(value, fields):
+                            raise RuntimeError('硬件读回的参数与请求不一致')
                         with self.lock:
-                            self.cache[key] = self._checked(key, value)
+                            self.cache[key] = value
                 if self.generation != generation:
                     raise RuntimeError('相机设置操作已取消')
+                with self.lock:
+                    expected = {key: copy.deepcopy(self.cache[key]) for key in keys}
+                stage = '验证相机画面'
                 manager.camera_preview_restarting = False
                 manager.start_cameras()
-                self._verify_preview(generation)
+                preview_started = True
+                self._verify_preview(generation, expected)
                 with self.lock:
-                    for camera_key in keys:
-                        self.loaded_at[camera_key] = time.monotonic()
-                    return copy.deepcopy(self.cache[key])
+                    self.loaded_at.update({key: time.monotonic() for key in keys})
+                    return {key: copy.deepcopy(self.cache[key]) for key in changes}
             except Exception as error:
-                if applied and previous and self.generation == generation:
-                    # Restore the previous known settings if real negotiated
-                    # frames do not match. Unknown USB faults are never cleared.
+                detail = f'{stage}失败：{error}'
+                if attempted and self.generation == generation:
                     manager.camera_preview_restarting = True
+                    # Roll back the whole confirmed batch. No camera may be
+                    # left silently applied after a later camera fails.
                     try:
-                        manager.pause_cameras()
-                        with manager.new_camera_client() as client:
-                            value = client.camera_settings(key.replace('_', '-'),
-                                mode_id=previous['resolution']['selected']['id'],
-                                brightness=previous['brightness'].get('value') if previous['brightness'].get('supported') else None)
-                        with self.lock:
-                            self.cache[key] = self._checked(key, value)
+                        if preview_started:
+                            manager.pause_cameras()
+                            preview_started = False
+                        deferred = self._restore(attempted, previous, pending)
+                        if deferred:
+                            resume = False
+                            detail += '；已恢复原采集配置，硬件故障仍需排除后验证'
+                        else:
+                            detail += '；已回写本次修改前的参数'
                     except Exception as restore_error:
-                        try:
-                            with manager.new_camera_client() as client:
-                                restored = client.restore_camera_settings(key.replace('_', '-'))
-                            if restored.get('restored_configuration') is not True:
-                                raise RuntimeError('配置恢复未确认')
-                            with self.lock:
-                                self.cache[key] = previous
-                        except Exception:
-                            raise RuntimeError(f'{error}；原设置恢复失败：{restore_error}') from error
-                        raise RuntimeError(f'{error}；已恢复原采集配置，硬件故障仍需排除后验证') from error
-                raise
+                        resume = False
+                        detail += f'；原设置恢复失败：{restore_error}'
+                raise RuntimeError(detail) from error
             finally:
                 with self.lock:
                     self.busy = False
                 manager.camera_preview_restarting = False
-                if self.generation == generation:
+                if (paused and not preview_started and resume and manager.camera_phase != 'fault'
+                        and self.generation == generation):
                     manager.start_cameras()
 
-    def _verify_preview(self, generation):
+    def _restore(self, attempted, previous, changes):
+        deferred, errors = False, []
+        with self.manager.new_camera_client() as client:
+            fault = client.status().get('fault')
+            for key in reversed(attempted):
+                restored = False
+                # Restore the server's original preference BEFORE another SET.
+                # A SET replaces its rollback slot, even when its reply is lost.
+                # Restoring that slot afterwards could reapply the failed edit.
+                try:
+                    result = client.restore_camera_settings(key.replace('_', '-'))
+                    restored = result.get('restored_configuration') is True
+                except Exception:
+                    pass  # A healthy service can still read back an explicit rollback.
+                try:
+                    if fault:
+                        raise RuntimeError('相机服务故障尚未解除')
+                    # Brightness-only edits and rollback never change resolution.
+                    fields = {}
+                    if 'mode_id' in changes[key]:
+                        fields['mode_id'] = previous[key]['resolution']['selected']['id']
+                    if 'brightness' in changes[key]:
+                        fields['brightness'] = previous[key]['brightness']['value']
+                    value = self._checked(key, client.camera_settings(key.replace('_', '-'), **fields))
+                    if not self._matches(value, fields):
+                        raise RuntimeError('原参数读回不一致')
+                except Exception as restore_error:
+                    if restored:
+                        value = previous[key]
+                        deferred = True
+                    else:
+                        errors.append(f'{CAMERA_LABELS[key]}：{restore_error}；配置恢复未确认')
+                        continue
+                with self.lock:
+                    self.cache[key] = copy.deepcopy(value)
+        if errors:
+            raise RuntimeError('；'.join(errors))
+        return deferred
+
+    def _verify_preview(self, generation, expected):
         manager = self.manager
         deadline = time.monotonic() + 12
         while time.monotonic() < deadline:
             with self.lock:
                 if self.generation != generation:
                     raise RuntimeError('相机设置操作已取消')
-                expected = copy.deepcopy(self.cache)
+                observed = copy.deepcopy(self.cache)
             with manager.lock:
-                ready = bool(manager.camera_inventory) and all(
-                    key in manager.frames and key in expected and
+                ready = bool(expected) and all(
+                    key in manager.camera_inventory and key in manager.frames and
                     (manager.camera_frame_metadata.get(key, {}).get('width'),
                      manager.camera_frame_metadata.get(key, {}).get('height')) ==
                     (expected[key]['resolution']['selected']['width'], expected[key]['resolution']['selected']['height'])
-                    for key in manager.camera_inventory)
+                    for key in expected)
                 error = manager.camera_error
             if ready:
+                for key, value in expected.items():
+                    fields = {'mode_id': value['resolution']['selected']['id']}
+                    if value['brightness']['supported']:
+                        fields['brightness'] = value['brightness']['value']
+                    if key not in observed or not self._matches(observed[key], fields):
+                        raise RuntimeError(CAMERA_LABELS[key] + '取流读回的参数与请求不一致')
                 return
             if error and manager.camera_phase == 'fault':
                 raise RuntimeError('所选相机设置未能恢复真实画面：' + error)

@@ -40,6 +40,53 @@ def _import_merger():
 merger = _import_merger()
 
 
+@pytest.mark.parametrize('profile_name', ['dual', 'single-left', 'single-right'])
+@pytest.mark.parametrize('quality', [False, True])
+def test_unlimited_recording_preserves_board_gap_policy_and_content_faults(profile_name, quality):
+    import copy
+    data = merger.load_yaml(SINGLE_CONFIG)['recording_gate']
+    # Also migrate an older input that still contains the 120-second stop.
+    data['groups']['duration_limits'] = dict(default_type='topic_condition', conditions={
+        'subtask_limit':dict(topic='/task_sequence_manager/subtask_elapsed_sec',
+                             condition='msg.data < 120.0', escalation=2)})
+    sides = ['left', 'right'] if profile_name == 'dual' else [profile_name.split('-')[1]]
+    profile = copy.deepcopy(merger.PROFILE_DEFAULT)
+    profile.update(collection_profile=profile_name, active_arms=sides, active_cameras=sides+['center'])
+    if quality:
+        profile['cameras'] = {s:dict(image_width=1920, image_height=1080) for s in profile['active_cameras']}
+        profile['camera_quality'] = dict(version=2, min_rate_hz=27, rate_window_sec=5,
+            warn_frame_gap_sec=.5, stop_min_rate_hz=20, stop_low_rate_sec=10,
+            max_frame_gap_sec=3, warmup_sec=1)
+    result = merger.apply_collection_profile('recording_gate.yaml', data, profile)
+    assert 'duration_limits' not in result['groups']
+    # The collaborator's unlimited-episode change must not disable the board's
+    # separate 200 ms warning / 1 s save-and-stop policy.
+    groups = result['groups']
+    for side in sides:
+        health = groups['health']['conditions']
+        for suffix, timeout, level in [('warn', .2, 1), ('stop', 1., 2)]:
+            rule = health[f'{side}_gripper_joint_state_timeout_{suffix}']
+            assert rule['timeout_sec'] == timeout and rule['escalation'] == level
+            assert not rule.get('diagnostic_only', False)
+        tracked = groups['vr_tracking']['conditions'][f'{side}_valid_stop']
+        assert tracked['condition'] == 'msg.data' and tracked['escalation'] == 2
+        assert tracked['failure_hold_sec'] == 1. and not tracked.get('single_shot', False)
+    for side in ['hmd', *sides]:
+        samples = groups['sample_continuity']['conditions']
+        assert samples[f'{side}_source_samples_warn']['timeout_sec'] == .2
+        assert samples[f'{side}_source_samples_stop']['timeout_sec'] == 1.
+        assert samples[f'{side}_source_samples_stop']['escalation'] == 2
+    if quality:
+        for side in profile['active_cameras']:
+            conditions = groups['camera_quality']['conditions']
+            assert conditions[f'{side}_image_30fps']['timeout_sec'] == .2
+            stop = conditions[f'{side}_image_sustained_failure']
+            assert stop['timeout_sec'] == 1. and stop['escalation'] == 2
+            assert not stop.get('diagnostic_only', False)
+            size = conditions[f'{side}_image_size']
+            assert size['escalation'] == 2 and not size.get('single_shot', False)
+
+
 def _write_yaml(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as f:

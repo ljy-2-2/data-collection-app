@@ -121,6 +121,7 @@ class TaskSequenceManager(Node):
 
     def __setup_variables(self):
         self.is_recording = None
+        self._recorder_stopped_at = None
         self.start_time = None
         self.end_time = None
         self.task_start_time = None
@@ -443,9 +444,13 @@ class TaskSequenceManager(Node):
         self.new_tasks = json_data
 
     def rosbag_status_callback(self, msg: Bool):
-        if self.is_recording and not msg.data:
+        active = self.status in (
+            TaskSequenceState.RECORD_SUBTASK, TaskSequenceState.WAIT_SUBTASK,
+            TaskSequenceState.COMPLETE_TASK, TaskSequenceState.REWIND_SUBTASK,
+        )
+        if self.is_recording and not msg.data and active:
             self._recorder_stopped_at = time.monotonic()
-        if msg.data:
+        if msg.data or not active:
             self._recorder_stopped_at = None
         self.is_recording = msg.data
 
@@ -487,6 +492,7 @@ class TaskSequenceManager(Node):
         self.tasks = {}
         self.new_tasks = {}
         self.status = TaskSequenceState.COMFIRM_TASK
+        self._recorder_stopped_at = None
         return True
 
     def _publish_recording_block(self, reason: str, level: int = DiagnosticStatus.ERROR):
@@ -728,6 +734,10 @@ class TaskSequenceManager(Node):
         ok, reason = self.start_recording()
         if not ok:
             return False, f"Cannot start recording: {reason}"
+        # ACCEPT calls process_step inside the same mutually-exclusive callback
+        # as start_recording. The new recording=True subscription cannot run yet.
+        # Never carry the previous episode's stopped timestamp into this round.
+        self._recorder_stopped_at = None
         self.record_runner()
         self._set_episode_uuid(self.tasks["episodeId"])
         self.backend.start_episode(self.tasks["episodeId"])
@@ -901,6 +911,7 @@ class TaskSequenceManager(Node):
         self.tasks = {}
         self.new_tasks = {}
         self.status = TaskSequenceState.COMFIRM_TASK
+        self._recorder_stopped_at = None
         label = "saved" if save else "discarded"
         return True, f"Recording {label}, transitioned to CONFIRM_TASK"
 
@@ -1218,7 +1229,7 @@ class TaskSequenceManager(Node):
 
     def process_step(self):
         stopped_at = getattr(self, '_recorder_stopped_at', None)
-        if (stopped_at is not None and time.monotonic() - stopped_at > 2 and
+        if (not self.is_recording and stopped_at is not None and time.monotonic() - stopped_at > 2 and
                 self.status in (TaskSequenceState.RECORD_SUBTASK, TaskSequenceState.WAIT_SUBTASK,
                                 TaskSequenceState.COMPLETE_TASK, TaskSequenceState.REWIND_SUBTASK)):
             if self._save_interrupted_round('recorder_stopped_unexpectedly'):

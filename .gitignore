@@ -40,7 +40,9 @@ next-env.d.ts
 /.venv/
 /teleop_control/runtime/
 /.build-cache/
+/umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/native/
 /dist-packages/
+/backups/
 /hdf5-reports/
 
 # Local credentials and editor/agent state (keep configuration examples)
@@ -71,3 +73,4 @@ __pycache__/
 /teleop_control/vendor/tianji/teleop/logs/
 /artifacts/**/*.log
 /artifacts/**/*.pid
+/artifacts/

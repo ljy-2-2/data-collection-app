@@ -162,3 +162,45 @@ def test_interrupted_upload_retries_and_registered_conflict_is_idempotent(tmp_pa
         uploader.scan_once()
     assert len(attempts) == 2 and attempts[0] == attempts[1]
     assert (episode_dir / '.data-platform-uploaded.json').exists()
+
+
+@pytest.mark.parametrize('expiry', ['between_files', 'during_request'])
+def test_long_upload_renews_urls_without_resending_acknowledged_files(tmp_path, monkeypatch, expiry):
+    from teleop_control import umi_uploader
+    folder = tmp_path / 'rosbags/task/long-round'
+    folder.mkdir(parents=True)
+    (folder / 'meta.json').write_text('{}')
+    (folder / 'metadata.yaml').write_text('rosbag2_bagfile_information:\n  relative_file_paths: [round.mcap]\n')
+    (folder / 'round.mcap').write_bytes(b'\x89MCAP0\r\npayload\x89MCAP0\r\n')
+    now = [100.0]
+    monkeypatch.setattr(umi_uploader.time, 'monotonic', lambda: now[0])
+    signed, puts, registered = [], [], []
+
+    def handle(request):
+        if request.url.path == '/uploads/presign':
+            names = json.loads(request.content)['filenames']
+            signed.append(names)
+            return httpx.Response(200, json={'urls': [dict(filename=n, key='raw/'+n,
+                put_url=f'https://store.test/{n}?generation={len(signed)}', expires_in=3600) for n in names]})
+        if request.url.host == 'store.test':
+            name = request.url.path[1:]
+            puts.append(name)
+            if name == 'round.mcap' and expiry == 'between_files':
+                now[0] += 4000  # the first large file took over an hour
+            if name == 'metadata.yaml' and expiry == 'during_request' and puts.count(name) == 1:
+                return httpx.Response(403, text='<Error><Code>AccessDenied</Code><Message>Request has expired</Message></Error>')
+            return httpx.Response(200)
+        if request.url.path == '/episodes':
+            registered.append(json.loads(request.content))
+        return httpx.Response(200, json={})
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        uploader = UmiRosbagUploader(tmp_path, 'https://platform.test', client=client)
+        monkeypatch.setattr(uploader._stop, 'wait', lambda seconds: False)
+        uploader.scan_once()
+    assert (folder / '.data-platform-uploaded.json').exists()
+    assert len(registered) == 1
+    assert puts.count('round.mcap') == 1
+    assert puts.count('metadata.yaml') == (2 if expiry == 'during_request' else 1)
+    assert ['metadata.yaml'] in signed[1:]
+    assert all('round.mcap' not in names for names in signed[1:])

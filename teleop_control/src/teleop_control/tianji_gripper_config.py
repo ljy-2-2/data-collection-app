@@ -106,10 +106,10 @@ def gripper_config_fingerprint() -> str:
 def stored_parameters(payload: dict) -> dict:
     """Keep explicit settings only while they refer to this gripper setup."""
     if not isinstance(payload, dict):
-        raise ValueError('天机参数必须为 JSON 对象')
+        raise ValueError('天机 Marvin M6参数必须为 JSON 对象')
     if 'parameters' in payload:
         if not isinstance(payload['parameters'], dict):
-            raise ValueError('天机 parameters 必须为 JSON 对象')
+            raise ValueError('天机 Marvin M6 parameters 必须为 JSON 对象')
         values = dict(payload['parameters'])
         current = payload.get('gripper_config_sha256') == gripper_config_fingerprint()
     else:

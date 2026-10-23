@@ -29,10 +29,10 @@ def percentiles(values):
     if not a: return None
     return {k:a[round((len(a)-1)*q)] for k,q in [('p50',.5),('p95',.95),('p99',.99),('max',1)]}
 
-def stats(rows):
-    ts = [r['timestamp_ns'] for r in rows]
+def stats(rows, timestamp_key='timestamp_ns'):
+    ts = [r[timestamp_key] for r in rows]
     return {'count':len(ts), 'span_s':(ts[-1]-ts[0])/1e9 if len(ts)>1 else 0,
-            'actual_hz':(len(ts)-1)*1e9/(ts[-1]-ts[0]) if len(ts)>1 else None,
+            'actual_hz':(len(ts)-1)*1e9/(ts[-1]-ts[0]) if len(ts)>1 and ts[-1]!=ts[0] else None,
             'interval_ms':percentiles([(b-a)/1e6 for a,b in zip(ts,ts[1:])])}
 
 def encode_image(directory, event, index):
@@ -60,18 +60,18 @@ def tensors(joint):
             'state__joint__velocity':[math.radians(v) for v in joint['velocity_deg_s']],
             'state__joint__effort':joint['torque_nm']}
 
-def match_bundles(joints, cameras, tolerance_ns=25_000_000):
+def match_bundles(joints, cameras, tolerance_ns=25_000_000, *, output=None):
     """Match camera triplets, then the joint nearest their timestamp midpoint.
 
     Unmatched original camera frames and all joint samples remain in the episode.
     A skipped matching row is not represented as a successful synchronized sample.
     """
-    if not joints or any(not rows for rows in cameras.values()): return []
+    bundles = [] if output is None else output
+    if not joints or any(not rows for rows in cameras.values()): return bundles
     names=list(cameras)
     timestamps={k:[r['timestamp_ns'] for r in rows] for k,rows in cameras.items()}
     joint_times=[j['timestamp_ns'] for j in joints]
     cursor={k:0 for k in names}
-    bundles=[]
     while all(cursor[k]<len(timestamps[k]) for k in names):
         cam_ts={k:timestamps[k][cursor[k]] for k in names}
         low,high=min(cam_ts.values()),max(cam_ts.values())

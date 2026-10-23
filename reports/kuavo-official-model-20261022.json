@@ -1,0 +1,39 @@
+{
+  "task": "Official KUAVO v63 shell model in desktop and web posture views",
+  "date": "2026-10-22",
+  "source": "https://github.com/LejuRobotics/kuavo-ros-opensource",
+  "commit": "ba5ae219d86076c587e5973c44f5f645ca874a95",
+  "mesh_count": 29,
+  "display_bytes": 3529522,
+  "control_urdf_changed": false,
+  "hardware_actions": [],
+  "checks": {
+    "typescript": "passed",
+    "diff_check": "passed",
+    "kuavo_and_camera_checks": "26 passed",
+    "model_and_rendering_checks": "11 passed",
+    "native_opengl": "reference pose, measured left-arm fixture and orbit screenshots verified; 29 parts; no runtime QML warnings"
+  },
+  "known_unrelated_failure": {
+    "test": "tests/test_window_chrome.py::WindowChromeTests::test_native_controls_have_no_duplicate_header_and_preserve_safe_close",
+    "case": "G2 / width 360",
+    "assertion": "robot card height equals camera card height",
+    "observed": [
+      340,
+      807
+    ],
+    "before_model_view_change": [
+      340,
+      807
+    ]
+  },
+  "limitations": [
+    "Only arm telemetry is currently supplied by the session; body/head remain reference zero",
+    "Current Damiao gripper calibration and open/close animation are not supplied by this official shell model"
+  ],
+  "screenshots": [
+    "/tmp/kuavo-model-reference.png",
+    "/tmp/kuavo-model-feedback.png",
+    "/tmp/kuavo-model-orbit.png"
+  ]
+}

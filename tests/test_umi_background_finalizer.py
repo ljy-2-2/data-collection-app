@@ -211,3 +211,93 @@ def test_monitoring_reserves_fast_cpus_then_restores_idle_processing(tmp_path, m
         worker._schedule_processing()
     worker._schedule_processing()
     assert masks == [(0, {0, 1}), (0, {0, 1, 2, 3})]
+
+
+def test_active_large_conversion_has_no_total_duration_deadline(tmp_path, monkeypatch):
+    from galaxis_core import mp4_worker
+    worker=BackgroundFinalizer(tmp_path)
+    now=[10.]
+    activity=[('writer',1)]
+    monkeypatch.setattr(mp4_worker.time,'monotonic',lambda:now[0])
+    monkeypatch.setattr(worker,'_processing_activity',lambda:tuple(activity))
+    worker.deadline=1.
+    worker._refresh_processing_deadline()
+    assert worker.deadline==910.
+    # Even after days, an advancing job is not stopped by its total runtime.
+    now[0]=200000.;activity[0]=('writer',2)
+    worker._refresh_processing_deadline()
+    assert worker.deadline==200900.
+    now[0]=200901.
+    worker._refresh_processing_deadline()
+    assert worker.deadline<now[0]  # a truly idle process still has a watchdog
+
+
+def test_board_without_proc_io_still_observes_real_cpu_work(tmp_path, monkeypatch):
+    import subprocess
+    worker = BackgroundFinalizer(tmp_path)
+    worker.process = subprocess.Popen(
+        [sys.executable, '-c', 'while True: pass'], start_new_session=True)
+    original = Path.read_text
+
+    def without_io(path, *args, **kwargs):
+        if path.parent.parent == Path('/proc') and path.name == 'io':
+            raise FileNotFoundError(str(path))
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'read_text', without_io)
+    try:
+        first = worker._processing_activity()
+        assert first and first[0][0] == worker.process.pid
+        wait_until(lambda: worker._processing_activity() != first)
+        worker.deadline = 0
+        worker._refresh_processing_deadline()
+        assert worker.deadline > time.monotonic()
+    finally:
+        worker._stop_conversion()
+
+
+def test_missing_process_telemetry_does_not_kill_a_job(tmp_path, monkeypatch):
+    worker = BackgroundFinalizer(tmp_path)
+    monkeypatch.setattr(worker, '_processing_activity', lambda: ())
+    worker.deadline = 0
+    worker._refresh_processing_deadline()
+    assert worker.deadline > time.monotonic()
+
+
+@pytest.mark.parametrize('destination', [
+    dict(kind='local', api_url='http://127.0.0.1:8000'),
+    dict(kind='local', api_url='http://localhost:8000'),
+    dict(kind='local', api_url='http://[::1]:8000'),
+    dict(kind='cloud', api_url='https://cloud.test'),
+])
+def test_successful_recordings_use_compact_bundle_for_every_destination(tmp_path, destination):
+    from galaxis_core import video_bundle
+    folder, source = job(tmp_path)
+    meta = json.loads((folder / '.mp4-pending.json').read_text())
+    meta.pop('_video_crf')
+    meta.update(upload_destination=destination,
+                episode=dict(start_time=100, end_time=100.134, success=True))
+    atomic_json(folder / '.mp4-pending.json', meta)
+    finalize_episode(folder)
+    saved = json.loads((folder / 'meta.json').read_text())
+    assert saved['episode'] == meta['episode'] and saved['author'] == meta['author']
+    assert saved['upload_destination'] == destination
+    assert saved['recording_format'] == 'umi-mp4-v1'
+    assert saved['files'] == [{'type': 'mcap', 'name': 'media/signals.mcap'}]
+    manifest = video_bundle.validate_bundle(folder / 'media')
+    assert manifest['crf'] == 18
+    assert all(c['frame_count'] == 5 and c['size'] == [64, 48] for c in manifest['cameras'])
+    assert not (folder / '.mp4-pending.json').exists()
+    assert not UmiRosbagUploader._processing(folder)
+    assert not source.exists() and not (folder / 'metadata.yaml').exists()
+    assert (folder / 'media/metadata.yaml').exists()
+
+
+def test_local_destination_still_rejects_gaps_and_preserves_original(tmp_path):
+    folder = tmp_path / 'bad'
+    source = recording(folder, offsets=(0, 33_000_000, 1_300_000_000))
+    meta = dict(upload_destination=dict(kind='local', api_url='http://127.0.0.1:8000'))
+    atomic_json(folder / '.mp4-pending.json', meta)
+    with pytest.raises(ValueError, match='连续性'):
+        finalize_episode(folder)
+    assert source.exists() and (folder / '.mp4-pending.json').exists()

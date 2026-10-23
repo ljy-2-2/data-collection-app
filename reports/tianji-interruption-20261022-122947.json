@@ -1,0 +1,304 @@
+{
+  "episode": "20261022_121809_fusion_bc5c9ca1",
+  "finding": "正常反馈帧号回绕到零，被 Robot.read 的 serial == 0 条件误判为 UDP 反馈异常，遥操作进入 error 后采集随之停止。",
+  "evidence_limit": "原始 worker error 字符串没有持久化，后续 stop 已清除界面错误；结论依据故障边界记录、厂家 SDK 取模说明及当前源码离线复现。",
+  "episode_start_pc_local": "2026-10-22T12:18:09.516269",
+  "first_error_pc_local": "2026-10-22T12:29:47.149471",
+  "recorded_camera_span_s": 697.619999472,
+  "stop_reason": "feedback_not_ready",
+  "transition": [
+    {
+      "sequence": 70123,
+      "pc_unix_ns": 1792643386661244595,
+      "pc_monotonic_ns": 682074028527446,
+      "teleop_state": "running",
+      "vr_connected": true,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 999980,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 1,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 999980,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 1,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    },
+    {
+      "sequence": 70124,
+      "pc_unix_ns": 1792643386669379777,
+      "pc_monotonic_ns": 682074036662633,
+      "teleop_state": "running",
+      "vr_connected": true,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 999990,
+          "unchanged_s": 0.0002,
+          "state": {
+            "cur_state": 1,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 999990,
+          "unchanged_s": 0.0002,
+          "state": {
+            "cur_state": 1,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    },
+    {
+      "sequence": 70125,
+      "pc_unix_ns": 1792643387149470634,
+      "pc_monotonic_ns": 682074516753106,
+      "teleop_state": "error",
+      "vr_connected": false,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 0,
+          "unchanged_s": 0.0103,
+          "state": {
+            "cur_state": 1,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 0,
+          "unchanged_s": 0.0103,
+          "state": {
+            "cur_state": 1,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    },
+    {
+      "sequence": 70126,
+      "pc_unix_ns": 1792643387149793229,
+      "pc_monotonic_ns": 682074517076019,
+      "teleop_state": "error",
+      "vr_connected": true,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 475,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 475,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    },
+    {
+      "sequence": 70127,
+      "pc_unix_ns": 1792643387159943654,
+      "pc_monotonic_ns": 682074527226127,
+      "teleop_state": "error",
+      "vr_connected": true,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 484,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 484,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    },
+    {
+      "sequence": 70128,
+      "pc_unix_ns": 1792643387170172966,
+      "pc_monotonic_ns": 682074537455784,
+      "teleop_state": "error",
+      "vr_connected": true,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 495,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 495,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    },
+    {
+      "sequence": 70129,
+      "pc_unix_ns": 1792643387180229575,
+      "pc_monotonic_ns": 682074547512389,
+      "teleop_state": "error",
+      "vr_connected": true,
+      "buttons": {
+        "A": false,
+        "B": false,
+        "X": false,
+        "Y": false
+      },
+      "joint_feedback": {
+        "left": {
+          "channel": "A",
+          "frame": 505,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        },
+        "right": {
+          "channel": "B",
+          "frame": 505,
+          "unchanged_s": 0.0,
+          "state": {
+            "cur_state": 0,
+            "cmd_state": -1,
+            "err_code": 0
+          }
+        }
+      }
+    }
+  ],
+  "camera_end": {
+    "ok": true,
+    "stop_reason": "client_stop",
+    "native_exit": 0,
+    "error": null,
+    "native_failure_reason": "",
+    "native_cleanup_timed_out": false,
+    "camera_queue_overflow": {}
+  },
+  "offline_replay": [
+    {
+      "frame": 999990,
+      "result": "accepted"
+    },
+    {
+      "frame": 0,
+      "result": "rejected",
+      "error": "left: robot UDP feedback not advancing; SDK缓存观测={'left': {'channel': 'A', 'frame': 0, 'unchanged_s': 0.01, 'state': {'cur_state': 1, 'cmd_state': -1, 'err_code': 0}}, 'right': {'channel': 'B', 'frame': 0, 'unchanged_s': 0.01, 'state': {'cur_state': 1, 'cmd_state': -1, 'err_code': 0}}}"
+    },
+    {
+      "frame": 10,
+      "result": "accepted"
+    }
+  ],
+  "source_locations": [
+    "teleop_control/vendor/tianji/teleop/marvin_teleop/robot.py:158",
+    "teleop_control/vendor/tianji/SDK_PYTHON/fx_robot.py:2970"
+  ],
+  "source_changed": false,
+  "hardware_commands_sent": false,
+  "services_restarted": false,
+  "recordings_modified": false,
+  "fix": {
+    "implemented": true,
+    "behavior": "每侧首次非零反馈建立有效缓存；之后帧号变化（含回绕到零）更新新鲜度。重复帧仍受原 robot_timeout_s 限制。保留现有非零模式确认条件、控制器状态及错误检查。",
+    "validation": {
+      "unique_tests_passed": 34,
+      "files": [
+        "tests/test_tianji_position_mode.py",
+        "tests/test_tianji_stop_recovery.py",
+        "tests/test_tianji_zero_recovery.py"
+      ],
+      "pre_fix_regressions_reproduced": 3,
+      "hardware_used": false
+    },
+    "running_app_reloaded": false,
+    "controller_service_changed": false
+  }
+}

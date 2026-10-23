@@ -230,3 +230,41 @@ def test_background_camera_reconnect_allows_armed_teleop_without_recording(manag
     m.check_camera_recovery(allow_teleop=True)
     c.status.assert_called_once()
     c.recover_camera.assert_not_called()
+
+
+@pytest.mark.parametrize('refused', [False, True])
+def test_check_button_explicitly_recovers_pipe_fault_and_only_then_starts_preview(manager, monkeypatch, refused):
+    m, client = manager
+    client.status.side_effect = [dict(idle=True, fault='Frame pipe closed or blocked for 1 second; stop',
+        stream_transport_recovery=True, camera_hotplug_recovery=True,
+        recoverable_camera_fault=True, camera_recovery_requires_manual=True), dict(idle=True, fault=None)]
+    if refused:
+        client.recover_camera.side_effect = RuntimeError('Camera busy')
+    def reply(message):
+        assert message['action'] == 'check'
+        event, box = m.pending[message['id']]
+        box['ok'] = True
+        event.set()
+    monkeypatch.setattr(m, '_write', reply)
+    monkeypatch.setattr(m, 'active', lambda: True)
+    monkeypatch.setattr(m, 'start_cameras', Mock())
+    try:
+        assert m.command('check')['ok']
+        m.camera_check_thread.join(timeout=2)
+        assert not m.camera_check_thread.is_alive()
+        client.recover_camera.assert_called_once_with(manual=True)
+        if refused:
+            m.start_cameras.assert_not_called()
+            assert m.camera_phase == 'fault' and m.camera_error == 'Camera busy'
+        else:
+            m.start_cameras.assert_called_once_with()
+    finally:
+        monkeypatch.setattr(m, 'active', lambda: False)
+
+
+def test_old_controller_pipe_fault_explains_required_update(manager):
+    m, client = manager
+    client.status.return_value.update(fault='Frame pipe closed or blocked for 1 second; stop')
+    with pytest.raises(RuntimeError, match='相机服务需要更新'):
+        m.check_camera_recovery()
+    client.recover_camera.assert_not_called()

@@ -105,8 +105,23 @@ def manual_plan(models, measured, request, config):
     else:
         raise ValueError("无效的机械臂动作")
     from marvin_teleop.point_to_point import pose_plan
+    # Saved poses use a faster smooth trajectory; zero recovery has its own
+    # unchanged state machine, and joint jogging keeps the existing limits.
     return pose_plan(models, measured, goal, selected, config,
-                     acceleration=5.0 if request.kind == "zero" else 4.0)
+                     acceleration=20.0 if request.kind == "pose" else 5.0 if request.kind == "zero" else 4.0,
+                     speed_limit=20.0 if request.kind == "pose" else 10.0)
+
+
+def loop_fault(error, *, robot, ctrl, motion, recovery, grippers, halt):
+    """Idle observation failures must not become a fictitious control session."""
+    detail = str(error)
+    had_control = bool(ctrl or motion or recovery or grippers or (robot and robot.enabled))
+    if had_control:
+        try:
+            halt()
+        except Exception as stop_error:
+            detail += "; 停止失败：" + str(stop_error)
+    return ('error' if had_control else 'idle'), detail
 
 
 def main():
@@ -117,7 +132,7 @@ def main():
         fcntl.flock(lease_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as exc:
         lease_file.close()
-        raise RuntimeError("已有天机控制进程占用设备，请先停止原连接") from exc
+        raise RuntimeError("已有天机 Marvin M6控制进程占用设备，请先停止原连接") from exc
     commands = queue.Queue()
     quitting = threading.Event()
 
@@ -306,7 +321,7 @@ def main():
                             halt()
                             quitting.set()
                         else:
-                            raise ValueError("不支持的天机控制指令")
+                            raise ValueError("不支持的天机 Marvin M6控制指令")
                         emit({"reply": cmd.get("id"), "ok": True, "state": state})
                     except Exception as exc:
                         if action in ("stop", "close"):
@@ -328,7 +343,7 @@ def main():
                     if recovery.done:
                         halt()
                         error = ""
-                elif robot:
+                elif robot and robot_ready:
                     measured = robot.read()
                     robot_ready = True
                 if ctrl:
@@ -406,13 +421,11 @@ def main():
                             elif motion["elapsed"] > motion["duration"] + 3:
                                 raise RuntimeError("未按时到达目标姿态")
             except Exception as exc:
-                error = str(exc)
                 robot_ready = False
-                try:
-                    halt()
-                except Exception as stop_error:
-                    error += "; 停止失败：" + str(stop_error)
-                state = "error"
+                # An idle feedback/check failure is a connection fault, not a
+                # running control session. Wait for the operator's next check.
+                state,error = loop_fault(exc,robot=robot,ctrl=ctrl,motion=motion,
+                    recovery=recovery,grippers=grippers,halt=halt)
             last_tick = now
             # Snapshot real feedback on the existing control loop. Encoding and
             # IPC run on separate bounded queues, never on the motion thread.

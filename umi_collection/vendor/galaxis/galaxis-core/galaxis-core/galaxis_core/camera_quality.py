@@ -81,24 +81,15 @@ class CameraCadence:
 
 
 def recording_timing_result(arrival_ns, source_ns, limits):
-    """Replay the live sustained-failure policy; mild jitter is a warning."""
+    """Preserve timing issues as warnings; malformed chronology still fails."""
     if len(arrival_ns) < 2 or len(arrival_ns) != len(source_ns):
         return '图像时间记录不完整', []
     arrival = [(t-arrival_ns[0])/1e9 for t in arrival_ns]
     source = [(t-source_ns[0])/1e9 for t in source_ns]
-    maximum = limits['max_frame_gap_sec']
-    for values in (arrival, source):
-        hard = timing_failure(values, min_rate=0, max_gap=maximum)
-        if hard:
-            return hard, []
-    guard = CameraCadence(limits['stop_min_rate_hz'], maximum,
-                          limits['rate_window_sec'], limits['stop_low_rate_sec'])
-    for at, stamp in zip(arrival, source_ns):
-        guard.push(at, stamp)
-        issue = guard.failure(at)
-        if issue and not issue.startswith('正在验证') and len(guard.samples) >= 2:
-            return issue, []
     warnings = []
+    for values in (arrival, source):
+        if any(b <= a for a, b in zip(values, values[1:])):
+            return '图像时间戳重复或倒退', []
     for label, values in [('采样',source),('入包',arrival)]:
         issue = timing_failure(values, min_rate=limits['min_rate_hz'],
                                max_gap=limits['warn_frame_gap_sec'], window=limits['rate_window_sec'])

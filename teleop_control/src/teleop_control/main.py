@@ -410,7 +410,10 @@ def main() -> None:
         )
     finally:
         try:
-            app.state.tianji_manager.close()
+            try:
+                app.state.kuavo_manager.close()
+            finally:
+                app.state.tianji_manager.close()
         finally:
             gate.stop()
             for uploader in uploaders:

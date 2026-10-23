@@ -155,6 +155,46 @@ def complete_messages(path, issues):
                 break
 
 
+def check_recorded_sample(topic, encoding, data, log_time, previous_signals, signal_gaps, issues):
+    """The same source continuity rule for live recording and file recovery."""
+    # Match the platform's UMI check_series(..., gap=.1). Use recorded
+    # source stamps, not callback arrival time. Never bridge a real
+    # missing action interval when publishing the recovered prefix.
+    if (topic == '/joint_states' or
+            topic.startswith('/pico/') and topic.endswith('/state') or
+            topic.endswith(('/image_raw/compressed', '/image_raw')) or
+            topic.startswith('/galaxis/gripper/') and topic.endswith('/joint_state')):
+        if encoding == 'cdr' and len(data) >= 12 and data[:2] in (b'\x00\x01', b'\x00\x00'):
+            sec, nano = struct.unpack_from(('<' if data[1] else '>')+'iI', data, 4)
+            stamp = sec*1_000_000_000+nano
+            previous = previous_signals.get(topic)
+            if previous and (stamp <= previous[0] or stamp-previous[0] > 100_000_000):
+                signal_gaps.append(dict(topic=topic, gap_ns=stamp-previous[0],
+                                        valid_until_log_ns=previous[1], resume_log_ns=log_time + (stamp <= previous[0])))
+            if topic.startswith('/pico/controller/'):
+                # ROS2 CDR: Header, device/PC clocks, sequence, device id,
+                # xyz+xyzw, tracked, valid (same contract as UMI screening).
+                endian = '<' if data[1] else '>'
+                try:
+                    pos = 16 + struct.unpack_from(endian+'I', data, 12)[0]
+                    pos += (-(pos-4)) % 8
+                    pos += 20
+                    pos += (-(pos-4)) % 4
+                    pos += 4 + struct.unpack_from(endian+'I', data, pos)[0]
+                    pos += (-(pos-4)) % 8
+                    pos += 56
+                    if not data[pos] or not data[pos+1]:
+                        signal_gaps.append(dict(topic=topic, invalid_tracking=True,
+                                                valid_until_log_ns=previous[1] if previous else log_time-1,
+                                                resume_log_ns=log_time+1))
+                except (IndexError, struct.error):
+                    issues.append(f'{topic}: malformed controller payload')
+                    signal_gaps.append(dict(topic=topic, malformed=True,
+                                            valid_until_log_ns=previous[1] if previous else log_time-1,
+                                                resume_log_ns=log_time+1))
+            previous_signals[topic] = (stamp, log_time)
+
+
 def inspect_recorded_continuity(sources):
     """Audit source Header timestamps before resampling or deleting raw data.
 
@@ -167,43 +207,8 @@ def inspect_recorded_continuity(sources):
         for _, channel, message in complete_messages(source, issues):
             first[channel.topic] = min(first.get(channel.topic, message.log_time), message.log_time)
             last[channel.topic] = max(last.get(channel.topic, message.log_time), message.log_time)
-            # Match the platform's UMI check_series(..., gap=.1). Use recorded
-            # source stamps, not callback arrival time. Never bridge a real
-            # missing action interval when publishing the recovered prefix.
-            if (channel.topic == '/joint_states' or
-                    channel.topic.startswith('/pico/') and channel.topic.endswith('/state') or
-                    channel.topic.endswith(('/image_raw/compressed', '/image_raw')) or
-                    channel.topic.startswith('/galaxis/gripper/') and channel.topic.endswith('/joint_state')):
-                data = message.data
-                if channel.message_encoding == 'cdr' and len(data) >= 12 and data[:2] in (b'\x00\x01', b'\x00\x00'):
-                    sec, nano = struct.unpack_from(('<' if data[1] else '>')+'iI', data, 4)
-                    stamp = sec*1_000_000_000+nano
-                    previous = previous_signals.get(channel.topic)
-                    if previous and (stamp <= previous[0] or stamp-previous[0] > 100_000_000):
-                        signal_gaps.append(dict(topic=channel.topic, gap_ns=stamp-previous[0],
-                                                valid_until_log_ns=previous[1], resume_log_ns=message.log_time + (stamp <= previous[0])))
-                    if channel.topic.startswith('/pico/controller/'):
-                        # ROS2 CDR: Header, device/PC clocks, sequence, device id,
-                        # xyz+xyzw, tracked, valid (same contract as UMI screening).
-                        endian = '<' if data[1] else '>'
-                        try:
-                            pos = 16 + struct.unpack_from(endian+'I', data, 12)[0]
-                            pos += (-(pos-4)) % 8
-                            pos += 20
-                            pos += (-(pos-4)) % 4
-                            pos += 4 + struct.unpack_from(endian+'I', data, pos)[0]
-                            pos += (-(pos-4)) % 8
-                            pos += 56
-                            if not data[pos] or not data[pos+1]:
-                                signal_gaps.append(dict(topic=channel.topic, invalid_tracking=True,
-                                                        valid_until_log_ns=previous[1] if previous else message.log_time-1,
-                                                        resume_log_ns=message.log_time+1))
-                        except (IndexError, struct.error):
-                            issues.append(f'{channel.topic}: malformed controller payload')
-                            signal_gaps.append(dict(topic=channel.topic, malformed=True,
-                                                    valid_until_log_ns=previous[1] if previous else message.log_time-1,
-                                                        resume_log_ns=message.log_time+1))
-                    previous_signals[channel.topic] = (stamp, message.log_time)
+            check_recorded_sample(channel.topic, channel.message_encoding, message.data,
+                                  message.log_time, previous_signals, signal_gaps, issues)
     return first, last, issues, signal_gaps
 
 
@@ -229,7 +234,8 @@ def recover_episode(journal):
     # The finalizer owns the capture/video locks before invoking recovery.
     # This marker also prevents an uploader from racing a retried publication.
     (folder/'.recovery-pending').touch()
-    sources = sorted(p for p in folder.glob('*.mcap') if p.name != 'recovered.mcap')
+    sources = sorted(p for p in [*folder.glob('*.mcap'), *folder.glob('*.mcap.partial')]
+                     if p.name != 'recovered.mcap')
     first, last, issues, signal_gaps = inspect_recorded_continuity(sources)
     if not last:
         raise ValueError('No complete recorded messages could be recovered; originals retained')
@@ -313,6 +319,17 @@ def publish_recovered_interval(folder, sources, value, interruption, missing,
     from mcap.writer import Writer
     from .ownership import normalize_tree_access, resolve_record_owner
     old_episode = value['metadata'].get('episode') or {}
+    # Interframe video must begin at a keyframe. Include decoder preroll from
+    # the last keyframe preceding the usable interval, while keeping sensor
+    # samples and episode start at the actual valid boundary. Never publish a
+    # fragment whose first image depends on a discarded earlier frame.
+    from .mcap_video import VIDEO_TYPE, FORMAT, split_video, nal_types
+    video_starts = {}
+    for source in sources:
+        for schema, channel, message in complete_messages(source, []):
+            if schema and schema.name == VIDEO_TYPE and message.log_time <= start_ns:
+                if 5 in nal_types(split_video(message.data)[1]):
+                    video_starts[channel.topic] = max(video_starts.get(channel.topic, 0), message.log_time)
     counts, channels_info = {}, {}
     bag_first, bag_last = end_ns, start_ns
     with tempfile.TemporaryDirectory(prefix='.capture-repair-', dir=folder) as temporary:
@@ -323,8 +340,13 @@ def publish_recovered_interval(folder, sources, value, interruption, missing,
                 schema_ids, channel_ids = {}, {}
                 for schema, channel, message in complete_messages(source, []):
                     latched = channel.topic in ('/tf_static', '/device_ids', '/collection_profile') or channel.topic.endswith(('/encoder_offset', '/id'))
-                    if message.log_time > end_ns or message.log_time < start_ns and not latched:
+                    is_video = schema and schema.name == VIDEO_TYPE
+                    lower = video_starts.get(channel.topic, start_ns) if is_video else start_ns
+                    if message.log_time > end_ns or message.log_time < lower and not latched:
                         continue
+                    if is_video and channel.topic not in counts:
+                        from .mcap_video import validate_packet
+                        validate_packet(split_video(message.data)[1], first=True)
                     if channel.id not in channel_ids:
                         if schema and schema.id not in schema_ids:
                             schema_ids[schema.id] = writer.register_schema(schema.name, schema.encoding, schema.data)
@@ -358,7 +380,7 @@ def publish_recovered_interval(folder, sources, value, interruption, missing,
     if part['part_count'] > 1:
         metadata['uuid'] = str(uuid.uuid5(uuid.NAMESPACE_URL, str(value['metadata'].get('uuid', '')) + ':' + str(folder)))
     metadata['files'] = [dict(type='mcap', name='recovered.mcap')]
-    metadata['recording_format'] = 'rosbag2-mcap'
+    metadata['recording_format'] = (FORMAT if any(c['type'] == VIDEO_TYPE for c in channels_info.values()) else 'rosbag2-mcap')
     metadata['interruption'] = report
     metadata['episode'] = dict(old_episode, start_time=start_ns/1e9, end_time=end_ns/1e9, success=False)
     segments = []

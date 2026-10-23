@@ -45,18 +45,19 @@ robot_config:
       - mcap
       record_format: rosbag
       video_mp4_enabled: true
+      compressed_mcap_enabled: true
       record_base_dir: /opt/data/rosbags
       required_free_space: 10
       upload_enabled: false
       upload_targets_file: /root/ros2_ws/install/galaxis_core/share/galaxis_core/config/upload_targets.yaml
       s3_endpoint: localhost:9000
       s3_bucket: data
-      s3_access_key_id: ""
-      s3_secret_access_key: ""
+      s3_access_key_id: ''
+      s3_secret_access_key: ''
       s3_use_ssl: false
       s3_prefix: ''
       base_url: http://localhost:8000/api
-      api_key: ""
+      api_key: ''
       offline_mode: true
       task_file: /opt/data/tasks.yaml
       auto_repeat_episode: true
@@ -233,31 +234,33 @@ recording_gate:
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Left hand tracking lost
         right_tracked_stop:
           topic: /pico/controller/right/tracked
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Right hand tracking lost
         left_valid_stop:
           topic: /pico/controller/left/valid
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Left hand pose invalid
         right_valid_stop:
           topic: /pico/controller/right/valid
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Right hand pose invalid
-    # Episodes have no elapsed-time cap. Operator stop and device/data health
-    # checks still end a recording when appropriate.
 upload_targets:
   state_db: /opt/data/upload_state.db
   delete_after_upload: false

@@ -98,6 +98,7 @@ export const TIANJI_LIMITS = [
   [-90, 90],
 ];
 export interface TianjiStatus {
+  control_active?: boolean;
   recording?: boolean;
   collection?: {
     state:

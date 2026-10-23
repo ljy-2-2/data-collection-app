@@ -24,8 +24,8 @@ FIELDS = [
     dict(key='left_gripper_accel',label='左夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
     dict(key='right_gripper_accel',label='右夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
     dict(key='left_gripper_open_rad',label='左夹爪打开角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
-    dict(key='left_gripper_closed_rad',label='左夹爪关闭角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
     dict(key='right_gripper_open_rad',label='右夹爪打开角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
+    dict(key='left_gripper_closed_rad',label='左夹爪关闭角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
     dict(key='right_gripper_closed_rad',label='右夹爪关闭角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
 ]
 _PARAMETER_DEFAULTS = parameter_defaults()
@@ -46,7 +46,9 @@ def initial_state():
         parameters=parameter_defaults(),paramSaved=False,paramSaving=False,
         uploadMode='dual',g2Scale=.5,g2Speed=.5,extraCameras=[],g2Camera='head_color',tianjiCamera='usb_1',
         tianjiCameraLayout='left-center-right',g2CameraLayout='left-center-right',
-        tianji=dict(state='idle',devices=devices('Tianji'),joints={},cameras=[],collection={}),
+        tianji=dict(state='idle',devices=devices('天机 Marvin M6'),joints={},cameras=[],collection={}),
+        kuavo=dict(state='idle',active=False,error='',service={},preparation={},session={},logs=[],limitations=[]),
+        kuavoNamespace='current',kuavoBusAccepted=False,kuavoArmMode='dual',kuavoPositionScale=1.,cameraApplyBusy=False,cameraApplyMessage='',cameraApplyError='',
         g2=dict(devices=devices('G2'),session=dict(state='idle'),motion=dict(state='idle')),
         preview=dict(available=False,joint_positions={},cameras=[]),
         umi=dict(state='idle',monitor={},log_tail=[],monitor_connected=False,recording=False),
@@ -60,6 +62,7 @@ class Bridge(QObject):
     umiCameraBrightnessChanged=Signal()
     umiCameraResolutionChanged=Signal()
     teleopCameraSettingsChanged=Signal()
+    teleopCameraSettingsApplied=Signal(bool,str)
     result=Signal(str, bool)
     closeRequested=Signal()
     def __init__(self, values, *, demo=False, settings_path=None):
@@ -95,6 +98,17 @@ class Bridge(QObject):
         self.load_poses()
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(100);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(350);self.save_timer.timeout.connect(self.save_parameters)
+        self.camera_message_timer=QTimer(self);self.camera_message_timer.setSingleShot(True);self.camera_message_timer.setInterval(2000)
+        self.camera_message_timer.timeout.connect(lambda:self.update(cameraApplyMessage=''))
+
+    @Property(QObject,constant=True)
+    def kuavoScene(self):
+        if not hasattr(self,'_kuavo_scene'):
+            from .visuals import KuavoScene
+            self._kuavo_scene=KuavoScene(ROOT,self)
+            self.changed.connect(lambda:self._kuavo_scene.update_pose(self._state['kuavo']))
+            self._kuavo_scene.update_pose(self._state['kuavo'])
+        return self._kuavo_scene
 
     @Property('QVariantMap',notify=changed)
     def state(self): return self._state
@@ -139,6 +153,9 @@ class Bridge(QObject):
     def assetRoot(self): return QUrl.fromLocalFile(str(ROOT/'public')+'/').toString()
 
     def update(self, **values):
+        if 'cameraApplyMessage' in values and hasattr(self,'camera_message_timer'):
+            if values['cameraApplyMessage']=='相机参数已应用':self.camera_message_timer.start()
+            else:self.camera_message_timer.stop()
         if 'tianji' in values and 'camera_settings' in values['tianji']:
             incoming=values['tianji']['camera_settings'] or {}
             connected={c['id'] for c in values['tianji'].get('cameras',[]) if c.get('connected') is not False}
@@ -186,14 +203,21 @@ class Bridge(QObject):
             finally:reply.deleteLater()
         reply.finished.connect(finished)
 
-    def action(self,name,path,payload=None,done=None,*,timeout=120000,priority=False):
+    def action(self,name,path,payload=None,done=None,*,timeout=120000,priority=False,on_failed=None):
         s=self._state
         if s['closing'] or (s['busy'] and not priority):return
         self.revision+=1;revision=self.revision
         self.update(busy=name,error='')
+        if path in ('/tianji/start','/tianji/move'):
+            self.update(tianji={**s['tianji'],'control_active':True})
         def finish(value):
             if revision != self.revision:return
-            self.update(busy='')
+            updates=dict(busy='')
+            # Apply the worker acknowledgement before releasing the button.
+            # Polling alone leaves a brief stale idle/moving state at this point.
+            if path in ('/tianji/move','/tianji/stop') and isinstance(value,dict) and value.get('state') in ('idle','moving','error'):
+                updates['tianji']={**self._state['tianji'],'state':value['state']}
+            self.update(**updates)
             if done:done(value)
             self.last_poll.clear();self.poll()
             self.result.emit(name,True)
@@ -202,6 +226,7 @@ class Bridge(QObject):
             self.update(busy='',error=error)
             self.last_poll.clear();self.poll()
             self.result.emit(name,False)
+            if on_failed:on_failed(error)
         if self.demo:
             QTimer.singleShot(30,lambda:finish(self.demo_action(path,payload)))
         else:self.request(path,payload,finish,method='POST',timeout=timeout,failed=failed)
@@ -271,7 +296,7 @@ class Bridge(QObject):
 
     @Slot(str,'QVariant')
     def setValue(self,key,value):
-        allowed={'robot','task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','theme'}
+        allowed={'robot','task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','theme','kuavoNamespace','kuavoBusAccepted','kuavoArmMode','kuavoPositionScale'}
         if key not in allowed or self._state['closing']:return
         if self._state['busy'] and key not in ('theme','tianjiCameraLayout','g2CameraLayout'):return
         if hasattr(value,'toVariant'):value=value.toVariant()
@@ -279,8 +304,14 @@ class Bridge(QObject):
             try:value=float(value)
             except (ValueError,TypeError):return
             if not math.isfinite(value) or not .1<=value<=1:return
+        if key in ('kuavoNamespace','kuavoBusAccepted','kuavoArmMode','kuavoPositionScale'):
+            if self.teleop_active():return
+            if key=='kuavoArmMode' and value not in ('dual','left','right'):return
+            if key=='kuavoPositionScale' and (type(value) not in (float,int) or not math.isfinite(value) or not .1<=value<=1):return
+            if key=='kuavoNamespace' and value not in ('kuavons','current'):return
+            if key=='kuavoBusAccepted' and type(value) is not bool:return
         if key=='robot':
-            if value not in ('tianji','agibot-g2') or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
+            if value not in ('tianji','agibot-g2','kuavo-5w') or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
             if self.umiOnly or (self.tianjiOnly and value!='tianji'):return
         if key=='profile':
             if value not in ('dual','single-left','single-right') or self._state['umi'].get('state') not in ('idle','error'):return
@@ -313,8 +344,8 @@ class Bridge(QObject):
         if self.umiOnly:
             self.fail('此安装包用于 UMI 采集；机器人遥操需要对应 ARM64 SDK');return
         if self.tianjiOnly and robot != 'tianji':
-            self.fail('此开发板安装包支持 UMI 和天机采集');return
-        if not self.valid_task(task) or robot not in ('tianji','agibot-g2'):return
+            self.fail('此开发板安装包支持 UMI 和天机 Marvin M6采集');return
+        if not self.valid_task(task) or robot not in ('tianji','agibot-g2','kuavo-5w'):return
         self.update(task=task.strip(),robot=robot,teleopStep=2,error='',selectedPose='zero' if robot=='tianji' else '')
         self.load_poses()
         if robot=='tianji':
@@ -337,7 +368,7 @@ class Bridge(QObject):
 
     def teleop_active(self):
         s=self._state;t=s['tianji'];g=s['g2'];c=t.get('collection',{})
-        return bool(t.get('state') not in ('idle',None) or c.get('busy') or c.get('recording') or
+        return bool(s['cameraApplyBusy'] or s['kuavo'].get('active') or s['kuavo'].get('state') in ('starting','running','stopping','unknown','checking') or t.get('state') not in ('idle',None) or c.get('busy') or c.get('recording') or
             g.get('session',{}).get('state') not in ('idle',None) or g.get('motion',{}).get('state') not in ('idle',None))
 
     @Slot(str,float)
@@ -367,7 +398,15 @@ class Bridge(QObject):
     def teleop(self,action):
         s=self._state
         if not s['authenticated']:return
-        if s['robot']=='tianji':
+        if s['robot']=='kuavo-5w':
+            if action not in ('check','start','stop'):return
+            if action=='start' and not self.valid_task(s['task']):return
+            payload = dict(network_namespace=s['kuavoNamespace'],task=s['task'],
+                           arm_mode=s['kuavoArmMode'],position_scale=s['kuavoPositionScale'],
+                           confirm_motion=action=='start',accept_unverified_gripper_bus=s['kuavoBusAccepted'])
+            if action=='stop':payload=dict(session_id=s['kuavo'].get('session_id') or '')
+            self.action(action,'/kuavo/'+action,payload,done=lambda value:self.update(kuavo=value),priority=action=='stop')
+        elif s['robot']=='tianji':
             if action=='start':
                 if not self.valid_task(s['task']) or not s['paramSaved'] or s['paramSaving']:return
                 self.action('start','/tianji/start',dict(task=s['task'],mode='dual',upload_mode=s['uploadMode'],parameters=s['parameters']))
@@ -383,9 +422,34 @@ class Bridge(QObject):
             sid=s['g2'].get('session',{}).get('session_id')
             if sid:self.action('stop','/sessions/'+quote(sid,safe='')+'/stop',priority=True)
 
+    kuavoSettingsSaved=Signal(bool,str)
+
+    @Slot(str,'QVariantMap')
+    def saveKuavoSettings(self,kind,values):
+        s=self._state
+        if not s['authenticated'] or s['robot']!='kuavo-5w' or s['busy'] or self.teleop_active():
+            self.kuavoSettingsSaved.emit(False,'请先结束会话或等待当前操作完成');return
+        if kind not in ('connection','grippers'):return
+        def done(value):
+            self.update(kuavo=value)
+            self.kuavoSettingsSaved.emit(True,'')
+        self.action('kuavo-settings','/kuavo/'+kind,values,done=done,
+                    on_failed=lambda message:self.kuavoSettingsSaved.emit(False,str(message)))
+
+    @Slot(str,bool)
+    def kuavoPrepare(self,action,motor_ids_confirmed=False):
+        s=self._state
+        if not s['authenticated'] or s['robot']!='kuavo-5w' or self.teleop_active():return
+        if action not in ('start','initialize','grippers_inspect','grippers_prepare'):return
+        self.action('prepare','/kuavo/prepare',dict(network_namespace=s['kuavoNamespace'],
+            preparation_action=action,confirm_motion=action!='grippers_inspect',
+            motor_ids_confirmed=motor_ids_confirmed,accept_unverified_gripper_bus=s['kuavoBusAccepted']),
+            done=lambda value:self.update(kuavo=value),timeout=250000)
+
     def can_move(self):
         s=self._state
         if not s['authenticated'] or s['busy'] or self.teleop_active():return False
+        if s['robot']=='kuavo-5w':return False
         if s['robot']=='tianji':return bool(s['tianji'].get('joints',{}).get('left')) and s['paramSaved']
         return bool(s['preview'].get('available')) and any(d.get('id')=='robot' and d.get('status')=='connected' for d in s['g2'].get('devices',[]))
 
@@ -397,12 +461,18 @@ class Bridge(QObject):
                     and s['tianji'].get('state') in ('idle','error')
                     and not collection.get('busy') and not collection.get('recording'))
 
+    @Slot(str,int,int,result=float)
+    def jogDelta(self,side,joint,direction):
+        if side not in ('left','right') or not 1<=joint<=7 or direction not in (-1,1):return 0.
+        return direction*10*(-1 if side=='left' and joint in (1,3,5,7) else 1)
+
     @Slot(str,int,int)
     def jog(self,side,joint,direction):
         if not self.can_move() or side not in ('left','right') or not 1<=joint<=7 or direction not in (-1,1):return
         value=self._state['tianji'].get('joints',{}).get(side,[])
-        if len(value)!=7 or not LIMITS[joint-1][0]<=value[joint-1]+direction*10<=LIMITS[joint-1][1]:return
-        self.action('move','/tianji/move',dict(kind='jog',mode='dual',side=side,joint=joint,delta=direction*10))
+        delta=self.jogDelta(side,joint,direction)
+        if len(value)!=7 or not LIMITS[joint-1][0]<=value[joint-1]+delta<=LIMITS[joint-1][1]:return
+        self.action('move','/tianji/move',dict(kind='jog',mode='dual',side=side,joint=joint,delta=delta))
 
     @Slot(str,float)
     def gripper(self,side,closure):
@@ -433,6 +503,7 @@ class Bridge(QObject):
         valid=[]
         for pose in values if isinstance(values,list) else []:
             if not isinstance(pose,dict) or not isinstance(pose.get('id'),str) or not isinstance(pose.get('name'),str):continue
+            if pose['id']=='zero':continue
             targets=pose.get('targets',{})
             vectors=[targets.get(side,[]) for side in ('left','right')] if self._state['robot']=='tianji' else [list(targets.values())]
             if self._state['robot']=='tianji' and any(len(v)!=7 for v in vectors):continue
@@ -461,6 +532,7 @@ class Bridge(QObject):
     @Slot()
     def deletePose(self):
         selected=self._state['selectedPose']
+        if selected=='zero':return
         if self.persist_poses([p for p in self._state['poses'] if p['id']!=selected]):
             self.update(selectedPose='zero' if self._state['robot']=='tianji' else '')
 
@@ -585,10 +657,14 @@ class Bridge(QObject):
                 and not collection.get('armed') and not collection.get('busy') and not collection.get('recording')
                 and key in [c['id'] for c in status.get('cameras',[]) if c.get('connected') is not False])
 
-    def teleop_camera_settings_request(self,key,*,mode_id=None,brightness=None):
-        if not self.teleop_camera_settings_allowed(key) or self._teleop_camera_settings.get(key,{}).get('busy'):return
+    def teleop_camera_settings_request(self,key,*,mode_id=None,brightness=None,completed=None):
+        if not self.teleop_camera_settings_allowed(key) or self._teleop_camera_settings.get(key,{}).get('busy'):
+            if completed:completed(False,'相机未连接或当前状态不允许修改设置')
+            return
         self.teleop_camera_settings_update(key,busy=True)
-        def failed(message):self.teleop_camera_settings_update(key,error=str(message))
+        def failed(message):
+            self.teleop_camera_settings_update(key,error=str(message))
+            if completed:completed(False,str(message))
         def done(value):
             if not isinstance(value,dict) or not isinstance(value.get('brightness'),dict) or not isinstance(value.get('resolution'),dict):
                 failed('相机返回无效的设置');return
@@ -597,6 +673,7 @@ class Bridge(QObject):
                     or resolution.get('selected') not in resolution['options']):
                 failed('相机返回无效的亮度或分辨率');return
             self.teleop_camera_settings_update(key,value)
+            if completed:completed(True,'')
         if self.demo:
             previous=self._teleop_camera_settings.get(key,{})
             options=[dict(id=k,format='mjpeg',width=w,height=h,fps=30,label=f'{w} × {h} · 30 帧/秒') for k,w,h in (
@@ -609,6 +686,68 @@ class Bridge(QObject):
         if brightness is not None:data['brightness']=brightness
         self.request('/tianji/camera-controls/'+quote(key,safe='')+'/settings',data=data or None,
                      done=done,method='POST' if data else 'GET',timeout=30000,failed=failed)
+
+    @Slot('QVariantMap')
+    def applyTeleopCameraSettings(self,changes):
+        """Submit all confirmed drafts in one idle-only camera transaction."""
+        if self._state['cameraApplyBusy']:return
+        labels={'usb_1':'主相机','usb_4':'左相机','usb_2':'右相机'}
+        def finish(ok,message):
+            self.update(cameraApplyBusy=False,cameraApplyMessage='相机参数已应用' if ok else '相机参数应用失败',cameraApplyError='' if ok else message)
+            self.teleopCameraSettingsApplied.emit(ok,message)
+        queue=[]
+        for key,data in changes.items():
+            settings=self._teleop_camera_settings.get(key,{})
+            resolution=settings.get('resolution',{});brightness=settings.get('brightness',{})
+            valid=(key in labels and isinstance(data,dict) and bool(data)
+                   and not set(data)-{'mode_id','brightness'} and self.teleop_camera_settings_allowed(key)
+                   and not settings.get('busy'))
+            if not valid:
+                finish(False,labels.get(key,key)+'：相机未连接或当前状态已锁定')
+                return
+            if 'mode_id' in data:
+                valid=valid and resolution.get('editable') and data['mode_id'] in [v['id'] for v in resolution.get('options',[])]
+            if 'brightness' in data:
+                n=data['brightness'];step=brightness.get('step',0)
+                valid=valid and brightness.get('supported') and type(n) in (int,float) and math.isfinite(n) and n==int(n) and step>0
+                valid=valid and brightness['min']<=n<=brightness['max'] and (n-brightness['min'])%step==0
+            if not valid:
+                finish(False,labels.get(key,key)+'：参数无效、相机未连接或当前状态已锁定')
+                return
+            # QML Number arrives through QVariantMap as float. Preserve strict
+            # integer JSON after validation; never truncate a fractional draft.
+            if 'brightness' in data:data={**data,'brightness':int(data['brightness'])}
+            queue.append((key,data))
+        self.update(cameraApplyBusy=True,cameraApplyMessage='正在应用相机参数…',cameraApplyError='')
+        if not queue:
+            finish(True,'');return
+        payload=dict(queue)
+        for key in payload:self.teleop_camera_settings_update(key,busy=True)
+        def failed(message):
+            for key in payload:self.teleop_camera_settings_update(key,error=str(message))
+            finish(False,'相机参数未完成：'+str(message)+'。修改已保留，请先处理上述错误，再重新确认。')
+        def done(values):
+            if not isinstance(values,dict) or set(values)!=set(payload):
+                failed('相机返回无效的批量设置');return
+            for key,value in values.items():
+                brightness=value.get('brightness',{}) if isinstance(value,dict) else {}
+                resolution=value.get('resolution',{}) if isinstance(value,dict) else {}
+                if (type(brightness.get('supported')) is not bool or not isinstance(resolution.get('options'),list)
+                        or resolution.get('selected') not in resolution['options']):
+                    failed('相机返回无效的亮度或分辨率');return
+            for key,value in values.items():self.teleop_camera_settings_update(key,value)
+            finish(True,'')
+        if self.demo:
+            values={}
+            for key,data in payload.items():
+                current=self._teleop_camera_settings[key]
+                brightness={**current['brightness']};resolution={**current['resolution']}
+                if 'brightness' in data:brightness['value']=data['brightness']
+                if 'mode_id' in data:resolution['selected']=next(v for v in resolution['options'] if v['id']==data['mode_id'])
+                values[key]=dict(brightness=brightness,resolution=resolution)
+            done(values);return
+        self.request('/tianji/camera-controls/settings',data=dict(changes=payload),method='POST',
+                     done=done,failed=failed,timeout=90000)
 
     @Slot(str)
     def loadTeleopCameraSettings(self,key):self.teleop_camera_settings_request(key)
@@ -773,6 +912,8 @@ class Bridge(QObject):
         if self.demo or not s['authenticated'] or s['closing']:return
         now=time.monotonic()
         requests=[('umi','/umi/status',1.)]
+        if s['robot']=='kuavo-5w' and s['teleopStep']==2 or s['kuavo'].get('active'):
+            requests.append(('kuavo','/kuavo/status',.5))
         if s['teleopStep']==2 and s['robot']=='tianji':requests.append(('tianji','/tianji/status',.1))
         elif s['robot']=='agibot-g2' or s['g2'].get('session',{}).get('state')=='running':
             requests.append(('g2','/status',.5))
@@ -793,9 +934,17 @@ class Bridge(QObject):
             def failed(message,key=key,revision=revision):
                 self.pending.discard(key)
                 if revision!=self.revision:return
-                if key=='tianji':self.update(tianji=dict(state='unknown',error='连接中断，等待确认控制已停止',devices=devices('Tianji'),joints={},cameras=[]))
+                # Status RPCs and camera transports have independent lifetimes.
+                # Keep subscriptions; CameraItem detects actual missing frames.
+                if key=='kuavo':self.update(kuavo={**self._state['kuavo'],'state':'unknown','error':message,'pose_live':False,'pico_live':False,'vr_ready':False,'pico_ready':False})
+                elif key=='tianji':
+                    previous=self._state['tianji']
+                    active=previous.get('control_active',previous.get('state') in ('running','moving','unknown','error'))
+                    self.update(tianji={**previous,'state':'unknown','control_active':active,
+                        'error':'连接中断，等待确认控制已停止' if active else '设备状态读取失败，请检查连接',
+                        'devices':devices('天机 Marvin M6'),'joints':{}})
                 elif key=='encoders':self.update(encoders={})
-                elif key=='preview':self.update(preview=dict(available=False,joint_positions={},cameras=[]))
+                elif key=='preview':self.update(preview={**self._state['preview'], 'available':False, 'joint_positions':{}})
                 elif key=='g2':self.update(g2=dict(devices=devices('G2'),session=dict(state='unknown'),motion=dict(state='unknown')))
                 elif key=='umi':self.update(umi={**s['umi'],'monitor_connected':False,'message':message})
             self.request(path,done=done,timeout=4000,failed=failed)
@@ -814,9 +963,20 @@ class Bridge(QObject):
 
     def demo_action(self,path,payload):
         s=self._state
+        if path.startswith('/kuavo/'):
+            value={**s['kuavo'],'error':'','logs':['界面演示：未连接实机'],
+                   'service':{'management_ready':True,'service':{'ready_to_start':True}},'pico_sdk_available':True,
+                   'vr_checked':True,'vr_ready':True,'pico_ready':True,'vr_detail':'界面演示','pico_detail':'界面演示'}
+            if path=='/kuavo/start':value.update(state='running',active=True,session_id='demo-kuavo')
+            elif path=='/kuavo/stop':value.update(state='idle',active=False)
+            elif path=='/kuavo/prepare':value['preparation']={'demo':True,'action':payload['preparation_action']}
+            elif path=='/kuavo/grippers':value['gripper_settings']=dict(values=payload,saved=True,matches_service=False,message='界面演示：已保留草稿，未写入实机',file='')
+            elif path=='/kuavo/connection':
+                value.update(service={},connection=dict(configured=True,host=payload['host'],port=payload['port'],certificate_sha256=payload['certificate_sha256']))
+            return value
         if path=='/platform/auth/login':return dict(authenticated=True,user=dict(username=payload['username']))
         if path=='/tianji/check':
-            self.update(tianji=dict(state='idle',devices=[{**d,'status':'connected'} for d in devices('Tianji')],joints=dict(left=[0]*7,right=[0]*7),cameras=[]));return {}
+            self.update(tianji=dict(state='idle',devices=[{**d,'status':'connected'} for d in devices('天机 Marvin M6')],joints=dict(left=[0]*7,right=[0]*7),cameras=[]));return {}
         if path=='/tianji/start':self.update(tianji={**s['tianji'],'state':'running'})
         if path=='/tianji/stop':self.update(tianji={**s['tianji'],'state':'idle'})
         if path.startswith('/umi/check'):

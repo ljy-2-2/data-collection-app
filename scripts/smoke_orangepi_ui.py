@@ -45,9 +45,11 @@ def main():
         QTest.qWait(300)
         selector = window.findChild(QObject, "robotType")
         assert selector is not None and selector.property("count") == 1
-        assert selector.property("currentText") == "Tianji 天机"
+        assert selector.property("currentText") == "天机 Marvin M6"
         assert not bridge.umiOnly and bridge.tianjiOnly
         bridge.configureTeleop("test", "agibot-g2")
+        assert bridge.state["teleopStep"] == 1
+        bridge.configureTeleop("test", "kuavo-5w")
         assert bridge.state["teleopStep"] == 1
         bridge.navigate("umi")
         QTest.qWait(100)

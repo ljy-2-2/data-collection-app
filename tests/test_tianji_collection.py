@@ -24,6 +24,7 @@ from teleop_control.collection_uploader import (
 from teleop_control.tianji_collection import TianjiCollection, CAMERA_MAPPING
 from FusionDataCollector.collector import readiness
 from fusion_camera import StreamEvent
+import threading
 
 
 def feedback(sequence, selected=("left", "right"), a=0, b=0):
@@ -68,6 +69,35 @@ def feedback(sequence, selected=("left", "right"), a=0, b=0):
             },
         },
     }
+
+
+def test_collection_readiness_accepts_delayed_real_feedback():
+    row = feedback(1)
+    row['pc_monotonic_ns'] -= 5_000_000_000
+    for side in ('left', 'right'):
+        row['joint_feedback'][side]['unchanged_s'] = 5
+        row['grippers']['motors'][side]['feedback']['received'] -= 5
+    assert readiness(row) is None
+    row['grippers']['fault'] = 'motor fault'
+    assert readiness(row) == '夹爪反馈报告故障：motor fault'
+
+
+def test_manual_stop_reaches_camera_without_waiting_for_another_frame(tmp_path):
+    from FusionDataCollector.collector import Episode
+    started, stopped = threading.Event(), threading.Event()
+    camera = SimpleNamespace(validate_stream=lambda: None, request_stop=stopped.set, close=lambda: None)
+    class WaitingEpisode(Episode):
+        def _record(self, client):
+            started.set()
+            assert stopped.wait(2), 'manual stop was not forwarded to silent stream'
+    episode = WaitingEpisode(SimpleNamespace(adopt_camera_stream=True), CAMERA_MAPPING,
+                             feedback(1), client_factory=lambda: camera)
+    episode.start()
+    assert started.wait(2)
+    episode.stop('B/Y')
+    episode.join(timeout=3)
+    assert not episode.is_alive() and episode.finished.is_set()
+    assert episode.error is None and stopped.is_set()
 
 
 @pytest.fixture
@@ -121,6 +151,8 @@ def platform_client(seen, fail_upload=False):
         ("dual", "mjpeg", "left", False, False), ("dual", "mjpeg", "right", False, False),
         ("dual", "mjpeg", None, True, False), ("dual", "yuyv", None, True, False),
         ("dual", "mjpeg", None, True, True),
+        ("dual", "mjpeg", None, True, "fault"),
+        ("dual", "mjpeg", None, True, "queue"),
     ]
 )
 def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode, two_wrists, joint_gap):
@@ -180,6 +212,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
         def stream(self, **options):
             manager.pause_cameras.assert_not_called()
             assert options["mode"] == "teleop_observation"
+            assert options["seconds"] == 0
             size = [1024, 768] if raw_format == "mjpeg" else [640, 480]
             yield StreamEvent(
                 {
@@ -200,9 +233,10 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
             )
             counts, samples = [0, 0, 0], 0
             for i in range(75):
-                if joint_gap and i == 20:
+                if joint_gap and joint_gap != 'queue' and i == 20:
                     yield StreamEvent(dict(type='health',ok=True,joint_feedback_ok=False,
-                                           joint_feedback_error='Joint sampler delayed over 100 ms'))
+                                           joint_feedback_error='Robot reports arm error; joint feedback unavailable'
+                                           if joint_gap == 'fault' else 'Joint sampler delayed over 100 ms'))
                     yield StreamEvent(dict(type='health',ok=True,joint_feedback_ok=True))
                 row = feedback(i + 3, selected, a=1, b=int(i >= 65))
                 collection.accept(row)
@@ -239,7 +273,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                                 "width": size[0],
                                 "height": size[1],
                                 "timestamp_ns": stamp + k * 100_000,
-                                "sequence": counts[k],
+                                "sequence": counts[k] + (2 if joint_gap == 'queue' and i >= 30 else 0),
                                 **({'camera_settings': profiles[camera]} if profiles is not None else {}),
                             },
                             pixels,
@@ -249,7 +283,9 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
             yield StreamEvent(
                 {"type": "end", "ok": True,
                  "frames": [n+b for n, b in zip(counts, [601, 590, 583])],
-                 "joint_samples": samples+2002}
+                 "joint_samples": samples+2002,
+                 "camera_queue_overflow": {'usb-2':dict(dropped=2, first_sequence=10,
+                     last_sequence=11, last_timestamp_ns=stamp)} if joint_gap == 'queue' else {}}
             )
 
     manager.adopt_camera_stream = Camera
@@ -263,7 +299,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     collection.accept(feedback(2, selected, a=1))
     collection.job.join(timeout=15)
     assert not collection.active()
-    if joint_gap:
+    if joint_gap == 'fault':
         assert collection.snapshot()['completed'] == 0
         directory = collection.episode.directory
         metadata = json.loads((directory/'meta_info.json').read_text())
@@ -278,6 +314,15 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     directory = collection.episode.directory
     metadata = json.loads((directory / "meta_info.json").read_text())
     assert metadata["complete"] and metadata["actions_recorded"]
+    if joint_gap == 'queue':
+        assert metadata['integrity']['camera_queue_overflow']['possibly_affected_episode_cameras'] == ['usb-2']
+        assert any(row['sequence_gaps'] == 2 for row in metadata['integrity']['cameras'].values())
+        assert metadata['data_validate'] is False
+        assert metadata['stop_reason'] == 'B/Y'
+    elif joint_gap:
+        assert metadata['integrity']['joint_timing_gap_count'] == 1
+        assert metadata['data_validate'] is False
+        assert metadata['stop_reason'] == 'B/Y'
     assert metadata['coordinate_mapping'] == manager.value['coordinate_mapping']
     recorded = [json.loads(line) for line in (directory / 'record/teleop_feedback.jsonl').read_text().splitlines()]
     assert recorded and all(row['teleop_mapping'] == feedback(1)['teleop_mapping'] for row in recorded)
@@ -287,6 +332,7 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     assert comparison['matches']
     assert comparison['excluded_preview']['joint_samples'] == 2002
     assert metadata["robot_type"] == "tianji"
+    assert metadata["robot_name"] == "天机 Marvin M6"
     assert metadata["controlled_sides"] == list(selected)
     assert metadata["upload_sides"] == list(exported)
     assert metadata["camera_mapping"] == mapping
@@ -330,7 +376,9 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
         uploader.scan_once()
         assert len(seen) == count  # Receipt makes repeat scans idempotent.
     registered = json.loads(next(r for r in seen if r.url.path == "/episodes").content)
-    assert registered["robot_id"] == "tianji"
+    assert registered["robot_id"] == "天机 Marvin M6"
+    assert registered["extra"]["robot_type"] == "tianji"
+    assert registered["extra"]["robot_name"] == "天机 Marvin M6"
     assert registered["extra"]["fps"] == 30
     assert registered['extra']['controlled_sides'] == list(selected)
     assert registered['extra']['upload_sides'] == list(exported)

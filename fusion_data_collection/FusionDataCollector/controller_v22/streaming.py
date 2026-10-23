@@ -1,6 +1,7 @@
 """Bounded authenticated TLS stream; Python 2.7; no robot commands or writes."""
 from __future__ import print_function
 import collections
+import itertools
 import fcntl
 import hashlib
 import json
@@ -90,6 +91,34 @@ def native_failure_reason(lines):
             return compact_text(line.strip())
     return ''
 
+def native_queue_overflow(lines):
+    """Latest cumulative loss summary per camera; never sum periodic reports."""
+    result = {}
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(row, dict) or row.get('event') != 'queue_overflow':
+            continue
+        camera = row.get('camera')
+        if type(camera) is int and 0 <= camera < len(CAMERA_IDS):
+            result[CAMERA_IDS[camera]] = row
+    return result
+
+def read_native_diagnostics(handle):
+    # Unlimited streams can exceed 1 MB of periodic diagnostics. Retain startup
+    # RT evidence and a bounded tail, including the authoritative final loss totals.
+    handle.seek(0)
+    startup, tail = [], collections.deque(maxlen=128)
+    for raw in handle:
+        line = raw.decode('utf-8', 'replace').rstrip('\r\n')
+        if '"rt_baseline"' in line and len(startup) < 4:
+            startup.append(line)
+        else:
+            tail.append(line)
+    return startup + list(tail)
+
 def sha(path):
     h = hashlib.sha256()
     with open(path, 'rb') as f:
@@ -167,11 +196,15 @@ def native_rt_unchanged(lines):
         return False
 
 
-def recover(service, api):
+def recover(service, api, manual=False):
     """One explicit next-round retry after an isolated, fully cleaned camera fault."""
     baseline = getattr(service, 'recovery_audit', None)
     if api.ACTIVE is not None or not service.fault or baseline is None:
         return {'ok':False, 'error':'recovery_not_available'}
+    if type(manual) is not bool:
+        return {'ok':False, 'error':'invalid_recovery_request'}
+    if (service.last_stream or {}).get('camera_recovery_requires_manual') and not manual:
+        return {'ok':False, 'error':'manual_recovery_required'}
     try:
         if api.monotonic()-service.last_finish < service.config['cooldown_seconds']:
             raise RuntimeError('Camera cooldown has not finished')
@@ -231,7 +264,7 @@ class JointSampler(threading.Thread):
         self.max_lateness_ns = 0
 
     def run(self):
-        if self.isolate_faults and not self.stationary_only:
+        if not self.stationary_only:
             return self.run_observation()
         return self.run_strict()
 
@@ -252,13 +285,13 @@ class JointSampler(threading.Thread):
                       joint_gap_count=self.gap_count))
 
     def run_observation(self):
-        # Video is independent of passive joint sampling. Report every gap so
-        # an attached Episode fails; never synthesize samples or stop healthy USB.
+        # Timing gaps remain explicit health records; recording may continue.
+        # Never synthesize measurements from an old shared-state snapshot.
         start = scheduled = self.api.monotonic()
         previous, last_change = None, start
         period = 1.0/self.hz
         try:
-            while scheduled < start+self.seconds:
+            while self.seconds == 0 or scheduled < start+self.seconds:
                 if self.done.wait(max(0, scheduled-self.api.monotonic())):
                     break
                 now = self.api.monotonic()
@@ -304,7 +337,9 @@ class JointSampler(threading.Thread):
         previous = None
         last_change = start
         try:
-            for tick in range(self.seconds*self.hz):
+            for tick in itertools.count():
+                if self.seconds and tick >= self.seconds*self.hz:
+                    break
                 scheduled = start+tick/float(self.hz)
                 if self.done.wait(max(0, scheduled-self.api.monotonic())): break
                 now = self.api.monotonic()
@@ -373,7 +408,7 @@ def run(service, sock, request, api):
     if mode not in ('stationary', 'teleop_observation'):
         api.reply(sock, {'ok':False,'error':'invalid_observation_mode'})
         return
-    if type(seconds) is not int or not 1 <= seconds <= 600 or request.get('hz',30) != 30 or type(joint_hz) is not int or joint_hz not in (30,100):
+    if type(seconds) is not int or not (seconds >= 0 if mode == 'teleop_observation' else 1 <= seconds <= 600) or request.get('hz',30) != 30 or type(joint_hz) is not int or joint_hz not in (30,100):
         api.reply(sock, {'ok':False,'error':'invalid_stream_limits'})
         return
     if service.fault or api.ACTIVE is not None:
@@ -461,11 +496,11 @@ def run(service, sock, request, api):
             fd = process.stdout.fileno()
             fcntl.fcntl(fd,fcntl.F_SETFL,fcntl.fcntl(fd,fcntl.F_GETFL)|os.O_NONBLOCK)
             buf = b''
-            deadline = api.monotonic()+seconds+30
+            deadline = api.monotonic()+seconds+30 if seconds else None
             eof = False
             last_monitor = api.monotonic()
             while not eof or (sampler is not None and sampler.is_alive()):
-                if api.STOP or api.monotonic()>deadline: raise RuntimeError('Stream interrupted or timed out')
+                if api.STOP or (deadline is not None and api.monotonic()>deadline): raise RuntimeError('Stream interrupted or timed out')
                 if eof and process.poll() not in (None,0): raise NativeHelperError('Native helper failed')
                 if sampler is not None:
                     if sampler.error: raise RuntimeError(sampler.error)
@@ -503,7 +538,7 @@ def run(service, sock, request, api):
                     if len(buf)<40+size: break
                     body, buf = buf[40:40+size], buf[40+size:]
                     if sampler is None:
-                        sampler = JointSampler(api,reader,seconds+30,joint_hz,mode == 'stationary',isolate_joints)
+                        sampler = JointSampler(api,reader,seconds+30 if seconds else 0,joint_hz,mode == 'stationary',isolate_joints)
                         sampler.start()
                     metadata = {'ok':True,'type':'image','camera_id':infos[cam]['id'],
                         'sequence':seq,'timestamp_ns':stamp,'format':frame_profile['format'],'width':width,'height':height,
@@ -536,8 +571,9 @@ def run(service, sock, request, api):
                 cleanup_timed_out = True
                 raise NativeHelperError('Native helper cleanup timed out')
             if process.poll() != 0: raise NativeHelperError('Native helper failed')
-            errors.seek(0)
-            diagnostics = errors.read(1024*1024).decode('utf-8','replace').splitlines()
+            if seconds == 0:
+                raise RuntimeError('Unlimited stream ended without a client stop request')
+            diagnostics = read_native_diagnostics(errors)
             if (not all(counts[i] for i, c in enumerate(CAMERA_IDS) if c in selected)
                     or sampler is None or (not isolate_joints and sampler.count == 0)):
                 raise RuntimeError('Missing image or joint stream')
@@ -580,8 +616,7 @@ def run(service, sock, request, api):
                     native_failed = True
         if process is not None: process.stdout.close()
         if errors is not None:
-            errors.seek(0)
-            diagnostics = errors.read(1024*1024).decode('utf-8','replace').splitlines()
+            diagnostics = read_native_diagnostics(errors)
             errors.close()
         reason = native_failure_reason(diagnostics) if native_failed else ''
         if native_failed or cleanup_timed_out:
@@ -617,13 +652,22 @@ def run(service, sock, request, api):
             and process is not None and process.returncode == 1
             and error in ('Native helper failed (exit 1): '+reason,
                           'Native helper failed (exit 1): '+reason+'; Audit changed: dmesg_sha256'))
+        # A transport stall may retry only after an operator action. Keep the
+        # failed episode and run the same cleanup, RT and controller checks as
+        # camera recovery; never turn a repeated receive stall into a retry loop.
+        pipe_failure = (
+            mode == 'teleop_observation'
+            and reason == 'Frame pipe closed or blocked for 1 second; stop'
+            and process is not None and process.returncode == 1
+            and native_termination is None
+            and error == 'Native helper failed (exit 1): '+reason)
         # A preview may stop normally after its health event discovers a new
         # camera. The interrupted round remains failed; only a NEW round may
         # retry after the same cleanup/RT/integrity checks as a camera gap.
         clean_inventory_stop = (
             mode == 'teleop_observation' and process is not None
             and process.returncode == 0 and error == 'Audit changed: dmesg_sha256')
-        recoverable = bool((isolated_camera_failure or clean_inventory_stop)
+        recoverable = bool((isolated_camera_failure or clean_inventory_stop or pipe_failure)
             and not cleanup_timed_out and (sampler is None or not sampler.error)
             and native_rt_unchanged(diagnostics)
             and unchanged_for_recovery(before, after, mode, camera_hotplug=True))
@@ -641,6 +685,8 @@ def run(service, sock, request, api):
             'native_failure_reason':reason,
             'native_termination':native_termination,
             'native_cleanup_timed_out':cleanup_timed_out, 'recoverable_camera_fault':recoverable,
+            'camera_recovery_requires_manual':bool(pipe_failure and recoverable),
+            'camera_queue_overflow':native_queue_overflow(diagnostics),
             'native_diagnostics':diagnostics, 'audit_before':before,'audit_after':after}
         service.last_stream = dict((k,v) for k,v in result.items() if not k.startswith('audit_') and k!='native_diagnostics')
         service.last_stream['native_diagnostics_tail'] = diagnostic_tail(diagnostics)

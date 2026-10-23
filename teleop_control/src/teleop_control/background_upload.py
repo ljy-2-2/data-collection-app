@@ -203,6 +203,9 @@ def run(config_path):
         handler = RotatingFileHandler(root / 'worker.log', maxBytes=2*1024*1024, backupCount=2)
         logging.basicConfig(level=logging.INFO, handlers=[handler],
                             format='%(asctime)s %(levelname)s %(name)s %(message)s')
+        # HTTPX's INFO request logs include signed object-store credentials.
+        # Keep our episode/file diagnostics without persisting signed URLs.
+        logging.getLogger('httpx').setLevel(logging.WARNING)
         config = json.loads(config_path.read_text())
         credentials = UploadCredentials(root)
         uploaders = []

@@ -1,0 +1,39 @@
+{
+  "robot": "kuavo-5w",
+  "source_release": "pc-preparation-20261019T103718Z-817d8a77fbbb",
+  "upstream_manifest_sha256": "656f2d4283b2da53af23d7efd895b378abfc40031cfecc7115f177ccbcafcf1e",
+  "vendored_source_files": 155,
+  "vendored_source_bytes": 1474687,
+  "original_source_hashes_verified": true,
+  "depends_on_desktop_backup": false,
+  "implemented": [
+    "Qt and web robot selection and independent workspace",
+    "read-only network service and preparation status checks",
+    "original PICO dual-arm/gripper host with unchanged Grip/Trigger/Y/B policy",
+    "explicit original controller start/initialize/gripper preparation requests",
+    "session-ID-scoped cooperative exit",
+    "local events.jsonl and meta.json for each session",
+    "cross-robot ownership guards and local-only status polling"
+  ],
+  "deferred": {
+    "image_preview_and_recording": "Requires independent AGX camera/SSH/ROS integration; wrist camera interface not supplied",
+    "synchronized_dataset": "Session journals are available; image/joint synchronized collection not integrated",
+    "3d_and_manual_jog": "No corresponding complete App model/state/manual-command adapter in supplied PC client",
+    "standalone_return": "Original compatible network client provides in-session Y/B only",
+    "platform_upload": "Explicitly deferred by user"
+  },
+  "validation": {
+    "unique_offline_tests_passed": 79,
+    "typescript_typecheck": "passed",
+    "diff_whitespace_check": "passed",
+    "qt_render_and_navigation": "passed with synthetic status",
+    "local_runtime_import_and_config_validation": "passed",
+    "pico_sdk_module_present": true,
+    "sdk_initialized": false,
+    "hardware_connected": false,
+    "hardware_commands_sent": false,
+    "robot_services_restarted": false,
+    "running_app_reloaded": false
+  },
+  "credentials": "Existing client token and endpoint configuration relocated into ignored App runtime directory with mode 0600; robot TLS private key not copied."
+}

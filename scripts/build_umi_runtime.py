@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import re
 import subprocess
+import sys
 import tarfile
 
 import yaml
@@ -80,6 +81,12 @@ def main():
         shutil.rmtree(context)
     project = context / "galaxis"
     shutil.copytree(ROOT / "umi_collection/vendor/galaxis", project, ignore=ignore_private)
+    encoder_core = project / 'galaxis-core/galaxis-core'
+    if target.deb_arch == 'arm64':
+        subprocess.run([sys.executable, str(ROOT / 'scripts/build_umi_mpp_encoder.py'),
+                        '--core', str(encoder_core)], check=True)
+    else:
+        shutil.rmtree(encoder_core / 'galaxis_core/native', ignore_errors=True)
     config = project / "galaxis_bringup/config/galaxis_config.yaml"
     config.write_text(yaml.safe_dump(clear_secrets(yaml.safe_load(config.read_text())), allow_unicode=True, sort_keys=False))
     if args.from_source:

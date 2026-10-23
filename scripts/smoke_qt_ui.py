@@ -131,12 +131,20 @@ def main():
         assert engine.rootObjects(),warnings
         window=engine.rootObjects()[0];window.resize(1024,640)
         record_keys=UmiRecordKeys(app,window,bridge)
+        def refresh_window():
+            # Nested QTest event loops can replace Shiboken wrappers while the
+            # QML engine still owns the same live root. Use the current wrapper.
+            nonlocal window
+            window=engine.rootObjects()[0]
+            record_keys.window=window
         def wait(predicate=lambda:True,timeout=6000):
+            refresh_window()
             deadline=time.monotonic()+timeout/1000
             QTest.qWait(80)
             while not predicate():
                 assert time.monotonic()<deadline,(bridge.state,failures,warnings[-12:]);QTest.qWait(40)
         def item(name):
+            refresh_window()
             result=window.findChild(QObject,name)
             if result is None:
                 pending=[window.contentItem()]
@@ -169,20 +177,27 @@ def main():
             left,main,right=tiles
             assert main.x()==0 and left.x()==right.x()>main.x()+main.width()
             assert main.y()==left.y()==0 and right.y()>left.height()
-            assert main.width()>left.width() and main.height()>left.height()
+            assert main.height()>left.height()
+            if robot=='tianji':
+                main_view=item('teleopCameraViewport-center')
+                assert main_view.width()>item('teleopCameraViewport-left').width()
+                assert item('teleopCameraSettings').property('enabled')
+                assert not item('tianjiCameraDialog').property('visible')
             assert abs(right.y()+right.height()-main.height())<.01
             sources=[camera.source for camera in cameras]
             geometry=[(t.x(),t.y(),t.width(),t.height()) for t in tiles]
             bridge.setValue(robot+'CameraLayout','right-center-left');wait()
             assert [(t.x(),t.y(),t.width(),t.height()) for t in tiles]==geometry
             assert [camera.source for camera in cameras]==sources
-            assert item('teleopCameraCard').height()==373 and item('teleopCameraImages').height()==302
+            card=item('teleopCameraCard')
+            assert abs(card.height()-card.implicitHeight())<.01
+            assert abs(item('teleopCameraImages').height()-(card.height()-71))<.01
             for name in ('teleopCameraLayout','teleopCameraImport','teleopCameraFileDialog'):
                 assert window.findChild(QObject,name) is None,name
             scroll=item('pageScroll');card=item('teleopCameraCard')
-            scroll.setProperty('contentY',scroll.property('contentY')+card.mapToScene(QPointF(0,0)).y()-180)
+            item('pageScroll').setProperty('contentY',item('pageScroll').property('contentY')+card.mapToScene(QPointF(0,0)).y()-180)
             wait();snap(robot+'-three-cameras')
-            scroll.setProperty('contentY',0);wait()
+            item('pageScroll').setProperty('contentY',0);wait()
             print('PASS '+robot+' three camera identities, main-left/wrists-right layout and removed settings',flush=True)
         print("Qt fixture loaded",flush=True)
         bridge.serviceReady();wait();snap('login')
@@ -212,11 +227,11 @@ def main():
         QTest.keyClick(window,Qt.Key_Home)
         wait(lambda:bridge.state['robot']=='agibot-g2')
         bridge.update(notice='型号选择刷新检查');QTest.qWait(500)
-        assert robot_type.property('currentIndex')==0
-        QTest.keyClick(window,Qt.Key_End)
+        assert item('robotType').property('currentIndex')==0
+        QTest.keyClick(window,Qt.Key_Down)
         wait(lambda:bridge.state['robot']=='tianji')
         bridge.update(notice='');wait()
-        assert robot_type.property('currentIndex')==1
+        assert item('robotType').property('currentIndex')==1
         click('teleopNext');wait(lambda:bridge.state['paramSaved']);snap('tianji')
         bridge.setValue('robot','agibot-g2')
         assert bridge.state['robot']=='tianji', 'Do not switch the active workspace from the setup selector'
@@ -238,13 +253,13 @@ def main():
         assert start['parameters']['left_gripper_accel']==12 and start['parameters']['right_gripper_accel']==35
         before=len(requests);bridge.jog('left',1,1);wait();assert len(requests)==before,'Motion must be blocked while teleoperating'
         click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='idle')
-        bridge.jog('left',1,1);wait(lambda:not bridge.state['busy']);assert requests[-1]==('/tianji/move',dict(kind='jog',mode='dual',side='left',joint=1,delta=10))
+        bridge.jog('left',1,1);wait(lambda:not bridge.state['busy']);assert requests[-1]==('/tianji/move',dict(kind='jog',mode='dual',side='left',joint=1,delta=-10))
         bridge.savePose('测试姿态');assert len(bridge.state['poses'])==1
         bridge.restorePose();wait(lambda:not bridge.state['busy']);assert requests[-1][1]['kind']=='pose'
-        scroll=item('pageScroll');scroll.setProperty('contentY',500);wait();snap('tianji-model')
-        control=item('jog-left0-1');point=control.mapToScene(QPointF(0,0));scroll.setProperty('contentY',scroll.property('contentY')+point.y()-230);wait()
-        click('jog-left0-1');wait(lambda:not bridge.state['busy']);assert requests[-1][1]['joint']==1 and requests[-1][1]['delta']==10
-        snap('manual');scroll.setProperty('contentY',0)
+        scroll=item('pageScroll');item('pageScroll').setProperty('contentY',500);wait();snap('tianji-model')
+        control=item('jog-left0-1');point=control.mapToScene(QPointF(0,0));item('pageScroll').setProperty('contentY',item('pageScroll').property('contentY')+point.y()-230);wait()
+        click('jog-left0-1');wait(lambda:not bridge.state['busy']);assert requests[-1][1]['joint']==1 and requests[-1][1]['delta']==-10
+        snap('manual');item('pageScroll').setProperty('contentY',0)
         # Qt transforms every visual from the original CAD file, without proxies.
         assert len(scene.parts_value)==sum(len(link['visuals']) for link in scene.model['links'])
         old=[part.matrix.copy() for part in scene.parts_value];scene.update_pose({'joints':{'left':[30,0,0,0,0,0,0]}})
@@ -254,7 +269,7 @@ def main():
         QTest.keyClick(window,Qt.Key_Home)
         wait(lambda:bridge.state['robot']=='agibot-g2')
         bridge.update(notice='刷新后保持 G2');QTest.qWait(500)
-        assert robot_type.property('currentIndex')==0
+        assert item('robotType').property('currentIndex')==0
         bridge.update(notice='');wait()
         click('teleopNext');wait(lambda:bridge.state['teleopStep']==2)
         assert bridge.state['robot']=='agibot-g2'
@@ -274,14 +289,14 @@ def main():
         wait(lambda:all(bridge.state['cameraLive'].values()))
         snap('umi-local-target')
         # Move the real button into view for the full hardware flow.
-        scroll.setProperty('contentY',scroll.property('contentHeight')-scroll.height());wait();click('umiStart')
+        item('pageScroll').setProperty('contentY',item('pageScroll').property('contentHeight')-item('pageScroll').height());wait();click('umiStart')
         wait(lambda:bridge.state['umiStep']==3 and bridge.state['umi'].get('monitor_connected'))
         before=len(requests);bridge.selectUploadTarget('cloud');wait()
         assert len(requests)==before and bridge.state['uploadTarget']['selected']=='local'
         bridge.clearError()
         print('PASS UMI destination selection reaches API and is locked during the collection session',flush=True)
         configuration=next(p for path,p in requests if path=='/umi/configure');assert configuration['encoder_minima']=={'left':.12,'right':.34};assert len(set(configuration['camera_roles'].values()))==3
-        scroll.setProperty('contentY',0);snap('umi-monitor')
+        item('pageScroll').setProperty('contentY',0);snap('umi-monitor')
         wait(lambda:bridge.umiTelemetry.get('monitor_connected'))
         live_updates=[];slow_updates=[]
         def live_sample():live_updates.append(time.monotonic())
@@ -311,7 +326,7 @@ def main():
             assert duration.width()>=60,(viewport,duration.width())
             assert duration.isVisible() and duration.height()>0
         window.resize(1280,800);wait()
-        scroll.setProperty('contentY',max(0,scroll.property('contentHeight')-scroll.height()));wait()
+        item('pageScroll').setProperty('contentY',max(0,item('pageScroll').property('contentHeight')-item('pageScroll').height()));wait()
         position=duration.mapToScene(QPointF(0,0))
         assert 0<=position.y()<window.height()-duration.height(),position
         snap('umi-visible-duration')

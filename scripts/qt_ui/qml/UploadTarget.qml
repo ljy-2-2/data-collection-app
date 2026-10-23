@@ -7,6 +7,7 @@ Rectangle {
     property var options: target.destinations || []
     property bool locked: false
     property bool compact: false
+    property bool readOnly: false
     property string controlName: "umiUploadTarget"
     visible: options.length>0
     implicitHeight: visible ? content.implicitHeight+20 : 0
@@ -19,7 +20,8 @@ Rectangle {
                 text: (root.target.selected==="local"?"上传到当前设备的本地平台":"上传到云端平台")+(root.compact?"":" · "+(root.target.web_url||""))
             }
         }
-        Select {objectName: root.controlName;Layout.preferredWidth: root.compact?110:150;Layout.preferredHeight: 32;Layout.alignment: Qt.AlignVCenter
+        Txt {visible: root.readOnly;objectName: root.controlName+"Label";text: root.target.selected==="local"?"本机平台":"云端平台";font.weight: Font.DemiBold;Layout.alignment: Qt.AlignVCenter}
+        Select {visible: !root.readOnly;objectName: root.controlName;Layout.preferredWidth: root.compact?110:150;Layout.preferredHeight: 32;Layout.alignment: Qt.AlignVCenter
             model: root.options.map(v=>v.kind==="local"?"本机平台":"云端平台")
             currentIndex: root.options.findIndex(v=>v.kind===root.target.selected)
             enabled: !root.locked && !backend.state.busy

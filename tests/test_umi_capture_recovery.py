@@ -168,11 +168,15 @@ def test_background_worker_repairs_orphan_after_restart(tmp_path, monkeypatch):
         worker._stop_conversion()
 
 
-def test_guard_flushes_when_desktop_lease_disappears(tmp_path):
+@pytest.mark.parametrize('local_raw', [False, True])
+def test_guard_flushes_when_desktop_lease_disappears(tmp_path, local_raw):
     journal, folder, _ = capture(tmp_path)
     lease = tmp_path/'lease.json'
     atomic_json(lease, {'available': True, 'checked_at': time.time()})
     update_journal(journal, lease_file=str(lease))
+    if local_raw:
+        value = json.loads(journal.read_text())
+        update_journal(journal, metadata={**value['metadata'], 'recording_format': 'umi-mcap-h264-v1'})
     ready, flushed = tmp_path/'ready', tmp_path/'flushed'
     script = f'''import signal,time,pathlib
 signal.signal(signal.SIGINT, lambda *_: (pathlib.Path({str(flushed)!r}).write_text('flushed'), exit(0)))
@@ -187,9 +191,14 @@ while True: time.sleep(.1)
         while not ready.exists():
             assert time.monotonic()<deadline; time.sleep(.02)
         atomic_json(lease, {'available': False, 'checked_at': time.time()})
+        if local_raw:
+            time.sleep(.6)
+            assert guard.poll() is None  # Platform outage cannot stop local raw recording.
+            atomic_json(lease, {'available': False, 'checked_at': time.time()-20})
         assert guard.wait(timeout=5) == 0
         assert flushed.read_text() == 'flushed'
-        assert json.loads(journal.read_text())['interruption']['reason'] == 'platform_connection_lost'
+        assert json.loads(journal.read_text())['interruption']['reason'] == (
+            'desktop_heartbeat_lost' if local_raw else 'platform_connection_lost')
     finally:
         if guard.poll() is None: guard.kill(); guard.wait()
 
