@@ -285,7 +285,7 @@ def test_encoder_quality_failure_uploads_flagged_raw_data(tmp_path):
     assert result['interruption']['reason'].startswith('video_finalization_failed')
 
 
-def test_real_signal_gap_preserves_prefix_instead_of_bridging_missing_actions(tmp_path):
+def test_subsecond_signal_gap_retains_one_round_and_exact_source_samples(tmp_path):
     folder=tmp_path/'task/round'
     journal=begin_capture(tmp_path,folder,{'uuid':'gap-test','author':'operator','episode':{},'segments':[]},['/galaxis/gripper/left/joint_state'])
     folder.mkdir(parents=True)
@@ -295,16 +295,17 @@ def test_real_signal_gap_preserves_prefix_instead_of_bridging_missing_actions(tm
         schema=writer.register_schema('sensor_msgs/msg/JointState','ros2msg',b'test')
         channel=writer.register_channel('/galaxis/gripper/left/joint_state','cdr',schema)
         for offset in (0,10_000_000,20_000_000,250_000_000,260_000_000):
-            data=b'\x00\x01\x00\x00'+struct.pack('<iI',100,offset)
+            data=b'\x00\x01\x00\x00'+struct.pack('<iI',100+offset//10**9,offset%10**9)
             writer.add_message(channel,100_000_000_000+offset,data,100_000_000_000+offset)
         writer.finish()
     original=source.read_bytes()
     interrupt_capture(journal,'sensor_gap');recover_episode(journal)
     meta=json.loads((folder/'meta.json').read_text())
-    assert meta['episode']['end_time']==100.02
+    assert meta['episode']['end_time']==100.26
+    assert not folder.with_name(folder.name+'__part002').exists()
     assert meta['interruption']['signal_timestamp_gaps'][0]['gap_ns']==230_000_000
     with (folder/'recovered.mcap').open('rb') as stream:
-        assert len(list(make_reader(stream).iter_messages()))==3
+        assert len(list(make_reader(stream).iter_messages()))==5
     assert source.read_bytes()==original
 
 
@@ -319,8 +320,8 @@ def test_manual_save_checks_source_gaps_before_encoding_or_cleanup(tmp_path, top
     with source.open('wb') as stream:
         writer=Writer(stream,compression=CompressionType.NONE);writer.start(profile='ros2')
         channel=writer.register_channel(topic,'cdr',0)
-        for offset in (0,10_000_000,120_000_000):
-            payload=b'\x00\x01\x00\x00'+struct.pack('<iI',100,offset)
+        for offset in (0,10_000_000,1_020_000_000):
+            payload=b'\x00\x01\x00\x00'+struct.pack('<iI',100+offset//10**9,offset%10**9)
             writer.add_message(channel,100_000_000_000+offset,payload,100_000_000_000+offset)
         writer.finish()
     before=source.read_bytes()
@@ -370,13 +371,13 @@ def test_gap_recovery_preserves_and_uploads_both_sides_of_missing_interval(tmp_p
         'upload_destination':{'api_url':'https://platform.test'},'episode':{},'segments':[]},['/joint_states'])
     folder.mkdir(parents=True)
     source=folder/'original.mcap'
-    times=(0,10_000_000,20_000_000,250_000_000,260_000_000,270_000_000)
+    times=(0,10_000_000,20_000_000,1_250_000_000,1_260_000_000,1_270_000_000)
     with source.open('wb') as stream:
         writer=Writer(stream,compression=CompressionType.NONE);writer.start(profile='ros2')
         channel=writer.register_channel('/joint_states','cdr',0)
         for offset in times:
             writer.add_message(channel,100_000_000_000+offset,
-                b'\x00\x01\x00\x00'+struct.pack('<iI',100,offset),100_000_000_000+offset)
+                b'\x00\x01\x00\x00'+struct.pack('<iI',100+offset//10**9,offset%10**9),100_000_000_000+offset)
         writer.finish()
     original=source.read_bytes()
     recover_episode(journal)
@@ -386,7 +387,7 @@ def test_gap_recovery_preserves_and_uploads_both_sides_of_missing_interval(tmp_p
     for part in parts:
         with (part/'recovered.mcap').open('rb') as stream:
             rows=list(make_reader(stream).iter_messages())
-        stamps=[struct.unpack_from('<iI',msg.data,4)[1] for _,_,msg in rows]
+        stamps=[(struct.unpack_from('<iI',msg.data,4)[0]-100)*10**9+struct.unpack_from('<iI',msg.data,4)[1] for _,_,msg in rows]
         assert max(b-a for a,b in zip(stamps,stamps[1:]))==10_000_000
         recovered.extend(stamps)
         meta=json.loads((part/'meta.json').read_text())
@@ -415,3 +416,12 @@ def test_split_intervals_exclude_invalid_tracking_and_overlapping_gaps():
         {'valid_until_log_ns':100,'resume_log_ns':300},
         {'valid_until_log_ns':250,'resume_log_ns':500},
         {'valid_until_log_ns':700,'resume_log_ns':801}])==[(0,100),(500,700),(801,1000)]
+
+
+@pytest.mark.parametrize('gap,hard', [(100_000_001,False),(200_000_000,False),
+    (200_000_001,False),(999_999_999,False),(1_000_000_000,True),(0,True),(-1,True)])
+def test_retention_policy_boundary_is_separate_from_training_screening(gap, hard):
+    from galaxis_core.capture_recovery import requires_interval_recovery
+    assert requires_interval_recovery({'gap_ns':gap}) is hard
+    assert requires_interval_recovery({'invalid_tracking':True})
+    assert requires_interval_recovery('damaged data')

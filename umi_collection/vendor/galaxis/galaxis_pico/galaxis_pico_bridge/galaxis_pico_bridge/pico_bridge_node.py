@@ -346,14 +346,18 @@ class PicoBridgeNode(Node):
         self._diag_pub = self.create_publisher(
             DiagnosticArray, self.get_parameter("diag_topic").value, 10
         )
+        # Small pose messages are training inputs, not disposable previews.
+        # A reliable bounded history survives short recorder scheduling stalls.
+        state_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
+                               history=HistoryPolicy.KEEP_LAST, depth=256)
         self._hmd_pub = self.create_publisher(
-            PicoHmd, self.get_parameter("hmd_topic").value, qos
+            PicoHmd, self.get_parameter("hmd_topic").value, state_qos
         )
         self._left_ctrl_pub = self.create_publisher(
-            PicoController, self.get_parameter("left_controller_topic").value, qos
+            PicoController, self.get_parameter("left_controller_topic").value, state_qos
         )
         self._right_ctrl_pub = self.create_publisher(
-            PicoController, self.get_parameter("right_controller_topic").value, qos
+            PicoController, self.get_parameter("right_controller_topic").value, state_qos
         )
         # Default-reliable QoS so consumers like recording_gate (RELIABLE
         # subscriber) match without an extra QoS override.

@@ -12,7 +12,8 @@ from .mcap_video import validate_packet
 
 
 class LiveEncoder:
-    def __init__(self, callback, *, native=None):
+    def __init__(self, callback, *, native=None, managed=False):
+        self.managed = managed
         self.callback = callback
         self.native = native
         self.input = queue.Queue(maxsize=30)
@@ -46,13 +47,29 @@ class LiveEncoder:
         for line in iter(self.process.stderr.readline, b''):
             self.errors.append(line.decode(errors='replace')[-1000:])
 
-    def submit(self, jpeg, metadata):
+    def _enqueue(self, item, timeout):
+        if timeout is not None:
+            self.input.put(item, timeout=timeout)
+            return
+        # The offline supervisor may SIGSTOP the whole group for hours while
+        # the operator records. A wall-clock queue deadline would falsely fail
+        # immediately on resume. Still detect a genuinely failed child.
+        while True:
+            if self.failure or self.process.poll() is not None:
+                raise RuntimeError(self.failure or '视频编码进程退出')
+            try:
+                self.input.put(item, timeout=.2)
+                return
+            except queue.Full:
+                continue
+
+    def submit(self, jpeg, metadata, *, timeout=0):
         if self.failure or self.closed:
             raise RuntimeError(self.failure or 'Encoder closed')
         if self.started is None:
             self.started = time.monotonic()
         try:
-            self.input.put_nowait((jpeg, metadata))
+            self._enqueue((jpeg, metadata), timeout)
         except queue.Full:
             raise RuntimeError('视频编码跟不上采集，已停止本回合并保留已写入数据')
         self.accepted += 1
@@ -144,12 +161,12 @@ class LiveEncoder:
             return
         self.closed = True
         try:
-            self.input.put(None, timeout=2)
-            self.threads[0].join(8)
-            self.threads[1].join(8)
+            self._enqueue(None, None if self.managed else 2)
+            self.threads[0].join(None if self.managed else 8)
+            self.threads[1].join(None if self.managed else 8)
             if self.threads[0].is_alive() or self.threads[1].is_alive():
                 raise RuntimeError('视频编码结束超时，未标记为完整回合')
-            code = self.process.wait(timeout=2)
+            code = self.process.wait(timeout=None if self.managed else 2)
             if code or self.failure or self.count != self.accepted:
                 raise RuntimeError(self.failure or f'视频帧不完整: {self.count}/{self.accepted}, {code}')
         finally:

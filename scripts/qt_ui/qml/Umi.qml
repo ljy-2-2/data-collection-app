@@ -35,7 +35,7 @@ Column {
         Column {id: idleUploads;x: 12;y: 12;width: parent.width-24;spacing: 5
             Txt {text: "后台处理与上传";font.weight: Font.DemiBold}
             Txt {width: parent.width;text: "采集已结束，后台加速处理与上传；关闭软件后也会继续。";wrapMode: Text.Wrap;elide: Text.ElideNone;font.pixelSize: 12}
-            Txt {width: parent.width;text: "视频压缩与校验 "+(root.status.pending_processing||0)+" 段 · 待上传 "+(root.status.pending_imports||0)+" 段";color: Theme.inkSoft;font.pixelSize: 11}
+            Txt {width: parent.width;text: "原始数据整理中 "+(root.status.pending_processing||0)+" 段 · 原始数据已就绪、待上传 "+(root.status.pending_imports||0)+" 段";color: Theme.inkSoft;font.pixelSize: 11}
             Txt {visible: (root.status.failed_processing||0)>0;width: parent.width;text: "处理失败 "+(root.status.failed_processing||0)+" 段，请重试处理/上传";color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
             Btn {text: "重试处理/上传";ghost: true;enabled: !s.busy;onClicked: backend.retryUploads()}
         }
@@ -177,7 +177,7 @@ Column {
                         Txt {objectName: "umiReadinessReason";width: parent.width;visible: !!text;text: root.status.message||"";font.pixelSize: 10;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
                         Txt {text: root.recording?"手柄 B/Y 或空格踏板保存本段":"手柄 A/X 或空格踏板开始";font.pixelSize: 10;color: Theme.inkSoft}
                         Txt {objectName: "umiPedalFeedback";width: parent.width;text: s.umiPedalMessage || "空格踏板：保持本窗口在前台，每踩一次切换录制";font.pixelSize: 9;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
-                        Txt {width: parent.width;visible: (root.status.pending_processing||0)>0 || (root.status.failed_processing||0)>0;text: "后台视频压缩与校验 " + (root.status.pending_processing||0) + " 段 · 处理失败 " + (root.status.failed_processing||0) + " 段，可继续采集";font.pixelSize: 10;color: (root.status.failed_processing||0)>0?Theme.red:Theme.inkSoft;wrapMode: Text.Wrap}
+                        Txt {width: parent.width;visible: (root.status.pending_processing||0)>0 || (root.status.failed_processing||0)>0;text: "后台原始数据整理中 " + (root.status.pending_processing||0) + " 段 · 处理失败 " + (root.status.failed_processing||0) + " 段，可继续采集";font.pixelSize: 10;color: (root.status.failed_processing||0)>0?Theme.red:Theme.inkSoft;wrapMode: Text.Wrap}
                         Txt {width: parent.width;visible: !!text;text: (root.status.upload_queue||{}).message||"";font.pixelSize: 10;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
                         Row {spacing: 6
                             Btn {objectName: "umiRecord";text: root.recording?"完成本段":"开始采集";glyph: root.recording?"Square":"Radio";primary: true;textSize: 11;height: 32;enabled: !s.busy && (root.recording||root.ready);onClicked: backend.recordUmi(root.recording?"stop":"start")}

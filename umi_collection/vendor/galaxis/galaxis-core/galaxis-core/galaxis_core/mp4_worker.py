@@ -46,6 +46,12 @@ def finalize_episode(folder):
     folder = Path(folder)
     pending = folder / '.mp4-pending.json'
     meta = json.loads(pending.read_text())
+    if meta.pop('_deferred_raw', False):
+        from .deferred_raw import finalize_raw
+        finalize_raw(folder, meta)
+        normalize_tree_access(str(folder), *resolve_record_owner(str(folder)))
+        pending.unlink()
+        return
     crf = meta.pop('_video_crf', DEFAULT_VIDEO_CRF)
     from .capture_recovery import validate_recorded_continuity
     validate_recorded_continuity(folder)
@@ -112,6 +118,12 @@ class BackgroundFinalizer:
                         os.sched_setaffinity(int(thread.name), wanted)
                 except (ProcessLookupError, FileNotFoundError):
                     pass
+                except PermissionError:
+                    # Some native encoders change credentials. Do not kill the
+                    # queue supervisor: capture-intent still preempts their
+                    # entire process group before recording starts.
+                    print(f'CPU affinity unavailable for child {entry.name}; capture preemption remains active',
+                          file=sys.stderr, flush=True)
         self._applied_cpus = wanted
 
     def _processing_activity(self):
@@ -240,7 +252,7 @@ class BackgroundFinalizer:
         with open_lock(self.root, '.capture-intent.lock') as intent:
             if not try_lock(intent):
                 # Stop all encoder CPU/I/O, retaining progress when RAM allows.
-                # Completed bundles can still upload in the independent uploader.
+                # The independent uploader also yields while capture holds intent.
                 self._pause_conversion()
                 return
             if self.process is not None:

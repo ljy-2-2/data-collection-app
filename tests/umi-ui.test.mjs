@@ -52,19 +52,19 @@ test('monitor graph padding cannot introduce negative axis labels below calibrat
   assert.match(html, /y="120" text-anchor="end">0\.00°<\/text>/);
   assert.doesNotMatch(html, /text-anchor="end">-/);
   assert.match(html, /<polyline points="56\.0,116\.0 /);
-  assert.match(html, /<strong>1\.00°<\/strong>/);
+  assert.match(html, /<strong>2\.00°<\/strong>/);
   assert.equal(points[0].value, 0);
   assert.equal(points[1].value, Math.PI / 180);
 });
 
 test('UMI monitor displays the already calibrated position with no extra zero subtraction', () => {
-  for (const [value, expected] of [[0, '0.00°'], [-0, '0.00°'], [-1e-8, '0.00°'], [Math.PI / 6, '30.00°']]) {
+  for (const [value, expected] of [[0, '0.00°'], [-0, '0.00°'], [-1e-8, '0.00°'], [Math.PI / 6, '60.00°']]) {
     const html = renderToStaticMarkup(createElement(UmiSensorCurve, {
       side: 'right', reading: { online: true, value }, points: [{ t: 1, value }],
     }));
     assert.ok(html.includes(`<strong>${expected}</strong>`));
     assert.ok(html.includes(`text-anchor="end">${expected}</text>`));
-    assert.match(html, /相对角度/);
+    assert.match(html, /总开合角/);
     assert.doesNotMatch(html, /-0\.00°/);
     assert.doesNotMatch(html, /type="checkbox"/);
   }

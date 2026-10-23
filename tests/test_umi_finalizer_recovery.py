@@ -19,14 +19,14 @@ def docker(tmp_path, monkeypatch):
     project = tmp_path / "current-workspace"
     source = project / "galaxis-core/galaxis-core"
     (source / "galaxis_core").mkdir(parents=True)
-    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py", "mcap_video.py"):
+    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py", "mcap_video.py", "compressed_recorder.py", "deferred_raw.py", "live_encoder.py"):
         (source / "galaxis_core" / name).write_bytes(b"fixture")
     data = tmp_path / "operator-data"
     episode = data / "rosbags/task/001"
     episode.mkdir(parents=True)
     (episode / "source.mcap").write_bytes(b"original recording")
     (episode / ".mp4-pending.json").write_text('{"author":"operator"}')
-    version = "galaxis-core:latest:" + hashlib.sha256(b"fixture" * 7).hexdigest() + ":cpu2"
+    version = "galaxis-core:latest:" + hashlib.sha256(b"fixture" * 10).hexdigest() + ":cpu2"
     template = {
         "Id": "a" * 64,
         "Config": {"Labels": {gc._FINALIZER_LABEL: str(data), gc._FINALIZER_LABEL + ".version": version},
@@ -209,3 +209,27 @@ def test_timeout_preserves_container_and_surfaces_real_failure(docker, monkeypat
     with pytest.raises(gc.CollectionError, match="操作超时"):
         gc.ensure_background_finalizer()
     assert not any(c[1] in {"rm", "run", "stop"} for c in docker.commands)
+
+
+def test_capture_budget_is_held_before_ros_start_and_released_on_startup_failure(tmp_path, monkeypatch):
+    import fcntl
+    monkeypatch.setattr(gc, 'DATA_DIR', tmp_path)
+    for name in ('ensure_recording_base_dir', 'stop_g2_camera_stream', 'ensure_offline_task',
+                 'apply_offline_runtime', 'terminate_legacy_robotics_service', 'stop_collection_stacks'):
+        monkeypatch.setattr(gc, name, lambda *a, **kw: None)
+    monkeypatch.setattr(gc, 'read_collection_profile', lambda: {})
+    monkeypatch.setattr(gc, 'center_camera_source', lambda _: 'usb')
+    monkeypatch.setattr(gc, 'ensure_task_category', lambda _: {'id':'test','name':'test'})
+    monkeypatch.setattr(gc, 'next_round_index', lambda *a: 1)
+    observed=[]
+    def start():
+        with (tmp_path/'rosbags/.capture-monitor.lock').open('rb') as probe:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(probe, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        observed.append(True)
+        raise gc.CollectionError('simulated startup failure')
+    monkeypatch.setattr(gc, 'ensure_collection_stack', start)
+    assert gc.main(['sample','--task','test','--skip-device-setup','--no-open'])==1
+    assert observed==[True]
+    with (tmp_path/'rosbags/.capture-monitor.lock').open('rb') as probe:
+        fcntl.flock(probe, fcntl.LOCK_EX|fcntl.LOCK_NB)

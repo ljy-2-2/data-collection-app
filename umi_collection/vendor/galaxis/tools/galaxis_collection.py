@@ -482,7 +482,7 @@ def ensure_background_finalizer() -> None:
     # A source digest restarts only this worker on software updates. Its queue
     # lives in the mounted data folder, so interrupted work is recoverable.
     digest = hashlib.sha256()
-    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py", "mcap_video.py"):
+    for name in ("mp4_worker.py", "video_bundle.py", "recording_priority.py", "camera_quality.py", "capture_recovery.py", "capture_guard.py", "mcap_video.py", "compressed_recorder.py", "deferred_raw.py", "live_encoder.py"):
         digest.update((source / "galaxis_core" / name).read_bytes())
     cpu_budget = finalizer_cpu_budget()
     version = image + ":" + digest.hexdigest() + f":cpu{cpu_budget}"
@@ -515,6 +515,12 @@ def ensure_background_finalizer() -> None:
             if stopped.returncode:
                 raise CollectionError(f"更新后台处理服务失败：{_finalizer_error(stopped)}；未删除容器")
         _remove_stopped_finalizer(identity, root)
+    devices = []
+    if (source / "galaxis_core/native/mpp-jpeg-h264").is_file():
+        for device in ("/dev/dri", "/dev/mpp_service"):
+            if not Path(device).exists():
+                raise CollectionError(f"板载压缩设备不可用：{device}；暂存数据保留")
+            devices += ["--device", device]
     command = [
         "docker", "run", "--detach", "--name", name,
         "--label", label + "=" + str(root), "--label", label + ".version=" + version,
@@ -524,7 +530,7 @@ def ensure_background_finalizer() -> None:
         "--env", "PYTHONPATH=/processing-src",
         "--env", "GALAXIS_DATA_UID=" + os.environ.get("SUDO_UID", str(os.getuid())),
         "--env", "GALAXIS_DATA_GID=" + os.environ.get("SUDO_GID", str(os.getgid())),
-        "--entrypoint", "python3", image,
+        *devices, "--entrypoint", "python3", image,
         *_FINALIZER_COMMAND,
     ]
     result = _finalizer_docker(*command[1:])
@@ -1637,6 +1643,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     g2_stream_active = False
     collection_stack_attempted = False
+    activity_lock = None
     pico_serial = None
     try:
         if args.command == "create-task":
@@ -1697,6 +1704,10 @@ def main(argv: list[str] | None = None) -> int:
         # Resolve the legacy process before taking ownership of a stack start.
         # A permission failure here must not stop any existing collection stack.
         terminate_legacy_robotics_service()
+        activity_path = DATA_DIR / 'rosbags/.capture-monitor.lock'
+        activity_path.parent.mkdir(parents=True, exist_ok=True)
+        activity_lock = activity_path.open('a+')
+        fcntl.flock(activity_lock, fcntl.LOCK_SH)
         collection_stack_attempted = True
         ensure_collection_stack()
         print("正在建立 PICO VR 连接并检查采集门禁…", flush=True)
@@ -1771,6 +1782,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"警告：G2 中心相机清理失败：{cleanup_error}", file=sys.stderr)
                 return 1
         return 0
+
+    finally:
+        if activity_lock is not None:
+            activity_lock.close()
 
 
 if __name__ == "__main__":

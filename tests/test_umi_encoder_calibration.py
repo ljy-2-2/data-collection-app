@@ -83,7 +83,7 @@ def encoder_factory(monkeypatch):
             to_msg=lambda: SimpleNamespace(sec=123, nanosec=456)))
         logger = SimpleNamespace(info=lambda *_: None, warning=lambda *_: None, debug=lambda *_: None)
         node.get_logger = lambda: logger
-        for name in ("pub", "left_pub", "right_pub", "id_pub", "left_id_pub", "right_id_pub"):
+        for name in ("pub", "opening_pub", "left_pub", "right_pub", "id_pub", "left_id_pub", "right_id_pub"):
             setattr(node, name, Publisher())
         return node
 
@@ -318,3 +318,41 @@ def test_stale_encoder_not_republished_with_fresh_timestamp(encoder_factory,monk
     before=len(node.pub.messages)
     node.on_timer()
     assert len(node.pub.messages)==before
+
+
+@pytest.mark.parametrize("side,closed,opened", [("left", 237, 222), ("right", 237, 252)])
+def test_total_opening_is_twice_joint_angle_with_same_timestamp(encoder_factory, side, closed, opened):
+    node = encoder_factory(side, closed)
+    for value in (closed, opened, closed):
+        joint = read_and_publish(node, side, value)
+        opening = node.opening_pub.messages[-1]
+        assert opening.name == [f"{side}_opening_angle"]
+        assert opening.header.stamp == joint.header.stamp
+        assert opening.position == pytest.approx([2 * joint.position[0]])
+    assert node.opening_pub.messages[1].position == pytest.approx([math.pi / 6])
+    # No fake samples are emitted when the physical encoder is unavailable.
+    count = len(node.opening_pub.messages)
+    node._states[side].last_update_time = None
+    node.on_timer()
+    assert len(node.opening_pub.messages) == count
+
+
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_opening_channel_mcap_roundtrip(encoder_factory, tmp_path, side):
+    writer_module = pytest.importorskip("mcap.writer")
+    reader_module = pytest.importorskip("mcap.reader")
+    node = encoder_factory(side, 0)
+    read_and_publish(node, side, -15 if side == "left" else 15)
+    opening = node.opening_pub.messages[-1]
+    target = tmp_path / 'opening.mcap'
+    with target.open('wb') as stream:
+        writer = writer_module.Writer(stream)
+        writer.start(profile='ros2')
+        schema = writer.register_schema('sensor_msgs/msg/JointState', 'ros2msg', b'JointState')
+        channel = writer.register_channel('/galaxis/gripper/opening_state', 'cdr', schema)
+        writer.add_message(channel, 123, joint_cdr(opening), 123)
+        writer.finish()
+    with target.open('rb') as stream:
+        _, channel, message = next(reader_module.make_reader(stream).iter_messages())
+    assert channel.topic == '/galaxis/gripper/opening_state'
+    assert decode_joint_position(message.data) == pytest.approx(math.pi / 6)

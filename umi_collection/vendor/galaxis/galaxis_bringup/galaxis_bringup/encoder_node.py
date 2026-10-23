@@ -146,6 +146,10 @@ class DualEncoderJointStateNode(Node):
             thread.start()
 
         # --- Publisher/timer ---
+        # Physical /joint_states stays single-finger radians for URDF/TF.
+        # This separate measured channel is the full two-finger opening angle.
+        self.opening_pub = self.create_publisher(
+            JointState, "/galaxis/gripper/opening_state", 100)
         self.pub = self.create_publisher(JointState, topic, 100)
         self.left_pub = self.create_publisher(JointState, left_joint_state_topic, 100)
         self.right_pub = self.create_publisher(JointState, right_joint_state_topic, 100)
@@ -348,6 +352,12 @@ class DualEncoderJointStateNode(Node):
             msg.name = [joint_names[side] for side in self.active_sides]
             msg.position = [float(values[side]) for side in self.active_sides]
             self.pub.publish(msg)
+            opening = JointState()
+            opening.header.stamp = stamp
+            opening.header.frame_id = self.frame_id
+            opening.name = [f"{side}_opening_angle" for side in self.active_sides]
+            opening.position = [2.0 * float(values[side]) for side in self.active_sides]
+            self.opening_pub.publish(opening)
 
         # Publish device IDs only when they change
         with self.left_state.lock:

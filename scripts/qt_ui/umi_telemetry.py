@@ -109,7 +109,9 @@ class UmiTelemetry(QObject):
         histories = {}
         for side in ("left", "right"):
             reading = latest["encoders"].get(side, {})
-            value = reading.get("position")
+            value = reading.get("opening_angle")
+            if value is None and isinstance(reading.get("position"), (int, float)):
+                value = 2.0 * reading["position"]
             valid = (latest.get("monitor_connected") and reading.get("online")
                      and isinstance(value, (int, float)) and math.isfinite(value))
             histories[side] = [*self.history[side], value if valid else None][-240:]

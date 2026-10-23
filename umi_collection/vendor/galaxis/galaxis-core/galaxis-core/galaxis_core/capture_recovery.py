@@ -155,11 +155,28 @@ def complete_messages(path, issues):
                 break
 
 
+def requires_interval_recovery(issue):
+    """Retention policy, separate from strict training-quality screening.
+
+    Keep sub-second gaps in the same original recording, with exact timestamps.
+    Unknown/invalid data, clock reversals and >=1 s outages still need recovery.
+    Accept old markers containing a short gap without repeating their split.
+    """
+    if not issue:
+        return False
+    if not isinstance(issue, dict):
+        return True
+    if issue.get('invalid_tracking') or issue.get('malformed'):
+        return True
+    gap = issue.get('gap_ns')
+    return gap is None or gap <= 0 or gap >= 1_000_000_000
+
+
 def check_recorded_sample(topic, encoding, data, log_time, previous_signals, signal_gaps, issues):
     """The same source continuity rule for live recording and file recovery."""
-    # Match the platform's UMI check_series(..., gap=.1). Use recorded
-    # source stamps, not callback arrival time. Never bridge a real
-    # missing action interval when publishing the recovered prefix.
+    # Audit against the strict 100 ms screening limit, but do not confuse
+    # training screening with the 1 s capture interruption policy. Source
+    # stamps and missing samples remain unchanged in the saved raw recording.
     if (topic == '/joint_states' or
             topic.startswith('/pico/') and topic.endswith('/state') or
             topic.endswith(('/image_raw/compressed', '/image_raw')) or
@@ -215,8 +232,9 @@ def inspect_recorded_continuity(sources):
 def validate_recorded_continuity(folder):
     sources = sorted(Path(folder).glob('*.mcap'))
     _, _, issues, gaps = inspect_recorded_continuity(sources)
-    if issues or gaps:
-        detail = issues[0] if issues else gaps[0]['topic']
+    hard_gaps = [g for g in gaps if requires_interval_recovery(g)]
+    if issues or hard_gaps:
+        detail = issues[0] if issues else hard_gaps[0]['topic']
         raise ValueError(f'采集源数据连续性不合格: {detail}; 保留原始数据并恢复有效前缀')
 
 
@@ -234,8 +252,16 @@ def recover_episode(journal):
     # The finalizer owns the capture/video locks before invoking recovery.
     # This marker also prevents an uploader from racing a retried publication.
     (folder/'.recovery-pending').touch()
+    excluded = {'recovered.mcap'}
+    if value['metadata'].get('_deferred_raw'):
+        try:
+            published = json.loads((folder/'.compressed-raw.json').read_text())
+            if published.get('finalized_after_capture'):
+                excluded.add(published['file'])
+        except (OSError, ValueError, KeyError):
+            pass
     sources = sorted(p for p in [*folder.glob('*.mcap'), *folder.glob('*.mcap.partial')]
-                     if p.name != 'recovered.mcap')
+                     if p.name not in excluded)
     first, last, issues, signal_gaps = inspect_recorded_continuity(sources)
     if not last:
         raise ValueError('No complete recorded messages could be recovered; originals retained')
@@ -299,6 +325,8 @@ def continuous_intervals(start_ns, end_ns, gaps):
     """Remove missing/invalid spans without joining actions across a gap."""
     intervals = [(start_ns, end_ns)]
     for gap in sorted(gaps, key=lambda g: g['valid_until_log_ns']):
+        if not requires_interval_recovery(gap):
+            continue
         before, after = gap['valid_until_log_ns'], gap['resume_log_ns']
         remaining = []
         for start, end in intervals:
@@ -404,6 +432,11 @@ def publish_recovered_interval(folder, sources, value, interruption, missing,
     os.replace(temp_yaml, folder/'metadata.yaml')
     atomic_json(folder/'capture-recovery.json', report)
     atomic_json(folder/'meta.json', metadata)
+    if metadata.get('_deferred_raw'):
+        from .deferred_raw import finalize_raw
+        finalize_raw(folder, metadata, source=folder/'recovered.mcap')
+        # This is the repair copy, never the original captured prefix.
+        (folder/'recovered.mcap').unlink(missing_ok=True)
     (folder/'recording-failure.json').unlink(missing_ok=True)
     normalize_tree_access(str(folder), *resolve_record_owner(str(folder)))
     sync_directory(folder)

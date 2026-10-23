@@ -72,6 +72,10 @@ def configure_umi_runtime(project: Path, manifest: dict):
     if monitor_binding not in monitor_volumes:
         monitor_volumes.append(monitor_binding)
 
+    web_binding = "./monitor/webui/js/monitor.js:/app/monitor/webui/js/monitor.js:ro"
+    if web_binding not in monitor_volumes:
+        monitor_volumes.append(web_binding)
+
     services["galaxis_monitor"]["working_dir"] = "/app/monitor/bridge"
     services["galaxis_monitor"]["command"] = ["python3", "-m", "galaxis_studio_bridge", "--host", "127.0.0.1", "--port", "8770"]
     path.write_text(yaml.safe_dump(compose, allow_unicode=True, sort_keys=False))

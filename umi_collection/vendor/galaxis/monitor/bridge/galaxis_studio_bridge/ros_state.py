@@ -661,7 +661,9 @@ class RosStateCollector:
                 "online": rate_hz > 0,
                 "device_id": state.get(f"encoder_{side}_id", ""),
                 "name": data.get("name", ""),
-                "position": data.get("position", 0.0),
+                "position": data.get("position", 0.0),  # single-finger radians
+                "opening_angle": 2.0 * data.get("position", 0.0),
+                "opening_angle_units": "radians",
                 "velocity": data.get("velocity", 0.0),
                 "rate_hz": rate_hz,
             }

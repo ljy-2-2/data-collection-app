@@ -77,9 +77,10 @@ def test_live_audit_records_a_real_gap_without_discarding_or_stopping_the_round(
   bag.message(topic,image_message(offset,'red'),100_000_000_000+offset,sequence=index)
  bag.close()
  saved=json.loads((bag.folder/'.compressed-raw.json').read_text())
- assert saved['camera_frames'][topic]==4 and saved['continuity_issue']['gap_ns']==266_666_667
- with pytest.raises(ValueError,match='连续性'):
-  validate_recorded_continuity(bag.folder)
+ assert saved['camera_frames'][topic]==4 and saved['continuity_issue'] is None
+ assert saved['continuity_summary'][topic]['max_gap_ns']==266_666_667
+ assert saved['continuity_summary'][topic]['warnings_over_200ms']==1
+ validate_recorded_continuity(bag.folder)
  assert bag.path.exists()
 
 
@@ -96,3 +97,26 @@ def test_recovered_interval_keeps_keyframe_preroll_but_never_extends_sensor_inte
  assert camera[0].log_time<start and validate_packet(split_video(camera[0].data)[1],first=True)
  assert all(start<=m.log_time<=end for s,c,m in rows if c.topic=='/exact')
  assert json.loads((root/'meta.json').read_text())['episode']['start_time']==start/1e9
+
+
+def test_slow_fsync_does_not_hold_message_writer_lock(tmp_path, monkeypatch):
+ import threading
+ from galaxis_core import compressed_recorder as module
+ bag=CompressedBag(tmp_path/'concurrent',defer_video=True)
+ bag.topic('/exact','std_msgs/msg/String',b'string data')
+ entered,release=threading.Event(),threading.Event()
+ real=module.os.fsync
+ def blocked(fd):
+  entered.set()
+  assert release.wait(3)
+ monkeypatch.setattr(module.os,'fsync',blocked)
+ checker=threading.Thread(target=bag.check);checker.start()
+ try:
+  assert entered.wait(1)
+  assert bag.lock.acquire(timeout=.1)
+  bag.lock.release()
+  bag.message('/exact',b'original',100)
+ finally:
+  release.set();checker.join(2);monkeypatch.setattr(module.os,'fsync',real)
+ bag.close()
+ assert json.loads((bag.folder/'.deferred-raw.json').read_text())['counts']['/exact']==1

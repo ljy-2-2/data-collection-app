@@ -526,14 +526,15 @@ class RecordManager(Node):
             camera_contract = load_contract()
         except Exception as exc:
             return False, f'无法读取相机采集配置：{exc}'
-        # 降低录制进程的 CPU/IO 优先级,避免录制启动与持续写入挤占视频流和
-        # ROS 实时数据,导致监看页面在录制开始时卡顿
+        # 实时压缩必须及时消费视频；不能按后台转码设置为 CPU/IO 空闲优先级。
+        # 旧的直接写包路径保持原有调度。
         if self.record_format == "hdf5":
             # rosbag2 writes into a temporary child directory. The final HDF5
             # file is published only after lossless conversion and validation.
             os.makedirs(record_dir, exist_ok=False)
         command = []
-        if shutil.which("nice") and shutil.which("ionice"):
+        if (not getattr(self, "compressed_mcap_enabled", False)
+                and shutil.which("nice") and shutil.which("ionice")):
             command += ["nice", "-n", "10", "ionice", "-c", "3"]
         command.extend(
             self._recording_command(record_dir, payload_filename)
@@ -638,7 +639,7 @@ class RecordManager(Node):
         if self.record_format == 'rosbag' and getattr(self, 'compressed_mcap_enabled', False):
             if self.use_sim_time:
                 raise ValueError('压缩原始录制暂不支持仿真时钟，未开始录制')
-            command = [sys.executable, '-m', 'galaxis_core.compressed_recorder', '-o', record_dir]
+            command = [sys.executable, '-m', 'galaxis_core.compressed_recorder', '--defer-video', '-o', record_dir]
             if self.qos_overrides_file:
                 command.extend(['--qos-profile-overrides-path', self.qos_overrides_file])
             return [*command, *self.record_topics]
@@ -829,8 +830,19 @@ class RecordManager(Node):
 
     def _capture_metadata(self, meta):
         meta = dict(meta)
+        meta['gripper_angle_contract'] = {
+            'version': 'umi-opening-angle-v1',
+            'units': 'radians',
+            'joint_state_semantics': 'single_finger_angle',
+            'joint_state_topic': '/joint_states',
+            'opening_state_topic': '/galaxis/gripper/opening_state',
+            'opening_state_names': ['left_opening_angle', 'right_opening_angle'],
+            'opening_from_joint_scale': 2.0,
+            'zero': 'calibrated_closed',
+        }
         if getattr(self, 'compressed_mcap_enabled', False):
             meta['recording_format'] = 'umi-mcap-h264-v1'
+            meta['_deferred_raw'] = True
         if getattr(self, 'collection_author', None):
             meta['author'] = self.collection_author
         if getattr(self, 'collection_destination', None):
@@ -842,7 +854,14 @@ class RecordManager(Node):
         if not journal or not self.is_recording:
             return
         if self.rosbag_process is not None and self.rosbag_process.poll() is not None:
-            self.interrupt_recording('recorder_stopped_unexpectedly')
+            reason = 'recorder_stopped_unexpectedly'
+            try:
+                error = json.loads((Path(self.recent_record_dir)/'.recorder-error.json').read_text())
+                reason += ': ' + str(error['reason'])[:1500]
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+            self.get_logger().error(reason)
+            self.interrupt_recording(reason)
             return
         if self._snapshot_future is not None and not self._snapshot_future.done():
             return
@@ -971,7 +990,7 @@ class RecordManager(Node):
             self._preserve_recording_failure(message)
             return False, message
 
-        meta_dict = json.loads(get_verified_metadata_future.result().message)
+        meta_dict = self._capture_metadata(json.loads(get_verified_metadata_future.result().message))
         if self.record_format == "hdf5":
             record_dir = self.recent_record_dir
             task_name = self.task_name
@@ -1020,7 +1039,7 @@ class RecordManager(Node):
         completed_msg = String()
         completed_msg.data = self.recent_record_dir
         if (not getattr(self, "video_mp4_enabled", False)
-                or getattr(self, 'compressed_mcap_enabled', False)):
+                or (Path(self.recent_record_dir) / '.compressed-raw.json').is_file()):
             self.recording_completed_pub.publish(completed_msg)
 
         if journal:
@@ -1032,6 +1051,7 @@ class RecordManager(Node):
     def _queue_mp4_recording(self, record_dir: Path, meta: dict) -> None:
         from galaxis_core.mp4_worker import atomic_json
         from galaxis_core.video_bundle import DEFAULT_VIDEO_CRF
+        from galaxis_core.capture_recovery import requires_interval_recovery
         # Durable metadata is captured per episode, before accepting the next
         # start. Uploaders must ignore this episode until pending is removed.
         meta = dict(meta)
@@ -1039,14 +1059,22 @@ class RecordManager(Node):
             meta["author"] = self.collection_author
         if getattr(self, 'collection_destination', None):
             meta['upload_destination'] = dict(self.collection_destination)
+        deferred = record_dir / '.deferred-raw.json'
+        if deferred.is_file():
+            saved = json.loads(deferred.read_text())
+            if requires_interval_recovery(saved.get('continuity_issue')):
+                raise ValueError('采集源数据存在真实缺口，暂存数据已保留，将恢复有效区间')
+            atomic_json(record_dir / '.mp4-pending.json', dict(meta, _deferred_raw=True))
+            return
         compressed = record_dir / '.compressed-raw.json'
         if compressed.is_file():
             from galaxis_core.mcap_video import FORMAT
             saved = json.loads(compressed.read_text())
             if saved.get('format') != FORMAT or saved.get('state') != 'complete':
                 raise ValueError('压缩原始包未完成，保留回合等待恢复')
-            if saved.get('continuity_issue'):
+            if requires_interval_recovery(saved.get('continuity_issue')):
                 raise ValueError('采集源数据存在真实缺口，原始包已保留，将恢复并上传连续区间')
+            meta['source_continuity'] = saved.get('continuity_summary', {})
             meta['recording_format'] = FORMAT
             meta['raw_compression'] = saved['encoder']
             meta['raw_sha256'] = saved['sha256']

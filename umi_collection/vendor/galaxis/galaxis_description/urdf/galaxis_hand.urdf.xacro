@@ -31,6 +31,9 @@
   <xacro:property name="mount_pitch" value="0.0"/>
   <xacro:property name="mount_yaw" value="0.0"/>
 
+  <!-- JointState q is the SINGLE finger angle in radians. The full opening
+       angle is 2*q on /galaxis/gripper/opening_state, NOT a physical joint.
+       Do not feed the opening angle into these joints or TF doubles its motion. -->
   <!-- continuous expresses encoder-driven rotation without model limits.
        This collection model does not describe physical travel stops. -->
   <xacro:macro name="finger" params="hand_prefix finger_side side_sign hand_sign active_side">

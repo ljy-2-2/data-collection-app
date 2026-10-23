@@ -5,6 +5,7 @@ robot_config:
       devices: '[]'
       record_topics:
       - /joint_states
+      - /galaxis/gripper/opening_state
       - /device_ids
       - /left_camera/camera_info
       - /left_camera/image_raw/compressed

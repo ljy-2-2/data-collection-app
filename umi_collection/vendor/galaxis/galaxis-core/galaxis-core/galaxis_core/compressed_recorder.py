@@ -12,6 +12,7 @@ from pathlib import Path
 import platform
 import re
 import signal
+import sys
 import threading
 import time
 
@@ -43,7 +44,9 @@ class DurableStream:
 
 
 class CompressedBag:
-    def __init__(self, folder, *, native=None):
+    def __init__(self, folder, *, native=None, defer_video=False, encoder_timeout=0):
+        self.defer_video = defer_video
+        self.encoder_timeout = encoder_timeout
         self.folder = Path(folder)
         self.folder.mkdir(parents=True, exist_ok=False)
         self.path = self.folder / (self.folder.name+'_0.mcap')
@@ -64,12 +67,13 @@ class CompressedBag:
         self.sizes = {}
         self.previous_samples = {}
         self.continuity_issue = None
+        self.continuity_summary = {}
 
     def topic(self, topic, type_name, definition, qos=''):
         if topic in self.channels:
             return
         original_type = type_name
-        if topic in CAMERAS:
+        if topic in CAMERAS and not self.defer_video:
             if type_name != 'sensor_msgs/msg/CompressedImage':
                 raise ValueError('Only JPEG CompressedImage inputs are supported')
             type_name, definition = VIDEO_TYPE, VIDEO_SCHEMA
@@ -82,7 +86,7 @@ class CompressedBag:
 
     def message(self, topic, payload, log_time, publish_time=None, sequence=0):
         stamp = (int(log_time), int(publish_time or log_time), int(sequence) & 0xffffffff)
-        if topic in CAMERAS:
+        if topic in CAMERAS and not self.defer_video:
             prefix, jpeg = split_image(payload)
             import io
             from PIL import Image
@@ -95,8 +99,8 @@ class CompressedBag:
                 def output(packet, metadata):
                     header, timing = metadata
                     self._write(topic, video_message(header, packet), timing)
-                self.encoders[topic] = LiveEncoder(output, native=self.native)
-            self.encoders[topic].submit(jpeg, (prefix, stamp))
+                self.encoders[topic] = LiveEncoder(output, native=self.native, managed=self.encoder_timeout is None)
+            self.encoders[topic].submit(jpeg, (prefix, stamp), timeout=self.encoder_timeout)
         else:
             self._write(topic, payload, stamp)
 
@@ -106,12 +110,21 @@ class CompressedBag:
             # Audit while streaming, so normal saves never rescan hours of
             # video. A gap is retained for recovery after stop, not hidden by
             # interpolation and not an extra immediate stop condition.
-            from .capture_recovery import check_recorded_sample
+            from .capture_recovery import check_recorded_sample, requires_interval_recovery
             gaps, issues = [], []
             check_recorded_sample(topic, 'cdr', payload, log_time,
                                   self.previous_samples, gaps, issues)
-            if self.continuity_issue is None and (gaps or issues):
-                self.continuity_issue = issues[0] if issues else gaps[0]
+            for gap in gaps:
+                row = self.continuity_summary.setdefault(topic, dict(
+                    gaps_over_100ms=0, warnings_over_200ms=0, max_gap_ns=0, examples=[]))
+                row['gaps_over_100ms'] += 1
+                row['warnings_over_200ms'] += int(gap.get('gap_ns', 0) > 200_000_000)
+                row['max_gap_ns'] = max(row['max_gap_ns'], gap.get('gap_ns', 0))
+                if len(row['examples']) < 16:
+                    row['examples'].append(gap)
+            hard = [gap for gap in gaps if requires_interval_recovery(gap)]
+            if self.continuity_issue is None and (hard or issues):
+                self.continuity_issue = issues[0] if issues else hard[0]
             self.writer.add_message(self.channels[topic]['id'], log_time, payload,
                                     publish_time, sequence)
             self.counts[topic] += 1
@@ -126,8 +139,9 @@ class CompressedBag:
         disk = os.statvfs(self.folder)
         if disk.f_bavail*disk.f_frsize < 512*1024*1024:
             raise OSError('采集盘剩余空间不足，结束并保存当前回合')
-        with self.lock:
-            os.fsync(self.stream.stream.fileno())
+        # fsync must not hold the writer lock: slow media must not stop ROS
+        # callbacks from draining DDS. The checker is joined before close().
+        os.fsync(self.stream.stream.fileno())
 
     def close(self, *, complete=True):
         if self.closed:
@@ -159,6 +173,17 @@ class CompressedBag:
                     message_count=self.counts[t]) for t,c in self.channels.items()],
                 files=[dict(path=self.path.name, starting_time=dict(nanoseconds_since_epoch=self.first),
                             duration=dict(nanoseconds=self.last-self.first), message_count=sum(self.counts.values()))])
+            if self.defer_video:
+                # Only the offline finalizer may publish a ready .mcap. The
+                # JPEG staging stream is durable and recoverable after a crash.
+                self.stream.stream.close()
+                atomic_json(self.folder/'.deferred-raw.json', dict(
+                    format='umi-jpeg-staging-v1', state='captured', file=self.partial.name,
+                    counts=self.counts, continuity_issue=self.continuity_issue,
+                    continuity_summary=self.continuity_summary))
+                atomic_json(self.folder/'raw-data-status.json', dict(
+                    state='pending', message='采集已保存，等待压缩为正式原始数据'))
+                return
             tmp = self.folder/'metadata.yaml.tmp'
             with tmp.open('w') as handle:
                 yaml.safe_dump({'rosbag2_bagfile_information': info}, handle, sort_keys=False)
@@ -170,7 +195,7 @@ class CompressedBag:
                 file=self.path.name, sha256=self.stream.digest.hexdigest(),
                 message_count=sum(self.counts.values()), camera_frames={t:e.count for t,e in self.encoders.items()},
                 camera_sizes=self.sizes,
-                continuity_issue=self.continuity_issue,
+                continuity_issue=self.continuity_issue, continuity_summary=self.continuity_summary,
                 encoder='rockchip-h264-qp20' if self.native else 'libx264-crf18-zerolatency'))
         finally:
             self.stream.stream.close()
@@ -213,11 +238,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output', required=True, type=Path)
     parser.add_argument('--native', type=Path)
+    parser.add_argument('--defer-video', action='store_true')
     parser.add_argument('--qos-profile-overrides-path')
     parser.add_argument('topics', nargs='+')
     args = parser.parse_args()
     native = args.native
-    if platform.machine() in ('aarch64', 'arm64') and native is None:
+    if not args.defer_video and platform.machine() in ('aarch64', 'arm64') and native is None:
         native = Path(__file__).parent/'native/mpp-jpeg-h264'
         if not native.is_file():
             raise RuntimeError('缺少板载视频编码组件，未开始录制；请更新完整运行环境')
@@ -232,7 +258,7 @@ def main():
     if args.qos_profile_overrides_path:
         import yaml
         overrides = yaml.safe_load(Path(args.qos_profile_overrides_path).read_text()) or {}
-    bag = CompressedBag(args.output, native=native)
+    bag = CompressedBag(args.output, native=native, defer_video=args.defer_video)
     stopped = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())
@@ -243,11 +269,15 @@ def main():
         for topic in args.topics:
             if topic in subscriptions or topic not in available:
                 continue
-            if len(available[topic]) != 1:
-                raise ValueError('Conflicting message types on '+topic)
-            type_name = available[topic][0]
-            # Match a publisher's durability for latched calibration/static TF.
+            # Graph types include subscribers, which cannot define recorded data.
             offers = node.get_publishers_info_by_topic(topic)
+            types = {offer.topic_type for offer in offers}
+            if not types:
+                continue
+            if len(types) != 1:
+                raise ValueError('Conflicting publisher message types on '+topic)
+            type_name = types.pop()
+            # Match a publisher's durability for latched calibration/static TF.
             latched = offers and all(o.qos_profile.durability == DurabilityPolicy.TRANSIENT_LOCAL for o in offers)
             reliable = offers and all(o.qos_profile.reliability == ReliabilityPolicy.RELIABLE for o in offers)
             qos = QoSProfile(depth=60, reliability=ReliabilityPolicy.RELIABLE if reliable else ReliabilityPolicy.BEST_EFFORT,
@@ -270,23 +300,54 @@ def main():
                     bag.message(topic, data, arrival, source,
                                 getattr(info, 'publication_sequence_number', 0))
                 except Exception as exc:
-                    failure.append(str(exc)); stopped.set()
+                    reason = f'{topic}: {type(exc).__name__}: {exc}'
+                    failure.append(reason)
+                    print('录制接收失败：' + reason, file=sys.stderr, flush=True)
+                    stopped.set()
             subscriptions[topic] = node.create_subscription(get_message(type_name), topic,
                                                              callback, qos, raw=True)
+    def check_storage():
+        while not stopped.wait(.5):
+            try:
+                bag.check()
+            except Exception as exc:
+                failure.append(f'存储检查失败: {exc}')
+                stopped.set()
+    checker = threading.Thread(target=check_storage, name='recording-storage-check')
+    checker.start()
     last_check = 0
     try:
         while rclpy.ok() and not stopped.is_set():
             now = time.monotonic()
             if now-last_check > .5:
-                discover(); bag.check(); last_check = now
+                discover(); last_check = now
             rclpy.spin_once(node, timeout_sec=.02)
-        bag.close(complete=not failure)
+        stopped.set()
+        checker.join()
         if failure:
             raise RuntimeError(failure[0])
-    except Exception:
-        bag.close(complete=False)
+        bag.close()
+    except Exception as exc:
+        stopped.set()
+        checker.join()
+        # Finalization of a failed round deliberately raises "interrupted".
+        # It must never replace the original receiving/encoding exception.
+        try:
+            atomic_json(bag.folder / '.recorder-error.json', {
+                'reason': str(exc), 'type': type(exc).__name__, 'detected_ns': time.time_ns(),
+                'encoders': {topic: {'accepted': e.accepted, 'written': e.count,
+                    'queued': e.input.qsize(), 'pending': e.pending.qsize(),
+                    'failure': e.failure, 'stderr': list(e.errors)} for topic, e in bag.encoders.items()}})
+        except OSError:
+            pass
+        try:
+            bag.close(complete=False)
+        except Exception:
+            pass
         raise
     finally:
+        stopped.set()
+        checker.join()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

@@ -235,7 +235,8 @@ function UmiSensorCurve({
 }) {
   // Preview/calibration and ROS telemetry stay in radians; only presentation
   // uses degrees, so confirming a minimum never changes the submitted zero.
-  const degreePoints = points.map((point) => ({ ...point, value: point.value * UMI_RADIANS_TO_DEGREES }));
+  const angleScale = onMinimumChange ? 1 : 2; // raw calibration vs total opening
+  const degreePoints = points.map((point) => ({ ...point, value: point.value * angleScale * UMI_RADIANS_TO_DEGREES }));
   const values = degreePoints.map((point) => point.value);
   const rawLow = values.length ? Math.min(...values) : 0;
   const rawHigh = values.length ? Math.max(...values) : 1;
@@ -254,7 +255,7 @@ function UmiSensorCurve({
   }).join(' ');
   const label = side === 'left' ? '左侧传感器' : '右侧传感器';
   const current = typeof reading?.value === 'number' && Number.isFinite(reading.value)
-    ? reading.value * UMI_RADIANS_TO_DEGREES : null;
+    ? reading.value * angleScale * UMI_RADIANS_TO_DEGREES : null;
 
   return (
     <article className={classNames('umi-sensor-curve-card', !enabled && 'is-placeholder')}>
@@ -272,7 +273,7 @@ function UmiSensorCurve({
         </svg>
         {!polyline ? <span>{enabled ? reading?.error || '等待实时数据…' : '未启用'}</span> : null}
       </div>
-      <footer><span>{onMinimumChange ? '原始角度' : '相对角度'}</span><strong>{current === null ? '--' : umiDegreesText(current)}</strong>{onMinimumChange && enabled ? <label className="umi-minimum-confirm"><input type="checkbox" checked={minimum !== undefined} disabled={!reading?.online || current === null} onChange={(event) => onMinimumChange(event.target.checked)} /><span>闭合最小值（原始零点）</span><strong>{minimum === undefined ? '--' : umiDegreesText(minimum * UMI_RADIANS_TO_DEGREES)}</strong></label> : null}</footer>
+      <footer><span>{onMinimumChange ? '原始角度' : '总开合角'}</span><strong>{current === null ? '--' : umiDegreesText(current)}</strong>{onMinimumChange && enabled ? <label className="umi-minimum-confirm"><input type="checkbox" checked={minimum !== undefined} disabled={!reading?.online || current === null} onChange={(event) => onMinimumChange(event.target.checked)} /><span>闭合最小值（原始零点）</span><strong>{minimum === undefined ? '--' : umiDegreesText(minimum * UMI_RADIANS_TO_DEGREES)}</strong></label> : null}</footer>
     </article>
   );
 }

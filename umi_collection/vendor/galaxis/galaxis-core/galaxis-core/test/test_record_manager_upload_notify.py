@@ -290,15 +290,16 @@ class TestRecordingFormat:
         record_manager.recording_saved_pub.publish.assert_called_once()
         saved_arg = record_manager.recording_saved_pub.publish.call_args[0][0]
         assert saved_arg.data == str(tmp_path / "Galaxis_001")
-        assert json.loads(
-            (tmp_path / "Galaxis_001" / "meta.json").read_text()
-        ) == {"task": "Galaxis"}
+        saved_meta = json.loads((tmp_path / "Galaxis_001" / "meta.json").read_text())
+        assert saved_meta["task"] == "Galaxis"
+        assert saved_meta["gripper_angle_contract"]["opening_from_joint_scale"] == 2.0
+        assert saved_meta["gripper_angle_contract"]["joint_state_semantics"] == "single_finger_angle"
         # Upload readiness remains tied to successful background conversion.
         record_manager.recording_completed_pub.publish.assert_not_called()
         queue_job.assert_called_once_with(
             str(tmp_path / "Galaxis_001"),
             "Galaxis/Galaxis_001",
-            {"task": "Galaxis"},
+            saved_meta,
         )
 
     def test_hdf5_finalize_keeps_staging_until_round_metadata_is_confirmed(
@@ -469,14 +470,16 @@ def test_completed_metadata_atomically_carries_collection_owner(record_manager, 
     assert not (tmp_path / 'meta.json.tmp').exists()
 
 
-@pytest.mark.parametrize('compressed_raw', [False, True])
+@pytest.mark.parametrize('compressed_raw', [False, True, 'deferred'])
 def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager, tmp_record_dir, compressed_raw):
     folder = tmp_record_dir / 'task' / 'first'; folder.mkdir(parents=True)
     source = folder / 'source.mcap'; source.write_bytes(b'original camera and joint data')
     record_manager.is_recording = True
     record_manager.video_mp4_enabled = True
     record_manager.compressed_mcap_enabled = compressed_raw
-    if compressed_raw:
+    if compressed_raw == 'deferred':
+        (folder / '.deferred-raw.json').write_text(json.dumps({'continuity_issue': None}))
+    elif compressed_raw:
         (folder / '.compressed-raw.json').write_text(json.dumps({
             'format': 'umi-mcap-h264-v1', 'state': 'complete', 'encoder': 'test', 'sha256': 'test-digest'}))
     record_manager.recent_record_dir = str(folder)
@@ -494,7 +497,7 @@ def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager,
     with patch('subprocess.Popen', side_effect=AssertionError('Stop must not start encoder')):
         success, _ = record_manager.stop_recording()
     assert success and not record_manager.is_recording
-    if compressed_raw:
+    if compressed_raw is True:
         assert not (folder / '.mp4-pending.json').exists()
         saved = json.loads((folder / 'meta.json').read_text())
         assert saved['recording_format'] == 'umi-mcap-h264-v1' and saved['raw_sha256'] == 'test-digest'
@@ -502,9 +505,14 @@ def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager,
         record_manager.recording_completed_pub.publish.assert_called_once()
         return
     pending = json.loads((folder / '.mp4-pending.json').read_text())
-    assert pending['author'] == 'first-author' and pending['_video_crf'] == 18
+    assert pending['author'] == 'first-author'
+    if compressed_raw == 'deferred':
+        assert pending['_deferred_raw'] is True
+    else:
+        assert pending['_video_crf'] == 18
     assert pending['upload_destination'] == record_manager.collection_destination
-    assert (folder / 'meta.json').exists() and source.exists()
+    assert (folder / 'meta.json').exists() is (compressed_raw != 'deferred')
+    assert source.exists()
     record_manager.recording_saved_pub.publish.assert_called_once()
     record_manager.recording_completed_pub.publish.assert_not_called()
     assert record_manager._capture_priority.intent is None
