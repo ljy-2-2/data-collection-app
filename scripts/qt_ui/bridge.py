@@ -11,6 +11,7 @@ import uuid
 from urllib.parse import quote
 from .grippers import endpoints, closure, parameter_defaults
 from .umi_telemetry import UmiTelemetry
+from collection_modes import ROBOT_NAMES, robot_keys
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSettings
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
@@ -116,6 +117,10 @@ class Bridge(QObject):
     def umiOnly(self): return self.values.get('APP_COLLECTION_MODE') == 'umi'
     @Property(bool,constant=True)
     def tianjiOnly(self): return self.values.get('APP_COLLECTION_MODE') == 'umi-tianji'
+    @Property('QStringList',constant=True)
+    def robotKeys(self): return list(robot_keys(self.values.get('APP_COLLECTION_MODE', 'all')))
+    @Property('QStringList',constant=True)
+    def robotNames(self): return [ROBOT_NAMES[key] for key in self.robotKeys]
     @Property('QVariantMap',notify=umiTelemetryChanged)
     def umiTelemetry(self): return self.telemetry.value
     @Property('QVariantMap',notify=umiTelemetryChanged)
@@ -311,8 +316,7 @@ class Bridge(QObject):
             if key=='kuavoNamespace' and value not in ('kuavons','current'):return
             if key=='kuavoBusAccepted' and type(value) is not bool:return
         if key=='robot':
-            if value not in ('tianji','agibot-g2','kuavo-5w') or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
-            if self.umiOnly or (self.tianjiOnly and value!='tianji'):return
+            if value not in self.robotKeys or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
         if key=='profile':
             if value not in ('dual','single-left','single-right') or self._state['umi'].get('state') not in ('idle','error'):return
             self.update(minima={},cameraRoles={},cameraLive={},checkedProfile='',encoders={},encoderHistory=dict(left=[],right=[]))
@@ -343,9 +347,9 @@ class Bridge(QObject):
         if self._state['busy'] or self._state['closing']:return
         if self.umiOnly:
             self.fail('此安装包用于 UMI 采集；机器人遥操需要对应 ARM64 SDK');return
-        if self.tianjiOnly and robot != 'tianji':
-            self.fail('此开发板安装包支持 UMI 和天机 Marvin M6采集');return
-        if not self.valid_task(task) or robot not in ('tianji','agibot-g2','kuavo-5w'):return
+        if robot not in self.robotKeys:
+            self.fail('此安装包未包含所选机器人的运行环境');return
+        if not self.valid_task(task):return
         self.update(task=task.strip(),robot=robot,teleopStep=2,error='',selectedPose='zero' if robot=='tianji' else '')
         self.load_poses()
         if robot=='tianji':

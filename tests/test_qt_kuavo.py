@@ -4,9 +4,11 @@ from pathlib import Path
 import subprocess
 import sys
 import textwrap
+import pytest
 
 
-def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
+@pytest.mark.parametrize('collection_mode', ['all', 'umi-tianji-kuavo'])
+def test_kuavo_workspace_navigation_and_request_isolation(tmp_path, collection_mode):
     root=Path(__file__).resolve().parents[1]
     script=textwrap.dedent('''
         import tempfile
@@ -21,7 +23,7 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
         for name,cls in [('CameraItem',CameraItem),('CurveItem',CurveItem),('G2View',G2View),('Backdrop',Backdrop)]:
             qmlRegisterType(cls,'Collection.Native',1,0,name)
         with tempfile.TemporaryDirectory() as config:
-            bridge=Bridge({},demo=True,settings_path=config)
+            bridge=Bridge({'APP_COLLECTION_MODE': __import__('os').environ['APP_COLLECTION_MODE']},demo=True,settings_path=config)
             bridge.poll_timer.stop()
             bridge.update(ready=True,authenticated=True)
             calls=[]
@@ -157,6 +159,7 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             assert not warnings, warnings
     ''')
     env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software',QSG_RHI_BACKEND='software',
+             APP_COLLECTION_MODE=collection_mode,
              PYTHONPATH=os.pathsep.join((str(root/'scripts'),str(root/'teleop_control/src'),os.environ.get('PYTHONPATH',''))),KUAVO_TEST_SCREENSHOT=str(tmp_path/'kuavo.png'))
     result=subprocess.run([sys.executable,'-c',script],cwd=root,env=env,capture_output=True,text=True,timeout=30)
     assert result.returncode==0,result.stdout+result.stderr

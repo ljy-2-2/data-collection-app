@@ -18,6 +18,7 @@ import tomllib
 
 from generate_runtime_config import platform_urls, read_env
 from runtime_platform import native_target, verify_elf, validate_runtime_architecture, validate_tianji_libraries
+from collection_modes import default_collection_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_ID = "xiaokai-lab-data-collection"
@@ -274,7 +275,7 @@ def main() -> int:
         (package / "package-build.json").write_text(
             json.dumps({"version": version, "build_id": build_id,
                         "architecture": target.deb_arch, "qt_version": target.qt_version,
-                        "collection_mode": "umi-tianji" if target.deb_arch == "arm64" else "all"}, indent=2)
+                        "collection_mode": default_collection_mode(target.deb_arch)}, indent=2)
         )
         binary = stage / "usr/bin" / APP_ID
         binary.parent.mkdir(parents=True)

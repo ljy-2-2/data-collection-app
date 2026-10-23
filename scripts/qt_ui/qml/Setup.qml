@@ -4,8 +4,8 @@ import QtQuick.Layouts
 Card {
     id: root
     property bool umi: false
-    readonly property var robotKeys: backend.tianjiOnly ? ["tianji"] : ["agibot-g2", "tianji", "kuavo-5w"]
-    readonly property var robotNames: backend.tianjiOnly ? ["天机 Marvin M6"] : ["智元 G2","天机 Marvin M6","乐聚 KUAVO 5-W"]
+    readonly property var robotKeys: backend.robotKeys
+    readonly property var robotNames: backend.robotNames
     enabled: !backend.state.busy && !backend.state.closing
     height: content.height+heading.height+24
     Heading {id: heading;width: parent.width;eyebrow: "STEP 01";title: root.umi ? "选择采集配置" : "选择遥操作配置"}
