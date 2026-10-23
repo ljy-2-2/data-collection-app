@@ -235,6 +235,8 @@ class GalaxisTcpServerTransport:
         self._seq = 0
         self._last_device_time_ns: Optional[int] = None
         self._stale_frame_drops = 0
+        self._probe_max_s = 0.0
+        self._probe_error = ""
 
     @property
     def connected(self) -> bool:
@@ -249,6 +251,7 @@ class GalaxisTcpServerTransport:
             connected = self._connected
             listening = self._listener is not None
             listen_error = self._listen_error
+            probe_max_s, probe_error = self._probe_max_s, self._probe_error
         fps = 0.0
         if len(times) >= 2 and times[-1] > times[0]:
             fps = (len(times) - 1) / (times[-1] - times[0])
@@ -260,6 +263,8 @@ class GalaxisTcpServerTransport:
             "fps": fps,
             "offset_ns": 0,
             "rtt_ns": None,
+            "liveness_send_max_s": probe_max_s,
+            "liveness_send_error": probe_error,
         }
 
     def start_listener(self) -> None:
@@ -331,6 +336,8 @@ class GalaxisTcpServerTransport:
                     self._seq = 0
                     self._last_device_time_ns = None
                     self._stale_frame_drops = 0
+                    self._probe_max_s = 0.0
+                    self._probe_error = ""
             if previous is not None:
                 self._close_socket(previous)
             self._info(f"Galaxis PICO connected from {address[0]}:{address[1]}")
@@ -345,16 +352,17 @@ class GalaxisTcpServerTransport:
         # to the socket. The deployed APK can block its send path when a server
         # packet arrives immediately after accept(), leaving the bridge in
         # "connected but not streaming".
-        next_liveness_at = time.monotonic() + self._liveness_interval_sec
+        # sendall can wait up to the socket timeout. Never run that operation
+        # in the tracking receive loop: a slow heartbeat must not hold poses.
+        probe_stop = threading.Event()
+        probe_thread = threading.Thread(target=self._probe_loop,
+            args=(client, generation, probe_stop), daemon=True, name='pico-liveness')
+        probe_thread.start()
         try:
             while True:
                 with self._lock:
                     if not self._is_current_session_locked(client, generation):
                         return
-                now = time.monotonic()
-                if now >= next_liveness_at:
-                    self._send_liveness_probe(client)
-                    next_liveness_at = now + self._liveness_interval_sec
                 try:
                     data = client.recv(1024 * 1024)
                 except socket.timeout:
@@ -379,14 +387,38 @@ class GalaxisTcpServerTransport:
         except Exception as exc:
             reason = f"headset receive error: {exc}"
         finally:
+            probe_stop.set()
             with self._lock:
                 was_current = self._is_current_session_locked(client, generation)
                 if was_current:
                     self._client = None
                     self._connected = False
             self._close_socket(client)
+            probe_thread.join(timeout=1.0)
             if was_current:
                 self._warn(reason)
+
+    def _probe_loop(self, client, generation, stopped):
+        while not stopped.wait(self._liveness_interval_sec):
+            with self._lock:
+                if not self._is_current_session_locked(client, generation):
+                    return
+            start = time.monotonic()
+            error = ""
+            try:
+                self._send_liveness_probe(client)
+            except OSError as exc:
+                # Do not interrupt healthy inbound tracking for an optional
+                # probe failure. The receive side owns session termination.
+                error = f'{type(exc).__name__}: {exc}'
+            finally:
+                elapsed = time.monotonic() - start
+                with self._lock:
+                    if self._is_current_session_locked(client, generation):
+                        self._probe_max_s = max(self._probe_max_s, elapsed)
+                        self._probe_error = error
+            if error:
+                return
 
     def _is_current_session_locked(
         self, client: socket.socket, generation: int

@@ -34,6 +34,25 @@ def capture(root, *, complete=True):
  return bag
 
 
+def test_passive_transport_report_failure_does_not_interrupt_bag_save(tmp_path, monkeypatch):
+ import galaxis_core.compressed_recorder as recorder
+ bag=CompressedBag(tmp_path/'passive', defer_video=True)
+ bag.topic('/exact','std_msgs/msg/String',b'string data\n')
+ payload=b'\0\1\0\0\x04\0\0\0abc\0'
+ bag.reception.received('/exact',payload,1,1,1)
+ bag.message('/exact',payload,1)
+ original=recorder.atomic_json
+ def failing_report(path,value):
+  if path.name=='capture-transport.json':raise OSError('diagnostic only')
+  return original(path,value)
+ monkeypatch.setattr(recorder,'atomic_json',failing_report)
+ bag.close()
+ assert (bag.folder/'.deferred-raw.json').exists()
+ with bag.partial.open('rb') as f:
+  rows=list(make_reader(f,validate_crcs=True).iter_messages())
+ assert len(rows)==1 and rows[0][2].data==payload
+
+
 def test_raw_bag_is_self_contained_and_remux_does_not_reencode_or_delete_it(tmp_path):
  bag=capture(tmp_path/'round')
  marker=json.loads((bag.folder/'.compressed-raw.json').read_text())

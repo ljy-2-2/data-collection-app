@@ -135,6 +135,7 @@ class TaskSequenceManager(Node):
         self._segment_count = 0
         # 会话内回合序号偏移:录制 ID 的回合数 = 任务 round_index + 偏移,每次开始录制 +1
         self._round_offset = 0
+        self._reserved_round_offset = None
         self.rosparam_txt = ""  # TODO: global param dump not directly available in ROS2. Need workaround.
         self.subtask_execution_id = None  # Track current execution for status reporting
         self.current_episode_subtask_id = None  # episode_sub_task natural ID for API paths
@@ -566,6 +567,9 @@ class TaskSequenceManager(Node):
         # 回合编号从 1 开始:任务未携带 round_index 时首回合为 001
         round_seq = (base_round if base_round > 0 else 1) + self._round_offset
         self._round_offset += 1
+        # Keep an uncertain start reserved. Only a confirmed, fully removed
+        # discard can release it; saved/interrupted rounds keep their numbers.
+        self._reserved_round_offset = self._round_offset
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         recording_id = f"{task_name}/{task_name}_{round_seq:03d}_{timestamp}"
         req = StringTrigger.Request()
@@ -590,7 +594,12 @@ class TaskSequenceManager(Node):
     def cancel_recording(self) -> bool:
         req = Trigger.Request()
         future = self.cancel_recording_client.call_async(req)
-        return self.wait_for_trigger_future_done(future, error_situation="Cancel recording service call failed")
+        success = self.wait_for_trigger_future_done(
+            future, timeout=45.0, error_situation="Cancel recording service call failed")
+        if success and self._reserved_round_offset == self._round_offset:
+            self._round_offset = max(0, self._round_offset - 1)
+            self._reserved_round_offset = None
+        return success
 
     def delete_recording(self) -> bool:
         req = Trigger.Request()

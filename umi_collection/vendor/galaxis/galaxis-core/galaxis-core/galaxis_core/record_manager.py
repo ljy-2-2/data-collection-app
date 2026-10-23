@@ -1110,9 +1110,14 @@ class RecordManager(Node):
 
         target = self.recent_record_dir
         try:
-            # make empty dir by removing and creating same dir
+            # Explicit discard releases the directory and its round number.
+            # The durable discarded journal prevents recovery after a crash;
+            # an empty placeholder here incorrectly counts as a saved round.
             shutil.rmtree(target)
-            os.makedirs(target, exist_ok=True)
+        except FileNotFoundError:
+            if os.path.lexists(target):
+                self.get_logger().error(f"Recording directory changed during removal: {target}")
+                return False
         except OSError as exc:
             self.get_logger().error(f"Failed to remove recording: {exc}")
             return False
@@ -1163,9 +1168,11 @@ class RecordManager(Node):
             cancelled_msg.data = self.recent_record_dir
             self.recording_cancelled_pub.publish(cancelled_msg)
 
-        self.delete_last_recording()
+        removed = self.delete_last_recording()
         self._release_capture_priority()
         self.publish_recording_state()
+        if not removed:
+            return False, "回合已放弃且不会上传，但目录清理失败，编号暂未释放"
         self.get_logger().info("Recording cancelled and deleted.")
         return True, "Recording cancelled"
 

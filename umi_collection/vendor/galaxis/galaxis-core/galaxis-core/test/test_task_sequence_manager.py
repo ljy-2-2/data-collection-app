@@ -83,6 +83,34 @@ def _mock_wait_for_trigger(mgr, return_value=True):
     mgr.wait_for_trigger_future_done = MagicMock(return_value=return_value)
 
 
+def test_discard_reuses_only_its_own_round_number(manager, sample_tasks):
+    sample_tasks['task']['round_index'] = 5
+    manager.new_tasks = sample_tasks
+    _mock_wait_for_trigger(manager)
+    assert manager.start_recording()[0]
+    assert '_005_' in manager.start_recording_client.call_async.call_args.args[0].message
+    assert manager.cancel_recording()
+    assert manager._round_offset == 0
+    # A duplicate acknowledgement cannot rewind another round.
+    assert manager.cancel_recording()
+    assert manager._round_offset == 0
+    assert manager.start_recording()[0]
+    assert '_005_' in manager.start_recording_client.call_async.call_args.args[0].message
+    assert manager.stop_recording()
+    assert manager.start_recording()[0]
+    assert '_006_' in manager.start_recording_client.call_async.call_args.args[0].message
+
+
+def test_discard_failure_keeps_number_reserved(manager, sample_tasks):
+    manager.new_tasks = sample_tasks
+    _mock_wait_for_trigger(manager)
+    assert manager.start_recording()[0]
+    _mock_wait_for_trigger(manager, False)
+    assert not manager.cancel_recording()
+    assert manager._round_offset == 1
+    assert manager._reserved_round_offset == 1
+
+
 # ===================================================================
 # TestTransitConfirmTask
 # ===================================================================

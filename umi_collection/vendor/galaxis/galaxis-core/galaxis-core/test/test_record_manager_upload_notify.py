@@ -590,7 +590,29 @@ def test_explicit_discard_is_durable_before_writer_is_stopped(record_manager, tm
     ok,_=record_manager.cancel_recording()
     assert ok
     assert json.loads(journal.read_text())['state']=='discarded'
+    assert not folder.exists()
+    assert record_manager.recent_record_dir is None
     record_manager.recording_saved_pub.publish.assert_not_called()
+
+
+def test_discard_cleanup_failure_is_reported_and_never_uploaded(record_manager, tmp_path):
+    folder, journal = interrupted_manager(record_manager, tmp_path)
+    (folder/'source.mcap').write_bytes(b'raw')
+    with patch('galaxis_core.record_manager.shutil.rmtree', side_effect=PermissionError('denied')):
+        ok, detail = record_manager.cancel_recording()
+    assert not ok and '清理失败' in detail
+    assert not record_manager.is_recording
+    assert record_manager.recent_record_dir == str(folder)
+    assert json.loads(journal.read_text())['state'] == 'discarded'
+    record_manager.recording_completed_pub.publish.assert_not_called()
+    record_manager.recording_saved_pub.publish.assert_not_called()
+
+
+def test_discard_missing_folder_does_not_recreate_placeholder(record_manager, tmp_path):
+    folder, _ = interrupted_manager(record_manager, tmp_path)
+    folder.rmdir()
+    assert record_manager.cancel_recording()[0]
+    assert not folder.exists()
 
 
 def test_failed_metadata_on_exit_preserves_durable_capture(record_manager, tmp_path):

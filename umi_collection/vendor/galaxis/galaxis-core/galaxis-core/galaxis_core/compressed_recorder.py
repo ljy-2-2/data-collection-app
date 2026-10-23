@@ -22,6 +22,7 @@ from .live_encoder import LiveEncoder
 from .mcap_video import FORMAT, VIDEO_TYPE, VIDEO_SCHEMA, video_message
 from .mp4_worker import atomic_json
 from .video_bundle import CAMERAS, split_image
+from .reception_metrics import ReceptionMetrics
 
 
 class DurableStream:
@@ -68,6 +69,7 @@ class CompressedBag:
         self.previous_samples = {}
         self.continuity_issue = None
         self.continuity_summary = {}
+        self.reception = ReceptionMetrics()
 
     def topic(self, topic, type_name, definition, qos=''):
         if topic in self.channels:
@@ -154,6 +156,13 @@ class CompressedBag:
             except Exception as exc:
                 errors.append(str(exc))
         try:
+            if self.reception.topics:
+                try:
+                    atomic_json(self.folder/'capture-transport.json', self.reception.snapshot())
+                except OSError as exc:
+                    # Diagnostics must never prevent the original bag footer
+                    # from being flushed or turn a valid round into a failure.
+                    print(f'接收统计保存失败，继续保存原始数据: {exc}', file=sys.stderr)
             with self.lock:
                 self.writer.finish()
                 os.fsync(self.stream.stream.fileno())
@@ -294,9 +303,11 @@ def main():
                 setattr(qos, key, value)
             bag.topic(topic, type_name, message_definition(type_name))
             def callback(data, info, topic=topic):
+                started_ns = time.monotonic_ns()
                 try:
                     arrival = getattr(info, 'received_timestamp', 0) or node.get_clock().now().nanoseconds
                     source = getattr(info, 'source_timestamp', 0) or arrival
+                    bag.reception.received(topic, data, arrival, source, time.time_ns())
                     bag.message(topic, data, arrival, source,
                                 getattr(info, 'publication_sequence_number', 0))
                 except Exception as exc:
@@ -304,6 +315,9 @@ def main():
                     failure.append(reason)
                     print('录制接收失败：' + reason, file=sys.stderr, flush=True)
                     stopped.set()
+                finally:
+                    if topic in bag.reception.topics:
+                        bag.reception.written(topic, time.monotonic_ns() - started_ns)
             subscriptions[topic] = node.create_subscription(get_message(type_name), topic,
                                                              callback, qos, raw=True)
     def check_storage():

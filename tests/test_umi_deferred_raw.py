@@ -19,6 +19,15 @@ from galaxis_core.mp4_worker import atomic_json, finalize_episode
 from test_umi_mp4_bundle import image_message
 
 
+@pytest.fixture(autouse=True)
+def software_codec_for_portable_tests(monkeypatch):
+    # These isolated tests need no Rockchip devices on either architecture.
+    # Hardware codec integration is validated separately on the real board.
+    from types import SimpleNamespace
+    import galaxis_core.deferred_raw as deferred
+    monkeypatch.setattr(deferred, 'platform', SimpleNamespace(machine=lambda: 'x86_64'))
+
+
 def staged(folder, monkeypatch):
     # No encoder may be started during capture, even when CPU is overloaded.
     with monkeypatch.context() as patch:
