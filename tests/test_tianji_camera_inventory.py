@@ -98,3 +98,25 @@ def test_upgraded_controller_streams_only_connected_wrists(setup, monkeypatch):
     assert saved=={'usb_2':b'usb-2','usb_4':b'usb-4'}
     c.read.assert_not_called()
     assert not m.camera_error
+
+
+def test_preview_negotiates_unlimited_only_when_supported(setup):
+    manager, client = setup
+    assert manager._prepare_preview(client) == 600
+    client.status.return_value.update(stream_unlimited=True, stream_camera_selection=True)
+    assert manager._prepare_preview(client) == 0
+    assert manager.camera_preview_mode == 'stream'
+
+
+@pytest.mark.parametrize('seconds', [None, 600, 0])
+def test_unlimited_collection_rejects_old_preview_before_adopting_or_stopping(setup, seconds):
+    import threading
+    manager, client = setup
+    manager.camera_session = SimpleNamespace(lock=threading.RLock(), end=None, failure=None,
+        start=SimpleNamespace(metadata=dict(seconds=seconds, cameras=['usb-2','usb-4'])))
+    if seconds == 0:
+        assert manager.collection_camera_state()['ids'] == ['usb-2','usb-4']
+    else:
+        with pytest.raises(RuntimeError, match='更新控制器相机服务'):
+            manager.collection_camera_state()
+    client.request_stop.assert_not_called()

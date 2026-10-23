@@ -228,7 +228,8 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
             relative = [(t-source_times[topic][0])/1e9 for t in source_times[topic]]
             quality[CAMERAS[topic]] = dict(actual_fps=(len(relative)-1)/relative[-1],
                 max_frame_gap_ms=max(b-a for a,b in zip(relative,relative[1:]))*1000,
-                frames=len(relative), passed=True, warnings=warnings)
+                frames=len(relative), passed=not warnings, warnings=warnings,
+                timing_policy='diagnostic_only')
     # Temporary files stay within the episode, so rename is on the same filesystem.
     with tempfile.TemporaryDirectory(prefix=".mp4-", dir=record_dir) as temp:
         stage = Path(temp)

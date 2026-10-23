@@ -128,7 +128,8 @@ def test_legacy_quality_contract_migrates_and_real_gaps_remain_invalid(tmp_path)
     assert recording_timing_result(stamps,stamps,limits)[0]==''
     times=[i/30 for i in range(200)]+[10+i/30 for i in range(200)]
     stamps=[round(t*1e9) for t in times]
-    assert recording_timing_result(stamps,stamps,limits)[0]
+    problem, warnings = recording_timing_result(stamps,stamps,limits)
+    assert not problem and warnings
     c=CameraCadence(limits['stop_min_rate_hz'],limits['max_frame_gap_sec'],limits['rate_window_sec'],limits['stop_low_rate_sec'])
     for i in range(360):
         c.push(i/15,round(i/15*1e9));issue=c.failure(i/15)

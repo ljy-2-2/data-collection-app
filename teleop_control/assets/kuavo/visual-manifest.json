@@ -1,0 +1,215 @@
+{
+  "repository": "https://github.com/LejuRobotics/kuavo-ros-opensource",
+  "commit": "ba5ae219d86076c587e5973c44f5f645ca874a95",
+  "control_urdf_sha256": "fecef6f980806af7d2c4b1abe56d3fe1d0dbfbd69b3475303eb158bcc06c85dc",
+  "description": "Official v63 shell meshes; display-only decimation, unchanged control URDF kinematics.",
+  "files": {
+    "src/kuavo_assets/models/biped_s63/meshes/chassis.STL": {
+      "git_blob": "02ce09ebe5c54cb18f39c2d6491e328bbf8c65e5",
+      "sha256": "2b043228c8da809c8dd5ea082a5eacef34de7a006342a1a70ac03e02df61218b",
+      "source_triangles": 20000,
+      "display_triangles": 5999,
+      "bounds_change_m": 0.0005747300000000233
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/wheel_left_front.STL": {
+      "git_blob": "57bdb3d431eb53555085bd788ca33a2fa27e54d0",
+      "sha256": "d3f4bb9950cb26e815fb5589d6d118302bc2d1ba76a560f0c4a89847abd8a90e",
+      "source_triangles": 20000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.003333619999999999
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/wheel_right_front.STL": {
+      "git_blob": "b3e6b6de03bfa1db1f5e3e1cccd85b37313138c6",
+      "sha256": "e64bc6f999b6a54eba31335220f338ecd868979c9b37f8469e5b79db19c80956",
+      "source_triangles": 20000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.003333619999999999
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/wheel_left_behind.STL": {
+      "git_blob": "1dbab566a79d7f37dddc7d93000ff89cc066e9ab",
+      "sha256": "dbe5c66f0465038f90371b1d9d86d686c9ac65a85516e9c16eada195c8962379",
+      "source_triangles": 20000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.003333619999999999
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/wheel_right_behind.STL": {
+      "git_blob": "f538dec37b775b7322866d6d4a6c89b113b4e42f",
+      "sha256": "ac6a6de836c96ccaacb12b4223cd32ecb4ef10535629b270dfdbaf7aa65be2fc",
+      "source_triangles": 20000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.003333619999999999
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/knee_link.STL": {
+      "git_blob": "82e8082e70b3e99385cd72c526f130fc209617ac",
+      "sha256": "1a2a6bf632844bce846882a973adefcb9042ecc89c32d6558155aa7cd4886444",
+      "source_triangles": 19999,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.002055200000000007
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/knee_pitch.STL": {
+      "git_blob": "d04a194f9fa6dd493646d4433a9840ea0e3047b7",
+      "sha256": "1a388614cc322432e40899471b1795eb1da27807eaeb8f3b78a7e3ac4ecc92f3",
+      "source_triangles": 19999,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.004039380000000009
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/leg_pitch.STL": {
+      "git_blob": "3cfe2116119b25c210d04ec88b67c4c3ac0aa9b6",
+      "sha256": "1dd898d1710ce94a79e94afc2be59e1864bcd9c6f080c4f00e2a50f4af6dbbfb",
+      "source_triangles": 20000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0030008399999999907
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/waist_pitch.STL": {
+      "git_blob": "e0109a36b625cfa195ff6f6ce8e494271c518142",
+      "sha256": "a3fb03ca6349a307656730d33fdb31320b44f44000892550797d4c174597db65",
+      "source_triangles": 20000,
+      "display_triangles": 3499,
+      "bounds_change_m": 0.0015578799999999976
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/torso.STL": {
+      "git_blob": "91f9cc7c43d2edb531ce032477ae9a56d1fa2750",
+      "sha256": "f622f8b934d1e462b93dc567df39deb325ce4672c826592c901cc08456de8c18",
+      "source_triangles": 19999,
+      "display_triangles": 19999,
+      "bounds_change_m": 3.199999999980996e-07
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_arm_pitch.STL": {
+      "git_blob": "2b307a396a7252919e3eb15cc8f8bf62e6d5ec38",
+      "sha256": "70350e2f55e329f41cb1c0de1b9da3ccd0bf69f4e417ddf28e87ef586fdd7427",
+      "source_triangles": 20000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.00046192000000000455
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_arm_roll.STL": {
+      "git_blob": "c080e12c6f4920034138eb5e6d8d1c909371663d",
+      "sha256": "f79c233eeca86d7dbaa2847684f2b6fdfd8cfed170e823d58e17613de21934d7",
+      "source_triangles": 15000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.000546090000000006
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_arm_yaw.STL": {
+      "git_blob": "40e23718d1baff16c084def2914084868fc29c98",
+      "sha256": "44d0d35eadf211359f38f46a66a8942748ec6140802e51b0d71b64ef2d5afc97",
+      "source_triangles": 20000,
+      "display_triangles": 3499,
+      "bounds_change_m": 0.0006999799999999889
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_forearm.STL": {
+      "git_blob": "b9a1cffcab47a93a91e25379927cf665279609f6",
+      "sha256": "549b7f5148f4d4001bc39ce7a7c430f6415df46af747a986d4af705e8b6bb69a",
+      "source_triangles": 19999,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0011640200000000017
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_hand_yaw.STL": {
+      "git_blob": "953e9dee1020ba7e46e45b70ebb22ae4f0cb0d79",
+      "sha256": "d7da1d02bc49c37a61cc0e3e4af60a6e7dbce2718065707c39e1d6c073f1cad2",
+      "source_triangles": 19999,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0010016700000000031
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_hand_roll.STL": {
+      "git_blob": "951fee314e505e5e855dccc9877e16110b12cfda",
+      "sha256": "9abf2e19b6b095c6d1621a04a522992f10852f12f7009222c47fb0861e32cdae",
+      "source_triangles": 19998,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.000738309999999999
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/l_hand_pitch_noHand.STL": {
+      "git_blob": "190762ca5afc40f8b32125e14284fe7ccface3ad",
+      "sha256": "d2218b13cc6f70482de86a1d6b9c7c364baaa95cd1f8e117ec3747a0854e2ebc",
+      "source_triangles": 10000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.00032362000000002444
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_arm_pitch.STL": {
+      "git_blob": "b021c0fbe6ef2741e309a48ca735aacd32d30d83",
+      "sha256": "8577e2e60a551ea3c594116cb993b7d01d1bccf0de699df4126e4d2938a744fd",
+      "source_triangles": 19853,
+      "display_triangles": 3499,
+      "bounds_change_m": 0.0007909200000000005
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_arm_roll.STL": {
+      "git_blob": "b58d1a80a9369cd4fd1caa6ee6b28ef7e3190b65",
+      "sha256": "780f1530a6109000501f8a4525020604d0c566a7097ac01ad755782fa2215f30",
+      "source_triangles": 14990,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0008855700000000022
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_arm_yaw.STL": {
+      "git_blob": "d56de72a6de48ef33f62a61912aa8ecb262e9d0c",
+      "sha256": "02dadf0421264985d5d4de8fe6057e9a75cdcb5b22cb7778c0de1e116165b988",
+      "source_triangles": 19677,
+      "display_triangles": 3499,
+      "bounds_change_m": 0.0007392999999999983
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_forearm.STL": {
+      "git_blob": "6f14d68142a093acc91a95b08288514ab29a1b7c",
+      "sha256": "f8f75334642adafde70d1e96b8054044569583003bd85a6ae90f62a31fc7613f",
+      "source_triangles": 19881,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0006669799999999976
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_hand_yaw.STL": {
+      "git_blob": "ff2357b66b66263e775a537b55b60fa8b58f2b6b",
+      "sha256": "a0fa6d792dc08128d06eb02c4fbde4122015413ddaa7528c33957d55b087da87",
+      "source_triangles": 19886,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0004416699999999982
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_hand_roll.STL": {
+      "git_blob": "a8d8821046e8b6b3e205a85cdbec8e7e1f640d65",
+      "sha256": "c160409ed3d7228550b86ef6527b81f55efa583fb40091376d929c251345defc",
+      "source_triangles": 19899,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0008923099999999934
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/r_hand_pitch_noHand.STL": {
+      "git_blob": "9a9629caa63ec5cfb12aab811a7e52814d79ec46",
+      "sha256": "28ee2cb04299525e62ee7f27f191027dbb0294e6f3d29df37a1fbfabc2ff7f5e",
+      "source_triangles": 9999,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.0021990900000000146
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/head_yaw.STL": {
+      "git_blob": "b755d126e38681757c7b627b77094fe6b445614c",
+      "sha256": "5590aaf8b6cadb542ead3478389493f2ed9c593e8cfc981198d3201e9968c712",
+      "source_triangles": 19999,
+      "display_triangles": 3499,
+      "bounds_change_m": 0.0008073000000000038
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/head_pitch.STL": {
+      "git_blob": "52850ab7303504134106c77e98022d36853c4a81",
+      "sha256": "b0cfafbeb096aac99bde7f82ad4d8da4b2fefbbec7713f208d01b27eae41c74e",
+      "source_triangles": 20000,
+      "display_triangles": 6000,
+      "bounds_change_m": 0.00028682000000002095
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/head_camera_base.STL": {
+      "git_blob": "3c8be98ed54e5be13030023782e9ea329b356f2c",
+      "sha256": "e8bbd83fa8334d347b1f7d0d5841822b3a73d8ee3309d9c239cf36e471097594",
+      "source_triangles": 20000,
+      "display_triangles": 4048,
+      "bounds_change_m": 0.0020478699999999968
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/head_camera_depth.STL": {
+      "git_blob": "8c4ecc49ef655c39aa2881db46c8a74a6442e6f6",
+      "sha256": "289f49984165fbbaab7d45742d0a9b5b147c83807a3651c0929f7813e988c2e0",
+      "source_triangles": 160,
+      "display_triangles": 160,
+      "bounds_change_m": 5.999999999964367e-08
+    },
+    "src/kuavo_assets/models/biped_s63/meshes/head_radar.STL": {
+      "git_blob": "faabf81ad206c7190d6b324cccdab125e2c417a8",
+      "sha256": "077577ba9cc35cba18ad43fe0b91481dfc9186307450415389512bf91c005c35",
+      "source_triangles": 14000,
+      "display_triangles": 3500,
+      "bounds_change_m": 0.000503079999999996
+    }
+  },
+  "original_triangles": 523337,
+  "display_triangles": 120201,
+  "display_sha256": "d4fb835d4622ad96c5765ff4d2e2a4b8cb3395f147cc8250ffd2192c7d3fc043",
+  "display_bytes": 3529522
+}

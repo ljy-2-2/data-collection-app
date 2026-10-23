@@ -1,0 +1,24 @@
+{
+  "verified_at": "2026-10-22T04:17:05.775156+00:00",
+  "scope": "Update and restart independent fusion-camera service only",
+  "backup_directory": "/mnt/fusion-camera/releases/teleop-v23-20261022-201730-ieXvRm",
+  "service_pid_after_restart": 19696,
+  "status": {
+    "ok": true,
+    "idle": true,
+    "fault": null,
+    "stream_transport_recovery": true,
+    "camera_recovery_requires_manual": false,
+    "recoverable_camera_fault": false,
+    "stream_unlimited": true
+  },
+  "updater_completed_successfully": true,
+  "native_self_test_passed": true,
+  "native_self_test_usb_opened": false,
+  "updater_before_after_audit_passed": true,
+  "camera_stream_started": false,
+  "robot_commands_sent": false,
+  "usb_reset": false,
+  "running_app_reloaded": false,
+  "live_camera_verified": false
+}

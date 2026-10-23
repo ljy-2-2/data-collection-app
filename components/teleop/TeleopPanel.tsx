@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { memo, useEffect, useState, type ComponentType } from 'react';
 import { ActionButton, SectionTitle, classNames } from '../CollectionUi';
 import { G2TeleopWorkspace } from './G2TeleopWorkspace';
+import { KuavoTeleopWorkspace } from './KuavoTeleopWorkspace';
 import { TianjiTeleopWorkspace } from './TianjiTeleopWorkspace';
 import { requestJson } from '../../lib/http';
 import type { AsyncAction, PreviewStatus, TeleopStatus } from '../../lib/teleopTypes';
@@ -24,11 +25,20 @@ interface TeleopPanelProps {
 // for an unknown model: its joint limits, telemetry and commands are G2-specific.
 const ROBOTS: Record<string, { label: string; Workspace: ComponentType<TeleopPanelProps & { task: string }> }> = {
   'agibot-g2': { label: '智元 G2', Workspace: G2TeleopWorkspace },
-  'tianji': { label: 'Tianji 天机', Workspace: TianjiTeleopWorkspace },
+  'kuavo-5w': { label: '乐聚 KUAVO 5-W', Workspace: KuavoTeleopWorkspace },
+  'tianji': { label: '天机 Marvin M6', Workspace: TianjiTeleopWorkspace },
 };
 
 export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
   const [step, setStep] = useState<1 | 2>(1);
+  const [uploadTarget,setUploadTarget]=useState<{selected:string;web_url:string}|null>(null);
+  useEffect(()=>{
+    if(step!==1)return;
+    const abort=new AbortController();
+    void requestJson<{selected:string;web_url:string}>(props.baseUrl,'/platform/destinations',{signal:abort.signal})
+      .then(value=>{if(!abort.signal.aborted)setUploadTarget(value);}).catch(()=>{if(!abort.signal.aborted)setUploadTarget(null);});
+    return ()=>abort.abort();
+  },[props.baseUrl,step]);
   const [task, setTask] = useState('遥操作数据采集');
   const [robotModel, setRobotModel] = useState('tianji');
   useEffect(() => { props.onRobotModelChange?.(robotModel); }, [robotModel, props.onRobotModelChange]);
@@ -38,14 +48,14 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
   const robot = Object.hasOwn(ROBOTS, robotModel) ? ROBOTS[robotModel] : undefined;
   const configuredRobot = configured && Object.hasOwn(ROBOTS, configured.robotModel) ? ROBOTS[configured.robotModel] : undefined;
   const Workspace = configuredRobot?.Workspace;
-  const canReturn = configured?.robotModel === 'tianji' ? !robotBusy : props.status?.session.state === 'idle' && props.status?.motion?.state === 'idle' && !props.action;
+  const canReturn = ['tianji','kuavo-5w'].includes(configured?.robotModel ?? '') ? !robotBusy : props.status?.session.state === 'idle' && props.status?.motion?.state === 'idle' && !props.action;
 
   async function returnToConfig() {
     if (!canReturn) return;
     if (configured?.robotModel === 'tianji') {
       setRobotBusy(true);
       try { await requestJson(props.baseUrl, '/tianji/close', { method: 'POST' }); }
-      catch { setReturnError('无法断开天机设备，请检查本机服务后重试'); return; }
+      catch { setReturnError('无法断开天机 Marvin M6设备，请检查本机服务后重试'); return; }
       finally { setRobotBusy(false); }
     }
     setReturnError('');
@@ -84,6 +94,7 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
         <section className="surface umi-stage-card">
           <SectionTitle eyebrow="STEP 01" title="选择遥操作配置" />
           <form className="umi-stage-body" onSubmit={(event) => { event.preventDefault(); next(); }}>
+            {uploadTarget&&<div className="teleop-upload-summary"><div><strong>上传到</strong><p>{uploadTarget.selected==='local'?'上传到当前设备的本地平台':'上传到云端平台'} · {uploadTarget.web_url}</p></div><strong>{uploadTarget.selected==='local'?'本机平台':'云端平台'}</strong></div>}
             <div className="field-grid">
               <label className="field">
                 <span>任务名称</span>

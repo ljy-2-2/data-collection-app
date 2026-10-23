@@ -1,11 +1,13 @@
 """A/X start, B/Y save episodes. This process has no robot command/CAN interface."""
 import argparse
+from array import array
 import bisect
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 import hashlib
 import io
+from itertools import islice
 import json
 import math
 from pathlib import Path
@@ -21,7 +23,7 @@ import uuid
 
 SDK = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SDK.parent / 'fusion_camera_stream'))
-from fusion_camera.stream import FusionStreamClient
+from fusion_camera.stream import FusionStreamClient, joint_timing_gap
 from fusion_camera.client import Frame
 from fusion_camera.episode import dump, line, match_bundles, percentiles, stats
 from PIL import Image
@@ -39,8 +41,103 @@ ROBOT_STATE_ORDER = [name for side in SIDES
                      for name in [side+'_joint_'+str(i) for i in range(1,8)]+[side+'_gripper_motor']]
 
 
+class RecordRows:
+    """Disk-backed JSON rows; never retain a growing graph of GC-tracked objects.
+
+    Reads return snapshots. Callers must assign modified rows back by index.
+    Working files survive failed finalization for diagnosis/recovery, and are
+    removed only after the public episode files and metadata have been written.
+    """
+    def __init__(self, path):
+        self.path = Path(path)
+        self.writer = self.path.open('xb')
+        try:
+            self.reader = self.path.open('rb')
+        except Exception:
+            self.writer.close()
+            raise
+        self.offsets = array('Q')
+        self.last_index, self.last_data = None, None
+
+    def __len__(self):
+        return len(self.offsets)
+
+    def _write(self, row):
+        data = (json.dumps(row, ensure_ascii=False, separators=(',', ':'))+'\n').encode('utf-8')
+        offset = self.writer.tell()
+        self.writer.write(data)
+        return offset, data
+
+    def append(self, row):
+        offset, data = self._write(row)
+        self.offsets.append(offset)
+        self.last_index, self.last_data = len(self)-1, data
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += len(self)
+        if not 0 <= index < len(self):
+            raise IndexError(index)
+        if index == self.last_index:
+            return json.loads(self.last_data)
+        self.writer.flush()
+        self.reader.seek(self.offsets[index])
+        return json.loads(self.reader.readline())
+
+    def __setitem__(self, index, row):
+        if index < 0:
+            index += len(self)
+        if not 0 <= index < len(self):
+            raise IndexError(index)
+        offset, data = self._write(row)
+        self.offsets[index] = offset
+        self.last_index, self.last_data = index, data
+
+    def __iter__(self):
+        for index in range(len(self)):
+            yield self[index]
+
+    def sort(self, *, key):
+        order = sorted(range(len(self)), key=lambda index: key(self[index]))
+        self.offsets = array('Q', (self.offsets[index] for index in order))
+        self.last_index, self.last_data = None, None
+
+    def flush(self):
+        self.writer.flush()
+
+    def close(self, *, remove=False):
+        try:
+            self.writer.close()
+        finally:
+            self.reader.close()
+        if remove:
+            self.path.unlink(missing_ok=True)
+
+
 def finite_number(value):
     return type(value) in (float, int) and math.isfinite(value)
+
+
+def camera_queue_quality(start, final, clock):
+    """Keep whole-stream loss totals; exclude losses known to precede subscription.
+
+    A burst spanning the recording boundary cannot be split exactly from summary
+    counters. Flag it conservatively, without presenting its total as episode loss.
+    """
+    start, final, clock = start or {}, final or {}, clock or {}
+    boundary = start.get('controller_monotonic_ns')
+    if start.get('adopted_preview_stream'):
+        pc = start.get('episode_subscription_pc_monotonic_ns')
+        offset = clock.get('offset_ns')
+        boundary = (pc + offset - (clock.get('uncertainty_ns') or 0)
+                    if finite_number(pc) and finite_number(offset) else None)
+    summaries = final.get('camera_queue_overflow') or {}
+    affected = [camera for camera, row in summaries.items()
+                if row.get('dropped', 0) > 0 and
+                (not finite_number(boundary) or
+                 row.get('last_timestamp_ns', boundary) >= boundary)]
+    return dict(policy='drop_incoming', counter_scope='whole_stream_including_preview',
+                stream_totals=summaries, possibly_affected_episode_cameras=affected)
 
 
 def record_count_check(start, final, camera_counts, joint_count):
@@ -84,7 +181,8 @@ def storage_reserve_bytes(seconds, retain_native, profiles=None):
         rate = int(sum(5_000_000 * max(1., p['width'] * p['height'] / (1024 * 768)) for p in profiles.values()))
     if retain_native:
         rate += YUYV_THREE_CAMERA_BYTES_PER_SECOND
-    return seconds*rate+2_000_000_000
+    # Unlimited episodes reserve an initial minute; the live 2 GB floor remains.
+    return (seconds or 60)*rate+2_000_000_000
 
 
 def image_preprocessing(start, retain_native):
@@ -121,11 +219,7 @@ def image_preprocessing(start, retain_native):
 
 
 def gripper_statistics(rows):
-    measurements = [dict(timestamp_ns=row['pc_feedback_received_monotonic_ns']) for row in rows]
-    if len(measurements) > 1 and measurements[-1]['timestamp_ns'] == measurements[0]['timestamp_ns']:
-        return dict(count=len(measurements), span_s=0, actual_hz=None,
-                    interval_ms=percentiles([0]*(len(measurements)-1)))
-    return stats(measurements)
+    return stats(rows, timestamp_key='pc_feedback_received_monotonic_ns')
 
 
 def camera_mapping(path):
@@ -141,8 +235,10 @@ def readiness(row, now_ns=None, required_sides=SIDES):
     now = (now_ns or time.monotonic_ns()) / 1e9
     if row.get('mode') != 'live':
         return '需要现有实机遥操作反馈；不会把仿真值保存为实测数据'
-    if not row.get('vr_connected') or not 0 <= now - row['pc_monotonic_ns']/1e9 <= .3:
-        return '遥操作/VR 反馈已过期'
+    if not row.get('vr_connected'):
+        return '遥操作/VR 未连接'
+    if not finite_number(row.get('pc_monotonic_ns')) or not 0 <= row['pc_monotonic_ns']/1e9 <= now:
+        return '遥操作反馈时间戳无效'
     if not all(any(type(row.get('buttons', {}).get(k)) is bool for k in group)
                for group in (('A','X'), ('B','Y'))):
         return '未收到开始/结束采集按键，请使用支持 A/B/X/Y 按键的 XR SDK'
@@ -154,16 +250,16 @@ def readiness(row, now_ns=None, required_sides=SIDES):
         if len(q) != 7 or not all(math.isfinite(v) for v in q):
             return side + ' 缺少 7 个关节反馈'
         joint_info = row.get('joint_feedback', {}).get(side, {})
-        if joint_info.get('frame', 0) == 0 or joint_info.get('unchanged_s', 999) > .15:
-            return side + ' 关节反馈不新鲜'
+        if joint_info.get('frame', 0) == 0:
+            return side + ' 尚未收到关节反馈'
         if side not in required_sides:
             continue
         motor = ((row.get('grippers') or {}).get('motors') or {}).get(side, {})
         fb = motor.get('feedback') or {}
         if not isinstance(fb.get('position'), (float,int)) or not math.isfinite(fb['position']):
             return side + ' 缺少夹爪实际角度'
-        if not 0 <= now-fb.get('received', -1) <= .15:
-            return side + ' 夹爪反馈超过 150 ms'
+        if not finite_number(fb.get('received')) or not 0 <= fb['received'] <= now:
+            return side + ' 夹爪反馈时间戳无效'
     return None
 
 
@@ -246,13 +342,14 @@ def attach_feedback(bundles, grippers, before, after):
     if span <= 0:
         raise ValueError('Clock anchors not ordered')
     for side, rows in grippers.items():
-        for row in rows:
+        for index, row in enumerate(rows):
             stamp = row['pc_feedback_received_monotonic_ns']
             ratio = (stamp-before['pc_midpoint_ns'])/span
             row['timestamp_ns'] = stamp+before['offset_ns']+round(ratio*(after['offset_ns']-before['offset_ns']))
             row['clock_mapping_uncertainty_ns'] = max(before['uncertainty_ns'],after['uncertainty_ns'])
+            rows[index] = row
         times = [r['timestamp_ns'] for r in rows]
-        for bundle in bundles:
+        for bundle_index, bundle in enumerate(bundles):
             i = bisect.bisect_left(times,bundle['timestamp_ns'])
             candidates = [j for j in (i-1,i) if 0 <= j < len(times)]
             if not candidates:
@@ -268,6 +365,7 @@ def attach_feedback(bundles, grippers, before, after):
             bundle['tensors'][prefix+'name'] = [side+'_gripper_motor']
             bundle['tensors'][prefix+'position'] = [row['motor_position_rad']]
             bundle['tensors'][prefix+'opening_angle'] = [row['opening_angle_rad']]
+            bundles[bundle_index] = bundle
     return bundles
 
 
@@ -316,15 +414,16 @@ def attach_actions(rows, bundles, before, after, required_sides):
     span = after['pc_midpoint_ns'] - before['pc_midpoint_ns']
     if span <= 0:
         raise ValueError('Clock anchors not ordered')
-    for row in rows:
+    for index, row in enumerate(rows):
         stamp = row['pc_monotonic_ns']
         ratio = (stamp - before['pc_midpoint_ns']) / span
         row['timestamp_ns'] = stamp + before['offset_ns'] + round(ratio * (after['offset_ns'] - before['offset_ns']))
         row['joint_names'] = [side+'_joint_'+str(i) for side in required_sides for i in range(1,8)]
         row['position_rad'] = [math.radians(v) for side in required_sides for v in row['joints_deg'][side]]
         row['clock_mapping_uncertainty_ns'] = max(before['uncertainty_ns'], after['uncertainty_ns'])
+        rows[index] = row
     times = [r['timestamp_ns'] for r in rows]
-    for bundle in bundles:
+    for bundle_index, bundle in enumerate(bundles):
         stamp = bundle['timestamp_ns']
         insertion = bisect.bisect_right(times, stamp)
         candidates = [i for i in (insertion-1, insertion) if 0 <= i < len(times)]
@@ -346,6 +445,7 @@ def attach_actions(rows, bundles, before, after, required_sides):
             bundle['tensors']['action__'+side+'_effector__position'] = [target]
         if 'gripper_target_sources' in command:
             bundle['gripper_target_sources'] = command['gripper_target_sources']
+        bundles[bundle_index] = bundle
 
 
 class Episode(threading.Thread):
@@ -357,6 +457,8 @@ class Episode(threading.Thread):
         self.episode_index = episode_index
         self.required_sides = tuple(getattr(args, 'controlled_sides', SIDES))
         self.action_rows = []
+        self.record_stores = []
+        self.records_finalized = False
         self.started_monotonic = None
         self.frame_counts = {}
         self.client_factory = client_factory or (lambda: FusionStreamClient(
@@ -370,6 +472,7 @@ class Episode(threading.Thread):
         self.last_telemetry_ns = time.monotonic_ns()
         self.first_sequence = trigger['sequence']
         self.telemetry_gaps = 0
+        self.joint_timing_gaps = 0
         self.last_sequence = None
         self.control_cycles = []
         self.latest_gripper_stamp = dict.fromkeys(SIDES)
@@ -546,7 +649,24 @@ class Episode(threading.Thread):
                     check_service(client, recover=getattr(self.args, 'recover_camera', True), notice=self.notice)
                 if self.stopping.is_set():
                     raise RuntimeError(self.error or '开始录制前已收到结束指令，未采集数据')
-                self._record(client)
+                # A manual stop must reach the stream even while no new camera
+                # events arrive. Keep socket I/O out of the SDK feedback reader.
+                stream_done = threading.Event()
+                def forward_stop():
+                    while not stream_done.wait(.1):
+                        if self.stopping.is_set():
+                            try:
+                                client.request_stop()
+                            except Exception as exc:
+                                self.error = self.error or str(exc)
+                            return
+                stop_worker = threading.Thread(target=forward_stop, name='episode-stop', daemon=True)
+                stop_worker.start()
+                try:
+                    self._record(client)
+                finally:
+                    stream_done.set()
+                    stop_worker.join(timeout=2)
         except Exception as exc:
             self.error = self.error or str(exc)
             if self.directory is not None:
@@ -558,6 +678,11 @@ class Episode(threading.Thread):
                 except Exception:
                     pass
         finally:
+            for rows in self.record_stores:
+                try:
+                    rows.close(remove=self.records_finalized)
+                except OSError as exc:
+                    self.error = self.error or str(exc)
             self.state = 'finalizing'
             if self.error and self.directory is None:
                 self.notice('未开始录制：'+self.error)
@@ -573,8 +698,8 @@ class Episode(threading.Thread):
         root.mkdir(parents=True,exist_ok=True)
         reserved_bytes = storage_reserve_bytes(self.args.max_seconds, self.args.retain_native, getattr(self.args, 'camera_profiles', None))
         if shutil.disk_usage(root).free < reserved_bytes:
-            rate_mb = (reserved_bytes-2_000_000_000)/self.args.max_seconds/1e6
-            raise RuntimeError('磁盘空间不足：为最长本轮预留每秒 %.3f MB，另留 2 GB%s' % (
+            rate_mb = (reserved_bytes-2_000_000_000)/(self.args.max_seconds or 60)/1e6
+            raise RuntimeError('磁盘空间不足：按预计时长（不限时时预留首分钟）预留每秒 %.3f MB，另留 2 GB%s' % (
                 rate_mb, '（含三路原始 YUYV 55.296 MB/s）' if self.args.retain_native else ''))
         name = time.strftime('%Y%m%d_%H%M%S')+'_fusion_'+uuid.uuid4().hex[:8]
         self.directory = root/name
@@ -582,7 +707,15 @@ class Episode(threading.Thread):
         self.notice('保存目录：'+str(self.directory))
         record = self.directory/'record'
         record.mkdir()
-        cameras = {name:[] for name in self.mapping.values()}
+        def store(name, initial=()):
+            rows = RecordRows(record/('.working-'+name+'.jsonl'))
+            self.record_stores.append(rows)
+            for row in initial:
+                rows.append(row)
+            return rows
+        cameras = {name:store(name) for name in self.mapping.values()}
+        self.action_rows = store('actions', self.action_rows)
+        self.control_cycles = store('control-cycles', self.control_cycles)
         counts = dict.fromkeys(cameras,0)
         for name in cameras:
             for sub in (('frames','native') if self.args.retain_native else ('frames',)):
@@ -591,6 +724,7 @@ class Episode(threading.Thread):
             'schema_version':2, 'episode_id':self.directory.name,
             'episode_index':self.episode_index,
             'task':self.args.task, 'robot_type':getattr(self.args,'robot_type','fusion_dual_arm'),
+            **({'robot_name':self.args.robot_name} if getattr(self.args,'robot_name',None) else {}),
             'controlled_sides':list(self.required_sides), 'parameters':getattr(self.args,'parameters',{}),
             'coordinate_mapping':getattr(self.args,'coordinate_mapping',None),
             'teleop_runtime_mapping':getattr(self.args,'teleop_runtime_mapping',None),
@@ -615,12 +749,13 @@ class Episode(threading.Thread):
             'collection_start_buttons':self.trigger.get('collection_start_buttons',['A']),
             'collection_stop_buttons':self.trigger.get('collection_stop_buttons',['B']),
             'camera_mapping':self.mapping, 'max_seconds':self.args.max_seconds,
+            'duration_unlimited':self.args.max_seconds == 0,
             'opening_angle_note':'Motor angle relative to configured closed endpoint; not finger gap or independent linkage measurement.',
         }
         dump(self.directory/'meta_info.json',meta)
         preprocessing = None
-        joints, pending = [], deque()
-        grippers = {side:[] for side in SIDES}
+        joints, pending = store('joints'), deque()
+        grippers = {side:store(side+'-gripper') for side in SIDES}
         before = after = final = stream_start = None
         pool = ThreadPoolExecutor(max_workers=3,thread_name_prefix='image-writer')
         def finish_one():
@@ -643,8 +778,6 @@ class Episode(threading.Thread):
                     for event in stream:
                         m, kind = event.metadata, event.metadata['type']
                         self._telemetry(tf,grippers)
-                        if time.monotonic_ns()-self.last_telemetry_ns > 300_000_000:
-                            self.stop('teleop_timeout','遥操作反馈中断超过 300 ms')
                         if self.stopping.is_set():
                             client.request_stop()
                         if kind == 'start':
@@ -693,7 +826,9 @@ class Episode(threading.Thread):
                             self.frame_counts = dict(counts)
                         elif kind == 'health':
                             line(hf,m)
-                            if m.get('joint_feedback_ok') is False:
+                            if m.get('joint_feedback_ok') is False and joint_timing_gap(m):
+                                self.joint_timing_gaps += 1
+                            if m.get('joint_feedback_ok') is False and not joint_timing_gap(m):
                                 self.stop('joint_feedback_gap', '关节反馈中断：'+str(
                                     m.get('joint_feedback_error') or '关节采样不可用'))
                                 client.request_stop()
@@ -713,6 +848,8 @@ class Episode(threading.Thread):
                             if shutil.disk_usage(self.directory).free < 2_000_000_000:
                                 raise RuntimeError('Disk reserve reached')
                             tf.flush(); jf.flush(); hf.flush()
+                            for rows in self.record_stores:
+                                rows.flush()
                             last_disk = time.monotonic()
                         if time.monotonic()-last_progress >= 5:
                             if not self.stopping.is_set() and final is None:
@@ -745,7 +882,7 @@ class Episode(threading.Thread):
                 for row in rows:
                     index.write('%d %d\n' % (row['timestamp_ns'],row['frame_index']))
                     line(f,row)
-        bundles = match_bundles(joints,cameras)
+        bundles = match_bundles(joints,cameras, output=store('bundles'))
         if before and after:
             attach_feedback(bundles,grippers,before,after)
         else:
@@ -774,12 +911,6 @@ class Episode(threading.Thread):
                 attach_actions(self.action_rows, bundles, before, after, self.required_sides)
             if not self.action_rows:
                 self.error = self.error or '未收到实际下发的遥操作关节指令'
-            if any('action__joint__position' not in bundle['tensors'] for bundle in bundles):
-                self.error = self.error or '部分图像组合缺少新鲜的实际控制指令，已保留原始记录'
-            if meta['gripper_action_policy'] == 'initial_feedback_then_last_target' and any(
-                    not finite_number(bundle['tensors'].get('action__'+side+'_effector__position', [None])[0])
-                    for bundle in bundles for side in self.required_sides):
-                self.error = self.error or '夹爪记录目标尚未从有效反馈初始化，本轮数据不完整'
             with (record/'actions.jsonl').open('x') as af:
                 for action in self.action_rows:
                     line(af, action)
@@ -797,13 +928,20 @@ class Episode(threading.Thread):
                 line(f,row)
         camera_stats = {k:stats(v) for k,v in cameras.items()}
         for name, rows in cameras.items():
-            camera_stats[name]['sequence_gaps'] = sum((b['sequence']-a['sequence']-1)%2**32 for a,b in zip(rows,rows[1:]))
+            camera_stats[name]['sequence_gaps'] = sum((b['sequence']-a['sequence']-1)%2**32 for a,b in zip(rows,islice(rows,1,None)))
         count_comparison = record_count_check(stream_start, final,
             {k:len(cameras[self.mapping[k]]) for k in self.mapping}, len(joints))
         count_ok = count_comparison['matches']
+        queue_quality = camera_queue_quality(stream_start, final, before)
         both = sum(all(side in b.get('grippers',{}) for side in self.required_sides) for b in bundles)
-        if not bundles or both != len(bundles):
-            self.error = self.error or '部分图像组合缺少 50 ms 内的所选夹爪反馈，详见 validation.json'
+        if not bundles:
+            self.error = self.error or '未形成有效图像组合，已保留原始数据'
+        action_missing = sum('action__joint__position' not in b['tensors'] for b in bundles) \
+            if getattr(self.args, 'record_actions', False) else 0
+        gripper_action_missing = sum(any(not finite_number(
+            b['tensors'].get('action__'+side+'_effector__position', [None])[0])
+            for side in self.required_sides) for b in bundles) \
+            if getattr(self.args, 'record_actions', False) else 0
         if not count_ok:
             self.error = self.error or '服务器和落盘数量不一致'
         validation = {
@@ -813,6 +951,11 @@ class Episode(threading.Thread):
             'teleop_loop':stats(self.control_cycles),
             'aligned_state':alignment,
             'both_grippers_bundle_count':both,'telemetry_missing_packets':self.telemetry_gaps,
+            'missing_action_bundle_count':action_missing,
+            'missing_gripper_action_bundle_count':gripper_action_missing,
+            'timing_policy':'diagnostic_only',
+            'joint_timing_gap_count':self.joint_timing_gaps,
+            'camera_queue_overflow':queue_quality,
             'record_count_matches_server':count_ok,
             'count_comparison':count_comparison,
             'camera_span_ms':percentiles([b['camera_span_ms'] for b in bundles]),
@@ -830,6 +973,9 @@ class Episode(threading.Thread):
                                if name not in ('samples','duplicates'))
                                for integrity in (self.gripper_integrity[side] for side in self.required_sides))
         validation['quality_passed'] = bool(not self.error and validation['target_rates_met']
+            and both == len(bundles) and not action_missing and not gripper_action_missing
+            and not self.joint_timing_gaps
+            and not queue_quality['possibly_affected_episode_cameras']
             and not self.telemetry_gaps and all(r['sequence_gaps'] == 0 for r in camera_stats.values())
             and feedback_quality and alignment['fully_matched'] == len(joints)
             and all(validation['opening_calibration_valid'][side] for side in self.required_sides))
@@ -846,6 +992,7 @@ class Episode(threading.Thread):
             data_validate=validation['quality_passed'],integrity=validation)
         dump(record/'validation.json',validation)
         dump(self.directory/'meta_info.json',meta)
+        self.records_finalized = True
         self.notice('本轮数据：%d 路图像组合 %d 组；关节 %d 条；左/右夹爪 %d/%d 条。' %
                     (len(cameras),len(bundles),len(joints),len(grippers['left']),len(grippers['right'])))
         def measured_hz(info):
@@ -892,13 +1039,13 @@ def main(argv=None):
     p.add_argument('--host',default='192.168.1.190')
     p.add_argument('--credentials',default=str(SDK/'FusionCameraSDK'/'client.json'))
     p.add_argument('--camera-map',default=str(Path(__file__).with_name('camera_map.json')))
-    p.add_argument('--max-seconds',type=int,default=600)
+    p.add_argument('--max-seconds',type=int,default=0,help='默认 0 不限时；可显式指定正整数秒数')
     p.add_argument('--task',default='双臂遥操作数据采集')
     p.add_argument('--retain-native',action='store_true',help='另存原始 YUYV (.yuyv) 或 MJPEG (.jpg)；默认只存 640x480 JPEG')
     p.add_argument('--check',action='store_true',help='只检查相机服务和本地依赖，不启动采集')
     args = p.parse_args(argv)
-    if not 1 <= args.max_seconds <= 600:
-        p.error('--max-seconds 必须为 1..600')
+    if args.max_seconds < 0:
+        p.error('--max-seconds 必须为非负整数，0 表示不限时')
     args.output = str(Path(args.output).expanduser().resolve())
     print('数据保存根目录：'+args.output,flush=True)
     mapping = camera_mapping(args.camera_map)
@@ -934,7 +1081,7 @@ def main(argv=None):
                     row = json.loads(data)
                     if peer[0] != '127.0.0.1' or row.get('schema') != 'fusion_collection_telemetry_v1':
                         continue
-                    if not 0 <= time.monotonic_ns()-row['pc_monotonic_ns'] <= 300_000_000:
+                    if not finite_number(row.get('pc_monotonic_ns')) or not 0 <= row['pc_monotonic_ns'] <= time.monotonic_ns():
                         continue
                     last_seen = time.monotonic()
                     if telemetry_waiting:
@@ -965,8 +1112,6 @@ def main(argv=None):
                 except (ValueError,KeyError,TypeError) as exc:
                     if episode and not episode.finished.is_set():
                         episode.stop('invalid_telemetry',str(exc))
-                if time.monotonic()-last_seen > .3 and episode and not episode.finished.is_set():
-                    episode.stop('teleop_timeout','遥操作反馈中断超过 300 ms')
                 if time.monotonic()-last_seen > 3 and not telemetry_waiting:
                     print('[采集] 遥操作反馈已中断，等待恢复。',flush=True)
                     telemetry_waiting = True

@@ -77,12 +77,23 @@ def test_hd_finalization_budget_scales_with_recorded_duration(tmp_path):
         assert bundle.conversion_timeout(tmp_path)==expected
 
 
-@pytest.mark.parametrize('offsets',[(0,1100000000,1200000000), (0,33333333,33333333), tuple(i*50000000 for i in range(160))])
-def test_low_fps_stalls_and_duplicate_samples_never_become_successful_video(tmp_path,offsets):
+def test_duplicate_samples_never_become_successful_video(tmp_path):
+    offsets = (0,33333333,33333333)
     root=tmp_path/'round';source=recording(root,offsets=offsets)
     original=bundle.file_hash(source);contract(root)
     with pytest.raises(ValueError,match='质量不合格'):bundle.convert_bundle(root)
     assert not (root/'media').exists() and bundle.file_hash(source)==original
+
+
+@pytest.mark.parametrize('offsets', [(0,1100000000,1200000000), tuple(i*50000000 for i in range(160))])
+def test_low_fps_and_stalls_save_video_with_quality_warnings(tmp_path, offsets):
+    root=tmp_path/'round';source=recording(root,offsets=offsets)
+    original=bundle.file_hash(source);contract(root)
+    manifest=bundle.convert_bundle(root)
+    assert manifest['state'] == 'complete'
+    assert all(not v['passed'] and v['warnings'] and v['timing_policy'] == 'diagnostic_only'
+               for v in manifest['quality_validation'].values())
+    assert bundle.file_hash(source) == original
 
 
 def test_driver_resolution_fallback_cannot_pass_final_validation(tmp_path):

@@ -10,6 +10,7 @@ def preview_only(manager, session):
 
 def recover_preview_gap(manager, client, session, attempt):
     if (attempt >= 3 or not preview_only(manager, session)
+            or getattr(getattr(manager, 'camera_settings', None), 'busy', False)
             or manager.camera_stop.is_set()
             or time.monotonic()-manager.last_access >= 8):
         return False
@@ -19,16 +20,20 @@ def recover_preview_gap(manager, client, session, attempt):
     if manager.camera_stop.wait(max(2.1, manager.camera_cooldown+.1) * (attempt+1)):
         return False
     if (not preview_only(manager, session)
+            or getattr(getattr(manager, 'camera_settings', None), 'busy', False)
             or time.monotonic()-manager.last_access >= 8):
         return False
     status = client.status()
     if (status.get('idle') is not True or not status.get('fault')
             or status.get('camera_hotplug_recovery') is not True
-            or status.get('recoverable_camera_fault') is not True):
+            or status.get('recoverable_camera_fault') is not True
+            or status.get('camera_recovery_requires_manual') is True):
         return False
     # All cameras may be unplugged. Keep discovery alive without burning the
     # retry budget or attempting capture until at least one has re-enumerated.
     while True:
+        if getattr(getattr(manager, 'camera_settings', None), 'busy', False):
+            return False
         cameras = client.list_cameras()
         inventory = {c['id'].replace('-', '_'):c['id'] for c in cameras
                      if c.get('available') and isinstance(c.get('id'), str)

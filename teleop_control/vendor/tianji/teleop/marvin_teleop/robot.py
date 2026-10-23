@@ -132,7 +132,11 @@ class Robot:
             i = 0 if channel == "A" else 1
             out, state = data["outputs"][i], data["states"][i]
             serial = out["frame_serial"]
-            if serial != 0 and serial != self.frames[side]:
+            # The vendor counter wraps modulo 1,000,000, so zero is a valid
+            # update once this lane has produced feedback. Keep rejecting an
+            # initial zero-filled SDK cache until a nonzero frame is observed.
+            initialized = self.frames[side] is not None
+            if (serial != 0 or initialized) and serial != self.frames[side]:
                 self.changed[side], self.frames[side] = now, serial
             self.actual_states[side] = state["cur_state"]
             self.feedback_status[side] = {
@@ -155,7 +159,7 @@ class Robot:
             ):
                 raise ValueError("invalid joint velocity feedback")
             serial = out["frame_serial"]
-            if serial == 0 or now - self.changed[side] > self.config["robot_timeout_s"]:
+            if self.frames[side] is None or now - self.changed[side] > self.config["robot_timeout_s"]:
                 raise ValueError(
                     f"{side}: robot UDP feedback not advancing; "
                     f"SDK缓存观测={self.feedback_status}"

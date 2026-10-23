@@ -113,11 +113,17 @@ class WindowChromeTests(unittest.TestCase):
                     backend.update(page='teleop', teleopStep=2, tianji=dict(original_status, cameras=inventory, camera_preview_mode='snapshot'))
                     QTest.qWait(30)
                     for idx, role in enumerate(camera_roles):
-                        assert (find_item('teleopCamera-' + role) is not None) == (idx < count)
+                        preview = find_item('teleopCamera-' + role)
+                        assert preview is not None
+                        assert bool(preview.source) == (idx < count)
                     if count:
-                        ordered_roles = [r for r in ('left', 'center', 'right') if r in camera_roles[:count]]
+                        ordered_roles = ['center', 'left', 'right']
                         tiles = [find_item('teleopCameraTile-' + r) for r in ordered_roles]
-                        assert all(a.x() < b.x() and a.y() == b.y() for a, b in zip(tiles, tiles[1:])), 'Wrist previews must stay left/right regardless of discovery order'
+                        if find_item('teleopCameraCard').property('splitView'):
+                            assert tiles[0].x() < tiles[1].x() == tiles[2].x()
+                            assert tiles[0].y() == tiles[1].y() < tiles[2].y()
+                        else:
+                            assert tiles[0].y() < tiles[1].y() < tiles[2].y()
                         for key, role in zip(camera_ids[:count], camera_roles[:count]):
                             assert find_item('teleopCameraTile-' + role).property('modelData') == key
                         tile = find_item('teleopCamera-' + camera_roles[0])

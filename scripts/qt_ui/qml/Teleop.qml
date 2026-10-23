@@ -10,14 +10,16 @@ Column {
     property bool running: tianji ? status.state==="running" : (status.session||{}).state==="running"
     property bool moving: tianji ? status.state==="moving" : (status.motion||{}).state!=="idle"
     property bool uncertain: tianji ? ["unknown","error"].indexOf(status.state)>=0 : (status.session||{}).state==="unknown"
+    property bool controlActive: running || moving || (tianji ? status.control_active!==false && uncertain : uncertain)
     property bool manualMotion: moving || s.busy==="move"
-    property bool teleopStop: !manualMotion && (running || uncertain)
-    property bool cameraSettingsBusy: tianji && (!!status.camera_settings_busy || Object.values(backend.teleopCameraSettings).some(v=>v.busy))
-    property bool locked: !!s.busy || running || moving || uncertain || !!(status.collection||{}).busy || !!(status.collection||{}).recording || cameraSettingsBusy
+    property bool teleopStop: !manualMotion && controlActive
+    property bool cameraSettingsBusy: tianji && (s.cameraApplyBusy || !!status.camera_settings_busy || Object.values(backend.teleopCameraSettings).some(v=>v.busy))
+    property bool locked: !!s.busy || status.state==="checking" || running || moving || uncertain || !!(status.collection||{}).busy || !!(status.collection||{}).recording || cameraSettingsBusy
     property bool live: tianji ? !!((status.joints||{}).left && (status.joints||{}).left.length) : !!s.preview.available
     property bool canMove: !locked && (tianji ? live && s.paramSaved : s.preview.available && status.devices.some(d=>d.id==="robot" && d.status==="connected"))
     property bool canRecover: tianji && !s.busy && !s.paramSaving && !cameraSettingsBusy && s.paramSaved && ["idle","error"].indexOf(status.state)>=0 && !(status.collection||{}).busy && !(status.collection||{}).recording
     property var collection: status.collection||{}
+    property bool canCheck: !s.busy && !s.paramSaving && !cameraSettingsBusy && !collection.busy && !collection.recording && (!locked || (tianji && uncertain && status.control_active===false))
     spacing: 12
     Card {
         id: control
@@ -50,7 +52,7 @@ Column {
             }
             Item {Layout.fillWidth: true;Layout.preferredWidth: 375;Layout.preferredHeight: 102
                 Rectangle {width: setupGrid.columns===1 ? parent.width : 1;height: setupGrid.columns===1 ? 1 : parent.height;color: Theme.line}
-                Devices {x: 12;y: 12;width: parent.width-24;items: root.status.devices;checking: s.busy==="check" || root.status.state==="checking"}
+                Devices {x: 12;y: 12;width: parent.width-24;items: root.tianji ? (root.status.devices||[]).map(d=>d.id==="robot"?Object.assign({},d,{name:"天机 Marvin M6"}):d) : root.status.devices;checking: s.busy==="check" || root.status.state==="checking"}
             }
         }
         Rectangle {
@@ -59,6 +61,7 @@ Column {
             Flow {id: footerFlow;x: 12;y: 6;width: parent.width-24;spacing: 6;layoutDirection: Qt.RightToLeft
                 Btn {
                     objectName: "teleopStartStop"
+                    width: root.tianji ? 120 : 146; height: 34
                     text: root.teleopStop ? (root.tianji ? "停止控制" : "结束遥操作") : (root.tianji ? "开始遥操作" : "开始遥操作采集")
                     glyph: root.teleopStop ? "Square" : "Play"
                     primary: true; danger: root.teleopStop
@@ -66,7 +69,7 @@ Column {
                     enabled: !root.manualMotion && ((root.teleopStop || s.busy==="start") ? s.busy!=="stop" : !root.locked && root.status.devices.filter(d=>d.status==="connected").length===3 && (!root.tianji || (s.paramSaved && !s.paramSaving)))
                     onClicked: backend.teleop(root.teleopStop || s.busy==="start" ? "stop" : "start")
                 }
-                Btn {objectName: "teleopCheck";text: "检查设备";glyph: "RefreshCw";busy: s.busy==="check";enabled: !root.locked && !s.paramSaving;onClicked: backend.teleop("check")}
+                Btn {objectName: "teleopCheck";text: "检查设备";glyph: "RefreshCw";busy: s.busy==="check";enabled:root.canCheck;onClicked: backend.teleop("check")}
                 Row {visible: root.tianji;spacing: 14;height: 34;layoutDirection: Qt.LeftToRight
                     Txt {height: 34;text: "本次已完成  "+(root.collection.completed||0)+" Episode";font.pixelSize: 12;color: Theme.inkMuted}
                     Txt {height: 34;text: root.collection.recording ? "● 采集中" : root.collection.busy ? "正在保存" : root.running ? "等待手柄 A" : "未开始遥操作";color: root.collection.recording ? Theme.red : Theme.inkMuted;font.pixelSize: 12}

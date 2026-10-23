@@ -7,7 +7,6 @@ import {
   Play,
   RefreshCw,
   Square,
-  VideoOff,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionButton, StatusDot, classNames } from '../CollectionUi';
@@ -36,9 +35,9 @@ interface Pose {
 const POSES_KEY = 'tianji-pose-presets-v1';
 const primaryFields = TIANJI_FIELDS.slice(0, 3);
 const otherFields = TIANJI_FIELDS.slice(3);
-const cameraDisplayOrder: Record<string, number> = { usb_4: 0, usb_1: 1, usb_2: 2 };
+
 const emptyDevices: TianjiStatus['devices'] = [
-  { id: 'robot', name: 'Tianji', status: 'offline' },
+  { id: 'robot', name: '天机 Marvin M6', status: 'offline' },
   { id: 'xr', name: 'Galaxis VR', status: 'offline' },
   { id: 'headset', name: 'Pico 设备', status: 'offline' },
 ];
@@ -100,7 +99,14 @@ export function TianjiTeleopWorkspace({
   } | null>(null);
   const [state, setState] = useState<TianjiStatus | null>(null);
   const [cameraBusy, setCameraBusy] = useState<Record<string, boolean>>({});
-  const [cameraReconnecting, setCameraReconnecting] = useState(false);
+  const [cameraParametersOpen, setCameraParametersOpen] = useState(false);
+  const [cameraApplyStatus,setCameraApplyStatus]=useState({message:'',error:''});
+  const updateCameraApplyStatus=useCallback((message:string,error:string)=>setCameraApplyStatus({message,error}),[]);
+  useEffect(()=>{
+    if (cameraApplyStatus.message!=='相机参数已应用') return;
+    const timer=window.setTimeout(()=>setCameraApplyStatus(previous=>({...previous,message:''})),2000);
+    return ()=>window.clearTimeout(timer);
+  },[cameraApplyStatus]);
   const updateCameraBusy = useCallback((key: string, busy: boolean) => {
     setCameraBusy(previous => previous[key] === busy ? previous : {...previous, [key]:busy});
   }, []);
@@ -134,10 +140,11 @@ export function TianjiTeleopWorkspace({
             ? {
                 ...previous,
                 state: 'unknown',
+                control_active: previous.control_active ?? ['running','moving','unknown','error'].includes(previous.state),
                 joints: {},
                 devices: emptyDevices,
                 cameras: [],
-                error: '连接中断，等待确认控制已停止',
+                error: previous.control_active === false || previous.state === 'checking' ? '设备状态读取失败，请检查连接' : '连接中断，等待确认控制已停止',
               }
             : null,
         );
@@ -179,6 +186,7 @@ export function TianjiTeleopWorkspace({
   const collecting = Boolean(collection?.recording);
   const collectionBusy = Boolean(collection?.busy);
   const cameraSettingsBusy = Boolean(state?.camera_settings_busy) || Object.values(cameraBusy).some(Boolean);
+  const cameraParametersEditable = parametersLoaded && !pending && !saving && !collection?.armed && !collectionBusy && !collecting && !!state && ['idle','error'].includes(state.state);
   const locked =
     !parametersLoaded ||
     Boolean(pending) ||
@@ -189,6 +197,8 @@ export function TianjiTeleopWorkspace({
     state?.state === 'checking' ||
     state?.state === 'unknown' ||
     state?.state === 'error';
+  const canCheck = !pending && !saving && !collectionBusy && !collecting && !cameraSettingsBusy &&
+    (!locked || (state?.control_active === false && ['unknown','error'].includes(state.state)));
   useEffect(() => {
     onBusyChange?.(locked || saving);
   }, [locked, saving, onBusyChange]);
@@ -251,12 +261,10 @@ export function TianjiTeleopWorkspace({
     parameterKey,
     saveFailure,
   ]);
-  const cameras = (state?.cameras ?? [])
-    .filter((c) => c.connected !== false)
-    .sort((a, b) => (cameraDisplayOrder[a.id] ?? 3) - (cameraDisplayOrder[b.id] ?? 3)
-      || a.id.localeCompare(b.id));
-  const cameraColumns = cameras.length <= 3
-    ? Math.max(1, cameras.length) : Math.ceil(Math.sqrt(cameras.length));
+  const cameras = [{id:'usb_1',label:'主相机'},{id:'usb_4',label:'左相机'},{id:'usb_2',label:'右相机'}].map(slot=>({
+    ...slot, ...state?.cameras?.find(camera=>camera.id===slot.id),
+    connected:state?.cameras?.some(camera=>camera.id===slot.id && camera.connected!==false) ?? false,
+  }));
   const closure: Partial<Record<TianjiSide, number>> = {};
   for (const { id } of TIANJI_SIDES) {
     const f = state?.grippers?.motors[id]?.feedback;
@@ -279,6 +287,7 @@ export function TianjiTeleopWorkspace({
     actionRef.current = name;
     setPending(name);
     setError('');
+    if(name==='start'||name==='move')setState(previous=>previous?{...previous,control_active:true}:previous);
     try {
       await api(`/${name}`, {
         method: 'POST',
@@ -290,7 +299,7 @@ export function TianjiTeleopWorkspace({
       return true;
     } catch (e) {
       if (mounted.current)
-        setError(e instanceof Error ? e.message : '天机控制失败');
+        setError(e instanceof Error ? e.message : '天机 Marvin M6控制失败');
       return false;
     } finally {
       if (actionRef.current === name) {
@@ -370,7 +379,7 @@ export function TianjiTeleopWorkspace({
               value={mode}
               disabled={locked}
               onChange={(e) => setMode(e.target.value as TianjiMode)}
-              aria-label="天机上传曲线"
+              aria-label="天机 Marvin M6上传曲线"
             >
               <option value="dual">双臂</option>
               <option value="left">左臂</option>
@@ -480,7 +489,7 @@ export function TianjiTeleopWorkspace({
                     `device-${d.status}`,
                   )}
                 >
-                  <span>{d.id === 'robot' ? 'Tianji' : d.name}</span>
+                  <span>{d.id === 'robot' ? '天机 Marvin M6' : d.name}</span>
                   <strong>
                     {pending === 'check' || state?.state === 'checking'
                       ? '检测中'
@@ -596,7 +605,7 @@ export function TianjiTeleopWorkspace({
               kind="secondary"
               busy={pending === 'check'}
               spinIcon
-              disabled={locked || saving}
+              disabled={!canCheck}
               onClick={() => act('check')}
             >
               <RefreshCw size={15} />
@@ -606,8 +615,7 @@ export function TianjiTeleopWorkspace({
             moving ||
             pending === 'start' ||
             pending === 'move' ||
-            state?.state === 'unknown' ||
-            state?.state === 'error' ? (
+            ((state?.state === 'unknown' || state?.state === 'error') && state?.control_active !== false) ? (
               <ActionButton
                 danger
                 busy={pending === 'stop'}
@@ -664,47 +672,25 @@ export function TianjiTeleopWorkspace({
             <div>
               <h3>相机画面</h3>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span>{state?.camera_preview_mode === 'snapshot' ? '逐路刷新' : `${cameras.length} 路相机`}</span>
-              <button type="button" disabled={cameraReconnecting || state?.camera_checking || cameraSettingsBusy || collectionBusy || collecting}
-                onClick={async () => {
-                  setCameraReconnecting(true);
-                  try {await api('/camera-preview/reconnect',{method:'POST',body:'{}'});}
-                  catch (failure) {setError(failure instanceof Error ? failure.message : '视频重连失败');}
-                  finally {setCameraReconnecting(false);}
-                }}>重连视频</button>
-            </div>
+            <span role="status">{cameraApplyStatus.message}</span>
+            <ActionButton kind="secondary" disabled={!cameraParametersEditable || cameraSettingsBusy} onClick={()=>setCameraParametersOpen(true)}><Settings2 size={15}/>相机参数</ActionButton>
           </div>
-          {state?.camera_joint_error && (
-            <p role="status">关节反馈中断，暂不能采集；视频继续显示。{state.camera_joint_error}</p>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cameraColumns}, minmax(0, 1fr))`, gap: 8 }}>
-            {cameras.map((camera) => (
-              <div key={camera.id}>
-                <div>{camera.label || camera.id}</div>
-                <div className="teleop-camera-stage tianji-camera-stage">
-                  <CameraStream
-                    scope="tianji"
-                    src={`${baseUrl}/tianji/cameras/${camera.id}/stream`}
-                    waiting={!camera.available}
-                    refreshTimeoutMs={state?.camera_preview_mode === 'snapshot' ? Math.max(10000, cameras.length * 8000) : 10000}
-                    alt={`${camera.label || camera.id}画面`}
-                  />
-                </div>
-                <TianjiCameraSettings baseUrl={baseUrl} cameraKey={camera.id} label={camera.label || camera.id}
-                  active={camera.connected !== false} blocked={cameraSettingsBusy}
-                  editable={parametersLoaded && !pending && !saving && !collection?.armed && !collectionBusy
-                    && !!state && ['idle','error'].includes(state.state)} onBusyChange={updateCameraBusy} />
+          {cameraApplyStatus.error && <div className="inline-alert teleop-panel-alert" role="alert">{cameraApplyStatus.error}</div>}
+          {state?.camera_joint_error && <p role="status">关节反馈中断，暂不能采集；视频继续显示。{state.camera_joint_error}</p>}
+          <div className="tianji-camera-preview-grid">
+            {cameras.map(camera=><div key={camera.id} className={'tianji-camera-preview-tile '+(camera.id==='usb_1'?'tianji-main-camera':'')}>
+              <div className="teleop-camera-stage tianji-camera-stage">
+                {camera.connected?<CameraStream scope="tianji" src={`${baseUrl}/tianji/cameras/${camera.id}/stream`}
+                  waiting={!camera.connected || !camera.available}
+                  refreshTimeoutMs={state?.camera_preview_mode==='snapshot'?Math.max(10000,cameras.length*8000):10000}
+                  alt={`${camera.label}画面`}/>:<span className="umi-stream-retry">等待相机画面…</span>}
+                <span className="tianji-camera-label">{camera.label}</span>
               </div>
-            ))}
-            {cameras.length === 0 && (
-              <div className="tianji-camera-empty">
-                <VideoOff size={28} />
-                <strong>等待识别已连接的相机</strong>
-                <span>{state?.camera_error || '连接机械臂网线后，点击检查设备'}</span>
-              </div>
-            )}
+            </div>)}
           </div>
+          <TianjiCameraSettings baseUrl={baseUrl} open={cameraParametersOpen} onClose={()=>setCameraParametersOpen(false)} cameras={cameras}
+            editable={cameraParametersEditable}
+            onBusyChange={updateCameraBusy} onApplyStatus={updateCameraApplyStatus}/>
         </section>
       </div>
       <section className="surface teleop-manual">
@@ -721,7 +707,7 @@ export function TianjiTeleopWorkspace({
             </div>
             <div className="teleop-preset-controls">
               <select
-                aria-label="天机姿态配置"
+                aria-label="天机 Marvin M6姿态配置"
                 value={selectedPose}
                 disabled={locked && !canRecover}
                 onChange={(e) => setSelectedPose(e.target.value)}

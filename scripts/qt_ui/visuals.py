@@ -59,10 +59,10 @@ class ModelPart(QObject):
 
 class RobotScene(QObject):
     cameraChanged=Signal()
-    def __init__(self,root,parent=None,*,load_model=True):
+    def __init__(self,root,parent=None,*,load_model=True,model_file="tianji-model.json"):
         super().__init__(parent)
         self.calibration=endpoints(root)
-        self.model=json.loads((root/'public/tianji-model.json').read_text()) if load_model else dict(meshes={},links=[],joints=[])
+        self.model=json.loads((root/'public'/model_file).read_text()) if load_model else dict(meshes={},links=[],joints=[])
         self.geometries={key:MeshGeometry(mesh) for key,mesh in self.model['meshes'].items()}
         self.parts_value=[];self.by_link=[]
         for link in self.model['links']:
@@ -99,10 +99,13 @@ class RobotScene(QObject):
             if amount is None:amount=.5
             drive=next((j for j in self.model['joints'] if j['name']==f'gripper_drive_{letter}'),{})
             angles[f'gripper_drive_{letter}']=(1-amount)*float((drive.get('limit') or {}).get('upper',1))
+        self.apply_angles(angles)
+
+    def apply_angles(self,angles):
         # Status polling includes camera and upload changes. Avoid recalculating
         # every CAD transform when the actual pose has not changed on the board.
         if angles==self._pose_angles:return
-        matrices={'stand':np.eye(4)};pending=self.model['joints'][:]
+        matrices={self.model.get('root_link','stand'):np.eye(4)};pending=self.model['joints'][:]
         while pending:
             remaining=[]
             for j in pending:
@@ -117,6 +120,25 @@ class RobotScene(QObject):
             pending=remaining
         for link,part in self.by_link:part.update_matrix(matrices.get(link,np.eye(4))@transform(part.visual['xyz'],part.visual['rpy']))
         self._pose_angles=angles
+
+
+class KuavoScene(RobotScene):
+    """Official display meshes driven only by KUAVO measured joint radians."""
+    def __init__(self,root,parent=None):
+        super().__init__(root,parent,model_file='kuavo-model.json')
+        self.resetView()
+
+    @Slot('QVariantMap')
+    def update_pose(self,status,calibration=None):
+        values=(status.get('telemetry') or {}).get('joints') or {}
+        names={f'zarm_{side}{i}_joint' for side in ('l','r') for i in range(1,8)}
+        angles={name:float(value) for name,value in values.items()
+                if name in names and type(value) in (int,float) and math.isfinite(value)}
+        self.apply_angles(angles)
+
+    @Slot()
+    def resetView(self):
+        self.yaw=-.35;self.pitch=.08;self.zoom=.95;self.update_camera()
 
 
 class _MjpegPreviewParser:
@@ -230,8 +252,8 @@ class CameraItem(QQuickPaintedItem):
     @Property(float,notify=frameChanged)
     def aspectRatio(self):return self.frame.width()/self.frame.height() if not self.frame.isNull() else 0.0
     def offline(self):
-        # Keep the last frame on transient transport failures. The QML overlay
-        # explicitly marks a stalled image, so it can never masquerade as live.
+        # Retain the decoded frame for recovery; QML decides how to show an
+        # offline preview. Teleop hides it over a black background.
         self.update()
         if self._online:self._online=False;self.onlineChanged.emit()
     def stream_stalled(self):

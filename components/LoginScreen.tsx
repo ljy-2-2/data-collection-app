@@ -1,6 +1,6 @@
 'use client';
 import { LoaderCircle } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { requestJson } from '../lib/http';
 import {
   hasPendingLogout,
@@ -26,7 +26,17 @@ export function LoginScreen({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, updateMessage] = useState('');
+  const [messageVersion, setMessageVersion] = useState(0);
+  const setMessage = useCallback((value: string) => {
+    updateMessage(value);
+    setMessageVersion(version => version + 1);
+  }, []);
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => updateMessage(''), 2000);
+    return () => window.clearTimeout(timer);
+  }, [message, messageVersion]);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
   const [useSavedPassword, setUseSavedPassword] = useState(false);
@@ -44,6 +54,7 @@ export function LoginScreen({
     // First desktop use may require creating/unlocking the system keyring.
     const timeout = window.setTimeout(() => controller.abort(), 125000);
     async function restore() {
+      let loginAttempted = false;
       try {
         // If logout could not reach the service last time, finish clearing it
         // before reading preferences. This marker contains no credentials.
@@ -69,6 +80,7 @@ export function LoginScreen({
         setUseSavedPassword(saved.has_saved_password);
         setSavedPasswordLength(saved.password_length || 0);
         if (saved.auto_login && saved.has_saved_password) {
+          loginAttempted = true;
           setBusy(true);
           const result = await requestJson<PlatformAuthStatus>(
             baseUrl,
@@ -94,7 +106,7 @@ export function LoginScreen({
           setAutoLogin(false);
           setUseSavedPassword(false);
           setMessage(
-            reason instanceof Error && reason.name === 'AbortError'
+            loginAttempted ? '账号或密码错误' : reason instanceof Error && reason.name === 'AbortError'
               ? '自动登录超时，请手动登录。'
               : reason instanceof Error
                 ? reason.message
@@ -115,7 +127,7 @@ export function LoginScreen({
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [baseUrl, forgetSaved]);
+  }, [baseUrl, forgetSaved, setMessage]);
 
   async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,10 +157,8 @@ export function LoginScreen({
         throw new Error('登录状态无效');
       setPassword('');
       onLogin(result.user, result.warning);
-    } catch (reason) {
-      setMessage(
-        reason instanceof Error ? reason.message : '登录失败，请稍后再试',
-      );
+    } catch {
+      setMessage('账号或密码错误');
     } finally {
       setBusy(false);
     }
@@ -249,11 +259,6 @@ export function LoginScreen({
             <span>自动登录</span>
           </label>
         </div>
-        {message || logoutMessage ? (
-          <div className="app-login-error" role="alert">
-            {message || logoutMessage}
-          </div>
-        ) : null}
         <button
           type="submit"
           className="button-primary"
@@ -272,6 +277,13 @@ export function LoginScreen({
             '登录'
           )}
         </button>
+        <div className="app-login-feedback">
+          {message ? (
+            <div key={messageVersion} className="app-login-error is-transient" role="alert">
+              {message}
+            </div>
+          ) : logoutMessage ? <div className="app-login-error" role="alert">{logoutMessage}</div> : null}
+        </div>
       </form>
     </main>
   );

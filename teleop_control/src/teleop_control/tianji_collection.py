@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from .collection_uploader import READY_MARKER
+from .robot_names import TIANJI_DISPLAY_NAME
 from .collection_gate import collection_available, collection_context
 from .platform_auth import current_platform_username
 
@@ -30,7 +31,7 @@ class TianjiCollection:
         self.episode_factory = episode_factory
         self.lock = threading.RLock()
         self.done = threading.Event()
-        self.monitor = self.job = None
+        self.job = None
         self.episode = None
         self.latest = None
         self.armed = False
@@ -69,11 +70,6 @@ class TianjiCollection:
             self.gripper_action_session = None
             self.armed, self.phase, self.error = True, "ready", ""
             self.done.clear()
-            if not self.monitor or not self.monitor.is_alive():
-                self.monitor = threading.Thread(
-                    target=self._watch, daemon=True, name="tianji-record-watch"
-                )
-                self.monitor.start()
 
     def active(self):
         return bool(self.job and self.job.is_alive())
@@ -168,10 +164,11 @@ class TianjiCollection:
             args = SimpleNamespace(
                 output=str(self.output),
                 task=self.task,
-                max_seconds=600,
+                max_seconds=0,
                 retain_native=False,
                 controlled_sides=self.controlled_sides,
                 robot_type="tianji",
+                robot_name=TIANJI_DISPLAY_NAME,
                 parameters=self.parameters,
                 coordinate_mapping=copy.deepcopy(
                     getattr(self.manager, "value", {}).get("coordinate_mapping")
@@ -252,16 +249,6 @@ class TianjiCollection:
             self.armed = False
             self.stop(reason, "遥操作已结束，本轮未通过 B 键正常收尾")
 
-    def _watch(self):
-        while not self.done.wait(0.1):
-            with self.lock:
-                if self.active() and self.episode and not self.episode.finished.is_set():
-                    if (
-                        not self.latest
-                        or time.monotonic_ns() - self.latest["pc_monotonic_ns"] > 300_000_000
-                    ):
-                        self.episode.stop("teleop_timeout", "遥操作反馈中断超过 300 ms")
-
     def snapshot(self):
         with self.lock:
             ep = self.episode
@@ -295,5 +282,3 @@ class TianjiCollection:
             self.job.join(timeout=25)
             if self.job.is_alive():
                 raise RuntimeError("数据仍在保存，请稍后再返回配置")
-        if self.monitor:
-            self.monitor.join(timeout=1)

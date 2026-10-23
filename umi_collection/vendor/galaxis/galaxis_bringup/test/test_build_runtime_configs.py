@@ -40,6 +40,40 @@ def _import_merger():
 merger = _import_merger()
 
 
+@pytest.mark.parametrize('profile_name', ['dual', 'single-left', 'single-right'])
+@pytest.mark.parametrize('quality', [False, True])
+def test_unlimited_recording_keeps_timing_diagnostics_and_content_faults(profile_name, quality):
+    import copy
+    data = merger.load_yaml(SINGLE_CONFIG)['recording_gate']
+    # Also migrate an older input that still contains the 120-second stop.
+    data['groups']['duration_limits'] = dict(default_type='topic_condition', conditions={
+        'subtask_limit':dict(topic='/task_sequence_manager/subtask_elapsed_sec',
+                             condition='msg.data < 120.0', escalation=2)})
+    sides = ['left', 'right'] if profile_name == 'dual' else [profile_name.split('-')[1]]
+    profile = copy.deepcopy(merger.PROFILE_DEFAULT)
+    profile.update(collection_profile=profile_name, active_arms=sides, active_cameras=sides+['center'])
+    if quality:
+        profile['cameras'] = {s:dict(image_width=1920, image_height=1080) for s in profile['active_cameras']}
+        profile['camera_quality'] = dict(version=2, min_rate_hz=27, rate_window_sec=5,
+            warn_frame_gap_sec=.5, stop_min_rate_hz=20, stop_low_rate_sec=10,
+            max_frame_gap_sec=3, warmup_sec=1)
+    result = merger.apply_collection_profile('recording_gate.yaml', data, profile)
+    assert 'duration_limits' not in result['groups']
+    for name in ('health', 'pico_timing', 'camera_quality'):
+        for condition in result['groups'].get(name, {}).get('conditions', {}).values():
+            if 'condition' in condition:
+                assert condition['single_shot'] and not condition['latch']
+                assert condition['escalation'] == 2  # Wrong resolution still rejects.
+            else:
+                assert condition['diagnostic_only'] and condition['escalation'] == 0
+                assert condition['rate_escalation'] == 0
+    for condition in result['groups']['tf']['conditions'].values():
+        assert all(frame['max_age_sec'] < 0 for frame in condition['frames'])
+    for condition in result['groups']['vr_tracking']['conditions'].values():
+        assert condition['single_shot'] and not condition['latch']
+        assert condition['condition'] == 'msg.data'  # Invalid tracking still rejects.
+
+
 def _write_yaml(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as f:

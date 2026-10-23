@@ -5,6 +5,7 @@ import threading
 import time
 
 from fusion_camera import CameraError, StreamEvent
+from fusion_camera.stream import joint_timing_gap
 
 
 class CameraSession:
@@ -34,7 +35,7 @@ class CameraSession:
                 self.joint_time = time.monotonic()
                 self.joint_count += 1
             elif kind == 'health' and 'joint_feedback_ok' in event.metadata:
-                if event.metadata['joint_feedback_ok'] is False:
+                if event.metadata['joint_feedback_ok'] is False and not joint_timing_gap(event.metadata):
                     self.joint_error = event.metadata.get('joint_feedback_error') or '关节反馈不可用'
                     self.joint_time = None
                 elif event.metadata['joint_feedback_ok'] is True:
@@ -48,7 +49,6 @@ class CameraSession:
 
     def subscribe(self):
         with self.lock:
-            now = time.monotonic()
             if self.attached or self.end or self.failure or self.finished.is_set():
                 raise RuntimeError('相机数据流当前无法接入采集，请检查设备')
             if self.joint_error:
@@ -58,8 +58,8 @@ class CameraSession:
                     or not set(selected) <= set(self.frame_counts)):
                 raise RuntimeError('相机流未提供有效的本轮相机清单')
             if (self.start is None or self.start.metadata.get('boot_id') != self.clock.get('boot_id')
-                    or any(now-self.fresh.get(name, -1e9) >= 2 for name in selected)
-                    or self.joint_time is None or now-self.joint_time >= .3):
+                    or any(name not in self.fresh for name in selected)
+                    or self.joint_time is None):
                 raise RuntimeError('请等待本轮 %d 路相机和关节反馈正常后再按 A' % len(selected))
             self.consumer = AdoptedCamera(self)
             self.attached = True
@@ -128,18 +128,21 @@ class AdoptedCamera:
         finally:
             client.close()
 
-    def stream(self, seconds=600, hz=30, joint_hz=100, mode='teleop_observation', camera_ids=None):
+    def stream(self, seconds=0, hz=30, joint_hz=100, mode='teleop_observation', camera_ids=None):
         if self.stream_started or mode != 'teleop_observation' or hz != 30 or joint_hz != 100:
             raise ValueError('Invalid adopted camera stream request')
+        if seconds == 0 and self.session.start.metadata.get('seconds') != 0:
+            raise ValueError('Unlimited recording requires an unlimited preview stream')
         selected = self.session.start.metadata.get('cameras', list(self.session.frame_counts))
         if camera_ids is not None and set(camera_ids) != set(selected):
             raise ValueError('Requested camera selection differs from adopted stream')
         self.stream_started = True
         while True:
             with self.changed:
-                while not self.queue and not self.error and not self.session.failure and not self.session.finished.is_set():
-                    if not self.changed.wait(timeout=3):
-                        self.error = '采集相机事件超过 3 秒未更新'
+                while not self.queue and not self.closed and not self.error and not self.session.failure and not self.session.finished.is_set():
+                    self.changed.wait(timeout=1)
+                if self.closed:
+                    raise RuntimeError('采集相机订阅已关闭')
                 if self.error or self.session.failure:
                     raise RuntimeError(self.error or self.session.failure)
                 if not self.queue:
@@ -166,5 +169,6 @@ class AdoptedCamera:
             self.closed = True
             self.queue.clear()
             self.bytes = 0
+            self.changed.notify_all()
         if not self.session.finished.wait(12):
             raise RuntimeError('采集结束后相机仍未释放，请检查设备')

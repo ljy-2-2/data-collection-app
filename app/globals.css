@@ -1068,7 +1068,14 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .app-login-options label { display: inline-flex; align-items: center; gap: 7px; font-weight: 400; cursor: pointer; }
 .app-login-options input[type='checkbox'] { width: 16px; height: 16px; flex: 0 0 16px; padding: 0; margin: 0; accent-color: var(--accent-strong); }
 .app-login-card > button { width: 100%; }
-.app-login-error { padding: 9px 10px; border: 1px solid color-mix(in srgb, var(--red) 28%, var(--line)); border-radius: 8px; color: var(--red); background: var(--red-soft); font-size: var(--text-xs); }
+.app-login-feedback { min-height: 18px; }
+.app-login-error { color: var(--red); font-size: var(--text-xs); line-height: 18px; text-align: center; }
+.app-login-error.is-transient { animation: login-error-fade 2s ease both; }
+@keyframes login-error-fade {
+  0% { opacity: 0; }
+  7%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .side-account-card { grid-template-columns: 28px minmax(0, 1fr) 28px; }
 .side-account-card > div:nth-child(2) { min-width: 0; display: grid; gap: 0; }
 .side-account-card > div:nth-child(2) small { color: var(--ink-soft); font-size: .6875rem; }
@@ -1162,3 +1169,72 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
   .teleop-stepper { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .teleop-stepper > button { grid-column: 1 / -1; }
 }
+
+/* KUAVO follows the Tianji workspace layout while keeping its own controls. */
+.kuavo-workspace .kuavo-setup-flow { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
+.kuavo-workspace .kuavo-settings-row, .kuavo-workspace .kuavo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kuavo-workspace .kuavo-settings-row select { max-width: 100%; min-height: 34px; padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: var(--surface); }
+.kuavo-workspace .kuavo-settings-row span, .kuavo-workspace p, .kuavo-workspace .kuavo-bus-condition { color: var(--ink-muted); font-size: .75rem; line-height: 1.65; }
+.kuavo-workspace .kuavo-bus-condition { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.kuavo-workspace .kuavo-bus-condition input { flex-shrink: 0; accent-color: var(--accent); }
+.kuavo-workspace .kuavo-device-hint { margin: 8px 0 0; font-size: .6875rem; }
+.kuavo-workspace .kuavo-device-pending strong { color: var(--ink-soft); }
+.kuavo-workspace .kuavo-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); text-align: center; }
+.kuavo-workspace .kuavo-placeholder p { margin: 0; color: var(--ink-soft); }
+.kuavo-workspace .teleop-visual-stage { min-height: 260px; background: var(--robot-stage); }
+.kuavo-workspace .teleop-visual-stage > strong { font-size: 1.2rem; }
+.kuavo-workspace .teleop-visual-stage > span { color: var(--ink-muted); }
+.kuavo-workspace .kuavo-camera-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 145px 106px; gap: 8px; margin: 10px; }
+.kuavo-workspace .kuavo-head-camera { grid-column: 1 / -1; }
+.kuavo-workspace .kuavo-preparation { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); }
+.kuavo-workspace .kuavo-preparation p { margin: 0; }
+.kuavo-workspace .kuavo-info { padding: 12px; }
+.kuavo-workspace pre, .kuavo-workspace .kuavo-info p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.kuavo-workspace summary { cursor: pointer; color: var(--ink-muted); font-size: .75rem; }
+@media (max-width: 1180px) {
+  .kuavo-workspace .kuavo-setup-flow { grid-template-columns: 1fr; }
+  .kuavo-workspace .teleop-setup-section + .teleop-setup-section { border-left: 0; border-top: 1px solid var(--line); }
+}
+
+.teleop-upload-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
+.teleop-upload-summary > div { min-width: 0; }
+.teleop-upload-summary > strong { flex-shrink: 0; }
+.teleop-upload-summary p { color: var(--ink-soft); font-size: .75rem; overflow-wrap: anywhere; }
+.tianji-camera-preview-grid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); height: clamp(280px, 30vw, 488px); gap: 8px; margin: 10px; }
+.tianji-camera-preview-tile { min-width: 0; min-height: 0; }
+.tianji-camera-preview-tile.tianji-main-camera { grid-row: 1 / 3; }
+.tianji-camera-preview-tile .tianji-camera-stage { height: 100%; min-height: 0; margin: 0; background: black; }
+.tianji-camera-preview-tile .tianji-camera-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.tianji-camera-label { position: absolute; top: 6px; left: 6px; padding: 5px 8px; border-radius: 5px; background: #0009; color: white; font-size: .75rem; }
+.tianji-camera-dialog { width: min(560px, calc(100vw - 32px)); }
+.tianji-camera-settings-sections { display: grid; gap: 12px; }
+.tianji-camera-settings-sections fieldset { min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
+.tianji-camera-settings-sections legend { font-weight: 600; }
+.tianji-camera-setting-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.tianji-camera-setting-row > span { flex: 0 0 74px; font-size: .75rem; }
+.tianji-camera-setting-row select, .tianji-camera-setting-row input[type='range'] { min-width: 0; flex: 1; }
+.tianji-camera-setting-row input[type='number'] { width: 58px; }
+.tianji-camera-dialog p { color: var(--ink-muted); font-size: .75rem; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .tianji-camera-preview-grid { grid-template-columns: 1fr; grid-template-rows: repeat(3, 220px); height: auto; }
+  .tianji-camera-preview-tile.tianji-main-camera { grid-row: auto; }
+}
+
+.kuavo-parameter-row { flex-wrap: wrap; align-items: end; }
+.kuavo-parameter-row label { display: grid; gap: 6px; font-size: 11px; color: var(--ink-muted); }
+.kuavo-parameter-row input { width: 105px; height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 5px; color: inherit; background: var(--surface); }
+.kuavo-parameter-row label > span { height: 34px; display: flex; align-items: center; }
+.kuavo-model-stage { height: 260px; margin: 10px; border-radius: 10px; overflow: hidden; }
+.kuavo-model-stage .teleop-robot-preview, .kuavo-model-stage .teleop-robot-canvas { height: 100%; }
+.kuavo-empty-cameras { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; height: 270px; padding: 10px; }
+.kuavo-empty-cameras > div { background: #101114; border-radius: 8px; }
+.kuavo-empty-cameras > div:first-child { grid-row: span 2; }
+.kuavo-parameter-dialog { width: min(580px, calc(100vw - 32px)); padding: 24px; max-height: 90vh; overflow: auto; }
+.kuavo-parameter-dialog p { font-size: 13px; line-height: 1.7; }
+
+.kuavo-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #0006; }
+
+.kuavo-gripper-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 14px; margin: 12px 0 18px; }
+.kuavo-connection-fields { display: grid; gap: 12px; margin: 16px 0; }
+.kuavo-gripper-fields label, .kuavo-connection-fields label { display: grid; gap: 6px; font-size: 12px; color: var(--ink-muted); }
+.kuavo-gripper-fields input, .kuavo-connection-fields input { width: 100%; min-width: 0; height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 6px; color: var(--ink); background: var(--surface); }

@@ -61,13 +61,19 @@ def restart_local_preview(manager, *, allow_teleop=False):
     with manager.new_camera_client() as fresh:
         status = fresh.status()
         if status.get("fault"):
+            if ('Frame pipe closed or blocked for 1 second; stop' in str(status['fault'])
+                    and status.get('stream_transport_recovery') is not True):
+                raise RuntimeError('控制器相机服务需要更新，才能通过“检查设备”恢复本次传输超时')
             if (status.get("idle") is not True
                     or status.get("camera_hotplug_recovery") is not True
                     or status.get("recoverable_camera_fault") is not True):
                 raise RuntimeError("控制器相机故障尚不能安全重连：" + str(status["fault"]))
             require_idle(manager, allow_teleop=allow_teleop)
             _require_not_cancelled(manager)
-            fresh.recover_camera()
+            if status.get('camera_recovery_requires_manual') is True:
+                fresh.recover_camera(manual=True)
+            else:
+                fresh.recover_camera()
             status = fresh.status()
             if status.get("fault") or status.get("idle") is not True:
                 raise RuntimeError("控制器未完成相机重连")

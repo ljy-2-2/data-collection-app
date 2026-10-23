@@ -6,6 +6,18 @@ import time
 from dataclasses import dataclass
 from .client import FusionCameraClient, Frame, CameraError, _exact, MAX_FRAME
 
+def joint_timing_gap(metadata):
+    """Known passive sampling delays are quality observations, not motor faults.
+
+    Exact legacy messages also work with already installed v2.3.2 services.
+    Unknown errors retain their failure semantics.
+    """
+    return metadata.get('joint_feedback_error') in {
+        'Joint sampler delayed over 100 ms',
+        'Joint snapshot read delayed over 100 ms',
+        'Joint feedback stale for 100 ms',
+    }
+
 @dataclass(frozen=True)
 class StreamEvent:
     metadata: dict
@@ -17,9 +29,11 @@ class StreamEvent:
         return Frame(self.metadata, self.data)
 
 class FusionStreamClient(FusionCameraClient):
-    def recover_camera(self):
+    def recover_camera(self, *, manual=False):
         """Request checked recovery of a cleaned-up camera gap; no robot commands."""
-        return self._request('recover')[0]
+        if type(manual) is not bool:
+            raise ValueError('manual must be a boolean')
+        return self._request('recover', **({'manual':True} if manual else {}))[0]
 
     def clock_sync(self, samples=5):
         """Estimate clock offset without changing either clock. RTT is a bound,
@@ -51,9 +65,11 @@ class FusionStreamClient(FusionCameraClient):
         Joint order: left 1..7, right 1..7. Joint sampling defaults to 100 Hz; image
         timestamps and shared-state read times use FUSION CLOCK_MONOTONIC.
         Safe validation mode rejects observed joint speeds above 1 degree/s.
+        seconds=0 runs teleop observation until explicitly stopped or a fault occurs.
         """
-        if type(seconds) is not int or not 1 <= seconds <= 600 or hz != 30:
-            raise ValueError('seconds must be 1..600 and hz must be 30')
+        if (type(seconds) is not int or
+                not (seconds >= 0 if mode == 'teleop_observation' else 1 <= seconds <= 600) or hz != 30):
+            raise ValueError('teleop seconds must be nonnegative (0 unlimited); stationary seconds 1..600; hz 30')
         if type(joint_hz) is not int or joint_hz not in (30,100):
             raise ValueError('joint_hz must be 30 or 100')
         if mode not in ('stationary', 'teleop_observation'):

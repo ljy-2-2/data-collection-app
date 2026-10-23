@@ -63,3 +63,8 @@ class TianjiCameraSettings(BaseModel):
         if self.mode_id is None and self.brightness is None:
             raise ValueError('请提供相机分辨率或硬件亮度')
         return self
+
+
+class TianjiCameraSettingsBatch(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    changes: dict[Literal['usb_1', 'usb_2', 'usb_4'], TianjiCameraSettings] = Field(min_length=1, max_length=3)

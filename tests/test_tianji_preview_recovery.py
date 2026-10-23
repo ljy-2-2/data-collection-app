@@ -14,11 +14,12 @@ def setup_manager():
         camera_inventory={'usb_2':'usb-2','usb_4':'usb-4'},_diagnostic_event=Mock())
 
 
-@pytest.mark.parametrize('fault', ['clean','hard','busy','no_capability','recording','armed','attached','cancelled','stale','budget'])
+@pytest.mark.parametrize('fault', ['clean','hard','busy','no_capability','recording','armed','attached','cancelled','stale','budget','manual'])
 def test_only_clean_passive_preview_gap_recovers(fault):
     m=setup_manager();session=SimpleNamespace(attached=fault=='attached')
     c=Mock();c.list_cameras.return_value=[dict(id='usb-2',available=True)];bad=dict(idle=True,fault='camera gap',camera_hotplug_recovery=True,recoverable_camera_fault=True)
     if fault=='hard':bad['recoverable_camera_fault']=False
+    if fault=='manual':bad['camera_recovery_requires_manual']=True
     if fault=='busy':bad['idle']=False
     if fault=='no_capability':bad.pop('camera_hotplug_recovery')
     if fault=='recording':m.collection.active=lambda:True
@@ -35,6 +36,21 @@ def test_close_interrupts_reconnect_backoff():
     m=setup_manager();m.camera_stop.wait.return_value=True;c=Mock()
     assert not recover_preview_gap(m,c,None,0)
     c.status.assert_not_called()
+
+
+@pytest.mark.parametrize('during_wait', [False, True])
+def test_settings_transaction_owns_failure_handling_without_automatic_recovery(during_wait):
+    m = setup_manager()
+    m.camera_settings = SimpleNamespace(busy=not during_wait)
+    if during_wait:
+        def wait(_):
+            m.camera_settings.busy = True
+            return False
+        m.camera_stop.wait.side_effect = wait
+    c = Mock()
+    assert not recover_preview_gap(m, c, None, 0)
+    c.status.assert_not_called()
+    c.recover_camera.assert_not_called()
 
 
 @pytest.mark.parametrize('attached',[False,True])

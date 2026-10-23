@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-23",
+  "scope": "KUAVO PICO and Galaxis VR device preflight",
+  "changes": [
+    "Independent preflight results while idle; live input during a session",
+    "Wake authorized verified PICO without changing headset switches or mappings",
+    "Require valid head and both controller poses with advancing timestamps",
+    "Start local XR receiver if absent; recover once only when input check fails",
+    "Run native input check in isolated process with timeout; existing idle guards retained"
+  ],
+  "observed": {
+    "before": {
+      "usb_and_headset_app": true,
+      "sdk_timestamp": 0,
+      "headset_sleep_observed": true,
+      "headset_work_and_send_switches_verified": true
+    },
+    "after_local_receiver_recovery_and_user_wearing_headset": {
+      "pico_ready": true,
+      "pico_awake": true,
+      "vr_ready": true,
+      "advancing_samples": 9
+    }
+  },
+  "validation": {
+    "offline_tests_passed": 92,
+    "typescript": "passed",
+    "robot_motion": "not started",
+    "robot_control_service": "not changed"
+  },
+  "remaining": "Restart App to load modified UI/backend; complete robot operation validation by operator separately"
+}

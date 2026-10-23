@@ -62,8 +62,8 @@ def test_joint_gap_is_explicit_and_fresh_sampling_recovers_without_camera_restar
         assert sampler.skipped >= 16
 
 
-def test_legacy_stationary_and_unnegotiated_streams_keep_strict_delay_checks():
-    for stationary,isolate in [(True,False),(False,False),(True,True)]:
+def test_stationary_streams_keep_strict_delay_checks():
+    for stationary,isolate in [(True,False),(True,True)]:
         clock = Clock(delayed=True)
         reader = SimpleNamespace(sample=lambda:dict(
             frame_serial=[1,1],velocity_deg_s=[0.]*14,arm_state=[0]*6))

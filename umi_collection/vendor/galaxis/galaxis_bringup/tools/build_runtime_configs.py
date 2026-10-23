@@ -199,6 +199,9 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
         return data
 
     if filename == "recording_gate.yaml":
+        # A round ends on the operator's request, not on elapsed time. Apply
+        # this to older saved unified configurations as well as the default.
+        data.setdefault("groups", {}).pop("duration_limits", None)
         data.setdefault("groups", {})["pico_timing"] = dict(
             default_type="topic_condition", default_escalation=1,
             settle_sec=0.0, recovery_sec=0.5,
@@ -269,6 +272,18 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
                     ]
                     if not condition["frames"]:
                         del conditions[name]
+                        continue
+                # Keep timing observations visible without blocking/ending a
+                # recording. Content faults (tracking invalid, wrong image
+                # size, etc.) still use their original escalation.
+                if group_name in ("health", "camera_quality", "pico_timing") and not condition.get("condition"):
+                    condition.update(diagnostic_only=True, escalation=0, rate_escalation=0, debounce_sec=0.0)
+                elif group_name in ("camera_quality", "vr_tracking"):
+                    condition["single_shot"] = True
+                    condition.setdefault("latch", False)
+                if group_name == "tf":
+                    for frame in condition.get("frames", []):
+                        frame["max_age_sec"] = -1.0
         return data
 
     return data

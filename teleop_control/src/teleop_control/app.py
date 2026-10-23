@@ -46,6 +46,7 @@ from .xr_service import XrServiceStartError
 from .umi_preview import preview_stream
 from .umi_telemetry import telemetry_events
 from .tianji import TianjiManager, tianji_router
+from .kuavo import KuavoManager, kuavo_router
 
 
 class PlatformLoginRequest(BaseModel):
@@ -172,16 +173,30 @@ def create_app(
     app = FastAPI(title="Robot Data Platform Teleop Control", version="0.1.0")
     tianji = TianjiManager(controller, umi=umi)
     app.state.tianji_manager = tianji
+    def kuavo_other_idle():
+        if tianji.active():
+            raise RuntimeError('请先在天机 Marvin M6页面断开设备，释放 VR 控制连接')
+        tianji.require_other_idle()
+    kuavo = KuavoManager(controller, other_idle=kuavo_other_idle)
+    app.state.kuavo_manager = kuavo
+    for route in kuavo_router(kuavo).routes:
+        app.add_api_route(route.path, route.endpoint, methods=route.methods)
     for route in tianji_router(tianji).routes:
         app.add_api_route(route.path, route.endpoint, methods=route.methods)
 
     @app.middleware("http")
     async def robot_control_ownership(request: Request, call_next):
+        if kuavo.active() and request.method == 'POST' and request.url.path in {
+            '/devices/check', '/sessions', '/move', '/dagger', '/hil-serl', '/umi/check', '/umi/sessions',
+            '/tianji/check', '/tianji/start', '/tianji/move', '/tianji/record/start',
+        }:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=409, content={'detail': '请先结束 KUAVO 会话，释放 VR 控制连接'})
         if tianji.active() and request.method == "POST" and request.url.path in {
             "/devices/check", "/sessions", "/move", "/dagger", "/hil-serl", "/umi/check", "/umi/sessions",
         }:
             from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=409, content={"detail": "请先在天机页面断开设备，释放 VR 控制连接"})
+            return JSONResponse(status_code=409, content={"detail": "请先在天机 Marvin M6页面断开设备，释放 VR 控制连接"})
         return await call_next(request)
     app.add_middleware(
         CORSMiddleware,

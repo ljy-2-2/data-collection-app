@@ -103,6 +103,8 @@ typedef struct {
     Frame frame[DEPTH];
     unsigned head, count, high_water;
     uint64_t captured, sent, shutdown_dropped, gaps;
+    uint64_t overflow_dropped, overflow_first_ns, overflow_last_ns;
+    uint32_t overflow_first_seq, overflow_last_seq;
 } Queue;
 typedef struct {
     int cpu;
@@ -366,7 +368,18 @@ void fusion_uvc_frame_complete(uvc_stream_handle_t *stream) {
     } else {
         pthread_mutex_lock(&lock);
         slot = reserve(q);
-        if (!slot) error = "Camera queue full; stop without silently dropping frames";
+        if (!slot) {
+            /* Preserve the head: the sender may be writing it without lock.
+             * Drop this incoming frame, never block the USB completion thread.
+             * Source sequence/time remain unchanged on every retained frame. */
+            if (!q->overflow_dropped) {
+                q->overflow_first_ns = stamp;
+                q->overflow_first_seq = seq;
+            }
+            ++q->overflow_dropped;
+            q->overflow_last_ns = stamp;
+            q->overflow_last_seq = seq;
+        }
         else {
             slot->bytes = (uint32_t)stream->hold_bytes;
             slot->seq = seq; slot->pts = stream->hold_pts; slot->scr = stream->hold_last_scr;
@@ -450,6 +463,15 @@ static void report(const char *event, uint64_t rtpsi_delta) {
             queues[0].count, queues[1].count, queues[2].count,
             queues[0].shutdown_dropped, queues[1].shutdown_dropped, queues[2].shutdown_dropped,
             rtpsi_delta);
+    for (unsigned i = 0; i < CAMERAS; ++i) if (queues[i].overflow_dropped) {
+        Queue *q = &queues[i];
+        fprintf(stderr, "{\"event\":\"queue_overflow\",\"camera\":%u,"
+                "\"policy\":\"drop_incoming\",\"dropped\":%" PRIu64 ","
+                "\"first_sequence\":%u,\"last_sequence\":%u,"
+                "\"first_timestamp_ns\":%" PRIu64 ",\"last_timestamp_ns\":%" PRIu64 "}\n",
+                i, q->overflow_dropped, q->overflow_first_seq, q->overflow_last_seq,
+                q->overflow_first_ns, q->overflow_last_ns);
+    }
     pthread_mutex_unlock(&lock);
 }
 static int open_camera(uvc_context_t *context, Camera *camera, int address) {
@@ -560,6 +582,10 @@ static void report_rt(const char *event, const Rt state[2]) {
                 state[i].process_start);
 }
 
+static int duration_active(uint64_t seconds, uint64_t elapsed) {
+    return seconds == 0 || elapsed/NS < seconds;
+}
+
 /* Self-test deliberately executes before any /proc, resource limit or USB access. */
 #define REQUIRE(test) do { if (!(test)) { fprintf(stderr, "Self-test failed line %d: %s\n", __LINE__, #test); return 1; } } while (0)
 static int self_test(void) {
@@ -574,6 +600,10 @@ static int self_test(void) {
     FILE *file = fmemopen((void *)text, strlen(text), "r");
     unsigned i;
     int pipefd[2], saved_stdout;
+    REQUIRE(duration_active(0, 3600*NS));
+    REQUIRE(duration_active(7200, 3600*NS));
+    REQUIRE(duration_active(600, 599*NS));
+    REQUIRE(!duration_active(600, 600*NS));
     REQUIRE(file != NULL); REQUIRE(parse_rt(file, baseline) == 0); fclose(file);
     memcpy(state, baseline, sizeof(state)); state[0].msw += 206;
     REQUIRE(check_rt(baseline, state) == NULL);
@@ -670,8 +700,22 @@ static int self_test(void) {
             REQUIRE(!memcmp(got->data, jpeg, sizeof(jpeg)));
         }
         stream.got_bytes = sizeof(jpeg); _uvc_swap_buffers(&stream);
-        REQUIRE(failed && !strcmp(failure, "Camera queue full; stop without silently dropping frames"));
+        REQUIRE(!failed && queues[0].overflow_dropped == 1);
         REQUIRE(queues[0].count == DEPTH);
+        /* Overflow must not overwrite any queued/in-flight frame, even on wrap. */
+        for (i = 0; i < DEPTH; ++i)
+            REQUIRE(queues[0].frame[i].seq == (uint32_t)(UINT32_MAX+i));
+        REQUIRE(queues[0].overflow_first_seq == (uint32_t)(UINT32_MAX+DEPTH));
+        stream.got_bytes = sizeof(jpeg); _uvc_swap_buffers(&stream);
+        REQUIRE(!failed && queues[0].overflow_dropped == 2);
+        REQUIRE(queues[0].overflow_last_ns >= queues[0].overflow_first_ns);
+        consume(&queues[0]);
+        stream.got_bytes = sizeof(jpeg); _uvc_swap_buffers(&stream);
+        REQUIRE(!failed && queues[0].count == DEPTH);
+        REQUIRE(queues[0].captured == DEPTH+1 && queues[0].sent == 1);
+        /* Receipt resumes after loss; original sequence exposes both missing frames. */
+        REQUIRE(queues[0].frame[0].seq == (uint32_t)(UINT32_MAX+DEPTH+2));
+        REQUIRE(queues[0].overflow_dropped == 2);
         for (i = 0; i < DEPTH; ++i) free(queues[0].frame[i].data);
         memset(&queues[0], 0, sizeof(queues[0]));
         memset(&cameras[0], 0, sizeof(cameras[0])); failed = 0; failure[0] = 0;
@@ -701,12 +745,13 @@ int main(int argc, char **argv) {
     pthread_t sender;
     int sender_started = 0, result = 1, i, j, flags;
     unsigned camera_mask = 7;
+    int gap_reported[CAMERAS] = {0};
     const char *rt_error;
     struct rlimit memory = {256U*1024U*1024U, 256U*1024U*1024U};
     struct rlimit core = {0, 0};
     if (argc == 2 && !strcmp(argv[1], "--self-test")) return self_test();
     if (argc != 5 && argc != 6 && argc != 7) {
-        fprintf(stderr, "Usage: %s seconds(1..600) bus1_addr1 bus1_addr2 bus1_addr4 [mjpeg|yuyv [probe_camera_index(0..2)|mask=1..7]] | --self-test\n", argv[0]);
+        fprintf(stderr, "Usage: %s seconds(0=unlimited) bus1_addr1 bus1_addr2 bus1_addr4 [mjpeg|yuyv [probe_camera_index(0..2)|mask=1..7]] | --self-test\n", argv[0]);
         return 2;
     }
     if (argc >= 6 && !select_profiles(argv[5])) {
@@ -724,8 +769,8 @@ int main(int argc, char **argv) {
         }
     }
     for (i = 0; i < 4; ++i) {
-        if (uint_value(argv[i+1], &numbers[i]) || numbers[i] > (i ? 127U : 600U)) return 2;
-        if ((!i || (camera_mask & (1U << (i-1)))) && numbers[i] < 1) return 2;
+        if (uint_value(argv[i+1], &numbers[i]) || (i && numbers[i] > 127U)) return 2;
+        if ((i && (camera_mask & (1U << (i-1)))) && numbers[i] < 1) return 2;
     }
     for (i = 0; i < CAMERAS; ++i) for (j = i+1; j < CAMERAS; ++j)
         if ((camera_mask & (1U << i)) && (camera_mask & (1U << j)) &&
@@ -757,15 +802,18 @@ int main(int argc, char **argv) {
 
     }
     started = monitor = reported = now_ns();
-    fprintf(stderr, "{\"pipeline\":\"teleop_queue_sender\",\"queue_depth_per_camera\":8,"
+    fprintf(stderr, "{\"pipeline\":\"teleop_queue_sender\",\"queue_depth_per_camera\":8,\"queue_overflow_policy\":\"drop_incoming\","
             "\"timestamp_kind\":\"controller_monotonic_frame_completion\"}\n");
-    while (!stopping() && now_ns()-started < numbers[0]*NS) {
+    while (!stopping() && duration_active(numbers[0], now_ns()-started)) {
         uint64_t now = now_ns();
         for (i = 0; i < CAMERAS; ++i) {
             uint64_t last;
             if (!(camera_mask & (1U << i))) continue;
             pthread_mutex_lock(&lock); last = cameras[i].last_frame; pthread_mutex_unlock(&lock);
-            if (now > last && now-last > 2*NS) { report_camera_timeout(&cameras[i], "streaming"); fail("Camera has no new frame for 2 seconds; stop"); break; }
+            if (now > last && now-last > 2*NS) {
+                if (!gap_reported[i]) report_camera_timeout(&cameras[i], "streaming");
+                gap_reported[i] = 1;
+            } else gap_reported[i] = 0;
         }
         if (now-monitor >= NS) {
             if (read_rt(current)) { fail("RT tasks missing/unavailable; stop"); break; }

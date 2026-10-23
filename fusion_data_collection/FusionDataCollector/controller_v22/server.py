@@ -131,15 +131,20 @@ class Service(object):
                     'camera_hotplug_recovery':True,'camera_inventory_events':True,
                     'camera_controls':True,'per_camera_profiles':True,'stream_camera_controls':True,
                     'stream_joint_health':True,
+                    'stream_transport_recovery':True,
+                    'teleop_timing_policy':'diagnostic_only','max_teleop_stream_seconds':None,
+                    'teleop_queue_overflow_policy':'drop_incoming',
                     'captures':self.count,'fault':self.fault,'idle':ACTIVE is None,
                     'last_snapshot_error':self.last_snapshot_error,
                     'recoverable_camera_fault':self.recovery_audit is not None,
+                    'camera_recovery_requires_manual':bool(self.recovery_audit is not None and
+                        (self.last_stream or {}).get('camera_recovery_requires_manual')),
                     'recovery_count':self.recovery_count,
-                    'stream_hz':30,'supported_joint_hz':[30,100],'max_stream_seconds':600,'last_stream':self.last_stream,
+                    'stream_hz':30,'supported_joint_hz':[30,100],'max_stream_seconds':600,'stream_unlimited':True,'last_stream':self.last_stream,
                     'cooldown_seconds':self.config['cooldown_seconds']}, b''
         if method == 'recover':
             from streaming import recover
-            return recover(self, sys.modules[__name__]), b''
+            return recover(self, sys.modules[__name__], manual=request.get('manual', False)), b''
         if method == 'list':
             return {'ok':True,'cameras':[device_info(c) for c in self.config['cameras']]}, b''
         if method == 'camera_settings':

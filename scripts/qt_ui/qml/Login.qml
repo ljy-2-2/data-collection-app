@@ -5,7 +5,21 @@ import QtQuick.Effects
 Item {
     id: root
     property bool savedPassword: false
-    function submit() {backend.login(username.text,password.text,remember.checked,autoLogin.checked,savedPassword)}
+    readonly property string loginError: backend.state.authenticated ? "" : backend.state.error
+    function showError() {errorFade.restart()}
+    function submit() {
+        errorFade.stop();errorText.opacity=0
+        backend.login(username.text,password.text,remember.checked,autoLogin.checked,savedPassword)
+        if (root.loginError && !backend.state.busy) showError()
+    }
+    onLoginErrorChanged: if (loginError && visible) showError()
+    onVisibleChanged: if (!visible) {errorFade.stop();errorText.opacity=0}
+    SequentialAnimation {
+        id: errorFade
+        NumberAnimation {target:errorText;property:"opacity";from:0;to:1;duration:140}
+        PauseAnimation {duration:1460}
+        NumberAnimation {target:errorText;property:"opacity";to:0;duration:400}
+    }
     Connections {
         target: backend
         function onChanged() {
@@ -55,10 +69,10 @@ Item {
                     Item {Layout.fillWidth: true}
                     Tick {id: autoLogin;text: "自动登录";enabled: !backend.state.busy;onClicked: if(checked) remember.checked=true}
                 }
-                Rectangle {visible: backend.state.error!=="";Layout.fillWidth: true;implicitHeight: errorText.implicitHeight+18;color: Theme.redSoft;border.color: Theme.line;radius: 8
-                    Txt {id: errorText;anchors.left: parent.left;anchors.right: parent.right;anchors.margins: 10;y: 9;text: backend.state.error;color: Theme.red;font.pixelSize: 12;wrapMode: Text.Wrap;elide: Text.ElideNone}
-                }
                 Btn {objectName: "loginSubmit";Layout.fillWidth: true;text: backend.state.busy==="login" ? "正在登录" : "登录";primary: true;busy: backend.state.busy==="login";enabled: backend.state.ready && !backend.state.busy;onClicked: root.submit()}
+                Txt {id:errorText;objectName:"loginErrorToast";Layout.fillWidth:true;Layout.preferredHeight:18
+                    text:"账号或密码错误";opacity:0;color:Theme.red;font.pixelSize:12;horizontalAlignment:Text.AlignHCenter
+                }
             }
         }
     }

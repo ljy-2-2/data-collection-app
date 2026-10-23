@@ -23,7 +23,8 @@ from .gdk_env import add_xr_runtime_env
 from .runtime_paths import legacy_robot_python, resolve_robot_python
 from .tianji_config import camera_host, robot_configuration
 from .tianji_camera_credentials import import_credentials, resolve_credentials
-from .tianji_models import TianjiMove, TianjiParameters, TianjiStart, TianjiCameraSettings
+from .robot_names import TIANJI_DISPLAY_NAME
+from .tianji_models import TianjiMove, TianjiParameters, TianjiStart, TianjiCameraSettings, TianjiCameraSettingsBatch
 from .tianji_gripper_config import stored_parameters, parameter_storage, synchronized_gripper_endpoints
 from .tianji_collection import TianjiCollection
 from .tianji_camera_session import CameraSession
@@ -46,6 +47,8 @@ class TianjiManager:
         self.write_lock = threading.Lock()
         self.command_lock = threading.Lock()
         self.checking_devices = False
+        self.control_requested = False
+        self.control_pending = set()
         self.pending = {}
         self.value = {}
         self.received = 0.0
@@ -89,7 +92,7 @@ class TianjiManager:
     def _write(self, value):
         with self.write_lock:
             if not self.active():
-                raise RuntimeError(self.error or "天机控制未连接，请检查设备")
+                raise RuntimeError(self.error or "天机 Marvin M6控制未连接，请检查设备")
             self.process.stdin.write(json.dumps(value, ensure_ascii=False) + "\n")
             self.process.stdin.flush()
 
@@ -116,6 +119,10 @@ class TianjiManager:
                     return
                 if "status" in data:
                     self.value, self.received = data["status"], time.monotonic()
+                    if self.value.get('state') in ('running','moving'):
+                        self.control_requested = True
+                    elif self.value.get('state') == 'idle' and not self.control_pending:
+                        self.control_requested = False
                 elif data.get("reply") in self.pending:
                     event, box = self.pending[data["reply"]]
                     box.update(data)
@@ -123,13 +130,16 @@ class TianjiManager:
                         self.value["state"] = data["state"]
                         self.value["error"] = data.get("error", "")
                         self.received = time.monotonic()
+                        self.control_pending.discard(data['reply'])
+                        if data['state']=='idle' and not self.control_pending:
+                            self.control_requested=False
                     event.set()
         code = process.wait()
         with self.lock:
             if process is not self.process:
                 return
             self.error = (
-                ("天机控制进程已退出" + (("：" + " ".join(tail)[-700:]) if tail else ""))
+                ("天机 Marvin M6控制进程已退出" + (("：" + " ".join(tail)[-700:]) if tail else ""))
                 if code
                 else ""
             )
@@ -141,7 +151,7 @@ class TianjiManager:
 
     def _launch(self):
         if getattr(self.controller, "hardware_enabled", True) is False:
-            raise RuntimeError("模拟模式不连接天机或执行真实运动")
+            raise RuntimeError("模拟模式不连接天机 Marvin M6或执行真实运动")
         self.require_other_idle()
         self.error = ""
         self.value = {}
@@ -182,7 +192,7 @@ class TianjiManager:
             if action == "check":
                 self.require_other_idle()
                 if self.collection.armed or self.collection.active():
-                    raise ValueError("请先停止天机遥操作和采集，再检查设备")
+                    raise ValueError("请先停止天机 Marvin M6遥操作和采集，再检查设备")
                 self.camera_recovery_cancel.clear()
                 with self.lock:
                     self.checking_devices = True
@@ -205,19 +215,23 @@ class TianjiManager:
         event, box = threading.Event(), {}
         with self.lock:
             self.pending[ident] = (event, box)
+            if action in ('start','move'):
+                self.control_requested=True
+                self.control_pending.add(ident)
         try:
             self._diagnostic_event("command", action=action)
             self._write({"action": action, "payload": payload or {}, "id": ident})
             if not event.wait(60 if action == "check" else 40):
                 # Queue a stop after an ambiguous result instead of assuming it failed safely.
                 self._write({"action": "stop"})
-                raise RuntimeError("天机控制响应超时，已请求停止；请检查设备状态")
+                raise RuntimeError("天机 Marvin M6控制响应超时，已请求停止；请检查设备状态")
             if not box.get("ok"):
-                raise RuntimeError(box.get("error", "天机指令失败"))
+                raise RuntimeError(box.get("error", "天机 Marvin M6指令失败"))
             self._diagnostic_event("command_ok", action=action)
         finally:
             with self.lock:
                 self.pending.pop(ident, None)
+                self.control_pending.discard(ident)
         if action == "check":
             self.last_access = time.monotonic()
             self.check_cameras_in_background()
@@ -240,7 +254,7 @@ class TianjiManager:
                     self.camera_error = str(error)
                     self.camera_phase = 'fault'
                     self._diagnostic_event('camera_check_failed', error=str(error))
-                finally:
+                else:
                     if not self.camera_recovery_cancel.is_set():
                         self.start_cameras()
             self.camera_check_thread = threading.Thread(target=check, name='tianji-camera-check', daemon=True)
@@ -295,12 +309,15 @@ class TianjiManager:
                     else "unknown"
                 )
             value["state"] = value.get("state", fallback_state)
+            value['control_active'] = bool(self.control_requested or self.value.get('state') in ('running','moving'))
+            if not fresh and value['control_active']:
+                value['state']='unknown'
             value["error"] = value.get("error") or self.error
             value["joints"] = value.get("joints", {})
             value["devices"] = [
                 {
                     "id": "robot",
-                    "name": "Tianji",
+                    "name": TIANJI_DISPLAY_NAME,
                     "status": "connected" if value.get("robot_ready") else "offline",
                     "detail": "",
                 },
@@ -471,6 +488,8 @@ class TianjiManager:
         with session.lock:
             if session.start is None or session.end is not None or session.failure:
                 raise RuntimeError('相机流尚未就绪或已结束')
+            if session.start.metadata.get('seconds') != 0:
+                raise RuntimeError('不限时采集需要更新控制器相机服务，再重新连接预览')
             import copy
             selected = session.start.metadata.get('cameras', ['usb-1', 'usb-2', 'usb-4'])
             if not selected or not set(selected) <= {'usb-1', 'usb-2', 'usb-4'}:
@@ -523,7 +542,7 @@ class TianjiManager:
         if type(seconds) is not int or seconds < 1:
             raise RuntimeError("相机服务返回无效的取流时限")
         self.camera_cooldown = max(2.0, float(status.get("cooldown_seconds", 2.0)))
-        return min(seconds, 600)
+        return 0 if status.get("stream_unlimited") is True else min(seconds, 600)
 
     @property
     def camera_frame_ttl(self):
@@ -673,9 +692,9 @@ class TianjiManager:
                 try:
                     self.process.wait(timeout=8)
                 except subprocess.TimeoutExpired:
-                    raise RuntimeError("无法确认天机已停止，请检查硬件急停和控制进程") from exc
+                    raise RuntimeError("无法确认天机 Marvin M6已停止，请检查硬件急停和控制进程") from exc
                 if self.process.returncode != 0:
-                    raise RuntimeError("天机控制异常退出，请确认机械臂已停止") from exc
+                    raise RuntimeError("天机 Marvin M6控制异常退出，请确认机械臂已停止") from exc
         self.collection.close()
         return {"ok": True}
 
@@ -759,6 +778,10 @@ def tianji_router(manager):
     @router.post('/camera-controls/{camera_id}/settings')
     def set_camera_settings(camera_id: str, request: TianjiCameraSettings):
         return call(lambda: manager.camera_settings.request(camera_id, **request.model_dump(exclude_none=True)))
+
+    @router.post('/camera-controls/settings')
+    def apply_camera_settings(request: TianjiCameraSettingsBatch):
+        return call(manager.camera_settings.apply, request.model_dump(exclude_none=True)['changes'])
 
     @router.get("/cameras/{camera_id}/stream")
     async def stream(camera_id: str, request: Request, raw: bool = False):

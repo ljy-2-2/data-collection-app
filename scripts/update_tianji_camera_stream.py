@@ -32,6 +32,24 @@ EXPECTED['streaming.py'].append('96e6b7d9fc82aaeb5f7f2f0f846234310faf322f6633383
 EXPECTED['server.py'].append('a3b4ece52c7651c156c53e6b423b6b2f876c6d8e8c9f628f3f3e07f8bc2281d5')
 EXPECTED['streaming.py'].append('ecd4b8a6af05e9383fb6d77db22a5bd4f275be46f33211e84edd0a25d6c0f263')
 
+# Reviewed predecessor before unlimited stream support.
+EXPECTED['server.py'].append('79cc403b02ab97d29dc0842828f1425afaaa959d588400b504ca6f1c880f3d80')
+EXPECTED['streaming.py'].append('e077dfe96620e17ef80a4725f379863271fbc90924b374b6f2f6c7f6b3bf8e60')
+
+# Reviewed installed unlimited-stream release, before diagnostic-only timing.
+# Streaming retrieved 2026-10-22; server digest reported by the upgrade gate.
+# Both match the reviewed sources in the previous prepared update payload.
+EXPECTED['server.py'].append('02cef217ef06ba7c29634cb52827fd90c9427e14cc5659f917a69b60b5b0892e')
+EXPECTED['streaming.py'].append('9ba22a4b0bd851d11686adc322095f51742df642238833ca080c219f27b7781a')
+
+# Reviewed diagnostic-only timing release, verified in controller diagnostics.
+EXPECTED['server.py'].append('00027efd7fdab2c9806fa65c1f6924d71d91e27a8289be74ffd836a9039b44ba')
+EXPECTED['streaming.py'].append('0f9eebbcfae5c021dff295530cfd37afc443f9c831c820bb1f3c327be4355747')
+
+# Retrieved and reviewed read-only on 2026-10-22, before manual pipe recovery.
+EXPECTED['server.py'].append('41839bb84ac82fe03a40a647e980ffa74fa2f82b2b8ed77ffadd31a1a8d69282')
+EXPECTED['streaming.py'].append('67fc0a7866221d215b9b3c8524b1cca5056bb72bdde9911bbbe15366bf266dec')
+
 REMOTE = r'''
 from __future__ import print_function
 import base64, hashlib, json, os, subprocess, tempfile, time, sys
@@ -49,7 +67,7 @@ old = {name:open(os.path.join(root,name),'rb').read() for name in ('server.py','
 modes = {name:os.stat(os.path.join(root,name)).st_mode & 511 for name in old}
 for name, expected in payload['expected'].items():
     if digest(old[name]) not in expected:
-        raise RuntimeError('Installed '+name+' is not a reviewed version; refusing overwrite')
+        raise RuntimeError('Installed '+name+' is not a reviewed version; refusing overwrite. SHA256='+digest(old[name]))
 sys.path.insert(0, root)
 import server as service_api
 import streaming as stream_api
@@ -115,6 +133,10 @@ manifest['stream_camera_selection'] = True
 manifest['camera_controls'] = True
 manifest['stream_camera_controls'] = True
 manifest['stream_joint_health'] = True
+manifest['stream_unlimited'] = True
+manifest['stream_transport_recovery'] = True
+manifest['teleop_timing_policy'] = 'diagnostic_only'
+manifest['teleop_queue_overflow_policy'] = 'drop_incoming'
 manifest['sha256'][root+'/camera_controls.py'] = digest(base64.b64decode(
     payload['source']['FusionDataCollector/controller_v22/camera_controls.py']))
 manifest['sha256'][root+'/camera_color.py'] = digest(base64.b64decode(
@@ -181,9 +203,20 @@ def source_files():
 
 def reviewed_stream_fault(status):
     """Only the inspected startup failure with normal cleanup; never audit faults."""
-    reason = 'Camera open/start or negotiation failed'
-    error = 'Native helper failed (exit 1): ' + reason
     last = status.get('last_stream') or {}
+    reason = last.get('native_failure_reason')
+    if reason == 'Camera did not produce first frame after bounded startup retry; stop':
+        # The controller must also have verified unchanged audit state and
+        # complete cleanup. A matching error string alone is not sufficient.
+        if (status.get('idle') is not True or status.get('recoverable_camera_fault') is not True
+                or last.get('ok') is not False
+                or last.get('observation_mode') != 'teleop_observation'
+                or last.get('stop_reason') != 'stream_error'
+                or last.get('native_termination') is not None):
+            return False
+    elif reason != 'Camera open/start or negotiation failed':
+        return False
+    error = 'Native helper failed (exit 1): ' + reason
     return (status.get('fault') in (error, 'Stream stopped: '+error)
             and last.get('error') == error and last.get('native_failure_reason') == reason
             and last.get('native_exit') == 1 and last.get('native_cleanup_timed_out') is False)
@@ -202,20 +235,54 @@ def reviewed_joint_fault(status):
             and (last.get('joint_max_lateness_ns') or 0) > 100000000)
 
 
+def reviewed_pipe_fault(status):
+    """One-time upgrade of the inspected, cleanly exited legacy pipe failure."""
+    last = status.get('last_stream') or {}
+    reason = 'Frame pipe closed or blocked for 1 second; stop'
+    error = 'Native helper failed (exit 1): '+reason
+    return (status.get('version') == '2.3.2' and status.get('idle') is True
+            and status.get('fault') in (error, 'Stream stopped: '+error)
+            and last.get('ok') is False and last.get('error') == error
+            and last.get('stop_reason') == 'stream_error'
+            and last.get('observation_mode') == 'teleop_observation'
+            and last.get('native_exit') == 1
+            and last.get('native_cleanup_timed_out') is False
+            and 'native_termination' in last and last['native_termination'] is None
+            and last.get('native_failure_reason') == reason)
+
+
+def status_details(status):
+    """Expose upgrade blockers without credentials or large audit snapshots."""
+    last = status.get('last_stream')
+    fields = ('ok', 'error', 'stop_reason', 'observation_mode', 'native_exit',
+              'native_cleanup_timed_out', 'native_termination',
+              'native_failure_reason', 'joint_max_lateness_ns')
+    return json.dumps({
+        'version': status.get('version'), 'idle': status.get('idle'),
+        'fault': status.get('fault'),
+        'recoverable_camera_fault': status.get('recoverable_camera_fault'),
+        'last_stream': {key: last.get(key) for key in fields} if isinstance(last, dict) else None,
+    }, ensure_ascii=False, indent=2)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host',default='192.168.1.190')
     parser.add_argument('--credentials',default=str(credentials_path()))
     parser.add_argument('--control-path')
+    parser.add_argument('--status-only', action='store_true',
+                        help='Only read camera service status; no SSH, update, recovery or restart')
     parser.add_argument('--recover-reviewed-snapshot-fault',action='store_true')
     parser.add_argument('--recover-reviewed-stream-fault',action='store_true',
-                        help='Allow the inspected, fully cleaned UVC negotiation failure')
+                        help='Allow reviewed UVC negotiation failure or audited, recoverable first-frame timeout after cleanup')
     parser.add_argument('--recover-reviewed-dmesg-fault',action='store_true',
                         help='Allow a manually inspected idle dmesg audit failure; archive it without changing the failed recording')
     parser.add_argument('--recover-reviewed-queue-fault',action='store_true',
                         help='Allow an inspected and fully cleaned camera transport queue failure')
     parser.add_argument('--recover-reviewed-joint-fault',action='store_true',
                         help='Allow the inspected passive sampler delay after reviewing controller logs')
+    parser.add_argument('--recover-reviewed-pipe-fault',action='store_true',
+                        help='Allow the inspected legacy pipe timeout after normal cleanup; still checks integrity and idle resources')
     parser.add_argument('--prepare',type=Path,help='Write reviewed payload locally without connecting')
     args=parser.parse_args()
     files=source_files()
@@ -229,6 +296,9 @@ def main():
         return
     with FusionStreamClient(args.host,credentials=args.credentials,timeout=8) as client:
         status=client.status()
+    if args.status_only:
+        print(status_details(status))
+        return
     reviewed_snapshot_fault = (args.recover_reviewed_snapshot_fault and
         status.get('fault') == 'Worker failed (exit 1); manual inspection required' and
         status.get('last_stream') is None)
@@ -248,8 +318,12 @@ def main():
         and last.get('native_exit') == 1 and last.get('native_cleanup_timed_out') is False
         and last.get('native_failure_reason') == queue_reason)
     reviewed_sampler_fault = args.recover_reviewed_joint_fault and reviewed_joint_fault(status)
-    if status.get('idle') is not True or (status.get('fault') and not (reviewed_snapshot_fault or reviewed_start_fault or reviewed_dmesg_fault or reviewed_queue_fault or reviewed_sampler_fault)):
-        raise RuntimeError('Camera service must be idle and fault-free before update')
+    reviewed_transport_fault = args.recover_reviewed_pipe_fault and reviewed_pipe_fault(status)
+    if status.get('idle') is not True or (status.get('fault') and not (reviewed_snapshot_fault or reviewed_start_fault or reviewed_dmesg_fault or reviewed_queue_fault or reviewed_sampler_fault or reviewed_transport_fault)):
+        reason = ('相机服务尚未空闲：请停止采集、退出 APP 和其他取流程序，等待取流释放后重试。'
+                  if status.get('idle') is not True else
+                  '相机服务存在故障记录：请先根据下方详情确认原因，再选择对应恢复方式。')
+        raise RuntimeError('升级尚未执行。'+reason+'\n'+status_details(status))
     # Desktop and SDK must both remain closed for the entire update transaction.
     import fcntl
     data=Path.home()/'.local/share/xiaokai-lab-data-collection'
@@ -272,9 +346,13 @@ def main():
             or after.get('camera_controls') is not True
             or after.get('stream_camera_controls') is not True
             or after.get('stream_joint_health') is not True
+            or after.get('stream_transport_recovery') is not True
+            or after.get('stream_unlimited') is not True
+            or after.get('teleop_timing_policy') != 'diagnostic_only'
+            or after.get('teleop_queue_overflow_policy') != 'drop_incoming'
             or after.get('camera_hotplug_recovery') is not True):
         raise RuntimeError('Updated camera service verification failed')
-    print('相机服务升级完成：原生分辨率、硬件亮度、动态路数与受校验的热插拔重连；尚未验证实机出帧。')
+    print('相机服务升级完成：已支持“检查设备”恢复通过清理与审计检查的管道超时；保留不限时采集、队列质量记录、原生分辨率与硬件亮度。尚未验证实机出帧。')
 
 if __name__=='__main__':
     main()

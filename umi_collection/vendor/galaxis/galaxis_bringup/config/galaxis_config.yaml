@@ -252,19 +252,6 @@ recording_gate:
           escalation: 2
           debounce_sec: 1.0
           reason: Right hand pose invalid
-    duration_limits:
-      default_type: topic_condition
-      conditions:
-        subtask_warn:
-          topic: /task_sequence_manager/subtask_elapsed_sec
-          condition: msg.data < 90.0
-          escalation: 1
-          timeout_sec: -1.0
-        subtask_limit:
-          topic: /task_sequence_manager/subtask_elapsed_sec
-          condition: msg.data < 120.0
-          escalation: 2
-          timeout_sec: -1.0
 upload_targets:
   state_db: /opt/data/upload_state.db
   delete_after_upload: false
