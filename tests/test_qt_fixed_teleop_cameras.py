@@ -145,6 +145,6 @@ class FixedTeleopCamerasTest(unittest.TestCase):
                 window.close();delete(engine);backend.shutdown()
         """
         result = subprocess.run([sys.executable,'-c',textwrap.dedent(source)],cwd=root,
-            env=dict(os.environ,PYTHONPATH=str(root/'scripts'),QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software'),
+            env=dict(os.environ,PYTHONPATH=str(root/'scripts'),QT_SCALE_FACTOR='1',QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software'),
             capture_output=True,text=True,timeout=30)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)

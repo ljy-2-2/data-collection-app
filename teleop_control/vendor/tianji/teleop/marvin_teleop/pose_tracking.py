@@ -8,8 +8,9 @@ A held/unreachable target cannot continually restart a nullspace velocity field.
 Each new hand target is seeded from the last accepted joint command, as in
 test-teleop's incremental IK. At task singularities, continuously retain
 the previous local continuation so tiny input noise cannot choose a different
-redundant configuration. Elbow posture is a finite soft preference, never a
-joint-sign limit; the final pose refinement retains the complete physical range.
+redundant configuration. Negative-elbow posture remains a soft preference.
+Controller may additionally supply its teleop-only J4 upper bound; manual and
+recovery callers retain the complete manufacturer joint domain.
 """
 import numpy as np
 from .differential import rotation_vector
@@ -22,10 +23,89 @@ MAX_ITERATIONS = 96
 ITERATIONS_PER_TICK = 1
 TRUST_STEP_RAD = .12
 REFERENCE_WEIGHT = 1e-6
-POSITIVE_ELBOW_WEIGHT = 1e-4
+LOCAL_REFERENCE_WEIGHT = 3e-3
+POSITIVE_ELBOW_WEIGHT = 1e-3
+VERIFIED_ELBOW_WEIGHT = .02
 PREFERENCE_ITERATIONS = 32
+REFERENCE_ITERATIONS = 16
 POSITION_GUIDE_ACTIVATION_M = .002
 ELBOW_PREFERRED_BEND_DEG = 20.
+WRIST_POSITION_JITTER_M = .00075
+WRIST_ROTATION_RADIUS_M = .05
+WRIST_SOFT_LIMIT_MARGIN_DEG = 10.
+MAX_CONTINUATION_LEAD_DEG = 2.
+TELEOP_ELBOW_MAX_DEG = -5.
+
+
+class _ElbowLimitedArm:
+    """Teleop planning domain; the physical model and recovery limits stay intact."""
+    def __init__(self, arm, upper):
+        object.__setattr__(self, '_arm', arm)
+        object.__setattr__(self, '_elbow_upper', upper)
+
+    def __getattr__(self, name):
+        return getattr(self._arm, name)
+
+    def __setattr__(self, name, value):
+        setattr(self._arm, name, value)
+
+    def valid_joints(self, q, margin=.2):
+        q = np.asarray(q, dtype=float)
+        if q.shape != (7,) or not np.isfinite(q).all() or q[3] > self._arm.hardware_upper[3]:
+            return False
+        checked = q.copy()
+        # A measured J4 at its legal +60-degree hardware stop must be able to
+        # retreat through teleop's ordinary 0.2-degree interior reserve.
+        # Other joints/wrist faces retain their existing physical reserves.
+        checked[3] = min(q[3], self._arm.upper[3]-margin)
+        return self._arm.valid_joints(checked, margin) and q[3] <= self._elbow_upper
+
+    def joint_halfspaces(self, margin=.2):
+        faces, bounds = self._arm.joint_halfspaces(margin)
+        upper_face = (faces[:, 3] > 0.) & (np.count_nonzero(faces, axis=1) == 1)
+        bounds[upper_face] = faces[upper_face, 3]*self._arm.hardware_upper[3]
+        normal = np.zeros(7)
+        normal[3] = 1.
+        return np.vstack((faces, normal)), np.r_[bounds, self._elbow_upper]
+
+
+def valid_teleop_joints(arm, q):
+    """Physical teleop start domain, including inward retreat from J4 +60."""
+    q = np.asarray(q, dtype=float)
+    if q.shape != (7,) or not np.isfinite(q).all():
+        return False
+    return _ElbowLimitedArm(arm, max(TELEOP_ELBOW_MAX_DEG, float(q[3]))).valid_joints(q)
+
+
+def _wrist_turn(previous, target):
+    """Recognize rotation-dominant input without requiring noiseless position."""
+    angle = np.linalg.norm(rotation_vector(target[:3, :3] @ previous[:3, :3].T))
+    tolerance = min(WRIST_POSITION_JITTER_M,
+                    max(POSITION_TOLERANCE_M, WRIST_ROTATION_RADIUS_M * angle))
+    return np.linalg.norm(target[:3, 3]-previous[:3, 3]) <= tolerance
+
+
+def _rotation_sample(state, target, dt, input_time_s):
+    """Differentiate genuine XR samples, retaining velocity on cached reads."""
+    previous = state.get('rotation_sample') if state is not None else None
+    if input_time_s is None:
+        observed = state.get('observed_target') if state is not None else None
+        velocity = (rotation_vector(target[:3, :3] @ observed[:3, :3].T)/dt
+                    if observed is not None else np.zeros(3))
+        return dict(time=None, pose=target.copy(), velocity=velocity, interval=dt,
+                    wrist=observed is not None and _wrist_turn(observed, target))
+    if not np.isfinite(input_time_s):
+        raise ValueError('invalid XR input timestamp')
+    if previous is not None and previous['time'] == input_time_s:
+        return previous
+    interval = (input_time_s-previous['time']
+                if previous is not None and previous['time'] is not None else 0.)
+    valid = 1e-6 < interval <= .1
+    velocity = (rotation_vector(target[:3, :3] @ previous['pose'][:3, :3].T)/interval
+                if valid else np.zeros(3))
+    return dict(time=input_time_s, pose=target.copy(), velocity=velocity,
+                interval=interval if valid else 0.,
+                wrist=valid and _wrist_turn(previous['pose'], target))
 
 
 def _error(arm, target, q):
@@ -59,13 +139,16 @@ def _settings(quality):
     return values
 
 
-def _new_target(arm, target, seed, settings, previous=None, reference=None):
+def _new_target(arm, target, seed, settings, previous=None, reference=None, angular_input=None):
     current, error = _error(arm, target, seed)
     continuation = (previous['continuation'] if previous is not None else
                     dict(iterations=0, nominal=seed.copy(), extension=0.,
                          origin=current.copy(), active=False))
     turn_direction = rotation_vector(target[:3, :3] @ continuation['origin'][:3, :3].T)
     turning = np.linalg.norm(turn_direction) > TARGET_ROTATION_TOLERANCE_RAD
+    if angular_input is not None and np.linalg.norm(angular_input) > 1e-6:
+        turn_direction = angular_input
+        turning = True
     raw = arm.world_jacobian(seed, current)
     sigma = np.linalg.svd(raw, compute_uv=False)
     low, high = settings['singular_sigma_low'], settings['singular_sigma_high']
@@ -122,16 +205,45 @@ def _new_target(arm, target, seed, settings, previous=None, reference=None):
     if turning:
         rotation_tolerance = TARGET_ROTATION_TOLERANCE_RAD
     previous_target = previous['target'] if previous is not None else current
-    turn_in_place = turning and np.linalg.norm(
-        target[:3, 3] - previous_target[:3, 3]) <= POSITION_TOLERANCE_M
+    turn_in_place = turning and _wrist_turn(previous_target, target)
+    limit_margin = settings['joint_limit_soft_margin_deg']
+    if turn_in_place:
+        # The broad translation damping band unnecessarily slows available
+        # wrist travel. Use a narrower planning band for wrist turns; actual
+        # joint/wrist limits and zero-speed hardware stopping stay unchanged.
+        limit_margin = min(limit_margin, max(WRIST_SOFT_LIMIT_MARGIN_DEG,
+                                             settings['joint_limit_reserve_deg']+1.))
+    preferred = None
+    accepted = seed if reference is None else reference
+    # A verified nearby negative solution warrants a stronger elbow guide,
+    # including while turning. It is only an optimization preference; the
+    # candidate itself is never issued as a servo command or used as a limit.
+    if (-12. < accepted[3] < 10. and hasattr(arm, 'local_negative_ik')
+            and np.linalg.norm(error*weight) > 1e-6):
+        try:
+            preferred = arm.local_negative_ik(target, accepted)
+        except (ValueError, np.linalg.LinAlgError):
+            preferred = None  # Optional branch preference cannot block tracking.
+    nominal = continuation['nominal'].copy()
+    if preferred is not None:
+        nominal[3] = preferred[3]
     return dict(target=target.copy(), goal=seed.copy(),
                 reference=(seed if reference is None else reference).copy(),
-                nominal=continuation['nominal'], continuation=continuation, settings=settings,
+                nominal=nominal, continuation=continuation, settings=settings,
                 weight=weight, metric=metric,
                 rotation_tolerance=rotation_tolerance, iterations=0,
-                reference_weight=REFERENCE_WEIGHT * np.sqrt(activity),
+                # Prefer the nearby solution for every ordinary hand motion,
+                # instead of moving redundant joints to save tiny TCP error.
+                # Preserve the finite negative-elbow escape when it is needed
+                # for translation or a verified nearby branch alternative.
+                reference_weight=(LOCAL_REFERENCE_WEIGHT if preferred is None
+                                  and not continuation['active'] else REFERENCE_WEIGHT) * np.sqrt(activity),
                 positive_elbow_weight=POSITIVE_ELBOW_WEIGHT * activity,
+                preferred_negative=preferred is not None,
+                verified_elbow_weight=VERIFIED_ELBOW_WEIGHT * np.sqrt(activity)
+                                      if preferred is not None else 0.,
                 turn_response=turn_response,
+                limit_margin=limit_margin,
                 damping_sq=DAMPING_SQ - turn_response * (DAMPING_SQ - .01**2)
                            if turn_in_place else DAMPING_SQ,
                 posture_metric=np.array([0., 0., 0., 1., 0., 0., 0.]),
@@ -158,7 +270,9 @@ def _refine(arm, state, dt, speed):
         posture_weight = state['posture_weight'] * max(
             0., 1. - continuation['iterations'] / PREFERENCE_ITERATIONS) ** 2
         preference_fade = max(0., 1. - state['iterations'] / PREFERENCE_ITERATIONS) ** 2
-        reference_weight = state['reference_weight'] * preference_fade
+        posture_weight += state['verified_elbow_weight'] * preference_fade
+        reference_weight = state['reference_weight'] * max(
+            0., 1. - state['iterations'] / REFERENCE_ITERATIONS) ** 2
         positive_weight = state['positive_elbow_weight'] * preference_fade
         damping_sq = state['damping_sq']
         def objective(at, residual):
@@ -181,7 +295,7 @@ def _refine(arm, state, dt, speed):
         correction *= min(1., TRUST_STEP_RAD / max(1e-15, float(np.max(abs(correction)))))
         correction, constrained = bounded_correction(
             j, correction, arm, goal,
-            soft_margin_deg=settings['joint_limit_soft_margin_deg'],
+            soft_margin_deg=state['limit_margin'],
             reserve_deg=settings['joint_limit_reserve_deg'], dt=dt,
             max_outward_speed_deg_s=speed, joint_metric=state['metric'],
             damping_sq=damping_sq + reference_weight,
@@ -205,22 +319,41 @@ def _refine(arm, state, dt, speed):
         state['settled'] = True
 
 
-def step(arm, target, reference, dt, speed, velocity, max_accel, **quality):
+def step(arm, target, reference, dt, speed, velocity, max_accel,
+         input_time_s=None, input_age_s=0., elbow_max_deg=None, **quality):
     q = np.asarray(reference, dtype=float)
+    effective_elbow_max = elbow_max_deg
+    if elbow_max_deg is not None:
+        if not np.isfinite(elbow_max_deg) or not arm.hardware_lower[3] < elbow_max_deg <= arm.hardware_upper[3]:
+            raise ValueError('invalid teleoperation J4 upper limit')
+        # Clutching at zero must not jump to the negative operating domain.
+        # Above its upper face, ratchet from the last accepted command: inward
+        # or tangential motion remains feasible, outward motion is excluded.
+        if q.shape == (7,):
+            effective_elbow_max = max(float(elbow_max_deg), float(q[3]))
+        arm = _ElbowLimitedArm(arm, float(effective_elbow_max))
     target = np.asarray(target, dtype=float)
     velocity = np.asarray(velocity, dtype=float)
     if (q.shape != (7,) or not arm.valid_joints(q) or target.shape != (4, 4)
             or not np.isfinite(target).all() or not 0 < dt <= .1
             or velocity.shape != (7,) or not np.isfinite(velocity).all()
             or not np.isfinite(speed) or speed <= 0
-            or not np.isfinite(max_accel) or max_accel <= 0):
+            or not np.isfinite(max_accel) or max_accel <= 0
+            or not np.isfinite(input_age_s) or input_age_s < 0):
         raise ValueError('invalid continuous pose IK input')
     settings = _settings(quality)
+    acceleration_limits = np.minimum(max_accel, arm.acceleration_limits)
     state = getattr(arm, '_pose_tracking', None)
+    if state is not None and state.get('elbow_max_deg') != elbow_max_deg:
+        state = None
     if state is not None and not any(np.max(abs(q - state[name])) < 1e-7
                                      for name in ('last_input', 'last_output')):
         state = None  # External repositioning starts a fresh local continuation.
-    observed = state.get('observed_target') if state is not None else None
+    if state is not None and not arm.valid_joints(state['goal']):
+        # The inward-only face can tighten while an old unsent goal remains
+        # ahead. Rebase only that goal, retaining XR timing and clutch history.
+        state.update(goal=q.copy(), settled=False, iterations=0)
+    sample = _rotation_sample(state, target, dt, input_time_s)
     # Telemetry is used on clutch engagement, then Controller commits q only
     # after SDK acceptance. A new target must start from that integrator, not
     # the previous optimizer goal, which can be far ahead during hand reversals.
@@ -233,7 +366,14 @@ def step(arm, target, reference, dt, speed, velocity, max_accel, **quality):
         high = settings['singular_sigma_high']
         continuation_blend = float(np.clip((high - sigma) / (high - low), 0., 1.))
         continuation_blend = continuation_blend**2 * (3. - 2. * continuation_blend)
-        seed = q + continuation_blend * (state['goal'] - q)
+        # A singular optimizer can be many servo cycles ahead of the joints.
+        # Preserve its direction locally, without inheriting a remote posture
+        # when a tiny new hand sample arrives. Uniform scaling preserves the
+        # joint path and feasibility in the convex joint/wrist domain.
+        lead = continuation_blend * (state['goal'] - q)
+        if sample['wrist'] and np.linalg.norm(sample['velocity']) > 1e-5:
+            lead *= min(1., MAX_CONTINUATION_LEAD_DEG / max(1e-12, float(np.max(abs(lead)))))
+        seed = q + lead
     # Keep a smooth singular continuation while turning in one direction, but
     # discard an unsent rotational goal as soon as the hand reverses direction.
     turn_delta = None
@@ -247,7 +387,9 @@ def step(arm, target, reference, dt, speed, velocity, max_accel, **quality):
             or np.linalg.norm(target[:3, 3] - state['target'][:3, 3]) > POSITION_TOLERANCE_M
             or np.linalg.norm(rotation_vector(target[:3, :3] @ state['target'][:3, :3].T))
             > TARGET_ROTATION_TOLERANCE_RAD):
-        state = _new_target(arm, target, seed, settings, previous=state, reference=q)
+        angular_input = sample['velocity']*dt if sample['wrist'] else None
+        state = _new_target(arm, target, seed, settings, previous=state, reference=q,
+                            angular_input=angular_input)
         state['turn_delta'] = turn_delta
     # Numerical effort follows the same conditioning measure.
     # Joint velocity/acceleration remain governed by one common motion envelope.
@@ -255,27 +397,47 @@ def step(arm, target, reference, dt, speed, velocity, max_accel, **quality):
     if not state['settled']:
         _refine(arm, state, dt, speed)
     goal_velocity = None
-    if (observed is not None and state['turn_response'] > .5
-            and np.linalg.norm(target[:3, 3] - observed[:3, 3]) <= POSITION_TOLERANCE_M):
-        angular_delta = rotation_vector(target[:3, :3] @ observed[:3, :3].T)
-        if np.linalg.norm(angular_delta) > 1e-7:
+    if (sample['wrist'] and state['turn_response'] > .05
+            and input_age_s <= max(.03, 2.*sample['interval'])):
+        angular_velocity = sample['velocity']
+        if np.linalg.norm(angular_velocity) > 1e-5:
             # Feed forward observed hand rotation, never optimizer-goal jumps.
             # This minimum-norm twist keeps TCP position fixed and only changes
             # the moving-goal braking envelope, not joint acceleration limits.
             j = state['weight'][:, None] * arm.world_jacobian(q, arm.fk(q))
-            twist = np.r_[np.zeros(3), angular_delta / dt] * state['weight']
+            twist = np.r_[np.zeros(3), angular_velocity] * state['weight']
             metric = state['metric']
-            goal_velocity = np.degrees(np.linalg.solve(
-                j.T @ j + state['damping_sq'] * np.diag(metric), j.T @ twist))
+            feedforward = np.linalg.solve(
+                j.T @ j + state['damping_sq'] * np.diag(metric), j.T @ twist)
+            feedforward, _ = bounded_correction(
+                j, feedforward*dt, arm, q,
+                soft_margin_deg=state['limit_margin'],
+                reserve_deg=settings['joint_limit_reserve_deg'], dt=dt,
+                max_outward_speed_deg_s=speed, joint_metric=metric,
+                damping_sq=state['damping_sq'])
+            goal_velocity = np.degrees(feedforward)/dt * state['turn_response']
     result, arm.last_motion_constrained = advance(
-        arm, q, state['goal'], velocity, dt, speed, max_accel, goal_velocity=goal_velocity)
+        arm, q, state['goal'], velocity, dt, speed, acceleration_limits, goal_velocity=goal_velocity)
     state['observed_target'] = target.copy()
+    state['elbow_max_deg'] = elbow_max_deg
+    state['rotation_sample'] = sample
     state['last_input'], state['last_output'] = q.copy(), result.copy()
     arm._pose_tracking = state
     current = arm.fk(q)
     singular = np.linalg.svd(arm.world_jacobian(q, current), compute_uv=False)
     faces, bounds = arm.joint_halfspaces()
     arm.last_pose_ik = True
+    arm.last_input_rate_hz = 1./sample['interval'] if sample['interval'] > 0. else 0.
+    arm.last_input_age_s = float(input_age_s)
+    arm.last_input_angular_speed_deg_s = float(np.degrees(np.linalg.norm(sample['velocity'])))
+    commanded_velocity = (result-q)/dt
+    arm.last_command_angular_speed_deg_s = float(np.degrees(np.linalg.norm(
+        arm.world_jacobian(q, current)[3:] @ np.radians(commanded_velocity))))
+    arm.last_acceleration_limits_deg_s2 = acceleration_limits.copy()
+    arm.last_elbow_upper_deg = effective_elbow_max
+    arm.last_acceleration_limited = bool(np.any(abs(commanded_velocity-velocity) >= .98*acceleration_limits*dt))
+    arm.last_angular_feedforward_active = goal_velocity is not None
+    arm.last_negative_candidate_available = state['preferred_negative']
     arm.last_ik_constrained = state['constrained'] or (state['settled'] and state['partial'])
     arm.last_limit_assist = False
     arm.last_joint_limit_margin_deg = float(np.min(bounds - faces @ q))

@@ -368,10 +368,13 @@ input[type='range']::-webkit-slider-thumb { appearance: none; width: 15px; heigh
 .badge-amber { color: var(--amber); background: var(--amber-soft); }
 .usage-guide { min-height: 34px; position: relative; padding: 0; border: 0; border-radius: 0; color: var(--ink-muted); background: transparent; box-shadow: none; }
 .usage-guide:hover { border: 0; background: transparent; box-shadow: none; }
-.usage-guide-label { min-height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 2px; font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: default; }
+.usage-guide-label { min-height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 2px; border: 0; border-radius: 0; color: inherit; background: transparent; box-shadow: none; font-family: inherit; font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: default; }
+.usage-guide .usage-guide-label:hover { border: 0; background: transparent; box-shadow: none; }
 .usage-guide-label > svg { width: 19px; height: 19px; flex: none; color: var(--ink-soft); }
-.usage-guide-popover { width: 720px; max-width: calc(100vw - 40px); position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; visibility: hidden; opacity: 0; pointer-events: none; transform: translateY(-4px); margin: 0; padding: 9px; border: 1px solid var(--line-strong); border-radius: 16px; background: linear-gradient(145deg, var(--surface), var(--surface-muted)); box-shadow: var(--shadow-md); transition: opacity .14s ease, transform .14s ease, visibility .14s; }
-.usage-guide-popover img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.usage-guide-popover { width: 480px; max-width: calc(100vw - 40px); max-height: min(66vh, calc(100vh - 160px)); box-sizing: border-box; position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; visibility: hidden; opacity: 0; pointer-events: none; transform: translateY(-4px); margin: 0; padding: 0 12px 12px; border: 1px solid var(--line-strong); border-bottom-width: 3px; border-radius: 12px; background: var(--surface); box-shadow: 0 8px 24px rgba(0,0,0,.14); transition: opacity .14s ease, transform .14s ease, visibility .14s; }
+.usage-guide-popover figcaption { margin-bottom: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--ink-muted); font-size: .75rem; font-weight: 600; }
+.usage-guide-image { min-height: 48px; display: flex; align-items: center; justify-content: center; }
+.usage-guide-popover img { max-width: 100%; width: auto; height: auto; max-height: min(calc(66vh - 68px), calc(100vh - 228px)); display: block; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; }
 .usage-guide:hover .usage-guide-popover, .usage-guide:focus .usage-guide-popover, .usage-guide:focus-within .usage-guide-popover { visibility: visible; opacity: 1; pointer-events: auto; transform: translateY(0); }
 
 .teleop-control-panel { overflow: hidden; }
@@ -1238,3 +1241,37 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .kuavo-connection-fields { display: grid; gap: 12px; margin: 16px 0; }
 .kuavo-gripper-fields label, .kuavo-connection-fields label { display: grid; gap: 6px; font-size: 12px; color: var(--ink-muted); }
 .kuavo-gripper-fields input, .kuavo-connection-fields input { width: 100%; min-width: 0; height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 6px; color: var(--ink); background: var(--surface); }
+
+.kuavo-primary-settings { display: grid; grid-template-columns: 68px minmax(0,1fr) auto; align-items: center; gap: 8px; }
+.kuavo-primary-settings > select { width: 68px; min-height: 34px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); font-size: 12px; }
+.kuavo-primary-settings .kuavo-parameter-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.kuavo-primary-settings .kuavo-parameter-row input { width: 100%; min-width: 0; }
+.kuavo-primary-settings .kuavo-parameter-row small { font-size: 10px; color: var(--ink-muted); }
+@media (max-width: 780px) {
+  .kuavo-primary-settings { grid-template-columns: 68px minmax(0,1fr); }
+  .kuavo-primary-settings > .kuavo-parameter-row { grid-row: 2; grid-column: 1 / -1; }
+  .kuavo-primary-settings > .action-button { grid-row: 1; grid-column: 2; justify-self: end; }
+}
+@media (max-width: 480px) {
+  .kuavo-primary-settings .kuavo-parameter-row { grid-template-columns: 1fr; }
+}
+.kuavo-auto-parameters { width: min(560px,calc(100vw - 32px)); padding: 20px; max-height: calc(100vh - 48px); overflow: auto; }
+.kuavo-auto-parameters .kuavo-gripper-fields { margin: 18px 0; gap: 14px; }
+.kuavo-auto-parameters input[type=number] { appearance: textfield; -moz-appearance: textfield; }
+.kuavo-auto-parameters input::-webkit-inner-spin-button, .kuavo-auto-parameters input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.kuavo-auto-parameters small { color: var(--ink-muted); font-size: 11px; }
+@media (max-width: 420px) { .kuavo-auto-parameters .kuavo-gripper-fields { grid-template-columns: 1fr; } }
+
+.tianji-parameter-dialog.kuavo-auto-parameters { display: block; }
+
+.parameter-dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+/* Align controls with the input boxes, below their labels. */
+.tianji-primary-parameters .field { display:grid; grid-template-rows:18px 32px 14px; gap:3px; }
+.kuavo-primary-settings .kuavo-parameter-row label { grid-template-rows:18px 32px 14px; gap:3px; }
+.kuavo-primary-settings .kuavo-parameter-row input { height:32px; }
+@media (min-width:781px) {
+  .tianji-workspace .teleop-mode-section > select,
+  .tianji-workspace .teleop-mode-section > .action-button,
+  .kuavo-primary-settings > select,
+  .kuavo-primary-settings > .action-button { align-self:center; transform:translateY(2px); }
+}

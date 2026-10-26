@@ -1,0 +1,136 @@
+{
+  "completed_at": "2026-10-26T14:59:09.892047+08:00",
+  "status": "source_merge_complete_and_offline_checks_passed",
+  "target": "/home/ljy/桌面/galaxis/data-collection-app",
+  "incoming_source": "/home/ljy/桌面/data-collection-app",
+  "target_original_head": "e1f443edca6095172bd64905cee86215d12d52d7",
+  "incoming_head": "9abe1d1705ef5d5c6b12a637b3ff91b942c07431",
+  "common_base": "473a90cf70c95b0ebd19c5615234988cfce291b8",
+  "scope": "仅融合源码、资源、依赖声明与测试；未替换 /opt 下已安装桌面软件，未连接或控制真实机器人。",
+  "counts_excluding_merge_reports": {
+    "modified": 49,
+    "added": 167
+  },
+  "imported_features": [
+    "乐聚运动参数 API、Qt 参数界面和本机持久化；位置比例传入新遥操会话；夹爪编辑自动保存及确认/取消。",
+    "乐聚单臂选择、服务协议与管理状态诊断；参数待应用状态和不支持参数的启动保护。",
+    "乐聚完整夹爪、法兰、CAD 网格及 URDF、模型构建工具、法向修正与 TCP 显示资源。",
+    "Qt/Web 模型前视、旋转/平移/缩放和重复进入页面的几何对象重建；使用引导及相机/通用界面更新。",
+    "天机单臂选择实际作用于遥操会话；新任务按所选腕部相机校验、允许选配头部相机，兼容旧任务。",
+    "上传进程参数摘要交接、状态及相关改进。",
+    "UMI 离线回放仿真工具与模拟运行入口；依赖声明补入 mcap。"
+  ],
+  "preserved_local_changes": [
+    "天机原有 8 个核心文件与合并前工作区逐字节一致，包括未提交的优化。",
+    "J4 仅遥操生效：大于 -5° 时上界按已接受角度只减不增，可从 +60° 等位置逐步回到正常区；到达 -5° 后维持该上界，不影响复位与手动控制。",
+    "加速度 UI/请求上限 900°/s²，实际仍按各轴硬件上限限制：J1/J2 450，其余 900。",
+    "腕部旋转追踪、源采样时间、连续逆解/最小关节运动和制动保护，以及 TCP 定义保留。",
+    "UMI 保留 200 ms 连续性告警与 1 s 停止策略，不采用对方禁用这些保护的更改；录制时长继续不设总上限。",
+    "保留机型打包与能力筛选、摄像头参数界面和 UMI 工作区状态；原来已删除的 11 个历史审计产物继续不恢复。"
+  ],
+  "manual_conflict_resolutions": {
+    "README.md": "Manually reconcile both features; preserve package/mode guards, local safety policies, local camera dialog and UMI workspace identity as applicable.",
+    "scripts/qt_ui/bridge.py": "Manually reconcile both features; preserve package/mode guards, local safety policies, local camera dialog and UMI workspace identity as applicable.",
+    "scripts/qt_ui/qml/Main.qml": "Manually reconcile both features; preserve package/mode guards, local safety policies, local camera dialog and UMI workspace identity as applicable.",
+    "scripts/qt_ui/qml/Setup.qml": "Manually reconcile both features; preserve package/mode guards, local safety policies, local camera dialog and UMI workspace identity as applicable.",
+    "scripts/qt_ui/visuals.py": "Manually reconcile both features; preserve package/mode guards, local safety policies, local camera dialog and UMI workspace identity as applicable.",
+    "scripts/smoke_qt_ui.py": "Manually reconcile both features; preserve package/mode guards, local safety policies, local camera dialog and UMI workspace identity as applicable.",
+    "umi_collection/vendor/galaxis/galaxis_bringup/test/test_build_runtime_configs.py": "Keep local 200 ms warning / 1 s continuity stop policy; unlimited duration already implemented. Incoming diagnostic-only timing conflicts with the existing local policy.",
+    "umi_collection/vendor/galaxis/galaxis_bringup/tools/build_runtime_configs.py": "Keep local 200 ms warning / 1 s continuity stop policy; unlimited duration already implemented. Incoming diagnostic-only timing conflicts with the existing local policy."
+  },
+  "integration_fixes": [
+    "统一机型显示顺序，同时保留不同打包模式的可用机型过滤。",
+    "TypeScript 排除本地备份和打包缓存，修正 Web 静态检查及引导按钮可访问性。",
+    "修复桌面 OpenGL 上下文：普通桌面使用 3.3 Core，xcb_egl 板端继续 GLES 3.0，避免模型空白。",
+    "修复测试之间的 Qt 缩放环境泄漏，并隔离像素测试 DPI；更新合并后的界面/单臂冒烟断言。"
+  ],
+  "known_service_constraint": "当前乐聚机器人服务协议只支持手臂速度 0.7 rad/s、加速度 5 rad/s²；其他数值可以保存为待应用值，但会阻止启动，不能声称已在机器人端生效。",
+  "verification": {
+    "full_python": {
+      "passed_main_tests": 1810,
+      "passed_subtests": 28,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "artifact": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/full-regression-tests.xml"
+    },
+    "focused_after_final_opengl_fix": {
+      "passed_junit_cases": 56,
+      "failed": 0,
+      "artifact": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/final-graphics-tests.xml"
+    },
+    "tianji_control_regression": {
+      "passed": 360,
+      "artifact": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/tianji-v11-regression.xml"
+    },
+    "web": {
+      "node_test_groups_passed": 6,
+      "build": "passed",
+      "typescript": "passed",
+      "lint": "passed"
+    },
+    "desktop_smoke": {
+      "status": "passed",
+      "mock_post_requests": 31,
+      "cad_visuals": 125,
+      "shader_errors": 0,
+      "artifact": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/desktop-smoke.log"
+    },
+    "syntax": {
+      "json": 8,
+      "python": 40
+    },
+    "git_diff_check": "passed",
+    "hardware": "未进行真机联调；所有动作与接口测试均使用模拟器或 mock。"
+  },
+  "audit": {
+    "counts": {
+      "modified": 49,
+      "added": 167
+    },
+    "file_count": 216,
+    "incoming_only_change_entries": 173,
+    "incoming_only_test_adaptations": [
+      "tests/robot-camera.test.mjs",
+      "tests/test_qt_robot_reentry.py"
+    ],
+    "incoming_paths_missing": [],
+    "preexisting_local_historical_artifact_deletions_preserved": [
+      "artifacts/kinematics-audit/audit.py",
+      "artifacts/kinematics-audit/mapping-results.json",
+      "artifacts/kinematics-audit/results.json",
+      "artifacts/tcp-reference/draw_pivot_tcp.py",
+      "artifacts/tcp-reference/draw_tcp.py",
+      "artifacts/tcp-reference/tcp-3d-preview.png",
+      "artifacts/tcp-reference/tcp-pivot-reference.png",
+      "artifacts/tcp-reference/tcp-reference.png",
+      "artifacts/tianji-continuous-lift-copy-camera-20261020.json",
+      "artifacts/tianji-mirror-stability-20261020.json",
+      "artifacts/tianji-responsive-hotplug-20261020.json"
+    ],
+    "tianji_original_files_preserved": [
+      "teleop_control/vendor/tianji/UPSTREAM.json",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/config.json",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/configuration.py",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/constrained_ik.py",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/control.py",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/model.py",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/motion.py",
+      "teleop_control/vendor/tianji/teleop/marvin_teleop/pose_tracking.py"
+    ],
+    "umi_continuity_policy_preserved": [
+      "umi_collection/vendor/galaxis/galaxis_bringup/tools/build_runtime_configs.py",
+      "umi_collection/vendor/galaxis/galaxis_bringup/test/test_build_runtime_configs.py"
+    ],
+    "source_repository_clean": true,
+    "source_head": "9abe1d1705ef5d5c6b12a637b3ff91b942c07431",
+    "target_head_unchanged": true,
+    "parsed_changed_sources": {
+      "json": 8,
+      "python": 40
+    }
+  },
+  "backup_directory": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026",
+  "per_file_manifest": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/final-file-manifest.json",
+  "rollback_materials": "before/ours 为合并前差异文件备份；before/theirs 为来源文件快照；manifest 中 added 项原先不存在，回退时须单独处理。原有 Git HEAD 未改变。"
+}

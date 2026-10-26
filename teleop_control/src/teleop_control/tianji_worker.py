@@ -472,6 +472,7 @@ def main():
                             else {},
                             "grippers": grippers.status() if grippers else None,
                             "reason": ctrl.reason if ctrl else "",
+                            "arm_control": ctrl.status() if ctrl else {},
                             "coordinate_mapping": models.mapping_report,
                             "recovery": recovery_report,
                         }

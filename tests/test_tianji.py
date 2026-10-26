@@ -246,7 +246,7 @@ def test_reject_joint_limits_unselected_arm_and_bad_pose(models):
         ("kd", 4),
         ("scale", 0),
         ("max_joint_speed_deg_s", 181),
-        ("max_joint_accel_deg_s2", 451),
+        ("max_joint_accel_deg_s2", 901),
         ("left_gripper_speed", 101),
     ],
 )

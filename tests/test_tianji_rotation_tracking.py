@@ -4,6 +4,7 @@ Only the installed manufacturer FK/Jacobian libraries are used; no hardware
 connection, servo enable or robot command is created by these tests.
 """
 from pathlib import Path
+import json
 
 import numpy as np
 import pytest
@@ -121,4 +122,84 @@ def test_continuous_clockwise_and_counterclockwise_roll_tracks_hand_speed(models
     assert np.percentile(errors[20:300], 95) < .15
     assert max(positions) < .0005
     assert errors[-1] < .06 and positions[-1] < .0001
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+def test_reachable_nearby_negative_elbow_is_preferred_during_a_wrist_turn(models, side):
+    right = models.arms['right']
+    mirror = models.arms['left'].tracking_mirror
+    fixture = json.loads((ROOT/'tests/fixtures/tianji_held_target_oscillation.json').read_text())[1]
+    initial = np.asarray(fixture['q'])
+    anchor = right.fk(initial)
+    final = anchor.copy()
+    final[:3, :3] = anchor[:3, :3] @ rotation([0, 0, 1], .08)
+    witness = right.local_negative_ik(final, initial)
+    assert witness is not None and witness[3] < -10.
+    # This verified pose has both branches. v8 selected J4 ~= +2.24 degrees.
+    assert np.linalg.norm(right.fk(witness)[:3, 3]-final[:3, 3]) < .0001
+    arm = models.arms[side]
+    arm.reset_pose_tracking()
+    q = initial.copy() if side == 'right' else mirror.signs*initial
+    velocity = np.zeros(7)
+    available = False
+    for tick in range(350):
+        target = anchor.copy()
+        target[:3, :3] = anchor[:3, :3] @ rotation([0, 0, 1], .08*min(1., (tick+1)/100))
+        if side == 'left':
+            target = inverse(mirror.world) @ target @ mirror.tcp
+        q, velocity = checked_step(arm, target, q, velocity)
+        available |= arm.last_negative_candidate_available
+        assert q[3] < 0.
+    assert available and q[3] < -10.
+    actual = arm.fk(q)
+    assert np.linalg.norm(actual[:3, 3]-target[:3, 3]) < .0001
+    assert angle(actual[:3, :3] @ target[:3, :3].T) < .001
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('posture', ['horizontal', 'vertical'])
+@pytest.mark.parametrize('axis', range(3))
+def test_wrist_rotation_velocity_survives_submillimetre_position_jitter(models, side, posture, axis):
+    right = models.arms['right']
+    mirror = models.arms['left'].tracking_mirror
+    initial = np.array([0. if posture == 'horizontal' else 90., -45., 0., -90., 0., 45., 0.])
+    anchor = right.fk(initial)
+    arm = models.arms[side]
+    arm.reset_pose_tracking()
+    q = initial.copy() if side == 'right' else mirror.signs*initial
+    velocity = np.zeros(7)
+    errors, positions = [], []
+    for tick in range(400):
+        target = anchor.copy()
+        if tick < 300:
+            target[:3, :3] = anchor[:3, :3] @ rotation(np.eye(3)[axis], .15*np.sin(2*np.pi*tick*.01))
+            target[:3, 3] += .0003*np.sin(tick*.53+np.arange(3)*1.7)
+        if side == 'left':
+            target = inverse(mirror.world) @ target @ mirror.tcp
+        q, velocity = checked_step(arm, target, q, velocity)
+        errors.append(np.degrees(angle(arm.fk(q)[:3, :3] @ target[:3, :3].T)))
+        positions.append(np.linalg.norm(arm.fk(q)[:3, 3]-target[:3, 3]))
+    # v8 disabled hand-velocity feedforward at only 0.09 mm/frame positional
+    # displacement and had ~1.06 degrees mean / 2.00 degrees p95 angular lag.
+    assert np.mean(errors[20:300]) < (.15, 1., 2.)[axis]
+    assert np.percentile(errors[20:300], 95) < (.4, 3., 4.5)[axis]
+    assert max(positions) < (.0015, .003, .0055)[axis]
+    assert errors[-1] < .06
+    assert np.linalg.norm(arm.fk(q)[:3, 3]-target[:3, 3]) < .0001
+
+
+def test_failed_optional_negative_candidate_does_not_block_reachable_pose(models, monkeypatch):
+    arm = models.arms['right']
+    arm.reset_pose_tracking()
+    def unavailable(*args):
+        raise ValueError('native branch enumeration unavailable at this configuration')
+    monkeypatch.setattr(arm, 'local_negative_ik', unavailable)
+    q = np.array([10., -35., 15., -10., 5., 15., -10.])
+    velocity = np.zeros(7)
+    target = arm.fk(q)
+    target[:3, :3] = target[:3, :3] @ rotation([1, 0, 0], .03)
+    for _ in range(250):
+        q, velocity = checked_step(arm, target, q, velocity)
+    assert np.linalg.norm(arm.fk(q)[:3, 3]-target[:3, 3]) < .0001
+    assert angle(arm.fk(q)[:3, :3] @ target[:3, :3].T) < .001
 

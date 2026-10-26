@@ -7,17 +7,19 @@ from .geometry import angle, relative_target
 from .mapping import same_facing_map
 from .protocol import GRIP_ON, GRIP_OFF
 from .robot import CommandExpired, CommandBusy
+from .pose_tracking import TELEOP_ELBOW_MAX_DEG, valid_teleop_joints
 
 SIDES = ("left", "right")
 NAMES = {"left": "左臂", "right": "右臂"}
 
 
-def check_start_pose(models, joints, margin, sides=None, allow_singular=False):
+def check_start_pose(models, joints, margin, sides=None, allow_singular=False, teleop_transition=False):
     selected = models.arms if sides is None else sides
     issues = []
     for side in selected:
         arm, name = models.arms[side], NAMES[side]
-        if not arm.valid_joints(joints[side]):
+        valid = valid_teleop_joints(arm, joints[side]) if teleop_transition else arm.valid_joints(joints[side])
+        if not valid:
             issues.append(f"{name}当前关节角接近或超出限位")
         elif allow_singular:
             arm.fk(joints[side])
@@ -76,6 +78,11 @@ class ArmControl:
     joint_limit_margin_deg: object = None
     speed_limited: bool = False
     target_clamped: bool = False
+    input_rate_hz: object = None
+    input_age_s: object = None
+    hand_rotation_speed_deg_s: object = None
+    command_rotation_speed_deg_s: object = None
+    acceleration_limited: bool = False
 
 
 class Controller:
@@ -86,9 +93,7 @@ class Controller:
             raise ValueError("unknown controlled arm")
         self.arms = {s: ArmControl(preparing=prepare) for s in self.controlled_sides}
         for arm in models.arms.values():
-            if config["max_joint_speed_deg_s"] > min(arm.velocity_limits) or config[
-                "max_joint_accel_deg_s2"
-            ] > min(arm.acceleration_limits):
+            if config["max_joint_speed_deg_s"] > min(arm.velocity_limits):
                 raise ValueError("motion settings exceed vendor PNVA limits")
         self.state, self.reason = "WAIT_RELEASE", "左右握把分别控制对应机械臂"
         self.session = self.safety_epoch = self.last_tick = None
@@ -110,7 +115,7 @@ class Controller:
             return
         q = self.robot.read()
         check_start_pose(
-            self.models, q, self.cfg["collision_margin_m"], allow_singular=True
+            self.models, q, self.cfg["collision_margin_m"], allow_singular=True, teleop_transition=True
         )
         if any(
             np.max(np.abs(v)) > 0.5
@@ -164,6 +169,18 @@ class Controller:
                 "joint_limit_margin_deg": a.joint_limit_margin_deg,
                 "speed_limited": a.speed_limited,
                 "target_clamped": a.target_clamped,
+                "input_rate_hz": a.input_rate_hz,
+                "input_age_s": a.input_age_s,
+                "hand_rotation_speed_deg_s": a.hand_rotation_speed_deg_s,
+                "command_rotation_speed_deg_s": a.command_rotation_speed_deg_s,
+                "acceleration_limited": a.acceleration_limited,
+                "joint_acceleration_limits_deg_s2": np.minimum(
+                    self.cfg["max_joint_accel_deg_s2"],
+                    self.models.arms[s].acceleration_limits).tolist(),
+                "teleop_j4_max_deg": TELEOP_ELBOW_MAX_DEG,
+                "teleop_j4_current_max_deg": max(TELEOP_ELBOW_MAX_DEG, float(a.commanded[3]))
+                    if a.commanded is not None else None,
+                "teleop_j4_inward_only": bool(a.commanded is not None and a.commanded[3] > TELEOP_ELBOW_MAX_DEG),
                 "command_velocity_deg_s": a.velocity.tolist(),
                 "joint_anchor_deg": a.joint_anchor.tolist()
                 if a.joint_anchor is not None
@@ -216,6 +233,9 @@ class Controller:
         a.jacobian_sigma_min = a.jacobian_condition = a.rotation_weight_m = None
         a.limit_assist, a.joint_limit_margin_deg = False, None
         a.speed_limited = a.target_clamped = False
+        a.input_rate_hz = a.hand_rotation_speed_deg_s = a.command_rotation_speed_deg_s = None
+        a.input_age_s = None
+        a.acceleration_limited = False
         a.elapsed = 0.0
         a.velocity = np.zeros(7)
         a.next_velocity = np.zeros(7)
@@ -275,6 +295,7 @@ class Controller:
                     self.cfg["collision_margin_m"],
                     {side},
                     allow_singular=True,
+                    teleop_transition=True,
                 )
         except ValueError as error:
             self.pause_side(side, str(error))
@@ -365,6 +386,9 @@ class Controller:
             self.cfg["max_joint_speed_deg_s"],
             velocity=a.velocity,
             max_accel=self.cfg["max_joint_accel_deg_s2"],
+            elbow_max_deg=TELEOP_ELBOW_MAX_DEG,
+            input_time_s=getattr(frame, 'source_time', None),
+            input_age_s=max(0., (self.last_tick or frame.received)-frame.received),
             rotation_weight_m=self.cfg["ik_rotation_weight_m"],
             shoulder_motion_weight=self.cfg.get("ik_shoulder_motion_weight", 1.0),
             singular_rotation_weight_m=self.cfg["ik_singular_rotation_weight_m"],
@@ -380,6 +404,11 @@ class Controller:
         a.jacobian_sigma_min = getattr(model, "last_jacobian_sigma_min", None)
         a.jacobian_condition = getattr(model, "last_jacobian_condition", None)
         a.rotation_weight_m = getattr(model, "last_rotation_weight_m", None)
+        a.input_rate_hz = getattr(model, 'last_input_rate_hz', None)
+        a.input_age_s = getattr(model, 'last_input_age_s', None)
+        a.hand_rotation_speed_deg_s = getattr(model, 'last_input_angular_speed_deg_s', None)
+        a.command_rotation_speed_deg_s = getattr(model, 'last_command_angular_speed_deg_s', None)
+        a.acceleration_limited = getattr(model, 'last_acceleration_limited', False)
         a.shoulder_motion_weight = getattr(model, "last_shoulder_motion_weight", None)
         a.limit_assist = getattr(model, "last_limit_assist", False)
         a.joint_limit_margin_deg = getattr(model, "last_joint_limit_margin_deg", None)
@@ -408,6 +437,12 @@ class Controller:
             a.ik_detail = "接近关节边界：优先末端位置并主动恢复关节余量"
         if motion_constrained:
             a.reason = "接近关节或腕部限位的刹停边界，减速保持；反向移动手柄可继续"
+        elif (not ik_constrained and a.acceleration_limited
+              and a.rotation_error_rad > np.radians(1.)):
+            limits = np.minimum(self.cfg['max_joint_accel_deg_s2'], model.acceleration_limits)
+            limited = np.flatnonzero(abs(a.next_velocity-a.velocity) >= .98*limits*dt)
+            a.reason = "旋转跟随达到加速度上限：" + "、".join(
+                f"J{i+1} {limits[i]:g}°/s²" for i in limited)
         return desired
 
     def tick(self, frame, connected, emergency, now=None):
@@ -497,8 +532,12 @@ class Controller:
             try:
                 target = self._target(side, frame, q, max(0.0, dt))
                 if target is not None:
-                    if not self.models.arms[side].valid_joints(target):
+                    valid = (self.models.arms[side].valid_joints(target) if a.preparing
+                             else valid_teleop_joints(self.models.arms[side], target))
+                    if not valid:
                         raise ValueError("本侧插值指令越过限位")
+                    if not a.preparing and target[3] > max(TELEOP_ELBOW_MAX_DEG, a.commanded[3]):
+                        raise ValueError(f"本侧指令超过 J4 遥操上限 {TELEOP_ELBOW_MAX_DEG:+g}°")
                     targets[side] = target
             except ValueError as error:
                 # IK/workspace/input failures pause this arm; the peer continues.

@@ -11,7 +11,7 @@ class TianjiParameters(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False, validate_default=True)
     scale: float = Field(default=1, ge=0.1, le=2)
     max_joint_speed_deg_s: float = Field(default=180, ge=0.1, le=180)
-    max_joint_accel_deg_s2: float = Field(default=450, ge=1, le=450)
+    max_joint_accel_deg_s2: float = Field(default=900, ge=1, le=900)
     left_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_speed'), ge=0.01, le=100)
     right_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_speed'), ge=0.01, le=100)
     left_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_accel'), ge=0.1, le=200)

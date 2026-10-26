@@ -30,7 +30,9 @@ class MeshGeometry(QQuick3DGeometry):
         super().__init__()
         vertices=np.asarray(mesh['vertices'],dtype=np.float32)[np.asarray(mesh['faces'],dtype=np.int32)]
         normals=np.cross(vertices[:,1]-vertices[:,0],vertices[:,2]-vertices[:,0]);normals/=np.maximum(np.linalg.norm(normals,axis=1,keepdims=True),1e-9)
-        data=np.concatenate((vertices,np.repeat(normals[:,None,:],3,axis=1)),axis=2).astype(np.float32).reshape(-1,6)
+        corner_normals=(np.asarray(mesh['normals'],dtype=np.float32)[np.asarray(mesh['normal_indices'],dtype=np.int32)]
+                        if 'normals' in mesh and 'normal_indices' in mesh else np.repeat(normals[:,None,:],3,axis=1))
+        data=np.concatenate((vertices,corner_normals),axis=2).astype(np.float32).reshape(-1,6)
         self.setVertexData(QByteArray(data.tobytes()));self.setStride(24)
         self.setPrimitiveType(QQuick3DGeometry.PrimitiveType.Triangles)
         self.addAttribute(QQuick3DGeometry.Attribute.Semantic.PositionSemantic,0,QQuick3DGeometry.Attribute.ComponentType.F32Type)
@@ -40,10 +42,11 @@ class MeshGeometry(QQuick3DGeometry):
 
 class ModelPart(QObject):
     moved=Signal()
+    meshChanged=Signal()
     def __init__(self,geometry,visual,parent):
         super().__init__(parent);self.geometry_value=geometry;self.visual=visual
         self.matrix=np.eye(4)
-    @Property(QObject,constant=True)
+    @Property(QObject,notify=meshChanged)
     def mesh(self):return self.geometry_value
     @Property(QVector3D,constant=True)
     def size(self):return QVector3D(*self.visual['scale'])
@@ -59,19 +62,38 @@ class ModelPart(QObject):
 
 class RobotScene(QObject):
     cameraChanged=Signal()
+    default_zoom=1.
+    default_yaw=math.pi
     def __init__(self,root,parent=None,*,load_model=True,model_file="tianji-model.json"):
         super().__init__(parent)
         self.calibration=endpoints(root)
         self.model=json.loads((root/'public'/model_file).read_text()) if load_model else dict(meshes={},links=[],joints=[])
         self.geometries={key:MeshGeometry(mesh) for key,mesh in self.model['meshes'].items()}
+        for geometry in self.geometries.values():geometry.setParent(self)
+        self._view_prepared=False
         self.parts_value=[];self.by_link=[]
         for link in self.model['links']:
             for visual in link['visuals']:
                 part=ModelPart(self.geometries[visual['mesh']],visual,self);self.parts_value.append(part);self.by_link.append((link['name'],part))
-        self.yaw=-.08;self.pitch=.03;self.zoom=1.
+        self.yaw=self.default_yaw;self.pitch=0.;self.zoom=self.default_zoom;self.pan_x=0.;self.pan_y=0.
         self.camera_matrix=np.eye(4);self._pose_angles=None;self.update_camera();self.update_pose({})
     @Property('QVariantList',constant=True)
     def parts(self):return self.parts_value
+    @Slot()
+    def prepareView(self):
+        # A destroyed View3D releases its render nodes. Reusing the same
+        # QQuick3DGeometry in another view can retain stale GPU resources even
+        # though the Python/QObject remains valid. Bind fresh geometries while
+        # keeping the scene's measured transforms and camera unchanged.
+        if self._view_prepared:
+            previous=self.geometries
+            self.geometries={key:MeshGeometry(mesh) for key,mesh in self.model['meshes'].items()}
+            for geometry in self.geometries.values():geometry.setParent(self)
+            for part in self.parts_value:
+                part.geometry_value=self.geometries[part.visual['mesh']]
+                part.meshChanged.emit()
+            for geometry in previous.values():geometry.deleteLater()
+        self._view_prepared=True
     @Property(QVector3D,notify=cameraChanged)
     def cameraPosition(self):return QVector3D(*self.camera_matrix[:3,3].tolist())
     @Property(QQuaternion,notify=cameraChanged)
@@ -79,17 +101,23 @@ class RobotScene(QObject):
     @Property(float,notify=cameraChanged)
     def zoomValue(self):return self.zoom
     def update_camera(self):
+        # At zero orbit angles, view from base -X toward +X with +Z up.
+        # Default yaw=pi views the front from +X toward -X.
         upright=np.array([[0,-1,0,0],[0,0,1,0],[-1,0,0,0],[0,0,0,1]])
         view=rotation((1,0,0),self.pitch)@upright@rotation((0,0,1),self.yaw)@transform((0,0,-.85))
-        self.camera_matrix=np.linalg.inv(view)@transform((0,0,4))
+        self.camera_matrix=np.linalg.inv(view)@transform((-self.pan_x,self.pan_y,4))
         self.cameraChanged.emit()
     @Slot(float,float)
     def drag(self,dx,dy):
         self.yaw+=dx*.008;self.pitch=max(-.9,min(.9,self.pitch+dy*.006));self.update_camera()
+    @Slot(float,float,float,float)
+    def pan(self,dx,dy,width,height):
+        scale=max(1,min(height*.51,width*.35)*self.zoom)
+        self.pan_x+=dx/scale;self.pan_y+=dy/scale;self.update_camera()
     @Slot(float)
-    def changeZoom(self,factor):self.zoom=max(.5,min(2.2,self.zoom*factor));self.update_camera()
+    def changeZoom(self,factor):self.zoom=max(.5,min(4.4,self.zoom*factor));self.update_camera()
     @Slot()
-    def resetView(self):self.yaw=-.08;self.pitch=.03;self.zoom=1;self.update_camera()
+    def resetView(self):self.yaw=self.default_yaw;self.pitch=0.;self.zoom=self.default_zoom;self.pan_x=0.;self.pan_y=0.;self.update_camera()
     @Slot('QVariantMap')
     def update_pose(self,status,calibration=None):
         if calibration is not None:self.calibration=calibration
@@ -124,22 +152,18 @@ class RobotScene(QObject):
 
 class KuavoScene(RobotScene):
     """Official display meshes driven only by KUAVO measured joint radians."""
+    default_zoom=.95
     def __init__(self,root,parent=None):
         super().__init__(root,parent,model_file='kuavo-model.json')
-        self.resetView()
 
     @Slot('QVariantMap')
     def update_pose(self,status,calibration=None):
         values=(status.get('telemetry') or {}).get('joints') or {}
         names={f'zarm_{side}{i}_joint' for side in ('l','r') for i in range(1,8)}
-        angles={name:float(value) for name,value in values.items()
-                if name in names and type(value) in (int,float) and math.isfinite(value)}
+        angles=dict(self.model.get('display_joint_defaults', {}))
+        angles.update({name:float(value) for name,value in values.items()
+                if name in names and type(value) in (int,float) and math.isfinite(value)})
         self.apply_angles(angles)
-
-    @Slot()
-    def resetView(self):
-        self.yaw=-.35;self.pitch=.08;self.zoom=.95;self.update_camera()
-
 
 class _MjpegPreviewParser:
     """Keep the latest complete preview, honoring multipart JPEG boundaries.
@@ -423,7 +447,7 @@ def g2_skeleton(values):
 class G2View(QQuickPaintedItem):
     changed=Signal()
     def __init__(self,parent=None):
-        super().__init__(parent);self._values={};self._dark=False;self._live=False;self.yaw=-.65;self.pitch=.28;self.zoom=1.;self.setAntialiasing(True)
+        super().__init__(parent);self._values={};self._dark=False;self._live=False;self.yaw=-.65;self.pitch=.28;self.zoom=1.;self.pan_x=0.;self.pan_y=0.;self.setAntialiasing(True)
     @Property('QVariantMap',notify=changed)
     def values(self):return self._values
     @values.setter
@@ -440,13 +464,17 @@ class G2View(QQuickPaintedItem):
     def drag(self,dx,dy):self.yaw+=dx*.008;self.pitch=max(-.5,min(.8,self.pitch+dy*.006));self.update()
     @Slot(float)
     def changeZoom(self,factor):self.zoom=max(.65,min(1.65,self.zoom*factor));self.update()
+    @Slot(float,float,float,float)
+    def pan(self,dx,dy,width,height):self.pan_x+=dx;self.pan_y+=dy;self.update()
+    @Slot()
+    def resetView(self):self.yaw=-.65;self.pitch=.28;self.zoom=1.;self.pan_x=0.;self.pan_y=0.;self.update()
     def paint(self,p):
         if not self.isVisible():return
         colors=dict(zip(('base','body','head','left','right'),['#b8c5d3','#8fc7f2','#c1b6ea','#79d8c6','#f2b28c'] if self._dark else ['#8d9cad','#72a7d1','#9b91c8','#59bbaa','#df9874']))
         cy,sy,cp,sp=math.cos(self.yaw),math.sin(self.yaw),math.cos(self.pitch),math.sin(self.pitch)
         def project(point):
             x,y,z=point;x1=cy*x-sy*y;y1=sy*x+cy*y
-            return QPointF(self.width()/2+x1*155*self.zoom,self.height()*.86-(sp*y1+cp*z)*155*self.zoom),cp*y1-sp*z
+            return QPointF(self.width()/2+self.pan_x+x1*155*self.zoom,self.height()*.86+self.pan_y-(sp*y1+cp*z)*155*self.zoom),cp*y1-sp*z
         p.setPen(QPen(QColor('#1fCDD8E6' if self._dark else '#245c6c80'),1))
         for i in range(-4,5):
             for a,b in [((i*.2,-.8,0),(i*.2,.8,0)),((-.8,i*.2,0),(.8,i*.2,0))]:p.drawLine(project(a)[0],project(b)[0])

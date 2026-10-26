@@ -150,6 +150,7 @@ def platform_client(seen, fail_upload=False):
         ("dual", "mjpeg", None, False, False), ("left", "mjpeg", None, False, False), ("right", "yuyv", None, False, False),
         ("dual", "mjpeg", "left", False, False), ("dual", "mjpeg", "right", False, False),
         ("dual", "mjpeg", None, True, False), ("dual", "yuyv", None, True, False),
+        ("left", "mjpeg", None, True, False), ("right", "mjpeg", None, True, False),
         ("dual", "mjpeg", None, True, True),
         ("dual", "mjpeg", None, True, "fault"),
         ("dual", "mjpeg", None, True, "queue"),
@@ -394,9 +395,10 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     assert registered["extra"]["timing"]["bundle_timestamp_field"] == "timestamp_ns"
     assert registered["author"] == "collector-test"
     assert registered["extra"]["missing_extra_cameras"] == []
-    assert {c["key"] for c in registered["extra"]["cameras"]} == {
-        "observation.images." + n for n in mapping.values()
-    }
+    expected_cameras=set(mapping.values()) if mode=='dual' else set(mapping.values()) & {'head_color',mode+'_color'}
+    assert {c["key"] for c in registered["extra"]["cameras"]} == {'observation.images.'+n for n in expected_cameras}
+    assert set(registered['extra']['camera_mapping'].values())==expected_cameras
+    assert set(registered['extra']['timing']['camera_timestamp_files'])==expected_cameras
     archive_request = next(r for r in seen if r.url.host == "storage.test")
     with tarfile.open(fileobj=io.BytesIO(archive_request.content)) as archive:
         assert not any("/native/" in n for n in archive.getnames())
@@ -406,8 +408,10 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
         uploaded_bundles = archived_rows('record/bundles.jsonl')
         assert len(uploaded_bundles) == len(bundles)
         for original, uploaded in zip(bundles, uploaded_bundles):
-            for key in ('timestamp_ns', 'pc_recv_ns', 'camera_frame_index', 'cam_ts'):
+            for key in ('timestamp_ns', 'pc_recv_ns'):
                 assert uploaded[key] == original[key]
+            for key in ('camera_frame_index','cam_ts','cam_delta_ms'):
+                assert uploaded[key]=={k:v for k,v in original[key].items() if k in expected_cameras}
             tensors = uploaded['tensors']
             assert tensors['state__joint__name'] == expected_names
             assert tensors['action__joint__name'] == expected_names
@@ -426,8 +430,10 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                    for row in archived_rows('record/teleop_feedback.jsonl'))
         for relative, original in original_files.items():
             assert (directory / relative).read_bytes() == original
-            if relative.startswith('camera/') or len(exported) == 2 and relative != READY_MARKER:
-                assert archive.extractfile(directory.name + '/' + relative).read() == original
+            excluded=any(relative.startswith('camera/'+name+'/') or relative=='record/'+name+'_frames.jsonl' for name in set(mapping.values())-expected_cameras)
+            if excluded:assert directory.name+'/'+relative not in archive.getnames()
+            elif relative.startswith('camera/') or len(exported)==2 and relative!=READY_MARKER:
+                assert archive.extractfile(directory.name+'/'+relative).read()==original
     assert (directory / UPLOADED_MARKER).is_file()
     collection.close()
 

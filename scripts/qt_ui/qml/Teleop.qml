@@ -32,13 +32,12 @@ Column {
                 Column {id: modeColumn;x: 12;y: 12;width: parent.width-24;spacing: 12
                     RowLayout {width: parent.width;height: 20;spacing: 5
                         Txt {text: "01";font.pixelSize: 11;color: Theme.accentStrong;Layout.preferredWidth: 22}
-                        Txt {text: root.tianji ? "上传曲线" : "遥操作模式";font.weight: Font.DemiBold}
-                        Txt {visible: root.tianji && !s.paramSaved;text: s.paramSaving ? "自动保存中…" : "参数待保存";font.pixelSize: 11;color: Theme.inkMuted}
+                        Txt {text: root.tianji ? "遥操作设置" : "遥操作模式";font.weight: Font.DemiBold}
                         Item {Layout.fillWidth: true}
                     }
                     GridLayout {
                         width: parent.width;columns: app.width<780 ? 2 : 3;columnSpacing: 8;rowSpacing: 8
-                        Select {id: mode;Layout.preferredWidth: root.tianji ? 68 : 112;model: root.tianji ? ["双臂","左臂","右臂"] : ["双臂遥操作"];enabled: !root.locked;currentIndex: root.tianji ? ["dual","left","right"].indexOf(s.uploadMode) : 0;font.pixelSize: 12;onActivated: if(root.tianji) backend.setValue("uploadMode",["dual","left","right"][currentIndex])}
+                        Select {id: mode;objectName:"tianjiArmMode";Layout.alignment:Qt.AlignVCenter;Layout.topMargin:root.tianji&&app.width>=780?8:0;Layout.preferredWidth: root.tianji ? 68 : 112;model: root.tianji ? ["双臂","左臂","右臂"] : ["双臂遥操作"];enabled: !root.locked;currentIndex: root.tianji ? ["dual","left","right"].indexOf(s.uploadMode) : 0;font.pixelSize: 12;onActivated: if(root.tianji) backend.setValue("uploadMode",["dual","left","right"][currentIndex])}
                         GridLayout {
                             Layout.fillWidth: true;Layout.row: app.width<780 ? 1 : 0;Layout.column: app.width<780 ? 0 : 1;Layout.columnSpan: app.width<780 ? 2 : 1
                             columns: app.width<480 ? 1 : root.tianji ? 3 : 2;columnSpacing: 6
@@ -46,8 +45,9 @@ Column {
                                 NumberField {required property int index;Layout.fillWidth: true;spec: root.tianji ? backend.fields[index] : {key:index===0?"g2Scale":"g2Speed",label:index===0?"幅度":"速度",unit:"×",min:.1,max:1,step:.1};value: root.tianji ? s.parameters[spec.key] : s[spec.key];showRange: root.tianji;enabled: !root.locked;onEdited: number=>{if(root.tianji)backend.setParameter(spec.key,number);else backend.setValue(spec.key,number)}}
                             }
                         }
-                        Btn {visible: root.tianji;Layout.row: 0;Layout.column: app.width<780 ? 1 : 2;objectName: "otherParameters";text: "其它参数";glyph: "Settings2";textSize: 12;enabled: !root.locked;onClicked: parameterDialog.open()}
+                        Btn {visible: root.tianji;Layout.row: 0;Layout.column: app.width<780 ? 1 : 2;objectName: "otherParameters";Layout.alignment:Qt.AlignVCenter;Layout.topMargin:app.width>=780?8:0;text: "其它参数";glyph: "Settings2";textSize: 12;enabled: !root.locked;onClicked: parameterDialog.open()}
                     }
+                    Txt {visible: root.tianji;width: parent.width;wrapMode: Text.Wrap;font.pixelSize: 11;color: Theme.inkMuted;text: "仅遥操：J4 ≤ −5°；当前高于 −5° 时仅可减小。实际加速度上限 J1/J2 " + Math.min(Number(s.parameters.max_joint_accel_deg_s2||900),450) + "、J3～J7 " + Math.min(Number(s.parameters.max_joint_accel_deg_s2||900),900) + " °/s²"}
                 }
             }
             Item {Layout.fillWidth: true;Layout.preferredWidth: 375;Layout.preferredHeight: 102
@@ -90,16 +90,17 @@ Column {
             objectName: "teleopRobotCard"
             Layout.fillWidth: true;Layout.preferredWidth: 444;Layout.minimumWidth: visualGrid.columns===2 ? 340 : 0;Layout.maximumWidth: visualGrid.columns===2 ? 504 : Infinity;Layout.preferredHeight: visualGrid.columns===2 ? cameraCard.implicitHeight : 340
             Heading {width: parent.width;title: "机器人姿态";height: 51}
-            Txt {anchors.right: parent.right;anchors.rightMargin: 14;y: 17;text: "● "+(root.live ? "遥测在线" : "无遥测");font.pixelSize: 11;color: root.live ? Theme.green : Theme.inkSoft}
+            Txt {visible:root.live;anchors.right: parent.right;anchors.rightMargin: 14;y: 17;text: "● 遥测在线";font.pixelSize: 11;color: root.live ? Theme.green : Theme.inkSoft}
             Rectangle {
                 objectName: "teleopRobotStage"
                 x: 10;y: 61;width: parent.width-20;height: parent.height-y-10;radius: 10;border.color: Theme.line;color: Theme.stage;clip: true
                 Loader {anchors.fill: parent;anchors.margins: 1;active: root.tianji;source: "RobotView.qml"}
                 G2View {id: g2;visible: !root.tianji;anchors.fill: parent;anchors.margins: 1;dark: Theme.dark;live: root.live;values: {let v={};backend.g2Joints.forEach(j=>v[j.name]=s.preview.joint_positions[j.name]===undefined?j.default:s.preview.joint_positions[j.name]);return v}}
-                MouseArea {objectName: "g2OrbitArea";anchors.fill: parent;enabled: !root.tianji;preventStealing: true;property real px: 0;property real py: 0;cursorShape: pressed?Qt.ClosedHandCursor:Qt.OpenHandCursor;onPressed: m=>{px=m.x;py=m.y};onPositionChanged: m=>{if(pressed){g2.drag(m.x-px,m.y-py);px=m.x;py=m.y}};onWheel: w=>g2.changeZoom(w.angleDelta.y>0?1.12:.88)}
+                RobotOrbitArea {objectName: "g2OrbitArea";anchors.fill: parent;enabled: !root.tianji;scene: g2}
                 Row {visible: !root.tianji;anchors.right: parent.right;anchors.top: parent.top;anchors.margins: 8;spacing: 1
                     Btn {text: "−";width: 28;height: 28;onClicked: g2.changeZoom(.88)}
                     Btn {text: "+";width: 28;height: 28;onClicked: g2.changeZoom(1.12)}
+                    Btn {text: "↺";width: 28;height: 28;onClicked: g2.resetView()}
                 }
             }
         }
@@ -113,6 +114,18 @@ Column {
     Manual {width: parent.width;tianji: root.tianji;canMove: root.canMove;canRecover: root.canRecover;live: root.live;locked: root.locked}
     Dialog {
         id: parameterDialog;objectName: "parameterDialog";parent: Overlay.overlay;anchors.centerIn: parent
+        property var draft: s.parameters
+        onOpened: draft=Object.assign({},s.parameters)
+        function confirmParameters() {
+            let next=Object.assign({},draft)
+            for(let i=0;i<extraFields.count;i++) {
+                let field=extraFields.itemAt(i);next[field.spec.key]=field.pendingValue()
+            }
+            draft=next
+            let retry=!s.paramSaved&&!s.paramSaving
+            for(let key of Object.keys(draft)) if(retry||draft[key]!==s.parameters[key]) backend.setParameter(key,draft[key])
+            close()
+        }
         width: Math.min(560,app.width-32);height: Math.min(app.height-48,parameterContent.implicitHeight+40);modal: true;padding: 20;closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle {color: Theme.surface;radius: 12;border.color: Theme.line}
         Overlay.modal: Rectangle {color: "#52000000"}
@@ -121,14 +134,18 @@ Column {
           ColumnLayout {id: parameterContent;width: parent.width;spacing: 18
             RowLayout {Layout.fillWidth: true
                 Txt {text: "其它参数";font.pixelSize: 16;font.weight: Font.DemiBold;Layout.fillWidth: true}
-                Btn {text: "";glyph: "X";width: 30;height: 30;ghost: true;enabled: !s.busy;onClicked: parameterDialog.close()}
+
             }
             GridLayout {Layout.fillWidth: true;columns: app.width<420 ? 1 : 2;columnSpacing: 14;rowSpacing: 14
-                Repeater {model: backend.fields.length-3
-                    NumberField {required property int index;Layout.fillWidth: true;spec: backend.fields[index+3];value: s.parameters[spec.key];showRange: false;arrows: false;enabled: !root.locked;onEdited: number=>backend.setParameter(spec.key,number)}
+                Repeater {id:extraFields;model: backend.fields.length-3
+                    NumberField {required property int index;objectName:"tianji-extra-"+spec.key;Layout.fillWidth: true;spec: backend.fields[index+3];value: parameterDialog.draft[spec.key];showRange: false;arrows: false;enabled: !root.locked;onEdited: number=>{let next=Object.assign({},parameterDialog.draft);next[spec.key]=number;parameterDialog.draft=next}}
                 }
             }
-            Txt {text: s.paramSaved ? "参数已自动保存" : s.paramSaving ? "正在自动保存…" : "自动保存未完成，可通过检查设备重试";font.pixelSize: 12;color: Theme.inkMuted}
+            RowLayout {Layout.fillWidth:true
+                Item {Layout.fillWidth:true}
+                Btn {objectName:"tianjiParametersConfirm";text:"确认";primary:true;enabled:!root.locked;onClicked:parameterDialog.confirmParameters()}
+                Btn {objectName:"tianjiParametersCancel";text:"取消";onClicked:parameterDialog.close()}
+            }
           }
         }
     }

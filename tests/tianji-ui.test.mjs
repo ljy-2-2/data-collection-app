@@ -36,7 +36,7 @@ const props = {
     throw Error('No hardware during render');
   },
 };
-test('Tianji camera controls expose native resolution and brightness with recording lock', () => {
+void test('Tianji camera controls expose native resolution and brightness with recording lock', () => {
   const html = renderToStaticMarkup(createElement(TianjiCameraSettings, {
     baseUrl:'http://127.0.0.1:9', open:false, cameras:[{id:'usb_4',connected:true}],
     editable:false, onClose:()=>{}, onApplyStatus:()=>{},
@@ -49,12 +49,12 @@ test('Tianji camera controls expose native resolution and brightness with record
   assert.doesNotMatch(html, /<dialog[^>]* open/);
   assert.match(html, /disabled=""/);
 });
-test('robot selection includes Tianji and preserves G2', () => {
+void test('robot selection includes Tianji and preserves G2', () => {
   const html = renderToStaticMarkup(createElement(TeleopPanel, props));
   assert.match(html, /value="tianji" selected=""/);
   assert.match(html, /智元 G2/);
 });
-test('Tianji workspace has three modes, three named cameras, modal parameters and zero reset', () => {
+void test('Tianji workspace has three modes, three named cameras, modal parameters and zero reset', () => {
   const html = renderToStaticMarkup(
     createElement(TianjiTeleopWorkspace, props),
   );
@@ -80,7 +80,8 @@ test('Tianji workspace has three modes, three named cameras, modal parameters an
   const fields = html.indexOf('class="tianji-primary-parameters"');
   const otherButton = html.indexOf('其它参数');
   assert.ok(modeSelectEnd < fields && fields < otherButton);
-  assert.match(html, /自动保存/);
+  assert.match(html, /<strong>遥操作设置<\/strong>/);
+  assert.doesNotMatch(html, /tianji-autosave-label|等待自动保存/);
   assert.doesNotMatch(html, /已自动保存|本阶段不触发采集/);
   assert.match(html, /本次完成 <strong>0<\/strong> Episode/);
   assert.match(html, /未开始遥操作/);
@@ -97,7 +98,7 @@ test('Tianji workspace has three modes, three named cameras, modal parameters an
   assert.doesNotMatch(html, /头部深度|身体|开始遥操作采集/);
   assert.match(html, /disabled=""[^>]*>[^<]*复位/);
 });
-test('draft parameters reject empty, NaN and excessive values', () => {
+void test('draft parameters reject empty, NaN and excessive values', () => {
   assert.ok(validTianjiParameters(TIANJI_DEFAULTS));
   assert.equal(TIANJI_DEFAULTS.right_gripper_speed, 10);
   for (const scale of [0.1, 1, 1.5, 2]) {
@@ -124,7 +125,7 @@ test('draft parameters reject empty, NaN and excessive values', () => {
     false,
   );
 });
-test('CAD assembly resolves all links and a left joint leaves the right arm fixed', () => {
+void test('CAD assembly resolves all links and a left joint leaves the right arm fixed', () => {
   const model = JSON.parse(
     readFileSync(new URL('../public/tianji-model.json', import.meta.url)),
   );
@@ -137,7 +138,7 @@ test('CAD assembly resolves all links and a left joint leaves the right arm fixe
   const q = linkTransforms(model, { gripper_drive_L: 0.8 });
   assert.notDeepEqual(zero.gripper_L_1, q.gripper_L_1);
 });
-test('opaque orthographic view puts front surfaces ahead of rear surfaces without perspective scaling', () => {
+void test('opaque orthographic view puts front surfaces ahead of rear surfaces without perspective scaling', () => {
   const camera = tianjiCameraMatrix(560, 300, { yaw: 0, pitch: 0, zoom: 1 });
   const project = ([x, y, z]) =>
     [0, 1, 2, 3].map(

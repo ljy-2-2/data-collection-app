@@ -346,6 +346,42 @@ class ArmModel:
             raise ValueError(f"{self.side}: IK residual too large")
         return q
 
+    def local_negative_ik(self, target, reference, max_change_deg=15.):
+        """Verify a nearby negative-elbow alternative; never send its joints.
+
+        Native IK exposes both elbow branches. Only finite, physically valid
+        candidates near the accepted configuration with verified TCP residuals
+        may guide local tracking. Remote shoulder/wrist branches are ignored.
+        """
+        from SDK_PYTHON.fx_kine import FX_InvKineSolvePara
+        reference = np.asarray(reference, dtype=float)
+        local = inverse(self.base) @ target @ inverse(self.tool)
+        local[:3, 3] *= 1000
+        params = FX_InvKineSolvePara()
+        params.set_input_ik_target_tcp(local.reshape(-1).tolist())
+        params.set_input_ik_ref_joint(reference.tolist())
+        result = self.kine.ik(params)
+        if result is False:
+            return None
+        count = int(params.m_OutPut_Result_Num)
+        if not 0 < count <= 8:
+            return None
+        candidates = np.asarray(params.m_OutPut_AllJoint.to_list()).reshape(8, 8)[:count, :7]
+        valid = []
+        for candidate in candidates:
+            if (candidate[3] >= -.5 or not self.valid_joints(candidate)
+                    or np.max(abs(candidate-reference)) > max_change_deg):
+                continue
+            actual = self.fk(candidate)
+            if (np.linalg.norm(actual[:3, 3]-target[:3, 3]) > 9e-5
+                    or angle(actual[:3, :3] @ target[:3, :3].T) > 9e-4):
+                continue
+            valid.append(candidate.copy())
+        if not valid:
+            return None
+        return min(valid, key=lambda q: (q[3] > self.elbow_singularity_deg-.5,
+                                         float((q-reference) @ (q-reference))))
+
 
 class Models:
     def __init__(self, config):
@@ -408,7 +444,10 @@ class Models:
         self.arms["left"].tracking_mirror = LeftFromRight(self.arms["left"], self.arms["right"])
         self.mapping_report = {
             "coordinate_revision": "vendor_cad_same_facing_v2",
-            "ik_policy": "mirrored_reference_local_ik_v8",
+            "ik_policy": "mirrored_reference_local_ik_v11",
+            "teleop_j4_max_deg": -5.,
+            "teleop_j4_transition": "above -5: inward-only from accepted command; at/below -5: fixed upper face; remain clutched",
+            "teleop_j4_limit_scope": "teleoperation_only; manual, preparation and recovery retain hardware limits",
             "retarget_calculation": "test-teleop yaw frame and relative SE(3); shared session heading",
             "left_solver_mapping": self.arms["left"].tracking_mirror.report,
             "arm_geometry": "nominal",

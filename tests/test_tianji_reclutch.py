@@ -201,6 +201,20 @@ def test_invalid_first_heading_does_not_poison_later_capture(session):
                                same_facing_map(frame.head, session.models.robot_from_operator))
 
 
+def test_controller_passes_original_capture_time_when_reusing_an_xr_frame(session, monkeypatch):
+    seen = []
+    def solve(target, reference, *args, **kwargs):
+        seen.append(kwargs)
+        return reference.copy()
+    monkeypatch.setattr(session.models.arms['right'], 'pose_tracking_ik', solve)
+    session.tick({'left': 0., 'right': 1.})
+    frame = session.tick({'left': 0., 'right': 1.})
+    assert seen[-1]['input_time_s'] == frame.source_time
+    session.controller.tick(frame, True, False, now=frame.received+.005)
+    assert seen[-1]['input_time_s'] == frame.source_time
+    assert seen[-1]['input_age_s'] == pytest.approx(.005)
+
+
 @pytest.mark.parametrize('side', ['left', 'right'])
 @pytest.mark.parametrize('direction', ['forward', 'backward', 'inward'])
 def test_zero_start_uses_the_same_solver_options_in_every_direction(session, monkeypatch, side, direction):
@@ -219,10 +233,13 @@ def test_zero_start_uses_the_same_solver_options_in_every_direction(session, mon
     else:hands[side][0,3] = .005 if side=='left' else -.005
     session.tick(grips,hands=hands)
     expected=options[-1]
-    assert not any('elbow' in key or 'forward' in key for key in expected)
+    assert expected['elbow_max_deg'] == -5.
+    assert not any('elbow' in key or 'forward' in key for key in expected if key != 'elbow_max_deg')
     session.tick({**grips,side:0.},hands=hands)
     session.tick(grips,hands=hands)
     session.tick(grips,hands=hands)
     assert options[-1].keys() == expected.keys()
     for key in expected:
+        if key in ('input_time_s', 'input_age_s'):
+            continue  # Per-frame measurements, not direction-dependent settings.
         np.testing.assert_equal(options[-1][key], expected[key])

@@ -26,6 +26,7 @@ from PySide6.QtTest import QTest
 from qt_ui.bridge import Bridge,initial_state,G2_JOINTS
 from qt_ui.visuals import CameraItem,CurveItem,Backdrop,G2View,RobotScene
 from qt_ui.record_keys import UmiRecordKeys
+from desktop_app import configure_surface_format
 from teleop_control.tianji_models import TianjiParameters,TianjiStart,TianjiMove
 from teleop_control.models import UmiStartRequest,UmiDeviceConfigureRequest,StartSessionRequest,MoveRequest
 from teleop_control.umi_telemetry import telemetry_events
@@ -33,6 +34,7 @@ from teleop_control.umi_telemetry import telemetry_events
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--screenshots',type=Path);args=parser.parse_args()
+    configure_surface_format()
     app=QGuiApplication(sys.argv[:1]);warnings=[]
     qInstallMessageHandler(lambda kind,context,message:warnings.append(message))
     for name,cls in [('CameraItem',CameraItem),('CurveItem',CurveItem),('Backdrop',Backdrop),('G2View',G2View)]:qmlRegisterType(cls,'Collection.Native',1,0,name)
@@ -224,14 +226,14 @@ def main():
         print('PASS real navigation buttons preserve login and destination',flush=True)
         # Exercise user selection, then a state notification/poll before advancing.
         robot_type=item('robotType');robot_type.forceActiveFocus()
-        QTest.keyClick(window,Qt.Key_Home)
+        QTest.keyClick(window,Qt.Key_End)
         wait(lambda:bridge.state['robot']=='agibot-g2')
         bridge.update(notice='型号选择刷新检查');QTest.qWait(500)
-        assert item('robotType').property('currentIndex')==0
-        QTest.keyClick(window,Qt.Key_Down)
+        assert item('robotType').property('currentIndex')==2
+        QTest.keyClick(window,Qt.Key_Home)
         wait(lambda:bridge.state['robot']=='tianji')
         bridge.update(notice='');wait()
-        assert item('robotType').property('currentIndex')==1
+        assert item('robotType').property('currentIndex')==0
         click('teleopNext');wait(lambda:bridge.state['paramSaved']);snap('tianji')
         bridge.setValue('robot','agibot-g2')
         assert bridge.state['robot']=='tianji', 'Do not switch the active workspace from the setup selector'
@@ -249,7 +251,7 @@ def main():
         click('teleopCheck');wait(lambda:bridge.can_move())
         verify_three_cameras('tianji')
         bridge.setValue('uploadMode','left');click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='running')
-        start=next(p for path,p in reversed(requests) if path=='/tianji/start');assert start['mode']=='dual' and start['upload_mode']=='left' and start['parameters']['left_gripper_speed']==8.5
+        start=next(p for path,p in reversed(requests) if path=='/tianji/start');assert start['mode']=='left' and start['upload_mode']=='left' and start['parameters']['left_gripper_speed']==8.5
         assert start['parameters']['left_gripper_accel']==12 and start['parameters']['right_gripper_accel']==35
         before=len(requests);bridge.jog('left',1,1);wait();assert len(requests)==before,'Motion must be blocked while teleoperating'
         click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='idle')
@@ -266,10 +268,10 @@ def main():
         assert any(not (a==b.matrix).all() for a,b in zip(old,scene.parts_value))
         bridge.returnTeleop();wait(lambda:bridge.state['teleopStep']==1)
         robot_type=item('robotType');robot_type.forceActiveFocus()
-        QTest.keyClick(window,Qt.Key_Home)
+        QTest.keyClick(window,Qt.Key_End)
         wait(lambda:bridge.state['robot']=='agibot-g2')
         bridge.update(notice='刷新后保持 G2');QTest.qWait(500)
-        assert item('robotType').property('currentIndex')==0
+        assert item('robotType').property('currentIndex')==2
         bridge.update(notice='');wait()
         click('teleopNext');wait(lambda:bridge.state['teleopStep']==2)
         assert bridge.state['robot']=='agibot-g2'

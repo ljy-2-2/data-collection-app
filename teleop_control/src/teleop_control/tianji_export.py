@@ -1,10 +1,51 @@
-"""Select uploaded Tianji curves without changing the local dual-arm recording."""
+"""Project Tianji uploads without changing local recordings."""
 
 SIDES = ("left", "right")
 CURVE_FILES = {
     "record/bundles.jsonl", "record/actions.jsonl", "record/joints.jsonl",
     "record/aligned_joints.jsonl", "record/teleop_feedback.jsonl",
 }
+CAMERA_NAMES = {"usb-1":"head_color", "usb-2":"right_color", "usb-4":"left_color"}
+
+
+def select_upload_cameras(metadata, directory, selected):
+    # Explicit versioning leaves existing/queued recordings on their old contract.
+    if metadata.get("upload_camera_policy") != "selected_wrist_optional_head_v1":
+        return None
+    if not selected or len(selected)!=1:
+        raise ValueError("单臂上传相机策略需要且仅需要一侧机械臂")
+    def has_data(name):
+        camera=directory/'camera'/name
+        index=camera/(name+'.txt')
+        return ((metadata.get('cameras',{}).get(name) or {}).get('frames',0)>0
+                and index.is_file() and index.stat().st_size>0
+                and any(p.suffix.lower() in ('.jpg','.jpeg','.png') for p in (camera/'frames').glob('*')))
+    wrist=selected[0]+'_color'
+    if not has_data(wrist):
+        raise ValueError("所选机械臂腕部相机缺少有效记录，拒绝上传："+wrist)
+    return tuple(name for name in ('head_color',wrist) if has_data(name))
+
+
+def camera_file_selected(relative, selected):
+    if selected is None:return True
+    for name in set(CAMERA_NAMES.values())-set(selected):
+        if relative.startswith('camera/'+name+'/') or relative=='record/'+name+'_frames.jsonl':
+            return False
+    return True
+
+
+def project_cameras(value, selected):
+    """Remove excluded camera maps/indices, preserving kept timestamps verbatim."""
+    if selected is None:return value
+    excluded=set(CAMERA_NAMES.values())-set(selected)
+    excluded.update(key for key,name in CAMERA_NAMES.items() if name not in selected)
+    def walk(item):
+        if isinstance(item,dict):
+            return {key:walk(val) for key,val in item.items() if key not in excluded}
+        if isinstance(item,list):
+            return [walk(val) for val in item if not isinstance(val,str) or val not in excluded]
+        return item
+    return walk(value)
 
 
 def upload_sides(metadata):
@@ -54,7 +95,7 @@ def _select_arm_diagnostics(row, keys, selected):
             row[key] = [values[i] for i, side in enumerate(SIDES) if side in selected]
 
 
-def project_row(relative, original, selected):
+def project_row(relative, original, selected, selected_cameras=None):
     """Return a projected copy; camera mappings, timestamps and indices survive."""
     row = _side_maps(original, selected)
     if relative == "meta_info.json":
@@ -90,4 +131,9 @@ def project_row(relative, original, selected):
     elif relative == "record/aligned_joints.jsonl":
         _select_vectors(row, "names", ("position_rad",), selected)
         _select_arm_diagnostics(row, ("joint_frame_serial",), selected)
+    row=project_cameras(row,selected_cameras)
+    if relative=='meta_info.json' and selected_cameras is not None:
+        row['upload_cameras']=list(selected_cameras)
+        row['upload_projection']='selected_arm_and_cameras_v2'
+        row['upload_projection_note']='Selected arm curves and recorded wrist/head images; timestamps unchanged. Quality diagnostics describe the original local capture.'
     return row

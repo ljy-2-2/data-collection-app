@@ -1,0 +1,9 @@
+{
+  "source": "data-platform-cloud/worker/vendor/umi_screening",
+  "original_sha256": {
+    "umi_data.py": "a44e6df943afd6f674497723553b341b189a5cbf6e0d71e1a85c520219bae2f2",
+    "numerical_ik.py": "c4fc40d3782b4b9b2989e9344475e22438a2876256f521b968a35a3725da570e",
+    "replay_plan.py": "ddf18cf61f6f386e0e9a15273c2d8ea2fd9e287dce51f5f32b1bf6b467752f75"
+  },
+  "note": "Offline reader and planning helpers copied into App; adapted for full-pose simulation only."
+}

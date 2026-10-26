@@ -24,7 +24,7 @@ function elements(element, type) {
 }
 const inputs = (element) => elements(element, 'input');
 
-test('brightness renders independent slider and native numeric field using hardware range and step', () => {
+void test('brightness renders independent slider and native numeric field using hardware range and step', () => {
   const html = renderToStaticMarkup(createElement(CameraBrightnessControls, properties));
   assert.match(html, /<section class="umi-camera-brightness"/);
   assert.match(html, /aria-label="左相机亮度滑块" type="range" min="10" max="50" step="4" value="22"/);
@@ -33,7 +33,7 @@ test('brightness renders independent slider and native numeric field using hardw
   assert.doesNotMatch(html, /<img/); // Adjustments cannot own or replace the video stream.
 });
 
-test('native slider change, release and keyboard handlers submit the current control value', () => {
+void test('native slider change, release and keyboard handlers submit the current control value', () => {
   const changes = [];
   const commits = [];
   const [slider] = inputs(CameraBrightnessControls({
@@ -48,7 +48,7 @@ test('native slider change, release and keyboard handlers submit the current con
   assert.deepEqual(commits, ['26', '30', '10']);
 });
 
-test('native number field commits on Enter and blur without submitting a surrounding form', () => {
+void test('native number field commits on Enter and blur without submitting a surrounding form', () => {
   const changes = [];
   const commits = [];
   let prevented = false;
@@ -63,7 +63,7 @@ test('native number field commits on Enter and blur without submitting a surroun
   assert.equal(prevented, true);
 });
 
-test('unsupported and failed controls are local disabled states with an actionable error', () => {
+void test('unsupported and failed controls are local disabled states with an actionable error', () => {
   const unsupported = renderToStaticMarkup(createElement(CameraBrightnessControls, {
     ...properties, control: { supported: false }, draft: '', disabled: true,
     message: '此相机不支持亮度调节',
@@ -79,7 +79,7 @@ test('unsupported and failed controls are local disabled states with an actionab
   assert.match(failed, /aria-label="重新读取左相机亮度"/);
 });
 
-test('pending brightness reads and writes disable only their own controls', () => {
+void test('pending brightness reads and writes disable only their own controls', () => {
   const html = renderToStaticMarkup(createElement('div', null,
     createElement(CameraBrightnessControls, { ...properties, busy: 'saving', disabled: true }),
     createElement(CameraBrightnessControls, { ...properties, label: '右相机' }),
@@ -93,7 +93,7 @@ test('pending brightness reads and writes disable only their own controls', () =
   assert.equal((idle.match(/disabled=""/g) ?? []).length, 3);
 });
 
-test('reset submits the advertised default for just the selected camera', () => {
+void test('reset submits the advertised default for just the selected camera', () => {
   const commits = [];
   const [button] = elements(CameraBrightnessControls({
     ...properties, onCommit: (value) => commits.push(value),
@@ -103,7 +103,7 @@ test('reset submits the advertised default for just the selected camera', () => 
   assert.deepEqual(commits, ['30']);
 });
 
-test('numeric commits honor hardware bounds and step without converting unfinished input to zero', () => {
+void test('numeric commits honor hardware bounds and step without converting unfinished input to zero', () => {
   assert.equal(brightnessValue('', control), null);
   assert.equal(brightnessValue('-', control), null);
   assert.equal(brightnessValue('NaN', control), null);

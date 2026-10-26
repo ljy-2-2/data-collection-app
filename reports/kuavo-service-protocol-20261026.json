@@ -1,0 +1,138 @@
+{
+  "observed_at": "2026-10-26T01:55:41.598249+00:00",
+  "endpoint": "192.168.26.1:7443",
+  "read_only": true,
+  "response": {
+    "event": "KUAVO_SERVICE_STATUS",
+    "service": {
+      "backend": "robot",
+      "blocked_reason": null,
+      "bundle_sha256": "8141c13d8dba36f526eca0cfee9885aa344163ae08c9dbf5ec7e8e9851325217",
+      "controller_admin_enabled": false,
+      "event": "service_status",
+      "installation_sha256": "d91e3ed840bfd9064458b004ace7d9e3373814591bbd5c1cadb7b749a1888088",
+      "last_session": null,
+      "maintenance": false,
+      "maintenance_protocol": "kuavo_idle_maintenance_v1",
+      "management_protocol": "kuavo_service_requests_v1",
+      "owner_present": false,
+      "phase": "idle",
+      "profile": {
+        "arm_posture": "elbow_preference",
+        "gripper_config_sha256": "2f23f89c97a15b659e071fedb26447cca5996705dd84c060942ab35b7dfd8dc2",
+        "gripper_mode": "damiao",
+        "return_home_config_sha256": "1a70f1df065492716e6051f1bbb0f0d3caa2de8480cafc43ebe613a8583d2e31",
+        "speed_profile": "responsive",
+        "target_recovery": "bounded_candidate"
+      },
+      "readiness_scope": "session_admission_only_not_hardware",
+      "ready_to_start": true,
+      "robot_preparation_actions": [
+        "status",
+        "start",
+        "initialize",
+        "grippers_inspect",
+        "grippers_prepare"
+      ],
+      "robot_preparation_busy": false,
+      "robot_preparation_protocol": "kuavo_robot_preparation_v1",
+      "scope": "kuavo_live_session_v1",
+      "service_instance_id": "7e5e97c0fa664f6dbac36b29f0cc94ed",
+      "session_contract": {
+        "bundle_sha256": "8141c13d8dba36f526eca0cfee9885aa344163ae08c9dbf5ec7e8e9851325217",
+        "capabilities": [
+          "arms_v63_per_arm_motion_v1",
+          "damiao_trigger_v1",
+          "return_y_toggle_v1"
+        ],
+        "contract_sha256": "15ea10d6a04d08ebc936b7c0f917520a33b0e06b37c80ab0348682e5f8b8d90d",
+        "installation_sha256": "d91e3ed840bfd9064458b004ace7d9e3373814591bbd5c1cadb7b749a1888088",
+        "profile": {
+          "arm_posture": "elbow_preference",
+          "gripper_config_sha256": "2f23f89c97a15b659e071fedb26447cca5996705dd84c060942ab35b7dfd8dc2",
+          "gripper_mode": "damiao",
+          "return_home_config_sha256": "1a70f1df065492716e6051f1bbb0f0d3caa2de8480cafc43ebe613a8583d2e31",
+          "speed_profile": "responsive",
+          "target_recovery": "bounded_candidate"
+        },
+        "protocol": "kuavo_robot_session_v3",
+        "ready_expectations": {
+          "arm_motion_parameters": {
+            "left": {
+              "acceleration_rad_s2": 5.0,
+              "scale": 1.0,
+              "speed_rad_s": 0.7
+            },
+            "right": {
+              "acceleration_rad_s2": 5.0,
+              "scale": 1.0,
+              "speed_rad_s": 0.7
+            }
+          },
+          "arm_posture": "elbow_preference",
+          "compute_kind": "official_library_control_intersection",
+          "elbow_preference_weight": 0.1,
+          "gripper_can_send_enabled": true,
+          "gripper_config_sha256": "2f23f89c97a15b659e071fedb26447cca5996705dd84c060942ab35b7dfd8dc2",
+          "gripper_mode": "damiao",
+          "ik_model_sha256": "9cc9692a04232f0f3fd4aadb6dc2515b19964f1c1c64b7db834cdcad7b459eb7",
+          "max_velocity_rad_s": 0.7,
+          "planning_acceleration_rad_s2": 5.0,
+          "profile_configured": true,
+          "reference_sync": "per_arm",
+          "return_home_buttons": {
+            "cancel": "left_y",
+            "request": "left_y"
+          },
+          "return_home_config_sha256": "1a70f1df065492716e6051f1bbb0f0d3caa2de8480cafc43ebe613a8583d2e31",
+          "return_home_enabled": true,
+          "robot_version": "63",
+          "session_settings_revision": 0,
+          "session_settings_sha256": "12c9e4887a9f460738cfde7dbc5534c3d4ebbe7bc9a0e74bb7a3f259d33c95e2",
+          "speed_profile": "responsive",
+          "target_recovery": "bounded_candidate",
+          "tracking_soft_lead_rad": 0.12,
+          "urdf_sha256": "fecef6f980806af7d2c4b1abe56d3fe1d0dbfbd69b3475303eb158bcc06c85dc"
+        },
+        "service_instance_id": "7e5e97c0fa664f6dbac36b29f0cc94ed",
+        "session_settings": {
+          "bundle_sha256": "8141c13d8dba36f526eca0cfee9885aa344163ae08c9dbf5ec7e8e9851325217",
+          "installation_sha256": "d91e3ed840bfd9064458b004ace7d9e3373814591bbd5c1cadb7b749a1888088",
+          "protocol": "kuavo_session_settings_v2",
+          "revision": 0,
+          "settings_sha256": "12c9e4887a9f460738cfde7dbc5534c3d4ebbe7bc9a0e74bb7a3f259d33c95e2",
+          "values": {
+            "left_arm_acceleration_rad_s2": 5.0,
+            "left_arm_scale": 1.0,
+            "left_arm_speed_rad_s": 0.7,
+            "left_gripper_acceleration_rad_s2": 200.0,
+            "left_gripper_closed_target_rad": -1.19,
+            "left_gripper_open_target_rad": -2.62,
+            "left_gripper_speed_rad_s": 15.0,
+            "right_arm_acceleration_rad_s2": 5.0,
+            "right_arm_scale": 1.0,
+            "right_arm_speed_rad_s": 0.7,
+            "right_gripper_acceleration_rad_s2": 200.0,
+            "right_gripper_closed_target_rad": -0.79,
+            "right_gripper_open_target_rad": -2.22,
+            "right_gripper_speed_rad_s": 15.0
+          }
+        },
+        "shared_bus_compatibility_verified": false
+      },
+      "session_duration_policy": "zero_is_unbounded_v1",
+      "session_id": null,
+      "session_settings_protocol": "kuavo_session_settings_v2"
+    },
+    "connection_policy": "compatible_service_v1",
+    "expected_match": {
+      "backend": true,
+      "contract": false
+    },
+    "compatibility_error": "versioned service contract unavailable",
+    "management_ready": false,
+    "session_start_requested": false,
+    "stop_requested": false,
+    "physical_robot_command_sent": false
+  }
+}

@@ -63,15 +63,40 @@ def test_check_failure_is_visible_and_releases_operation(manager,monkeypatch):
     manager.operation.release()
 
 
+def test_incompatible_service_preserves_evidence_without_preparation():
+    from teleop_control.kuavo_worker import inspect_service
+    status = {'management_ready':False, 'compatibility_error':'versioned service contract unavailable',
+              'service':{'session_contract':{'protocol':'kuavo_robot_session_v3'}}}
+    client=SimpleNamespace(get_status=Mock(return_value=status), preparation=Mock())
+    events=[]
+    with pytest.raises(ValueError,match='kuavo_robot_session_v3'):
+        inspect_service(client,events.append)
+    assert events==[{'service':status,'preparation':None}]
+    client.preparation.assert_not_called()
+
+
+def test_compatible_service_inspection_only_reads_preparation_status():
+    from teleop_control.kuavo_worker import inspect_service
+    client=SimpleNamespace(get_status=Mock(return_value={'management_ready':True}),
+                           preparation=Mock(return_value={'phase':'ready'}))
+    events=[]
+    inspect_service(client,events.append)
+    client.preparation.assert_called_once_with('status')
+    assert events[-1]=={'preparation':{'phase':'ready'}}
+
+
 def test_start_isolated_and_stop_only_owns_current_session(manager,monkeypatch):
     process=SimpleNamespace(stdin=io.StringIO(),stdout=io.StringIO(),stderr=io.StringIO(),poll=lambda:None)
     launch=Mock(return_value=process);monkeypatch.setattr('subprocess.Popen',launch)
     monkeypatch.setattr('threading.Thread.start',lambda _:None)
-    options=Options(task='测试任务',confirm_motion=True,accept_unverified_gripper_bus=True).model_dump()
+    from teleop_control.kuavo_settings import MotionSettings
+    manager.save_settings(MotionSettings(position_scale=.4))
+    options=Options(task='测试任务',confirm_motion=True).model_dump()
     value=manager.start(options)
     assert value['state']=='starting' and value['active']
     payload=json.loads(process.stdin.getvalue())
     assert payload['task']=='测试任务' and payload['accept_unverified_gripper_bus']
+    assert payload['position_scale']==.4 and payload['network_namespace']=='current'
     assert str(manager.root) in payload['output']
     assert launch.call_args.args[0][-1]=='execute'
     with pytest.raises(RuntimeError):manager.start(options)
@@ -94,7 +119,7 @@ def test_api_unknown_fields_and_actions_rejected():
     with pytest.raises(ValidationError):Options(preparation_action='reset-all')
     with pytest.raises(ValidationError):Options(robot_ip='anything')
     with pytest.raises(ValidationError):Options(network_namespace='auto-discover')
-    assert {r.path for r in kuavo_router(Mock()).routes}=={'/kuavo/status','/kuavo/check','/kuavo/start','/kuavo/stop','/kuavo/prepare','/kuavo/grippers','/kuavo/connection'}
+    assert {r.path for r in kuavo_router(Mock()).routes}=={'/kuavo/status','/kuavo/check','/kuavo/start','/kuavo/stop','/kuavo/prepare','/kuavo/grippers','/kuavo/connection','/kuavo/motion'}
 
 
 def test_vendor_source_integrity_and_no_external_source_links():

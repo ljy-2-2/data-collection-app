@@ -1,55 +1,79 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-Popup {
+Dialog {
     id:root;objectName:"kuavoGripperDialog"
     property var settings: ({})
     property var fallback: ({})
     property var draft: ({left:{},right:{}})
+    property bool submitted:false
     property bool saving:false
+    property bool dirty:false
     property bool editable:true
     property string error:""
-    function edit(side,key,value) {let next=JSON.parse(JSON.stringify(draft));next[side][key]=value;draft=next}
-    function reset(original=false) {
-        let values=original?fallback:(settings.values||fallback)
+    function edit(side,key,value) {
+        if(draft[side][key]===value)return
+        let next=JSON.parse(JSON.stringify(draft));next[side][key]=value;draft=next
+        dirty=true;error=""
+    }
+    function resetDraft() {
+        let values=settings.values||fallback
         let next={left:{},right:{}}
         for (let side of ["left","right"]) for(let key of ["open_rad","closed_rad","speed_rad_s","accel_rad_s2"])
             next[side][key]=(values[side]||{})[key]===undefined?0:values[side][key]
-        draft=next;error=""
+        draft=next;error="";dirty=false
     }
     parent:Overlay.overlay;anchors.centerIn:parent;modal:true;padding:20
-    width:Math.min(580,parent?parent.width-32:580)
+    width:Math.min(560,parent?parent.width-32:560)
     height:Math.min(parent?parent.height-48:700,body.implicitHeight+40)
-    closePolicy:saving?Popup.NoAutoClose:Popup.CloseOnEscape
+    closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
     background:Rectangle {color:Theme.surface;radius:12;border.color:Theme.line}
     Overlay.modal:Rectangle {color:"#52000000"}
-    onOpened:reset()
+    onOpened:{submitted=false;if(!dirty&&!saving)resetDraft()}
+    onClosed:{if(!submitted)resetDraft()}
+    function confirmParameters() {
+        let next=JSON.parse(JSON.stringify(draft))
+        for(let i=0;i<extraFields.count;i++) {
+            let field=extraFields.itemAt(i);next[field.spec.side][field.spec.key]=field.pendingValue()
+        }
+        draft=next;dirty=true;saving=true;submitted=true;error=""
+        backend.saveKuavoSettings("grippers",draft)
+        close()
+    }
     Connections {target:backend
-        function onKuavoSettingsSaved(ok,message) {if(!root.saving)return;root.saving=false;if(ok)root.close();else root.error=message}
+        function onKuavoSettingsSaved(ok,message) {
+            if(!root.saving)return
+            root.saving=false
+            if(ok){root.dirty=false;root.error=""}else root.error=message
+        }
     }
     contentItem:WheelScroll {
-        contentWidth:width;contentHeight:body.implicitHeight;clip:true
+        contentWidth:width;contentHeight:body.implicitHeight;clip:true;boundsBehavior:Flickable.StopAtBounds
         ScrollBar.vertical:ScrollBar {interactive:false}
-        ColumnLayout {id:body;width:parent.width;spacing:14
-            Txt {text:"其他参数 · 乐聚达妙夹爪";font.pixelSize:16;font.weight:Font.DemiBold}
-            Txt {Layout.fillWidth:true;wrapMode:Text.Wrap;text:"修改保存到本机。机器人服务更新配置后才生效，当前不支持在线应用。";color:Theme.inkMuted;font.pixelSize:12}
-            Repeater {model:["left","right"]
-                ColumnLayout {id:section;required property string modelData;Layout.fillWidth:true;spacing:8
-                    Txt {text:section.modelData==="left"?"左夹爪":"右夹爪";font.weight:Font.DemiBold}
-                    GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:12;rowSpacing:8
-                        Repeater {model:[{key:"open_rad",label:"张开位置",unit:"rad",min:-3.12,max:3.12,step:.01},{key:"closed_rad",label:"闭合位置",unit:"rad",min:-3.12,max:3.12,step:.01},{key:"speed_rad_s",label:"速度",unit:"rad/s",min:.01,max:15,step:.1},{key:"accel_rad_s2",label:"加速度",unit:"rad/s²",min:.01,max:200,step:1}]
-                            NumberField {required property var modelData;objectName:"kuavo-"+section.modelData+"-"+modelData.key;Layout.fillWidth:true;spec:modelData;value:root.draft[section.modelData][modelData.key]||0;enabled:root.editable&&!root.saving;onEdited:n=>root.edit(section.modelData,modelData.key,n)}
-                        }
-                    }
+        ColumnLayout {id:body;width:parent.width;spacing:18
+            RowLayout {Layout.fillWidth:true
+                Txt {text:"其它参数";font.pixelSize:16;font.weight:Font.DemiBold;Layout.fillWidth:true}
+
+            }
+            GridLayout {Layout.fillWidth:true;columns:root.width<388?1:2;columnSpacing:14;rowSpacing:14
+                Repeater {id:extraFields;model:[
+                    {side:"left",key:"speed_rad_s",label:"左夹爪速度",unit:"rad/s",min:.01,max:15,step:.1},
+                    {side:"right",key:"speed_rad_s",label:"右夹爪速度",unit:"rad/s",min:.01,max:15,step:.1},
+                    {side:"left",key:"accel_rad_s2",label:"左夹爪加速度",unit:"rad/s²",min:.01,max:200,step:1},
+                    {side:"right",key:"accel_rad_s2",label:"右夹爪加速度",unit:"rad/s²",min:.01,max:200,step:1},
+                    {side:"left",key:"open_rad",label:"左夹爪打开角度",unit:"rad",min:-3.12,max:3.12,step:.01},
+                    {side:"right",key:"open_rad",label:"右夹爪打开角度",unit:"rad",min:-3.12,max:3.12,step:.01},
+                    {side:"left",key:"closed_rad",label:"左夹爪关闭角度",unit:"rad",min:-3.12,max:3.12,step:.01},
+                    {side:"right",key:"closed_rad",label:"右夹爪关闭角度",unit:"rad",min:-3.12,max:3.12,step:.01}]
+                    NumberField {required property var modelData;objectName:"kuavo-"+modelData.side+"-"+modelData.key;Layout.fillWidth:true;spec:modelData;value:root.draft[modelData.side][modelData.key]||0;showRange:false;arrows:false;enabled:root.editable&&!root.saving;onEdited:n=>root.edit(modelData.side,modelData.key,n)}
                 }
             }
-            Txt {Layout.fillWidth:true;wrapMode:Text.Wrap;text:root.error||root.settings.message||"";color:root.error?Theme.red:Theme.inkMuted;font.pixelSize:12}
-            Txt {visible:!!root.settings.file;Layout.fillWidth:true;wrapMode:Text.WrapAnywhere;text:root.settings.file||"";color:Theme.inkMuted;font.pixelSize:11}
-            RowLayout {Layout.alignment:Qt.AlignRight
-                Btn {text:"恢复原项目值";enabled:!root.saving;onClicked:root.reset(true)}
+            RowLayout {Layout.fillWidth:true
+                Item {Layout.fillWidth:true}
+                Btn {objectName:"kuavoGripperConfirm";text:"确认";primary:true;enabled:root.editable&&!root.saving;onClicked:root.confirmParameters()}
                 Btn {objectName:"kuavoGripperCancel";text:"取消";enabled:!root.saving;onClicked:root.close()}
-                Btn {objectName:"kuavoGripperSave";text:root.saving?"保存中…":"确认";primary:true;enabled:root.editable&&!root.saving;onClicked:{forceActiveFocus();root.saving=true;root.error="";backend.saveKuavoSettings("grippers",root.draft)}}
             }
+            Txt {visible:!!root.error;Layout.fillWidth:true;wrapMode:Text.Wrap;text:root.error;color:Theme.red;font.pixelSize:12}
         }
     }
 }

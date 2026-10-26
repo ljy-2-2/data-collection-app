@@ -44,12 +44,18 @@ def configure_rendering(values: dict[str, str], *, software=False) -> bool:
 
 
 def configure_surface_format() -> None:
+    from PySide6.QtGui import QSurfaceFormat
+    surface = QSurfaceFormat()
     if os.environ.get('QT_XCB_GL_INTEGRATION') == 'xcb_egl':
-        from PySide6.QtGui import QSurfaceFormat
-        surface = QSurfaceFormat()
         surface.setRenderableType(QSurfaceFormat.RenderableType.OpenGLES)
         surface.setVersion(3, 0)
-        QSurfaceFormat.setDefaultFormat(surface)
+    else:
+        # Qt Quick 3D materials need a modern GLSL context. Leaving the desktop
+        # default at OpenGL 2.0 can render the controls but leave models blank.
+        surface.setRenderableType(QSurfaceFormat.RenderableType.OpenGL)
+        surface.setVersion(3, 3)
+        surface.setProfile(QSurfaceFormat.CoreProfile)
+    QSurfaceFormat.setDefaultFormat(surface)
 
 
 def main() -> int:

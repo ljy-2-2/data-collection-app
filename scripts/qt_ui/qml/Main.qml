@@ -17,7 +17,8 @@ ApplicationWindow {
         if(s.page==="teleop" && s.teleopStep===2){
             let status=s.robot==="kuavo-5w"?s.kuavo:s.robot==="tianji"?s.tianji:s.g2
             let collection=status.collection||{}
-            messages.push(status.error,status.camera_error,collection.error,(collection.upload||{}).error)
+            if(s.robot!=="tianji" || s.tianjiStatusFresh)
+                messages.push(status.error,status.camera_error,collection.error,(collection.upload||{}).error)
             if(s.robot==="tianji")messages.push(s.cameraApplyError)
         }
         if(s.page==="umi")messages.push(s.umi.error)
@@ -105,7 +106,7 @@ ApplicationWindow {
             ScrollBar.vertical: ScrollBar {policy: ScrollBar.AsNeeded;width: 8;interactive: false}
             Column {
                 id: page;width: scroll.width;spacing: 12
-                Item {objectName: "pageTools";width: parent.width;height: 30
+                Item {objectName: "pageTools";width: parent.width;height: visible?30:0;visible:s.page==="umi"||(s.page==="teleop"&&s.teleopStep===2)||!!pageNotice.message
                     Rectangle {
                         id: pageNotice;objectName: "pageNotice"
                         readonly property string message: [app.pageError,s.notice].filter(Boolean).join("\n")
@@ -116,7 +117,7 @@ ApplicationWindow {
                         Txt {objectName: "pageNoticeText";anchors.fill: parent;anchors.leftMargin: 10;anchors.rightMargin: 36;text: pageNotice.message;font.pixelSize: 12;color: app.pageError?Theme.red:Theme.inkMuted;wrapMode: Text.NoWrap}
                         Btn {objectName: "pageNoticeDismiss";visible: !!s.error;anchors.right: parent.right;anchors.rightMargin: 3;anchors.verticalCenter: parent.verticalCenter;glyph: "X";ghost: true;width: 24;height: 24;Accessible.name: "关闭错误提示";onClicked: backend.clearError()}
                     }
-                    UsageGuide {id: usageGuide;objectName: "usageGuide";visible: s.page!=="ego" && !(s.page==="teleop" && s.robot==="kuavo-5w");anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;viewportWidth: app.width;viewportHeight: app.height;source: backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":"teleop-usage-guide.png")}
+                    UsageGuide {id: usageGuide;objectName: "usageGuide";visible: s.page==="umi" || (s.page==="teleop" && s.teleopStep===2);anchors.right: parent.right;anchors.verticalCenter: parent.verticalCenter;viewportWidth: app.width;viewportHeight: app.height;source: s.page==="teleop"&&s.robot==="kuavo-5w"?"":backend.assetRoot+(s.page==="umi"?"umi-usage-guide.png":s.robot==="tianji"?"tianji-usage-guide.png":"teleop-usage-guide.png")}
                 }
                 Stepper {objectName: "pageStepper";visible: s.page!=="ego";width: parent.width;titles: s.page==="umi"?["选择配置","检查硬件","采集监控"]:["选择配置","遥操作采集"];step: s.page==="umi"?s.umiStep:s.teleopStep;returnVisible: s.page==="teleop"&&s.teleopStep===2;returnEnabled: s.robot==="kuavo-5w" ? !kuavoTeleop.locked : !teleop.locked;onReturnClicked: backend.returnTeleop()}
                 Setup {width: parent.width;visible: s.page==="teleop"&&s.teleopStep===1}

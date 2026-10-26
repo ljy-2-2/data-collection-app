@@ -4,6 +4,11 @@ import numpy as np
 
 
 def advance(arm, q, desired, velocity, dt, speed, accel, goal_velocity=None):
+    # Keep a common path parameter while respecting each motor's own limit.
+    accel = np.broadcast_to(np.asarray(accel, dtype=float), (7,))
+    if not np.isfinite(accel).all() or np.any(accel <= 0):
+        raise ValueError("invalid joint acceleration limits")
+    accel = np.minimum(accel, arm.acceleration_limits)
     # Subtraction of sent double-precision angles at an exact limit can invent
     # ~1e-12 deg/s of outward velocity. Remove only sub-nanodegree/s roundoff;
     # never relax the physical joint domain or discard meaningful momentum.
@@ -22,11 +27,14 @@ def advance(arm, q, desired, velocity, dt, speed, accel, goal_velocity=None):
         # the actual commanded velocity and zero terminal speed.
         terminal_speed = float(np.clip(
             np.dot(goal_velocity, error) * distance / np.dot(error, error), 0., speed))
-    stopping_speed = np.sqrt((accel * dt) ** 2 + terminal_speed**2 + 2 * accel * distance) - accel * dt
+    direction = error / distance if distance > 1e-12 else np.zeros(7)
+    moving = np.abs(direction) > 1e-12
+    path_accel = float(np.min(accel[moving] / np.abs(direction[moving]))) if np.any(moving) else float(np.min(accel))
+    stopping_speed = np.sqrt((path_accel * dt) ** 2 + terminal_speed**2 + 2 * path_accel * distance) - path_accel * dt
     speed_along_step = min(distance / dt, speed, stopping_speed)
     wanted = error * (speed_along_step / distance) if distance > 1e-12 else np.zeros(7)
     velocity_change = wanted - velocity
-    blend = min(1.0, accel * dt / max(1e-12, float(np.max(np.abs(velocity_change)))))
+    blend = min(1.0, float(np.min(accel * dt / np.maximum(1e-12, np.abs(velocity_change)))))
     proposed = velocity + blend * velocity_change
     proposed = np.where(np.abs(proposed) < 1e-9, 0.0, proposed)
 
@@ -36,9 +44,9 @@ def advance(arm, q, desired, velocity, dt, speed, accel, goal_velocity=None):
         # at an exact wrist boundary, floating-point subtraction matters.
         sent_velocity = (next_q - q) / dt
         sent_velocity = np.where(np.abs(sent_velocity) < 1e-9, 0.0, sent_velocity)
-        # All axes can brake together in max(|v|)/accel seconds. For this
+        # All axes brake together in max(|v_i|/accel_i) seconds. For this
         # robot the intersected joint/wrist domain is convex (checked at load).
-        stop_q = next_q + sent_velocity * np.max(np.abs(sent_velocity)) / (2 * accel)
+        stop_q = next_q + sent_velocity * np.max(np.abs(sent_velocity) / accel) / 2
         return next_q, stop_q
 
     def checked(v):
@@ -63,7 +71,7 @@ def advance(arm, q, desired, velocity, dt, speed, accel, goal_velocity=None):
             if (
                 np.max(np.abs(v - original)) > 1e-7
                 or np.max(np.abs(v)) > speed + 1e-9
-                or np.max(np.abs(v - velocity)) > accel * dt + 1e-9
+                or np.any(np.abs(v - velocity) > accel * dt + 1e-9)
             ):
                 return None
         return None
@@ -73,7 +81,7 @@ def advance(arm, q, desired, velocity, dt, speed, accel, goal_velocity=None):
     if valid_proposal is None:
         constrained = True
         # Start braking before crossing the boundary, keep the clutch engaged.
-        factor = max(0.0, 1 - accel * dt / max(1e-12, np.max(np.abs(velocity))))
+        factor = max(0.0, 1 - dt / max(1e-12, np.max(np.abs(velocity) / accel)))
         proposed = velocity * factor
         valid_proposal = checked(proposed)
         if valid_proposal is None:

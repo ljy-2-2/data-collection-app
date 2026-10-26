@@ -52,7 +52,7 @@ export const columnMajor = (m: Matrix) =>
 export function tianjiCameraMatrix(
   width: number,
   height: number,
-  view: { yaw: number; pitch: number; zoom: number },
+  view: { yaw: number; pitch: number; zoom: number; panX?: number; panY?: number },
 ): Matrix {
   const scale = 1.02 * view.zoom;
   // Orthographic projection. Camera +Z points towards the viewer, so nearer
@@ -61,6 +61,8 @@ export function tianjiCameraMatrix(
   projection[0] = (scale * height) / width;
   projection[5] = scale;
   projection[10] = -0.25;
+  projection[3] = 2 * (view.panX ?? 0) / width;
+  projection[7] = -2 * (view.panY ?? 0) / height;
   const upright = [0, -1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 1];
   return multiply(
     projection,
@@ -78,8 +80,9 @@ export function tianjiCameraMatrix(
 }
 export interface TianjiModel {
   root_link?: string;
+  display_joint_defaults?: Record<string, number>;
   source: string;
-  meshes: Record<string, { vertices: number[][]; faces: number[][] }>;
+  meshes: Record<string, { vertices: number[][]; faces: number[][]; normals?: number[][]; normal_indices?: number[][] }>;
   links: {
     name: string;
     visuals: {

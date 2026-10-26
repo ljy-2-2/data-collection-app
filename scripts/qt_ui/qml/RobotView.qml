@@ -4,6 +4,7 @@ Item {
     id: root
     property var scene: robotScene
     property string orbitObjectName: "tianjiOrbitArea"
+    Component.onCompleted: scene.prepareView()
     View3D {
         id: view
         anchors.fill: parent
@@ -32,16 +33,7 @@ Item {
             }
         }
     }
-    MouseArea {
-        objectName: root.orbitObjectName
-        anchors.fill: parent
-        preventStealing: true
-        property real lastX: 0;property real lastY: 0
-        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        onPressed: mouse=>{lastX=mouse.x;lastY=mouse.y}
-        onPositionChanged: mouse=>{if(pressed){root.scene.drag(mouse.x-lastX,mouse.y-lastY);lastX=mouse.x;lastY=mouse.y}}
-        onWheel: wheel=>root.scene.changeZoom(wheel.angleDelta.y>0?1.12:.88)
-    }
+    RobotOrbitArea {objectName: root.orbitObjectName;scene: root.scene;anchors.fill: parent}
     Rectangle {
         anchors.right: parent.right;anchors.top: parent.top;anchors.margins: 8;width: controls.width+4;height: 32;radius: 7;color: Theme.surface;border.color: Theme.line
         Row {id: controls;x: 2;y: 2;spacing: 1

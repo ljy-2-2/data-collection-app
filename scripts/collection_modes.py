@@ -1,9 +1,9 @@
 """Robot choices shared by package metadata and the desktop's selection guards."""
 
 ROBOT_NAMES = {
-    "agibot-g2": "智元 G2",
     "tianji": "天机 Marvin M6",
     "kuavo-5w": "乐聚 KUAVO 5-W",
+    "agibot-g2": "智元 G2",
 }
 MODE_ROBOTS = {
     "all": tuple(ROBOT_NAMES),

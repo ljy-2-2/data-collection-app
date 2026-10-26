@@ -12,7 +12,7 @@ from collection_modes import default_collection_mode
 
 
 @pytest.mark.parametrize('mode,expected', [
-    (default_collection_mode('amd64'), ['agibot-g2', 'tianji', 'kuavo-5w']),
+    (default_collection_mode('amd64'), ['tianji', 'kuavo-5w', 'agibot-g2']),
     (default_collection_mode('arm64'), ['tianji', 'kuavo-5w']),
     ('umi-tianji', ['tianji']),
     ('umi', []),
