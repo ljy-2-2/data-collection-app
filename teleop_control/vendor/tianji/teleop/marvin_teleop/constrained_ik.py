@@ -22,6 +22,7 @@ def bounded_correction(
     max_outward_speed_deg_s=None,
     joint_metric=None,
     damping_sq=DAMPING_SQ,
+    extra_hessian=None,
 ):
     faces, bounds = arm.joint_halfspaces()
     raw_faces = faces.copy()
@@ -73,6 +74,8 @@ def bounded_correction(
     hessian = j.T @ j + damping_sq * (
         np.eye(7) if joint_metric is None else np.diag(joint_metric)
     )
+    if extra_hessian is not None:
+        hessian = hessian + extra_hessian
     # This equals -J.T@error for the ordinary damped least-squares solution.
     # When differential.py adds a safe redundancy correction, retaining its
     # unconstrained optimum lets the active-set solve carry that correction up

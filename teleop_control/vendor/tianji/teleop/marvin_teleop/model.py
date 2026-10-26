@@ -408,7 +408,7 @@ class Models:
         self.arms["left"].tracking_mirror = LeftFromRight(self.arms["left"], self.arms["right"])
         self.mapping_report = {
             "coordinate_revision": "vendor_cad_same_facing_v2",
-            "ik_policy": "mirrored_reference_local_ik_v7",
+            "ik_policy": "mirrored_reference_local_ik_v8",
             "retarget_calculation": "test-teleop yaw frame and relative SE(3); shared session heading",
             "left_solver_mapping": self.arms["left"].tracking_mirror.report,
             "arm_geometry": "nominal",

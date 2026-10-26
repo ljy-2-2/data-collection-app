@@ -3,7 +3,7 @@
 import numpy as np
 
 
-def advance(arm, q, desired, velocity, dt, speed, accel):
+def advance(arm, q, desired, velocity, dt, speed, accel, goal_velocity=None):
     # Subtraction of sent double-precision angles at an exact limit can invent
     # ~1e-12 deg/s of outward velocity. Remove only sub-nanodegree/s roundoff;
     # never relax the physical joint domain or discard meaningful momentum.
@@ -14,7 +14,15 @@ def advance(arm, q, desired, velocity, dt, speed, accel):
     # One time scale for the whole IK step. Independent component clipping
     # changes J*dq and can reverse the flange's motion, even from rest.
     distance = float(np.max(np.abs(error)))
-    stopping_speed = np.sqrt((accel * dt) ** 2 + 2 * accel * distance) - accel * dt
+    terminal_speed = 0.
+    if goal_velocity is not None and distance > 1e-12:
+        # A moving hand target is not a stationary stop point. Retain its
+        # velocity along the joint step instead of braking toward zero at
+        # every sample. The complete hardware stopping check below still uses
+        # the actual commanded velocity and zero terminal speed.
+        terminal_speed = float(np.clip(
+            np.dot(goal_velocity, error) * distance / np.dot(error, error), 0., speed))
+    stopping_speed = np.sqrt((accel * dt) ** 2 + terminal_speed**2 + 2 * accel * distance) - accel * dt
     speed_along_step = min(distance / dt, speed, stopping_speed)
     wanted = error * (speed_along_step / distance) if distance > 1e-12 else np.zeros(7)
     velocity_change = wanted - velocity

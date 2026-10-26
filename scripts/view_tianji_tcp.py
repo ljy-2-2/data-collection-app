@@ -24,7 +24,7 @@ class TcpViewer(QObject):
     changed = Signal()
     partsChanged = Signal()
 
-    def __init__(self):
+    def __init__(self, config_path=None):
         super().__init__()
         self.scene = RobotScene(ROOT)
         self.selection = 'left'
@@ -33,13 +33,16 @@ class TcpViewer(QObject):
         self.revision_value = 0
         self.transforms = {}
         # Read actual control definitions; reject a stale display export.
-        config_path = ROOT / 'teleop_control/vendor/tianji/teleop/marvin_teleop/config.json'
+        config_path = Path(config_path or os.environ.get('TIANJI_CONFIG') or
+                           ROOT / 'teleop_control/vendor/tianji/teleop/marvin_teleop/config.json').expanduser().resolve()
+        self.config_path = config_path
         config = json.loads(config_path.read_text())
         sys.path.insert(0, str(ROOT / 'teleop_control/vendor/tianji/teleop'))
         from marvin_teleop.configuration import configuration
         from marvin_teleop.model import Models
         from marvin_teleop.preview import validate_preview
-        validate_preview(Models(configuration(config_path)), ROOT / 'public/tianji-model.json')
+        self.control_models = Models(configuration(config_path))
+        validate_preview(self.control_models, ROOT / 'public/tianji-model.json')
         if config.get('arm_geometry', 'nominal') != self.scene.model.get('arm_geometry', 'nominal'):
             raise ValueError('TCP viewer geometry does not match the active control URDF')
         joints = {j['name']: j for j in self.scene.model['joints']}
@@ -73,6 +76,15 @@ class TcpViewer(QObject):
                 raise ValueError('Disconnected CAD joints')
             pending = remaining
         self.transforms = matrices
+        # Derive the mark from the same flange-to-TCP matrix used by control,
+        # not from an independently chosen point on the display mesh.
+        self.tcp_frames = {side: matrices[f'flange_{letter}'] @ self.control_models.arms[side].tool
+                           for side, letter in [('left', 'L'), ('right', 'R')]}
+        world = np.asarray(self.scene.model['world_from_display'])
+        for side, letter in [('left', 'L'), ('right', 'R')]:
+            np.testing.assert_allclose(self.tcp_frames[side], matrices[f'grasp_center_{letter}'], atol=1e-10)
+            actual = self.control_models.arms[side].fk(np.zeros(7))
+            np.testing.assert_allclose((world @ self.tcp_frames[side])[:3, 3], actual[:3, 3], atol=1e-4)
         for link, part in self.scene.by_link:
             part.update_matrix(matrices[link] @ transform(part.visual['xyz'], part.visual['rpy']))
         self.revision_value += 1
@@ -94,10 +106,30 @@ class TcpViewer(QObject):
         result = []
         for side, letter in [('left', 'L'), ('right', 'R')]:
             if self.selection not in ('all', side): continue
-            p = self.transforms[f'grasp_center_{letter}'][:3, 3]
+            p = self.tcp_frames[side][:3, 3]
             result.append(dict(label=('左' if side == 'left' else '右') + ' P · 遥操作中心',
                                position=QVector3D(*p.tolist()), color='#168cff'))
         return result
+    @Property('QVariantList', notify=changed)
+    def axisLabels(self):
+        result = []
+        for side in ('left', 'right'):
+            if self.selection not in ('all', side): continue
+            frame = self.tcp_frames[side]
+            for axis, color in enumerate(('#f06a6a', '#5cd28a', '#6eaaff')):
+                position = frame[:3, 3] + frame[:3, axis] * .04
+                result.append(dict(label='XYZ'[axis], color=color, position=QVector3D(*position.tolist())))
+        return result
+    @Property(str, notify=changed)
+    def controlDescription(self):
+        descriptions = []
+        for side in ('left', 'right'):
+            if self.selection not in ('all', side): continue
+            arm = self.control_models.arms[side]
+            xyz = arm.tool[:3, 3] * 1000
+            descriptions.append(('左' if side == 'left' else '右') +
+                                f' TCP {arm.control_point_name}：法兰坐标 ({xyz[0]:.2f}, {xyz[1]:.2f}, {xyz[2]:.5f}) mm')
+        return '    '.join(descriptions)
     @Property('QVariantList', notify=changed)
     def lines(self):
         result = []
@@ -112,6 +144,9 @@ class TcpViewer(QObject):
                 axis = frame[:3, :3] @ np.asarray(j['axis'])
                 center = frame[:3, 3]
                 segments.append((center - axis * .036, center + axis * .036, '#40d3a3'))
+            frame = self.tcp_frames[side]
+            for axis, color in enumerate(('#f06a6a', '#5cd28a', '#6eaaff')):
+                segments.append((frame[:3, 3], frame[:3, 3] + frame[:3, axis] * .035, color))
             for a, b, color in segments:
                 vector = b-a
                 result.append(dict(position=QVector3D(*((a+b)/2).tolist()),
@@ -159,11 +194,14 @@ class TcpViewer(QObject):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--screenshot', type=Path)
+    parser.add_argument('--config', type=Path, help='Use the same Tianji configuration as the desktop worker')
+    parser.add_argument('--side', choices=('left', 'right', 'all'), default='left')
     parser.add_argument('--check', action='store_true', help='Check fixed TCP through simulated opening and exit')
     args = parser.parse_args()
     app = QGuiApplication(sys.argv[:1])
     app.setApplicationDisplayName('天机 TCP 三维仿真查看')
-    viewer = TcpViewer()
+    viewer = TcpViewer(args.config)
+    viewer.select(args.side)
     before = {s: viewer.transforms[f'grasp_center_{s}'].copy() for s in ('L','R')}
     for opening in (0., .5, 1.):
         viewer.setOpening(opening)
@@ -171,6 +209,8 @@ def main():
     viewer.setOpening(.65)
     if args.check:
         print('PASS: CAD matches active URDF; both P points remain fixed through jaw opening.')
+        print('Control configuration:', viewer.config_path)
+        print(viewer.controlDescription)
         return 0
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty('tcpViewer', viewer)
