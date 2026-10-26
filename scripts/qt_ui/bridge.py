@@ -10,6 +10,7 @@ import time
 import uuid
 from urllib.parse import quote
 from .grippers import endpoints, closure, parameter_defaults
+from teleop_control import camera_devices
 from .umi_telemetry import UmiTelemetry
 from collection_modes import ROBOT_NAMES, robot_keys
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSettings
@@ -588,6 +589,7 @@ class Bridge(QObject):
         details=check.get('camera_candidate_details')
         if details is None:return
         roles=dict(self._state['cameraRoles']);live=dict(self._state['cameraLive'])
+        resolved=camera_devices.resolve_roles(self._camera_role_identities,details)
         used=set()
         for role in self.active_roles():
             saved=self._camera_role_identities.get(role)
@@ -595,9 +597,7 @@ class Bridge(QObject):
             if self._state['umiStep']==3:
                 candidate=next((d for d in details if d['device']==check.get('camera_roles',{}).get(role)),None)
             elif saved:
-                matches=[d for d in details if all(d.get(k)==saved.get(k) for k in ('vendor','product','serial'))]
-                if saved.get('serial') and len(matches)==1:candidate=matches[0]
-                else:candidate=next((d for d in matches if d.get('usb_path')==saved.get('usb_path')),None)
+                candidate=resolved.get(role)
             elif roles.get(role):
                 candidate=next((d for d in details if d['device']==roles[role]),None)
             if candidate and candidate['device'] in used:candidate=None

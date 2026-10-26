@@ -1,5 +1,6 @@
 import hashlib
 import json
+import platform
 import shutil
 from pathlib import Path
 import sys
@@ -22,6 +23,7 @@ def resources(tmp_path):
     raw = b"fixture image archive"
     (result / "umi-runtime.tar").write_bytes(raw)
     (result / "manifest.json").write_text(json.dumps({
+        "architecture": {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine()],
         "image": "xiaokai-umi-runtime:test", "image_id": "sha256:fixture",
         "archive": "umi-runtime.tar", "sha256": hashlib.sha256(raw).hexdigest(),
     }))
@@ -47,9 +49,12 @@ def test_distribution_has_no_capture_time_downloads_or_compilation(tmp_path):
             './galaxis-core/galaxis-core/galaxis_core',
             './galaxis_bringup/galaxis_bringup/encoder_protocol.py',
             './galaxis_bringup/galaxis_bringup/encoder_node.py',
+            './galaxis_bringup/galaxis_bringup/camera_devices.py',
+            './galaxis_bringup/galaxis_bringup/camera_supervisor.py',
+            './galaxis_bringup/galaxis_bringup/camera_control_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/pico_bridge_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/transport/galaxis_tcp.py'} for v in bindings)
-    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 4
+    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 7
     assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 1
     assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
     assert services["config-init"]["entrypoint"] == ["python3"]

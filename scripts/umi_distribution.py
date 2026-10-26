@@ -58,7 +58,8 @@ def configure_umi_runtime(project: Path, manifest: dict):
     # active even though the desktop workspace contained the new implementation.
     volumes.append("./galaxis-core/galaxis-core/galaxis_core:"
                    "/root/ros2_ws/src/galaxis-core/galaxis_core:ro")
-    for name in ('encoder_protocol.py', 'encoder_node.py'):
+    for name in ('encoder_protocol.py', 'encoder_node.py', 'camera_devices.py',
+                 'camera_supervisor.py', 'camera_control_node.py'):
         services["galaxis"].setdefault("volumes", []).append(
             f"./galaxis_bringup/galaxis_bringup/{name}:"
             f"/root/ros2_ws/src/galaxis_bringup/galaxis_bringup/{name}:ro")
