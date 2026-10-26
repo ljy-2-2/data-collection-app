@@ -7,7 +7,12 @@ Item {
     property bool showRange: true
     property bool arrows: true
     signal edited(real number)
-    implicitHeight: showRange ? 66 : 54
+    function pendingValue() {
+        let n=Number(input.text)
+        return input.text.trim() && Number.isFinite(n) && n>=spec.min && n<=spec.max ? n : value
+    }
+    function commit() {let n=pendingValue();input.text=String(n);edited(n)}
+    implicitHeight: showRange ? 66 : 55
     implicitWidth: 130
     onValueChanged: if (!input.activeFocus) input.text=String(value)
     Txt {text: root.spec.label;font.pixelSize: root.showRange ? 11 : 12;color: Theme.inkMuted;height: 18;width: parent.width}
@@ -20,7 +25,7 @@ Item {
             selectByMouse: true;inputMethodHints: Qt.ImhFormattedNumbersOnly
             validator: DoubleValidator {bottom: root.spec.min;top: root.spec.max;decimals: 6;notation: DoubleValidator.StandardNotation;locale: "C"}
             background: Item {}
-            onEditingFinished: {let n=Number(text);if(text.trim() && Number.isFinite(n) && n>=root.spec.min && n<=root.spec.max) root.edited(n);else text=String(root.value)}
+            onEditingFinished: root.commit()
         }
         Txt {id: unit;anchors.right: buttons.left;anchors.rightMargin: 3;anchors.verticalCenter: parent.verticalCenter;text: root.spec.unit;font.pixelSize: 10;color: Theme.inkMuted}
         Column {

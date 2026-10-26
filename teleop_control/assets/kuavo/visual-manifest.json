@@ -2,70 +2,70 @@
   "repository": "https://github.com/LejuRobotics/kuavo-ros-opensource",
   "commit": "ba5ae219d86076c587e5973c44f5f645ca874a95",
   "control_urdf_sha256": "fecef6f980806af7d2c4b1abe56d3fe1d0dbfbd69b3475303eb158bcc06c85dc",
-  "description": "Official v63 shell meshes; display-only decimation, unchanged control URDF kinematics.",
+  "description": "Official v63 shells with separated wrist actuators; palm, fingers and original hand adapters removed. Unchanged control URDF kinematics.",
   "files": {
     "src/kuavo_assets/models/biped_s63/meshes/chassis.STL": {
       "git_blob": "02ce09ebe5c54cb18f39c2d6491e328bbf8c65e5",
       "sha256": "2b043228c8da809c8dd5ea082a5eacef34de7a006342a1a70ac03e02df61218b",
       "source_triangles": 20000,
-      "display_triangles": 5999,
-      "bounds_change_m": 0.0005747300000000233
+      "display_triangles": 13999,
+      "bounds_change_m": 7.327000000001416e-05
     },
     "src/kuavo_assets/models/biped_s63/meshes/wheel_left_front.STL": {
       "git_blob": "57bdb3d431eb53555085bd788ca33a2fa27e54d0",
       "sha256": "d3f4bb9950cb26e815fb5589d6d118302bc2d1ba76a560f0c4a89847abd8a90e",
       "source_triangles": 20000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.003333619999999999
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0003866200000000007
     },
     "src/kuavo_assets/models/biped_s63/meshes/wheel_right_front.STL": {
       "git_blob": "b3e6b6de03bfa1db1f5e3e1cccd85b37313138c6",
       "sha256": "e64bc6f999b6a54eba31335220f338ecd868979c9b37f8469e5b79db19c80956",
       "source_triangles": 20000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.003333619999999999
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0003866200000000007
     },
     "src/kuavo_assets/models/biped_s63/meshes/wheel_left_behind.STL": {
       "git_blob": "1dbab566a79d7f37dddc7d93000ff89cc066e9ab",
       "sha256": "dbe5c66f0465038f90371b1d9d86d686c9ac65a85516e9c16eada195c8962379",
       "source_triangles": 20000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.003333619999999999
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0003866200000000007
     },
     "src/kuavo_assets/models/biped_s63/meshes/wheel_right_behind.STL": {
       "git_blob": "f538dec37b775b7322866d6d4a6c89b113b4e42f",
       "sha256": "ac6a6de836c96ccaacb12b4223cd32ecb4ef10535629b270dfdbaf7aa65be2fc",
       "source_triangles": 20000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.003333619999999999
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0003866200000000007
     },
     "src/kuavo_assets/models/biped_s63/meshes/knee_link.STL": {
       "git_blob": "82e8082e70b3e99385cd72c526f130fc209617ac",
       "sha256": "1a2a6bf632844bce846882a973adefcb9042ecc89c32d6558155aa7cd4886444",
       "source_triangles": 19999,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.002055200000000007
+      "display_triangles": 9999,
+      "bounds_change_m": 0.00047414
     },
     "src/kuavo_assets/models/biped_s63/meshes/knee_pitch.STL": {
       "git_blob": "d04a194f9fa6dd493646d4433a9840ea0e3047b7",
       "sha256": "1a388614cc322432e40899471b1795eb1da27807eaeb8f3b78a7e3ac4ecc92f3",
       "source_triangles": 19999,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.004039380000000009
+      "display_triangles": 9999,
+      "bounds_change_m": 0.0004107500000000014
     },
     "src/kuavo_assets/models/biped_s63/meshes/leg_pitch.STL": {
       "git_blob": "3cfe2116119b25c210d04ec88b67c4c3ac0aa9b6",
       "sha256": "1dd898d1710ce94a79e94afc2be59e1864bcd9c6f080c4f00e2a50f4af6dbbfb",
       "source_triangles": 20000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0030008399999999907
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0008628800000000103
     },
     "src/kuavo_assets/models/biped_s63/meshes/waist_pitch.STL": {
       "git_blob": "e0109a36b625cfa195ff6f6ce8e494271c518142",
       "sha256": "a3fb03ca6349a307656730d33fdb31320b44f44000892550797d4c174597db65",
       "source_triangles": 20000,
-      "display_triangles": 3499,
-      "bounds_change_m": 0.0015578799999999976
+      "display_triangles": 9999,
+      "bounds_change_m": 0.0008198800000000089
     },
     "src/kuavo_assets/models/biped_s63/meshes/torso.STL": {
       "git_blob": "91f9cc7c43d2edb531ce032477ae9a56d1fa2750",
@@ -78,120 +78,152 @@
       "git_blob": "2b307a396a7252919e3eb15cc8f8bf62e6d5ec38",
       "sha256": "70350e2f55e329f41cb1c0de1b9da3ccd0bf69f4e417ddf28e87ef586fdd7427",
       "source_triangles": 20000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.00046192000000000455
+      "display_triangles": 10000,
+      "bounds_change_m": 0.00021499999999999297
     },
     "src/kuavo_assets/models/biped_s63/meshes/l_arm_roll.STL": {
       "git_blob": "c080e12c6f4920034138eb5e6d8d1c909371663d",
       "sha256": "f79c233eeca86d7dbaa2847684f2b6fdfd8cfed170e823d58e17613de21934d7",
       "source_triangles": 15000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.000546090000000006
+      "display_triangles": 10000,
+      "bounds_change_m": 0.00012978000000000295
     },
     "src/kuavo_assets/models/biped_s63/meshes/l_arm_yaw.STL": {
       "git_blob": "40e23718d1baff16c084def2914084868fc29c98",
       "sha256": "44d0d35eadf211359f38f46a66a8942748ec6140802e51b0d71b64ef2d5afc97",
       "source_triangles": 20000,
-      "display_triangles": 3499,
-      "bounds_change_m": 0.0006999799999999889
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0001108300000000062
     },
     "src/kuavo_assets/models/biped_s63/meshes/l_forearm.STL": {
       "git_blob": "b9a1cffcab47a93a91e25379927cf665279609f6",
       "sha256": "549b7f5148f4d4001bc39ce7a7c430f6415df46af747a986d4af705e8b6bb69a",
       "source_triangles": 19999,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0011640200000000017
+      "display_triangles": 10000,
+      "bounds_change_m": 0.00026079999999999853
     },
     "src/kuavo_assets/models/biped_s63/meshes/l_hand_yaw.STL": {
       "git_blob": "953e9dee1020ba7e46e45b70ebb22ae4f0cb0d79",
       "sha256": "d7da1d02bc49c37a61cc0e3e4af60a6e7dbce2718065707c39e1d6c073f1cad2",
       "source_triangles": 19999,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0010016700000000031
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0002360000000000001
     },
     "src/kuavo_assets/models/biped_s63/meshes/l_hand_roll.STL": {
       "git_blob": "951fee314e505e5e855dccc9877e16110b12cfda",
       "sha256": "9abf2e19b6b095c6d1621a04a522992f10852f12f7009222c47fb0861e32cdae",
       "source_triangles": 19998,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.000738309999999999
+      "display_triangles": 10000,
+      "bounds_change_m": 0.00018579999999999985
     },
     "src/kuavo_assets/models/biped_s63/meshes/l_hand_pitch_noHand.STL": {
       "git_blob": "190762ca5afc40f8b32125e14284fe7ccface3ad",
       "sha256": "d2218b13cc6f70482de86a1d6b9c7c364baaa95cd1f8e117ec3747a0854e2ebc",
       "source_triangles": 10000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.00032362000000002444
+      "display_triangles": 2162,
+      "bounds_change_m": 4.4000000000085637e-07,
+      "selection": "complete_components_crossing_joint_z_zero",
+      "source_components": 29,
+      "retained_components": 5,
+      "selected_triangles": 2162,
+      "selected_bounds_m": [
+        [
+          -0.02874473,
+          -0.03511622,
+          -0.06719597
+        ],
+        [
+          0.0289132,
+          0.04377265,
+          0.02959744
+        ]
+      ]
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_arm_pitch.STL": {
       "git_blob": "b021c0fbe6ef2741e309a48ca735aacd32d30d83",
       "sha256": "8577e2e60a551ea3c594116cb993b7d01d1bccf0de699df4126e4d2938a744fd",
       "source_triangles": 19853,
-      "display_triangles": 3499,
-      "bounds_change_m": 0.0007909200000000005
+      "display_triangles": 9999,
+      "bounds_change_m": 0.0001589199999999999
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_arm_roll.STL": {
       "git_blob": "b58d1a80a9369cd4fd1caa6ee6b28ef7e3190b65",
       "sha256": "780f1530a6109000501f8a4525020604d0c566a7097ac01ad755782fa2215f30",
       "source_triangles": 14990,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0008855700000000022
+      "display_triangles": 9999,
+      "bounds_change_m": 0.00010178999999999744
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_arm_yaw.STL": {
       "git_blob": "d56de72a6de48ef33f62a61912aa8ecb262e9d0c",
       "sha256": "02dadf0421264985d5d4de8fe6057e9a75cdcb5b22cb7778c0de1e116165b988",
       "source_triangles": 19677,
-      "display_triangles": 3499,
-      "bounds_change_m": 0.0007392999999999983
+      "display_triangles": 9999,
+      "bounds_change_m": 0.0002098899999999973
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_forearm.STL": {
       "git_blob": "6f14d68142a093acc91a95b08288514ab29a1b7c",
       "sha256": "f8f75334642adafde70d1e96b8054044569583003bd85a6ae90f62a31fc7613f",
       "source_triangles": 19881,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0006669799999999976
+      "display_triangles": 9999,
+      "bounds_change_m": 0.00014480000000000048
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_hand_yaw.STL": {
       "git_blob": "ff2357b66b66263e775a537b55b60fa8b58f2b6b",
       "sha256": "a0fa6d792dc08128d06eb02c4fbde4122015413ddaa7528c33957d55b087da87",
       "source_triangles": 19886,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0004416699999999982
+      "display_triangles": 10000,
+      "bounds_change_m": 0.0002360000000000001
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_hand_roll.STL": {
       "git_blob": "a8d8821046e8b6b3e205a85cdbec8e7e1f640d65",
       "sha256": "c160409ed3d7228550b86ef6527b81f55efa583fb40091376d929c251345defc",
       "source_triangles": 19899,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0008923099999999934
+      "display_triangles": 9999,
+      "bounds_change_m": 0.0001689900000000008
     },
     "src/kuavo_assets/models/biped_s63/meshes/r_hand_pitch_noHand.STL": {
       "git_blob": "9a9629caa63ec5cfb12aab811a7e52814d79ec46",
       "sha256": "28ee2cb04299525e62ee7f27f191027dbb0294e6f3d29df37a1fbfabc2ff7f5e",
       "source_triangles": 9999,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.0021990900000000146
+      "display_triangles": 2288,
+      "bounds_change_m": 4.7000000000241293e-07,
+      "selection": "complete_components_crossing_joint_z_zero",
+      "source_components": 27,
+      "retained_components": 2,
+      "selected_triangles": 2288,
+      "selected_bounds_m": [
+        [
+          -0.0287,
+          -0.04351622,
+          -0.06705353
+        ],
+        [
+          0.02871191,
+          0.0350139,
+          0.02946274
+        ]
+      ]
     },
     "src/kuavo_assets/models/biped_s63/meshes/head_yaw.STL": {
       "git_blob": "b755d126e38681757c7b627b77094fe6b445614c",
       "sha256": "5590aaf8b6cadb542ead3478389493f2ed9c593e8cfc981198d3201e9968c712",
       "source_triangles": 19999,
-      "display_triangles": 3499,
-      "bounds_change_m": 0.0008073000000000038
+      "display_triangles": 9997,
+      "bounds_change_m": 0.0003442999999999988
     },
     "src/kuavo_assets/models/biped_s63/meshes/head_pitch.STL": {
       "git_blob": "52850ab7303504134106c77e98022d36853c4a81",
       "sha256": "b0cfafbeb096aac99bde7f82ad4d8da4b2fefbbec7713f208d01b27eae41c74e",
       "source_triangles": 20000,
-      "display_triangles": 6000,
-      "bounds_change_m": 0.00028682000000002095
+      "display_triangles": 14000,
+      "bounds_change_m": 9.781999999999846e-05
     },
     "src/kuavo_assets/models/biped_s63/meshes/head_camera_base.STL": {
       "git_blob": "3c8be98ed54e5be13030023782e9ea329b356f2c",
       "sha256": "e8bbd83fa8334d347b1f7d0d5841822b3a73d8ee3309d9c239cf36e471097594",
       "source_triangles": 20000,
-      "display_triangles": 4048,
-      "bounds_change_m": 0.0020478699999999968
+      "display_triangles": 10000,
+      "bounds_change_m": 0.00026498999999999967
     },
     "src/kuavo_assets/models/biped_s63/meshes/head_camera_depth.STL": {
       "git_blob": "8c4ecc49ef655c39aa2881db46c8a74a6442e6f6",
@@ -204,12 +236,245 @@
       "git_blob": "faabf81ad206c7190d6b324cccdab125e2c417a8",
       "sha256": "077577ba9cc35cba18ad43fe0b91481dfc9186307450415389512bf91c005c35",
       "source_triangles": 14000,
-      "display_triangles": 3500,
-      "bounds_change_m": 0.000503079999999996
+      "display_triangles": 10000,
+      "bounds_change_m": 6.186999999999859e-05
     }
   },
   "original_triangles": 523337,
-  "display_triangles": 120201,
-  "display_sha256": "d4fb835d4622ad96c5765ff4d2e2a4b8cb3395f147cc8250ffd2192c7d3fc043",
-  "display_bytes": 3529522
+  "display_triangles": 337141,
+  "assembly_urdf": {
+    "path": "teleop_control/assets/kuavo/full_robot_with_grippers.urdf",
+    "sha256": "ba780b08dcb4776118ca15a882927ac0f342493cf38d9bf535a1c5c6e61672f5",
+    "purpose": "visual_and_kinematic_only",
+    "meshes": {
+      "mesh_000.obj": "817cce8ef1892dac0c362daf5b27a1eb0b3e57b33dfd2f7cef150f0524a423eb",
+      "mesh_001.obj": "7eb3ff73a4445d0adf05335e1d8402eb649a5d1d22fc97b5218a3dab83fc8de3",
+      "mesh_002.obj": "7fe4c59d1197fb407b0d1f16ef29b111ba8bd2aa3aec84b4fe49b9f80b0714e0",
+      "mesh_003.obj": "3f3a5ff0a4cf986a03d6a8d0ca4c5db771312179b9424fa6f1371094bcdb5464",
+      "mesh_004.obj": "3f3a5ff0a4cf986a03d6a8d0ca4c5db771312179b9424fa6f1371094bcdb5464",
+      "mesh_005.obj": "2a702a93e3c017e0fe2dcb321f14f12daac9dd2d0122b56afb3a5e1341aca9dc",
+      "mesh_006.obj": "e1924bec19ad7767fec6fe5240eae9b8649649a3af875801974a20dbee19e218",
+      "mesh_007.obj": "6d8f820b34e8770d12bbfaef1d818735d63c25b0f1b97f35bc5947d734fff966",
+      "mesh_008.obj": "bc8d9ba522407700e9edce5575fa5fcd3b23410f57b296aeabb586984ca9b5ed",
+      "mesh_009.obj": "d2b5c6257e340472bea751fae08d1c87281a0879b103337be4e9e99acd113543",
+      "mesh_010.obj": "815bf53899865a98addb83f449379c4f872486e76cecdfbe1a0436b447160389",
+      "mesh_011.obj": "40638cf636ee061d5b175b7cc24cfc935606aeab635ecec6873ef75058872931",
+      "mesh_012.obj": "d48d86dce8f84bd3743a43ff66cdbc710017466e836d39453b77ae09c605d916",
+      "mesh_013.obj": "ff37ebb0da44f6b0b1790139a942070f594213bb303574fdcf1ba4d714ea49b1",
+      "mesh_014.obj": "5471b4d904e4832052fe30f689ece8865e156a064ed5090ff97f39076c78623b",
+      "mesh_015.obj": "d49a79f7b6a379724b504f6d677480207bb74ffe32697ce56c943be4081c898d",
+      "mesh_016.obj": "d86eb9b06d6a49efb1e9444c35aac645d5820eccbbef034e484ddc5b0b10bb31",
+      "mesh_017.obj": "674e10748ac8db08267d1aad7dfb20d9c155c2af94edcdcff62abd9c3983ed5b",
+      "mesh_018.obj": "282fe2e77add7d6cad0e316e9b28fe09c86a4ba29b7cf9c4702a8bc1993c2083",
+      "mesh_019.obj": "ff64e83de5acb2043166ef558f310cfd3cb0c57d16efefc362d3fbcd93bee12b",
+      "mesh_020.obj": "25d4abc15c4cfaadedcc7574bdfeb7c509b149b3ef95deb8683cb5883e796898",
+      "mesh_021.obj": "b64df7ca896308573da05557b2921d99420d320e66f4b155096bd5030941de78",
+      "mesh_022.obj": "e1494f37dcf65a78d3665c1f2016a86bae2c8cd935ecc5323a3e65a210f697dc",
+      "mesh_023.obj": "6a50b7ea3cbeb612905e7c0447dad225e1fbbba2c2ad66403df72041f000a26b",
+      "mesh_024.obj": "540d87cc0fec922e04bcfcbdc575d50dfa29e3308f1720e46aac75b869cf1d91",
+      "mesh_025.obj": "5816455316d706ef02a04bf2621f6ccb1a90838f488bc480b388cf84e449ba95",
+      "mesh_026.obj": "b1e14ce1385f2dd06a25b3190f8cf9b2fa5f269f8547551d0859093a6f3890e6",
+      "mesh_027.obj": "d169c41a1fdf84f4e64a2c6805826b516a5eb75ddd250be784f8ee4381e9365e",
+      "mesh_028.obj": "7e5ec0f1688a42dec59e9a5caabbea408f6857ebe8d765b7351f1501aa8c31b6",
+      "mesh_029.obj": "707463b2dca6a33527404f75c783927ecedc20219a2dff84aa6eb6eae77e9756",
+      "mesh_030.obj": "a6ea4439de5d0e45979d8d10f41cc8178849e69bd7ea37aa7593c03c10fa573a",
+      "mesh_031.obj": "9aee12bebfd263c2a897673cb4961c58114826da92964c34440ae0af283c0a9f",
+      "mesh_032.obj": "68f2b5d126903f312ffe0d6ae68be4cc9ec209dad2c40b4057e8a7443b5105c3",
+      "mesh_033.obj": "5afd731b70c5d3a271f28ecc4d7f372ed6acce17164503d35620ac785a3b81b7",
+      "mesh_034.obj": "997a1921a8ecab0ea8f910fe187476c035d3ff987a3712c9848bade08a1065ba",
+      "mesh_035.obj": "2606a30c00c14419e584bc1283fa53bb69f821312abcf4f662620157c83aa7ce",
+      "mesh_036.obj": "173281aed7ae85feb3d08d2c9592c256d9ee11301eef8c41c6c9f62b49dc1776",
+      "mesh_037.obj": "df80b9c485c83cda602e505e433fdc6f6ef693bba3768bac7a9ce4139f8d5659",
+      "mesh_038.obj": "24624d3359d7d0599d114f7decd1fdd1bfae6ab47e7035bcb965abcf2d00a753",
+      "mesh_039.obj": "d88b47c2f6d85508b7fe263eeed6167869410c75bf70316eee2ad187561a75a0",
+      "mesh_040.obj": "12ba3f8d7a0f374e0358334755fe426e3d5cf7b1cd7eebcf10dc85fa75baffa4",
+      "mesh_041.obj": "5d60daa0c947edf9bc2fbc7ca5624e2a738db570fb207ffa7b5b2bd9d236d32d",
+      "mesh_042.obj": "6c9a9f00a6c4ba052471ea7d4c37790a6a001a9a6501bc24f24322376883215c",
+      "mesh_043.obj": "aea2d88587f3766b1b20934b47d7636e90f13115667be95eaf3b8d39ca21a699",
+      "mesh_044.obj": "3e952adb3329871bfeac6fa05af8e7499967ff847ad1fa249234414254d27f02",
+      "mesh_045.obj": "3182050030b4d09abe79a45f011b3fb41679571d0a6dbe25f8d44c9b119a305f",
+      "mesh_046.obj": "c2865b470108e7153d53257d3165fd1ce3908a267df900506fc0ea3b25630b4b",
+      "mesh_047.obj": "e661209992f2c1d3167d3360f7d1adc1415eba7d02937ec83cd05f402f53603d",
+      "mesh_048.obj": "04b82c83415cb45a67f70e47dd196691f6593d0e072952f73dcf6e310e87cb35",
+      "mesh_049.obj": "380a88110522f4827a94f9316ce1a82fab04681889ccf0985cb90b15d4150ec9",
+      "mesh_050.obj": "f830260fa0af5ba591107a36ede2be614268956ff654dc2a1fdce4bd88cf7910",
+      "mesh_051.obj": "6e357de0e4c3a84d243f7a08ad78effcf0b4919e407c5eda424a3c3061563fdc",
+      "mesh_052.obj": "357c7ae8e5d7aacbdefb8537933b67652de8cd1c904576917e191caace3fd9c3",
+      "mesh_053.obj": "e4fc40397adb818456071d0a1f1863d7afc6a2bb10897f9b1aeaf068a34d1347",
+      "mesh_054.obj": "c2159a532bdddf12d7dbf8e7ae83739cd2a12642e3c020dbddd47e26e276315a",
+      "mesh_055.obj": "d5f0366855ab1eb0bf9a3f805a7a0d83386415544eef2672fd8e7ff7b34ea039",
+      "mesh_056.obj": "3ecbd0c9a51373f79da2e09e0202236a53f8ae839447f3bd5099642906d214f2",
+      "mesh_057.obj": "75ddecdc882351cc9704f7de7cc6c43416bc6f0f9e51671d14eccb3bf089a892",
+      "mesh_058.obj": "82bfb8abc06659894d267494287cbb258f89e62034c17275efe2b4fc42ffa9a0",
+      "mesh_059.obj": "60131b66d73dd45a44c6ea315aa49e322b280e0f9e5ee35c01dfa8436c72ae34",
+      "mesh_060.obj": "d70f68aa994dd52df50ced2a564a0bfd6703bbb40d841ef4810399f50352b18b",
+      "mesh_061.obj": "2c5d3624526c501104426be49d3ad4ebf3fcf23df45e44f6c47cc4c21c371529",
+      "mesh_062.obj": "f1df9e93b615ddf35333087cf8f098a9d85b805a02ca45ca5ac549d2c6b80f09",
+      "mesh_063.obj": "62deb8c9371458230e915a207c2f9c00ce07ec62d6c24ebe50e93dbd41e7f778",
+      "mesh_064.obj": "17a2efb4a1c942ac0ba5896c0cd58ec249d0fc774b6553d941ed937b48c8ec09",
+      "mesh_065.obj": "7b7d531c01b29327622bb06a47016b38d9805402101904061533d9d22129ede0",
+      "mesh_066.obj": "96c5fdd25088de85f61d8dfaedf114df9ab11c09a24ca71c41f4e2f88fa69f03",
+      "mesh_067.obj": "29a122aa5b4b42fbe99623fc8ba6ebcc5cdfadd48af87d8d011f9d5597adabae",
+      "mesh_068.obj": "f8b1cc2ca8ed7aeb6bb03fc93fcbe3855fdae8478033a13d60e9d2d8ae56a6fc",
+      "mesh_069.obj": "35dbda08332de8b48ec502ada38de36f849f6f445f238761d907a7d5bcb8adef",
+      "mesh_070.obj": "b893c4510ac16672e131dd3c9669aec27dcb9af8fa30cedb93e0ec6f8bfbf16b",
+      "mesh_071.obj": "ee4690e872f36778b4db4aa7159210471dd621e21dcef4ad5875b823b738cdaf",
+      "mesh_072.obj": "3f193d4d0ea916830613968f13dc624ca7af81c555f0ae75d77bfbf1dad4ccab",
+      "mesh_073.obj": "2ab247fe1cae02e051147d29d0db4e4889d7bb616ba615afe2b15bf8216ec349",
+      "mesh_074.obj": "d67ccafbf04cedc312c65862f02bd760ef038be47237c016b0434e3e5dabc39c",
+      "mesh_075.obj": "4d1b4821667e83a2ae0e49a5bba60de693e16d787543e19b0ebe413a27297e2b",
+      "mesh_076.obj": "0d7461c74df696249825eb0f86787e8351c471b43dd0c8bde3cfa3c3c80b08b2",
+      "mesh_077.obj": "18ad74b468c8e8b2dbf4b655c95c2da62101945837ad6eb349532dc8a5160191",
+      "mesh_078.obj": "738836be6095ab0dd629720df3f5c8f1cd81d6f26de15121c87cd3826d4767f9",
+      "mesh_079.obj": "aa923c503ee756be507406647d343b1914b8a6d8e33e314631da1a8b64c6e0ed",
+      "mesh_080.obj": "d44c07fde31052cdaa83231412bcb98ee8238a543bbde45041dd9b345e6f29be",
+      "mesh_081.obj": "570cb5258959899967007a6c5c2d339c59f57674a52bc84a5e6d25a6b1d4174b",
+      "mesh_082.obj": "bbe5721f8fb01876ea82e02e5e16ac8d83165989bbae0514bf237022a37adb16",
+      "mesh_083.obj": "a6ea4439de5d0e45979d8d10f41cc8178849e69bd7ea37aa7593c03c10fa573a",
+      "mesh_084.obj": "9aee12bebfd263c2a897673cb4961c58114826da92964c34440ae0af283c0a9f",
+      "mesh_085.obj": "68f2b5d126903f312ffe0d6ae68be4cc9ec209dad2c40b4057e8a7443b5105c3",
+      "mesh_086.obj": "5afd731b70c5d3a271f28ecc4d7f372ed6acce17164503d35620ac785a3b81b7",
+      "mesh_087.obj": "997a1921a8ecab0ea8f910fe187476c035d3ff987a3712c9848bade08a1065ba",
+      "mesh_088.obj": "2606a30c00c14419e584bc1283fa53bb69f821312abcf4f662620157c83aa7ce",
+      "mesh_089.obj": "173281aed7ae85feb3d08d2c9592c256d9ee11301eef8c41c6c9f62b49dc1776",
+      "mesh_090.obj": "df80b9c485c83cda602e505e433fdc6f6ef693bba3768bac7a9ce4139f8d5659",
+      "mesh_091.obj": "24624d3359d7d0599d114f7decd1fdd1bfae6ab47e7035bcb965abcf2d00a753",
+      "mesh_092.obj": "d88b47c2f6d85508b7fe263eeed6167869410c75bf70316eee2ad187561a75a0",
+      "mesh_093.obj": "12ba3f8d7a0f374e0358334755fe426e3d5cf7b1cd7eebcf10dc85fa75baffa4",
+      "mesh_094.obj": "5d60daa0c947edf9bc2fbc7ca5624e2a738db570fb207ffa7b5b2bd9d236d32d",
+      "mesh_095.obj": "6c9a9f00a6c4ba052471ea7d4c37790a6a001a9a6501bc24f24322376883215c",
+      "mesh_096.obj": "aea2d88587f3766b1b20934b47d7636e90f13115667be95eaf3b8d39ca21a699",
+      "mesh_097.obj": "3e952adb3329871bfeac6fa05af8e7499967ff847ad1fa249234414254d27f02",
+      "mesh_098.obj": "3182050030b4d09abe79a45f011b3fb41679571d0a6dbe25f8d44c9b119a305f",
+      "mesh_099.obj": "c2865b470108e7153d53257d3165fd1ce3908a267df900506fc0ea3b25630b4b",
+      "mesh_100.obj": "e661209992f2c1d3167d3360f7d1adc1415eba7d02937ec83cd05f402f53603d",
+      "mesh_101.obj": "04b82c83415cb45a67f70e47dd196691f6593d0e072952f73dcf6e310e87cb35",
+      "mesh_102.obj": "380a88110522f4827a94f9316ce1a82fab04681889ccf0985cb90b15d4150ec9",
+      "mesh_103.obj": "f830260fa0af5ba591107a36ede2be614268956ff654dc2a1fdce4bd88cf7910",
+      "mesh_104.obj": "6e357de0e4c3a84d243f7a08ad78effcf0b4919e407c5eda424a3c3061563fdc",
+      "mesh_105.obj": "357c7ae8e5d7aacbdefb8537933b67652de8cd1c904576917e191caace3fd9c3",
+      "mesh_106.obj": "e4fc40397adb818456071d0a1f1863d7afc6a2bb10897f9b1aeaf068a34d1347",
+      "mesh_107.obj": "c2159a532bdddf12d7dbf8e7ae83739cd2a12642e3c020dbddd47e26e276315a",
+      "mesh_108.obj": "d5f0366855ab1eb0bf9a3f805a7a0d83386415544eef2672fd8e7ff7b34ea039",
+      "mesh_109.obj": "3ecbd0c9a51373f79da2e09e0202236a53f8ae839447f3bd5099642906d214f2",
+      "mesh_110.obj": "75ddecdc882351cc9704f7de7cc6c43416bc6f0f9e51671d14eccb3bf089a892",
+      "mesh_111.obj": "82bfb8abc06659894d267494287cbb258f89e62034c17275efe2b4fc42ffa9a0",
+      "mesh_112.obj": "60131b66d73dd45a44c6ea315aa49e322b280e0f9e5ee35c01dfa8436c72ae34",
+      "mesh_113.obj": "d70f68aa994dd52df50ced2a564a0bfd6703bbb40d841ef4810399f50352b18b",
+      "mesh_114.obj": "2c5d3624526c501104426be49d3ad4ebf3fcf23df45e44f6c47cc4c21c371529",
+      "mesh_115.obj": "f1df9e93b615ddf35333087cf8f098a9d85b805a02ca45ca5ac549d2c6b80f09",
+      "mesh_116.obj": "62deb8c9371458230e915a207c2f9c00ce07ec62d6c24ebe50e93dbd41e7f778",
+      "mesh_117.obj": "17a2efb4a1c942ac0ba5896c0cd58ec249d0fc774b6553d941ed937b48c8ec09",
+      "mesh_118.obj": "7b7d531c01b29327622bb06a47016b38d9805402101904061533d9d22129ede0",
+      "mesh_119.obj": "96c5fdd25088de85f61d8dfaedf114df9ab11c09a24ca71c41f4e2f88fa69f03",
+      "mesh_120.obj": "29a122aa5b4b42fbe99623fc8ba6ebcc5cdfadd48af87d8d011f9d5597adabae",
+      "mesh_121.obj": "f8b1cc2ca8ed7aeb6bb03fc93fcbe3855fdae8478033a13d60e9d2d8ae56a6fc",
+      "mesh_122.obj": "35dbda08332de8b48ec502ada38de36f849f6f445f238761d907a7d5bcb8adef",
+      "mesh_123.obj": "b893c4510ac16672e131dd3c9669aec27dcb9af8fa30cedb93e0ec6f8bfbf16b",
+      "mesh_124.obj": "ee4690e872f36778b4db4aa7159210471dd621e21dcef4ad5875b823b738cdaf",
+      "mesh_125.obj": "3f193d4d0ea916830613968f13dc624ca7af81c555f0ae75d77bfbf1dad4ccab",
+      "mesh_126.obj": "2ab247fe1cae02e051147d29d0db4e4889d7bb616ba615afe2b15bf8216ec349",
+      "mesh_127.obj": "d67ccafbf04cedc312c65862f02bd760ef038be47237c016b0434e3e5dabc39c",
+      "mesh_128.obj": "4d1b4821667e83a2ae0e49a5bba60de693e16d787543e19b0ebe413a27297e2b",
+      "mesh_129.obj": "0d7461c74df696249825eb0f86787e8351c471b43dd0c8bde3cfa3c3c80b08b2",
+      "mesh_130.obj": "18ad74b468c8e8b2dbf4b655c95c2da62101945837ad6eb349532dc8a5160191",
+      "mesh_131.obj": "738836be6095ab0dd629720df3f5c8f1cd81d6f26de15121c87cd3826d4767f9",
+      "mesh_132.obj": "aa923c503ee756be507406647d343b1914b8a6d8e33e314631da1a8b64c6e0ed",
+      "mesh_133.obj": "d44c07fde31052cdaa83231412bcb98ee8238a543bbde45041dd9b345e6f29be",
+      "mesh_134.obj": "570cb5258959899967007a6c5c2d339c59f57674a52bc84a5e6d25a6b1d4174b",
+      "mesh_135.obj": "bbe5721f8fb01876ea82e02e5e16ac8d83165989bbae0514bf237022a37adb16"
+    },
+    "tcp_frames": {
+      "left": {
+        "link": "kuavo_tool_grasp_center_L",
+        "parent": "kuavo_tool_gripper_L",
+        "xyz_m": [
+          0.0,
+          0.0,
+          0.142225549599
+        ],
+        "rpy_rad": [
+          0.0,
+          -1.5707963267948966,
+          -0.7853981633974483
+        ],
+        "source": "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
+        "sha256": "aa5ab707a2d0c9360f3408c5fd9f7b091ec8a47a154d1e7c7158f4487f42cc23",
+        "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
+      },
+      "right": {
+        "link": "kuavo_tool_grasp_center_R",
+        "parent": "kuavo_tool_gripper_R",
+        "xyz_m": [
+          0.0,
+          0.0,
+          0.142225549599
+        ],
+        "rpy_rad": [
+          0.0,
+          -1.5707963267948966,
+          -0.7853981633974483
+        ],
+        "source": "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf",
+        "sha256": "15fba6e22edd8537974002d9fc4b695a23dfd943dfb764e598e6fcad83d942c9",
+        "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
+      }
+    },
+    "default_joint_positions": {
+      "kuavo_tool_gripper_drive_L": 0.5380289158464946,
+      "kuavo_tool_gripper_drive_R": 0.6460681315327688
+    }
+  },
+  "display_sha256": "7a66dd3823c2652bc50fcbdc6142a6f0c356ceffc09197e4802a7df895494858",
+  "display_bytes": 30279756,
+  "tool_attachment": {
+    "status": "provisional_holes_aligned",
+    "tcp_frames": {
+      "left": {
+        "link": "kuavo_tool_grasp_center_L",
+        "parent": "kuavo_tool_gripper_L",
+        "xyz_m": [
+          0.0,
+          0.0,
+          0.142225549599
+        ],
+        "rpy_rad": [
+          0.0,
+          -1.5707963267948966,
+          -0.7853981633974483
+        ],
+        "source": "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
+        "sha256": "aa5ab707a2d0c9360f3408c5fd9f7b091ec8a47a154d1e7c7158f4487f42cc23",
+        "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
+      },
+      "right": {
+        "link": "kuavo_tool_grasp_center_R",
+        "parent": "kuavo_tool_gripper_R",
+        "xyz_m": [
+          0.0,
+          0.0,
+          0.142225549599
+        ],
+        "rpy_rad": [
+          0.0,
+          -1.5707963267948966,
+          -0.7853981633974483
+        ],
+        "source": "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf",
+        "sha256": "15fba6e22edd8537974002d9fc4b695a23dfd943dfb764e598e6fcad83d942c9",
+        "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
+      }
+    },
+    "config": "teleop_control/assets/kuavo/gripper_mounts.json",
+    "config_sha256": "49b26e2de16d0c9add9e09e6b8de2863e334b83d015fb0815ed624331384c909",
+    "tianji_source_sha256": "e0d78efbb73105e7be2afa9807f1d5712bb5366969f37f2d9ec923399744288a",
+    "flange_mesh_sha256": "989723f90f00c3f21b4562d0bba74a4d8f1ae48f317ea3420d08f921f503e876",
+    "excluded_tianji_adapters": [
+      "m54",
+      "m116"
+    ],
+    "opening": "Static display reference only; not measured gripper feedback.",
+    "body_display_triangles": 282597,
+    "attachment_display_triangles": 54544
+  }
 }

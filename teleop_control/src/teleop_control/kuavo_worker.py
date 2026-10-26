@@ -104,6 +104,20 @@ def require_gripper_config(contract, options):
         raise ValueError('本机夹爪参数尚未应用到机器人服务；请先更新机器人服务配置并检查设备')
 
 
+def inspect_service(client, emit):
+    """Preserve authenticated diagnostics and make an incompatible check fail."""
+    status = client.get_status()
+    emit(dict(service=status, preparation=None))
+    error = status.get('compatibility_error')
+    if error:
+        actual = (status.get('service', {}).get('session_contract') or {}).get('protocol', '未知')
+        raise ValueError(f'机器人服务已响应，但与 App 客户端不兼容（机器人协议：{actual}）。'
+                         f'请更新 App 的乐聚客户端；无需因该错误修改网卡地址。详情：{error}')
+    if not status.get('management_ready'):
+        raise ValueError('机器人服务已响应，但服务身份或管理协议未通过核验；未启动遥操作')
+    emit(dict(preparation=client.preparation('status')))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['check','execute','prepare','validate-grippers'])
@@ -144,11 +158,9 @@ def main():
             emit({'network':route})
             if route['blocked']: raise ValueError(route['detail'])
             try:
-                status = client.get_status()
-                preparation = client.preparation('status') if status['management_ready'] else None
+                inspect_service(client, emit)
             except ssl.SSLEOFError as exc:
                 raise RuntimeError(tls_failure(exc,config,namespace,route)) from None
-            emit(dict(service=status, preparation=preparation))
         else:
             action = options['preparation_action']
             if action not in ('start','initialize','grippers_inspect','grippers_prepare'):

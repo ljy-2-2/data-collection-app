@@ -1,0 +1,84 @@
+天机 Marvin M6 · UMI 完整位姿离线仿真
+
+本工具只读本地数据和机器人运动学模型，不含真机回放模式。
+不会登录机器人，不会启用电机，不启动 App 后端或机器人服务。
+
+当前已下载本机 data-platform-cloud 列表序号 4–94 共 91 条记录。
+UUID 和原始信号文件的 SHA256 固定保存在 outputs/umi-replay-4-94/data/manifest.json。
+以后新增数据导致列表顺序改变，不会改变这次选中的记录。
+复制仿真资料时，需要同时保留此 manifest 和各 UUID 文件夹。
+
+在 App 文件夹打开终端后运行：
+
+本轮起点已改为 App 保存的 replay 姿态：initial-replay-pose.json。
+它是保存时的关节快照，不是本次读取的实时反馈。旧的零关节结果仍保留在 results 目录。
+
+1. 查看以 replay 姿态为起点的仿真结果
+bash scripts/simulate_umi_replay.sh --view outputs/umi-replay-4-94/results-replay
+
+2. 重新验证全部 91 条
+bash scripts/simulate_umi_replay.sh --manifest outputs/umi-replay-4-94/data/manifest.json --initial outputs/umi-replay-4-94/initial-replay-pose.json --output outputs/umi-replay-4-94/results-replay
+
+3. 仅验证指定平台序号，例如 4、5
+在上述验证命令末尾追加 --rows 4 5，并将 --output 改成另外的目录。
+输出应使用不同目录，以便保留之前的批次结果。
+
+4. 换起始姿态
+提供 JSON 文件，格式示例（示例值为零，仅是参考姿态）：
+{
+  "robot": "tianji",
+  "units": "deg",
+  "source": "说明这组关节角的来源",
+  "measured": false,
+  "joints": {
+    "left": [0, 0, 0, 0, 0, 0, 0],
+    "right": [0, 0, 0, 0, 0, 0, 0]
+  }
+}
+左右各七个值，按 J1–J7，单位必须为度。然后把 --initial 指向新文件。
+当前 initial-pose.json 是 App 在 joints={} 时显示的零关节参考姿态，不是实机测量。
+不要把网络失败或缺失反馈当作零关节实测值。
+
+5. 再次从本机平台下载
+python3 scripts/umi_replay_sim/export_platform.py --output outputs/umi-replay-4-94/data --first 4 --last 94
+此操作只读平台数据库和对象存储，复用已冻结的记录清单；不读取机器人。
+需要当前用户可访问 Docker。仿真和查看已下载结果不需要 Docker 或网络。
+
+位姿定义
+控制点采用 App 当前 URDF 的 grasp_center_L / grasp_center_R（夹爪中心 TCP）。
+UMI 来源默认是记录中的 PICO controller 位姿，四元数 xyzw，位置单位米。
+没有二次交换或反射 ROS 坐标轴。可显式使用 --umi-point hand-root，以记录内静态 TF 换算；缺少 TF 时拒绝。
+左右臂各自将 UMI 第一帧对齐该臂起始 TCP：
+T_target(t) = T_robot_TCP_start × inverse(T_UMI_first) × T_UMI(t)
+比例固定为 1，不忽略旋转、不缩小轨迹、不裁切不可达目标。
+保留的是各自工具的相对六维运动，绝对世界位置和原始双手间距不因此得到恢复。
+这里还没有对 UMI 实物夹持点与机器人 TCP 做实际标定。
+
+验证与限制
+- 这是运动学模型仿真和可视化，不是动力学、接触或负载仿真。
+- 用厂家 FK/IK，并通过独立 URDF 校验模型；连续数值 IK 作为分支受限的回退。
+- 检查关节限位、联动腕部限位、肘部分支、连续性及采样模型自碰撞。
+- 在规则 100Hz 时间网格求解并按关节连续性加密；随后在全部原始位姿时间点校验位置和朝向，并增加间隔不超过 10ms 源时间、0.25° 关节变化上界的插值检查。左右记录中几乎相同的时间戳不重复作为控制点，避免放大数值逆解容差导致不合理的时间拉伸。
+- 求解位置/朝向容差 0.5mm/0.2°；插值检查最大容差 2mm/0.5°，数值值均写入报告。
+- 关节曲线解析速度、加速度上界决定时间拉伸，默认上限 30°/s、60°/s²；只延长时间，不改变空间轨迹。
+- 每条记录独立从指定起点验证，不规划记录之间的过渡或自动回位。
+- 一条记录出现失败即停止该条后续规划，其余记录继续；失败不构成全局不可达证明。
+- 夹爪编码器信号保留在 preview.npz 中；此版不验证夹爪驱动、开合映射和同步控制，模型夹爪为参考开度。
+- 碰撞检查不包含现场桌面、工件和人；任何通过结果仍不等于可以直接真机执行。
+
+查看器
+下拉切换记录；播放或拖动时间轴；左键旋转、右键平移、滚轮缩放。
+黄色点为目标 TCP，红/绿/蓝线分别为目标 X/Y/Z 方向。
+失败记录的机械臂只展示已解算前缀，随后保持不动；目标坐标轴仍展示完整录制轨迹。
+失败前缀未通过整条轨迹检查，不应导出为真机指令。
+
+输出
+run.json：起点来源、模型哈希、TCP 定义和映射规则。
+summary.json / summary.csv：每条记录的通过/失败结果。
+row-NNN/report.json：失败时间、原因、目标和前一关节位置，或通过后的误差和限速报告。
+row-NNN/preview.npz：仅用于可视化的关节、目标 TCP、源时间和编码器数组。
+退出码 0 表示所选记录均通过，2 表示至少一条失败；不代表程序本身崩溃。
+
+依赖
+优先使用 App 内已有 Python 环境；需要 numpy、mcap、zstandard/lz4（按录制压缩格式）。
+3D 查看器还需要 App 的 PySide6 和可用 OpenGL。无需 ROS、机器人连接或互联网。

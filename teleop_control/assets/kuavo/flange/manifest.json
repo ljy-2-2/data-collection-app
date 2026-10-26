@@ -1,0 +1,51 @@
+{
+  "original_filename": "乐聚电机连接法兰.SLDPRT",
+  "source_sha256": "e30f284bda4c1d496cda695f7a66bc27a1057d27a0212fc7859814ca0c706003",
+  "display_sha256": "989723f90f00c3f21b4562d0bba74a4d8f1ae48f317ea3420d08f921f503e876",
+  "units": "m",
+  "bounds_m": [
+    [
+      -0.028399999999999998,
+      -0.028399999999999998,
+      0.0225
+    ],
+    [
+      0.028399999999999998,
+      0.028399999999999998,
+      0.0527
+    ]
+  ],
+  "dimensions_mm": [
+    56.8,
+    56.8,
+    30.2
+  ],
+  "vertices": 2086,
+  "triangles": 1652,
+  "saved_faces": 21,
+  "assembly": {
+    "status": "provisional_holes_aligned",
+    "confirmed_by_user": "Small diameter end to robot end effector; large diameter end to gripper. Tianji adapter is not used on Kuavo.",
+    "robot_side_diameter_mm": 48.02,
+    "gripper_side_diameter_mm": 56.8,
+    "large_section_length_mm": 15.2,
+    "small_section_length_mm": 15,
+    "robot_side_face_center_cad_mm": [
+      0,
+      0,
+      22.5
+    ],
+    "gripper_side_face_center_cad_mm": [
+      0,
+      0,
+      52.7
+    ],
+    "tianji_adapter_reuse": false,
+    "excluded_tianji_adapter_meshes": {
+      "left": "m54",
+      "right": "m116"
+    },
+    "mount_configuration": "../gripper_mounts.json"
+  },
+  "note": "Saved CAD display tessellation only. No control URDF/TCP changes. Total length is not an inferred assembled offset."
+}

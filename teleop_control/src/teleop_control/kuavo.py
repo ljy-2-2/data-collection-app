@@ -16,13 +16,13 @@ from typing import Literal
 from .runtime_paths import APP_ROOT, resolve_robot_python, legacy_robot_python, resolve_xr_service
 from .gdk_env import add_xr_runtime_env
 from .kuavo_preview import KuavoModel
-from .kuavo_settings import LocalSettings, GripperSettings, ConnectionSettings
+from .kuavo_settings import LocalSettings, GripperSettings, ConnectionSettings, MotionSettings
 
 LIMITATIONS = [
     '本地保存完整遥操会话日志；尚未接入图像＋关节同步数据集及平台上传。',
     '头部相机需独立 AGX 视频连接；本页暂未接入预览、相机启动和图像录制。双腕相机接口尚未提供。',
     '姿态使用官方 v63 外观模型：会话内更新双臂实测反馈，其余部位为参考零位；夹爪外观及开合遥测待接入。',
-    '夹爪参数可编辑并保存本机 JSON；现有机器人服务不支持在线改参，需更新机器人服务配置后生效。手臂速度、加速度仍沿用原配置。',
+    '夹爪参数可编辑并保存本机 JSON；现有机器人服务不支持在线改参，需更新机器人服务配置后生效。手臂速度、加速度可保存待应用值，当前协议仅支持原值 0.7 rad/s、5 rad/s²。',
     '单臂模式屏蔽另一侧 Grip / Trigger，并禁用双臂 Y 回位；右 B 取消仍有效。',
 ]
 
@@ -31,7 +31,7 @@ class Options(BaseModel):
     network_namespace: Literal['kuavons','current'] = 'current'
     task: str = Field(default='KUAVO 遥操作', min_length=1, max_length=120)
     confirm_motion: bool = False
-    accept_unverified_gripper_bus: bool = False
+    accept_unverified_gripper_bus: bool = True
     motor_ids_confirmed: bool = False
     arm_mode: Literal['dual','left','right'] = 'dual'
     position_scale: float = Field(default=1., ge=.1, le=1., allow_inf_nan=False)
@@ -77,13 +77,16 @@ class KuavoManager:
             value['pico_live'] = bool(value.get('pico_live') and value['active'] and time.monotonic()-self.last_status<1.)
             value['gripper_settings'] = self.settings.snapshot(value.get('service') if value['state'] not in ('error','unknown') else {})
             value['connection'] = self.settings.connection_snapshot()
+            value['motion_settings'] = self.settings.motion_snapshot()
             return value
 
     def save_settings(self, body):
         with self.lock:
             if self.active(): raise RuntimeError('请先结束 KUAVO 会话或等待检查完成')
             self.other_idle()
-            if isinstance(body, ConnectionSettings):
+            if isinstance(body, MotionSettings):
+                self.settings.save_motion(body)
+            elif isinstance(body, ConnectionSettings):
                 self.settings.save_connection(body)
                 self.value.update(service={}, preparation={}, pico_sdk_available=False, state='idle', error='')
             else:
@@ -169,7 +172,9 @@ class KuavoManager:
         with self.lock:
             if self.active():raise RuntimeError('上一会话仍在运行或退出')
             self.other_idle()
+            self.settings.require_supported_motion()
             self.settings.expected_gripper_hash()
+            options = {**options, 'position_scale': self.settings.motion.position_scale}
             command, env, payload = self._launch_options(options)
             self.session_id = uuid.uuid4().hex
             payload['output'] = str(self.root/'teleop_control/runtime/kuavo/episodes'/
@@ -248,4 +253,6 @@ def kuavo_router(manager):
     def grippers(body:GripperSettings):return invoke(manager.save_settings,body)
     @router.post('/connection')
     def connection(body:ConnectionSettings):return invoke(manager.save_settings,body)
+    @router.post('/motion')
+    def motion(body:MotionSettings):return invoke(manager.save_settings,body)
     return router

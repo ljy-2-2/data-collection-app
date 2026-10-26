@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 import pytest
 from teleop_control.kuavo import KuavoManager, Options
-from teleop_control.kuavo_settings import BASELINE, ConnectionSettings, GripperSettings, LocalSettings, digest
+from teleop_control.kuavo_settings import BASELINE, ConnectionSettings, GripperSettings, LocalSettings, MotionSettings, digest
 from teleop_control.kuavo_worker import require_gripper_config
 
 
@@ -23,6 +23,39 @@ def manager(tmp_path, monkeypatch):
 
 def values(manager):
     return copy.deepcopy(manager.snapshot()['gripper_settings']['values'])
+
+
+def test_motion_settings_persist_and_pending_values_block_start(manager,monkeypatch):
+    launch=Mock(side_effect=AssertionError('must not launch robot worker'))
+    monkeypatch.setattr('subprocess.Popen',launch)
+    changed=MotionSettings(position_scale=.5,max_velocity_rad_s=.4,planning_acceleration_rad_s2=3.)
+    status=manager.save_settings(changed)['motion_settings']
+    assert status['saved'] and not status['supported']
+    assert Path(status['file']).stat().st_mode&0o777==0o600
+    assert LocalSettings(manager.root).motion==changed
+    with pytest.raises(ValueError,match='不能按此参数启动'):
+        manager.start(Options(confirm_motion=True).model_dump())
+    launch.assert_not_called()
+    manager.save_settings(MotionSettings(position_scale=.5))
+    assert manager.snapshot()['motion_settings']['supported']
+
+
+@pytest.mark.parametrize('changed',[{'position_scale':0},{'position_scale':True},
+    {'max_velocity_rad_s':float('nan')},{'max_velocity_rad_s':.8},
+    {'planning_acceleration_rad_s2':0},{'planning_acceleration_rad_s2':6}])
+def test_motion_invalid_values_never_saved(manager,changed):
+    with pytest.raises(ValueError):manager.save_settings(MotionSettings(**changed))
+    assert not manager.settings.motion_path.exists()
+
+
+def test_corrupt_motion_file_blocks_start_until_saved(manager):
+    manager.settings.motion_path.parent.mkdir(parents=True,exist_ok=True)
+    manager.settings.motion_path.write_text('{broken')
+    manager.settings=LocalSettings(manager.root)
+    assert not manager.snapshot()['motion_settings']['supported']
+    with pytest.raises(ValueError,match='无法读取'):manager.settings.require_supported_motion()
+    manager.save_settings(MotionSettings())
+    manager.settings.require_supported_motion()
 
 
 def test_save_real_validator_preserves_evidence_and_survives_restart(manager):

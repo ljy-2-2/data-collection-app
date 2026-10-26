@@ -6,7 +6,6 @@ import { requestJson } from '../../lib/http';
 
 type GripperValues = {open_rad:number;closed_rad:number;speed_rad_s:number;accel_rad_s2:number};
 type Grippers = Record<'left'|'right',GripperValues>;
-type Connection = {configured?:boolean;host:string;port:number;certificate_sha256:string};
 const gripperFields = [
   {key:'open_rad',label:'张开位置',unit:'rad',min:-3.12,max:3.12,step:.01},
   {key:'closed_rad',label:'闭合位置',unit:'rad',min:-3.12,max:3.12,step:.01},
@@ -16,8 +15,10 @@ const gripperFields = [
 function gripperDraft(source?:Record<string,Record<string,number>>): Grippers {
   return Object.fromEntries(['left','right'].map(side=>[side,Object.fromEntries(gripperFields.map(f=>[f.key,source?.[side]?.[f.key]??0]))])) as Grippers;
 }
+type Motion = {position_scale:number;max_velocity_rad_s:number;planning_acceleration_rad_s2:number};
+const defaultMotion:Motion = {position_scale:1,max_velocity_rad_s:.7,planning_acceleration_rad_s2:5};
 type Status = {
-  connection?:Connection;
+  motion_settings?:{values:Motion;saved:boolean;supported:boolean;message:string;file:string;error?:string};
   gripper_settings?:{values:Grippers;saved:boolean;matches_service:boolean;message:string;file:string};
   state: string; active?: boolean; session_id?: string; error?: string;
   service?: { management_ready?: boolean; service?: { ready_to_start?: boolean } };
@@ -33,20 +34,59 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
   const [status, setStatus] = useState<Status>({state:'idle'});
   const [action, setAction] = useState('');
   const [error, setError] = useState('');
-  const [namespace, setNamespace] = useState('current');
   const [armMode,setArmMode] = useState('dual');
-  const [positionScale,setPositionScale] = useState(1);
+  const [motion,setMotion] = useState<Motion>(defaultMotion);
+  const motionLoaded=useRef(false);
+  const latestMotion=useRef(motion);latestMotion.current=motion;
+  const savedMotion=status.motion_settings?.values||defaultMotion;
+  const motionDirty=(Object.keys(defaultMotion) as (keyof Motion)[]).some(key=>motion[key]!==savedMotion[key]);
+  useEffect(()=>{motionLoaded.current=false;setMotion(defaultMotion)},[baseUrl]);
+  useEffect(()=>{if(status.motion_settings&&!motionLoaded.current){setMotion(status.motion_settings.values);motionLoaded.current=true}},[status.motion_settings]);
   const [parametersOpen,setParametersOpen] = useState(false);
+  const [gripperDraftValues,setGripperDraftValues]=useState<Grippers>(()=>gripperDraft());
   const [grippers,setGrippers] = useState<Grippers>(()=>gripperDraft());
-  const [connectionOpen,setConnectionOpen] = useState(false);
-  const [connection,setConnection] = useState<Connection>({host:'192.168.26.1',port:7443,certificate_sha256:''});
-  const [token,setToken] = useState('');
   const [settingsError,setSettingsError] = useState('');
-  const [accepted, setAccepted] = useState(false);
+  const [gripperSaving,setGripperSaving]=useState(false);
+  const [gripperEdited,setGripperEdited]=useState(false);
+  const gripperInFlight=useRef(false);
+  const latestGrippers=useRef(grippers);latestGrippers.current=grippers;
+  const [motionSaving,setMotionSaving]=useState(false);
+  const [motionFailure,setMotionFailure]=useState('');
+  const motionInFlight=useRef(false);
   const revision = useRef(0);
   const active = !!status.active || ['starting','running','stopping','unknown'].includes(status.state);
   const locked = !!action || active || status.state === 'checking';
-  useEffect(() => { onBusyChange?.(locked); }, [locked, onBusyChange]);
+  const motionValid=Number.isFinite(motion.position_scale)&&motion.position_scale>=.1&&motion.position_scale<=1&&Number.isFinite(motion.max_velocity_rad_s)&&motion.max_velocity_rad_s>=.01&&motion.max_velocity_rad_s<=.7&&Number.isFinite(motion.planning_acceleration_rad_s2)&&motion.planning_acceleration_rad_s2>=.01&&motion.planning_acceleration_rad_s2<=5;
+  const savedGrippers=gripperDraft(status.gripper_settings?.values||status.reference?.grippers);
+  const gripperDirty=gripperEdited&&JSON.stringify(grippers)!==JSON.stringify(savedGrippers);
+  const gripperValid=(['left','right'] as const).every(side=>gripperFields.every(field=>Number.isFinite(grippers[side][field.key])&&grippers[side][field.key]>=field.min&&grippers[side][field.key]<=field.max));
+  const gripperDraftValid=(['left','right'] as const).every(side=>gripperFields.every(field=>Number.isFinite(gripperDraftValues[side][field.key])&&gripperDraftValues[side][field.key]>=field.min&&gripperDraftValues[side][field.key]<=field.max));
+  const parametersBusy=motionDirty||motionSaving||gripperDirty||gripperSaving;
+  useEffect(()=>{
+    if(parametersOpen||!gripperDirty||!gripperValid||locked||motionSaving||gripperSaving||settingsError)return;
+    const timer=setTimeout(()=>{
+      if(motionInFlight.current||gripperInFlight.current)return;
+      gripperInFlight.current=true;setGripperSaving(true);++revision.current;
+      void requestJson<Status>(baseUrl,'/kuavo/grippers',{method:'POST',body:JSON.stringify(grippers)})
+        .then(value=>setStatus(current=>({...current,gripper_settings:value.gripper_settings})))
+        .catch(error=>{if(JSON.stringify(latestGrippers.current)===JSON.stringify(grippers))setSettingsError(String(error))})
+        .finally(()=>{++revision.current;gripperInFlight.current=false;setGripperSaving(false)});
+    },350);
+    return ()=>clearTimeout(timer);
+  },[baseUrl,grippers,gripperDirty,gripperValid,locked,motionSaving,gripperSaving,settingsError,parametersOpen]);
+  useEffect(() => { onBusyChange?.(locked||parametersBusy); }, [locked, parametersBusy, onBusyChange]);
+  useEffect(()=>{
+    if(!motionLoaded.current||!motionDirty||!motionValid||locked||motionSaving||gripperSaving||motionFailure)return;
+    const timer=setTimeout(()=>{
+      if(motionInFlight.current||gripperInFlight.current)return;
+      motionInFlight.current=true;setMotionSaving(true);++revision.current;
+      void requestJson<Status>(baseUrl,'/kuavo/motion',{method:'POST',body:JSON.stringify(motion)})
+        .then(value=>setStatus(current=>({...current,motion_settings:value.motion_settings})))
+        .catch(error=>{if((Object.keys(defaultMotion) as (keyof Motion)[]).every(key=>latestMotion.current[key]===motion[key]))setMotionFailure(String(error))})
+        .finally(()=>{++revision.current;motionInFlight.current=false;setMotionSaving(false)});
+    },350);
+    return ()=>clearTimeout(timer);
+  },[baseUrl,motion,motionDirty,motionValid,locked,motionSaving,gripperSaving,motionFailure]);
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -54,7 +94,7 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
       const current = revision.current;
       try {
         const value = await requestJson<Status>(baseUrl, '/kuavo/status');
-        if (!cancelled && current === revision.current) setStatus(value);
+        if (!cancelled && current === revision.current && !motionInFlight.current && !gripperInFlight.current) setStatus(value);
       } catch (e) {
         if (!cancelled && current === revision.current) setStatus(s => ({...s,state:'unknown',error:String(e),pose_live:false,pico_live:false,vr_ready:false,pico_ready:false}));
       } finally { if (!cancelled) timer = setTimeout(poll, 500); }
@@ -64,6 +104,7 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
   }, [baseUrl]);
   async function command(name: string, preparation?: string) {
     if (name !== 'stop' && locked) return;
+    if(name!=='stop'&&parametersBusy){if(name==='check'){setMotionFailure('');setSettingsError('')}return}
     const id = ++revision.current;
     let motorIds = false;
     if (name === 'start' || name === 'prepare') {
@@ -75,8 +116,8 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
     }
     setAction(name); setError('');
     const body = name === 'stop' ? {session_id:status.session_id} : {
-      task, network_namespace:namespace, arm_mode:armMode, position_scale:positionScale, confirm_motion:name==='start'||(name==='prepare'&&preparation!=='grippers_inspect'),
-      accept_unverified_gripper_bus:accepted, motor_ids_confirmed:motorIds,
+      task, network_namespace:'current', arm_mode:armMode, position_scale:motion.position_scale, confirm_motion:name==='start'||(name==='prepare'&&preparation!=='grippers_inspect'),
+      accept_unverified_gripper_bus:true, motor_ids_confirmed:motorIds,
       ...(preparation ? {preparation_action:preparation} : {}),
     };
     try {
@@ -84,18 +125,6 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
       if (id===revision.current) setStatus(value);
     } catch(e) { if (id===revision.current) setError(String(e)); }
     finally { if(id===revision.current) setAction(''); }
-  }
-  async function saveSettings(kind:'connection'|'grippers',body:unknown) {
-    if(locked)return;
-    const id=++revision.current;setAction(kind);setSettingsError('');
-    try {
-      const value=await requestJson<Status>(baseUrl,'/kuavo/'+kind,{method:'POST',body:JSON.stringify(body)});
-      if(id!==revision.current)return;
-      setStatus(value);
-      if(kind==='grippers')setParametersOpen(false);
-      else {setToken('');setConnectionOpen(false)}
-    } catch(e) {if(id===revision.current)setSettingsError(String(e))}
-    finally {if(id===revision.current)setAction('')}
   }
   const sessionLabel = ({idle:'未运行',checking:'检查中',starting:'准备中',running:'运行中',stopping:'结束中',error:'异常',unknown:'状态未知'} as Record<string,string>)[status.state] || status.state;
   const statusKnown = !['unknown','error'].includes(status.state);
@@ -106,71 +135,58 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
     {name:'Pico 设备',ready:active?!!status.pico_live:!!status.pico_ready,detail:status.pico_detail||'尚未检查 PICO USB 和头显应用'},
   ];
   return <div className="teleop-workspace kuavo-workspace">
-    {parametersOpen&&<div className="kuavo-modal-backdrop"><form className="surface kuavo-parameter-dialog" role="dialog" aria-modal="true" aria-label="其他参数 · 乐聚达妙夹爪" onSubmit={event=>{event.preventDefault();void saveSettings('grippers',grippers)}}>
-      <h3>其他参数 · 乐聚达妙夹爪</h3>
-      <p>修改保存到本机。机器人服务更新配置后才生效，当前不支持在线应用。</p>
-      {(['left','right'] as const).map(side=><section key={side}><strong>{side==='left'?'左夹爪':'右夹爪'}</strong><div className="kuavo-gripper-fields">{gripperFields.map(field=><label key={field.key}>{field.label}（{field.unit}）<input aria-label={(side==='left'?'左':'右')+field.label} type="number" required min={field.min} max={field.max} step="any" disabled={!!action} value={Number.isNaN(grippers[side][field.key])?'':grippers[side][field.key]} onChange={event=>setGrippers(values=>({...values,[side]:{...values[side],[field.key]:event.target.valueAsNumber}}))}/></label>)}</div></section>)}
-      <p role="status">{status.gripper_settings?.message}</p>
-      {status.gripper_settings?.file&&<p style={{overflowWrap:'anywhere'}}>{status.gripper_settings.file}</p>}
-      {settingsError&&<p role="alert">{settingsError}</p>}
-      <div className="kuavo-actions"><ActionButton kind="secondary" disabled={!!action} onClick={()=>setGrippers(gripperDraft(status.reference?.grippers))}>恢复原项目值</ActionButton><ActionButton kind="secondary" disabled={!!action} onClick={()=>setParametersOpen(false)}>取消</ActionButton><button className="action-button" type="submit" disabled={locked}>{action==='grippers'?'保存中…':'确认'}</button></div>
-    </form></div>}
-    {connectionOpen&&<div className="kuavo-modal-backdrop"><form className="surface kuavo-parameter-dialog" role="dialog" aria-modal="true" aria-label="机器人连接" onSubmit={event=>{event.preventDefault();void saveSettings('connection',{host:connection.host,port:connection.port,certificate_sha256:connection.certificate_sha256,token})}}>
-      <h3>机器人连接</h3><p>本电脑通过自身网络连接机器人。新电脑首次填写配置，并准备 PICO 接收服务和 SDK；保存后点击检查设备。</p>
-      <div className="kuavo-connection-fields">
-        <label>机器人服务 IP<input required value={connection.host} disabled={!!action} onChange={e=>setConnection({...connection,host:e.target.value})}/></label>
-        <label>端口<input required type="number" min="1" max="65535" value={Number.isNaN(connection.port)?'':connection.port} disabled={!!action} onChange={e=>setConnection({...connection,port:e.target.valueAsNumber})}/></label>
-        <label>证书 SHA256 指纹（来自机器人连接配置）<input required pattern="[0-9a-fA-F]{64}" maxLength={64} value={connection.certificate_sha256} disabled={!!action} onChange={e=>setConnection({...connection,certificate_sha256:e.target.value})}/></label>
-        <label>连接密钥（来自配套 token 文件，每次保存需填写）<input required type="password" autoComplete="off" pattern="[0-9a-fA-F]{64}" maxLength={64} value={token} disabled={!!action} onChange={e=>setToken(e.target.value)}/></label>
+    {parametersOpen&&<div className="kuavo-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setParametersOpen(false)}} onKeyDown={e=>{if(e.key==='Escape')setParametersOpen(false)}}><section className="surface tianji-parameter-dialog kuavo-auto-parameters" role="dialog" aria-modal="true" aria-labelledby="kuavo-parameters-title">
+      <div className="tianji-parameter-header"><h3 id="kuavo-parameters-title">其它参数</h3></div>
+      <div className="tianji-extra-parameters kuavo-gripper-fields">
+        {(['speed_rad_s','accel_rad_s2','open_rad','closed_rad'] as const).flatMap(key=>(['left','right'] as const).map(side=>{
+          const field=gripperFields.find(f=>f.key===key)!;
+          const label=(side==='left'?'左':'右')+'夹爪'+({speed_rad_s:'速度',accel_rad_s2:'加速度',open_rad:'打开角度',closed_rad:'关闭角度'}[key]);
+          return <label key={side+key}>{label}<input aria-label={label} title={field.unit} type="number" min={field.min} max={field.max} step="any" disabled={locked||gripperSaving} value={Number.isNaN(gripperDraftValues[side][key])?'':gripperDraftValues[side][key]} onChange={event=>{setGripperDraftValues(values=>({...values,[side]:{...values[side],[key]:event.target.valueAsNumber}}))}}/><small>{field.unit}</small></label>
+        }))}
       </div>
-      {settingsError&&<p role="alert">{settingsError}</p>}
-      <div className="kuavo-actions"><ActionButton kind="secondary" disabled={!!action} onClick={()=>{setToken('');setConnectionOpen(false)}}>取消</ActionButton><button className="action-button" type="submit" disabled={locked}>{action==='connection'?'保存中…':'保存'}</button></div>
-    </form></div>}
+      {!gripperDraftValid&&<p role="alert">参数超出范围</p>}
+      <div className="parameter-dialog-actions">
+        <ActionButton disabled={locked||gripperSaving||!gripperDraftValid} onClick={()=>{setGrippers(gripperDraftValues);setGripperEdited(true);setSettingsError('');setParametersOpen(false)}}>确认</ActionButton>
+        <ActionButton kind="secondary" onClick={()=>setParametersOpen(false)}>取消</ActionButton>
+      </div>
+    </section></div>}
+    {settingsError&&!parametersOpen&&<p role="alert">夹爪参数自动保存失败，请打开其它参数重试：{settingsError}</p>}
+    {gripperDirty&&!gripperValid&&!parametersOpen&&<p role="alert">夹爪参数超出范围，请打开其它参数修改后确认保存。</p>}
 
     <section className="surface teleop-control-panel">
       <div className="teleop-setup-flow kuavo-setup-flow">
         <section className="teleop-setup-section kuavo-settings">
-          <div className="teleop-setup-label"><span>01</span><strong>遥操作设置</strong><small>乐聚 KUAVO 5-W</small></div>
-          <div className="kuavo-settings-row kuavo-parameter-row">
-            <label>操作手臂<select aria-label="操作手臂" value={armMode} disabled={locked} onChange={e=>setArmMode(e.target.value)}><option value="dual">双臂</option><option value="left">单臂 · 左臂</option><option value="right">单臂 · 右臂</option></select></label>
-            <label>位移倍率<input aria-label="位移倍率" type="number" min="0.1" max="1" step="0.1" value={positionScale} disabled={locked} onChange={e=>{const v=Number(e.target.value);if(Number.isFinite(v)&&v>=.1&&v<=1)setPositionScale(v)}}/></label>
-            <label>速度 / 加速度<span>{status.reference ? `${status.reference.max_velocity_rad_s} / ${status.reference.planning_acceleration_rad_s2}` : '—'}</span></label>
-            <ActionButton kind="secondary" disabled={locked} onClick={()=>{setGrippers(gripperDraft(status.gripper_settings?.values||status.reference?.grippers));setSettingsError('');setParametersOpen(true)}}>其他参数</ActionButton>
+          <div className="teleop-setup-label"><span>01</span><strong>遥操作设置</strong></div>
+          <div className="kuavo-primary-settings">
+            <select aria-label="操作手臂" value={armMode} disabled={locked} onChange={e=>setArmMode(e.target.value)}><option value="dual">双臂</option><option value="left">左臂</option><option value="right">右臂</option></select>
+            <div className="kuavo-settings-row kuavo-parameter-row">
+              {([{key:'position_scale',label:'位移倍率',unit:'倍',min:.1,max:1,step:.1},{key:'max_velocity_rad_s',label:'速度',unit:'rad/s',min:.01,max:.7,step:.05},{key:'planning_acceleration_rad_s2',label:'加速度',unit:'rad/s²',min:.01,max:5,step:.1}] as const).map(field=><label key={field.key}>{field.label}<input aria-label={field.label} title={field.unit} type="number" min={field.min} max={field.max} step={field.step} value={Number.isNaN(motion[field.key])?'':motion[field.key]} disabled={locked} onChange={e=>{motionLoaded.current=true;setMotionFailure('');setMotion({...motion,[field.key]:e.target.valueAsNumber})}}/><small>{field.min}–{field.max} {field.unit}</small></label>)}
+            </div>
+            <ActionButton kind="secondary" disabled={locked||motionDirty||motionSaving||gripperSaving} onClick={()=>{setGripperDraftValues(gripperDirty?grippers:savedGrippers);setParametersOpen(true)}}>其它参数</ActionButton>
           </div>
-          <p className="kuavo-device-hint">手臂速度 rad/s、加速度 rad/s² 沿用乐聚正式配置；夹爪设置在其他参数中修改。</p>
-          {armMode!=='dual'&&<p className="kuavo-device-hint">另一侧 Grip / Trigger 无效；Y 双臂回位禁用，B 取消仍有效。</p>}
-          <div className="kuavo-settings-row">
-            <select aria-label="KUAVO 网络方式" value={namespace} disabled={locked} onChange={e=>setNamespace(e.target.value)}>
-              <option value="current">本电脑网络（默认）</option><option value="kuavons">原项目专用网络 kuavons</option>
-            </select>
-            <ActionButton kind="secondary" disabled={locked} onClick={()=>{setConnection(status.connection||{host:'192.168.26.1',port:7443,certificate_sha256:''});setToken('');setSettingsError('');setConnectionOpen(true)}}>机器人连接</ActionButton>
-          </div>
-          <p className="kuavo-device-hint">{status.connection?.configured?`已配置机器人地址：${status.connection.host}:${status.connection.port}`:'新电脑首次使用，请先配置机器人连接。'}</p>
-          {status.gripper_settings?.saved&&<p className="kuavo-device-hint">{status.gripper_settings.message}</p>}
-          <label className="kuavo-bus-condition"><input type="checkbox" checked={accepted} disabled={locked} onChange={e=>setAccepted(e.target.checked)}/> 接受原项目夹爪与手臂共用 CAN 总线的使用条件（兼容性尚未完成验证）</label>
+          {motionFailure&&<p role="alert">参数自动保存失败：{motionFailure}</p>}
+          {!motionValid&&<p role="alert">遥操作参数超出范围</p>}
+          {!motionDirty&&status.motion_settings?.supported===false&&<p role="status">速度、加速度尚未应用，当前服务仅支持 0.7 rad/s、5 rad/s²</p>}
         </section>
         <section className="teleop-setup-section teleop-devices-section">
           <div className="teleop-setup-label"><span>02</span><strong>所需设备</strong><small>{devices.filter(device=>device.ready).length}/3</small></div>
           <div className="teleop-required-devices">{devices.map(device=><article key={device.name} title={device.detail} className={'teleop-required-device '+(device.ready?'device-connected':'device-offline')}><span>{device.name}</span><strong>{checking?'检测中':device.ready?'已连接':'未连接'}</strong></article>)}</div>
-          <p className="kuavo-device-hint">点击检查设备会唤醒 PICO、核验 USB 和 VR 输入，必要时恢复本机 VR 接收服务；空闲时显示最近检查结果，遥操中显示实时输入状态。</p>
-          {status.vr_checked&&(!status.vr_ready||!status.pico_ready)&&<p className="kuavo-device-hint" role="status">{[status.pico_ready?'':status.pico_detail,status.vr_ready?'':status.vr_detail].filter(Boolean).join('；')}</p>}
         </section>
       </div>
       {(error||status.error)&&<div className="inline-alert teleop-panel-alert" role="alert">{error||status.error}</div>}
       <div className="teleop-control-footer">
         <span className="compact-status" role="status">会话：{sessionLabel} · 本地日志自动保存</span>
         <div className="teleop-control-actions">
-          <ActionButton kind="secondary" disabled={locked} busy={action==='check'} onClick={()=>void command('check')}>检查设备</ActionButton>
+          <ActionButton kind="secondary" disabled={locked||motionSaving||(motionDirty&&!motionFailure)} busy={action==='check'} onClick={()=>void command('check')}>检查设备</ActionButton>
           {active ? <ActionButton danger disabled={!status.session_id || status.state==='stopping'} onClick={()=>void command('stop')}>{status.state==='stopping'?'正在结束…':'结束遥操作'}</ActionButton> :
-            <ActionButton disabled={locked || !!(status.gripper_settings?.saved&&!status.gripper_settings.matches_service) || !accepted || !status.vr_ready || !status.pico_ready || !status.pico_sdk_available || !status.service?.management_ready || !status.service?.service?.ready_to_start} onClick={()=>void command('start')}>开始遥操作</ActionButton>}
+            <ActionButton disabled={locked || !!(status.gripper_settings?.saved&&!status.gripper_settings.matches_service) || parametersBusy || status.motion_settings?.supported===false || !status.vr_ready || !status.pico_ready || !status.pico_sdk_available || !status.service?.management_ready || !status.service?.service?.ready_to_start} onClick={()=>void command('start')}>开始遥操作</ActionButton>}
         </div>
       </div>
     </section>
     <div className="teleop-observation-grid kuavo-observation-grid">
       <section className="surface teleop-visualizer">
-        <div className="preview-head"><strong>机器人姿态</strong><span>● {status.pose_live?'双臂遥测在线':status.pose_available?'反馈已过期':'参考姿态'}</span></div>
+        <div className="preview-head"><strong>机器人姿态</strong>{(status.pose_live||status.pose_available)&&<span>● {status.pose_live?'双臂遥测在线':'反馈已过期'}</span>}</div>
         <div className="kuavo-model-stage"><KuavoRobotPreview joints={status.telemetry?.joints||{}} darkMode={darkMode}/></div>
-        <p className="kuavo-device-hint">官方 v63 模型 · 非手臂部位为参考零位</p>
       </section>
       <section className="surface teleop-camera">
         <div className="preview-head"><strong>相机预览</strong><span>待接入</span></div>
@@ -179,27 +195,7 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
     </div>
     <section className="surface teleop-manual">
       <div className="preview-head"><strong>手动控制</strong></div>
-      <div className="teleop-manual-body">
-        <div className="kuavo-preparation">
-          <strong>主控与夹爪准备</strong>
-          <div className="kuavo-actions">{[
-            ['start','启动主控'],['initialize','厂家初始化'],['grippers_inspect','读取夹爪状态'],['grippers_prepare','准备夹爪'],
-          ].map(([key,label])=><ActionButton key={key} kind="secondary" disabled={locked||!status.service?.management_ready||(key.startsWith('grippers')&&!accepted)} onClick={()=>void command('prepare',key)}>{label}</ActionButton>)}</div>
-          <p>沿用乐聚准备接口；已有主控时不要重复启动。检查设备仅查询服务和准备状态。</p>
-          {Object.keys(status.preparation||{}).length>0&&<details><summary>查看准备结果</summary><pre>{JSON.stringify(status.preparation,null,2)}</pre></details>}
-        </div>
-        <div className="kuavo-actions"><button type="button" className="action-button button-secondary" disabled>关节微调 · 待接入</button><button type="button" className="action-button button-secondary" disabled>姿态保存 / 复位 · 待接入</button></div>
-        <p>独立手动控制接口尚未接入；双臂会话沿用 Y 回位 / B 取消，单臂禁用 Y。</p>
-      </div>
-    </section>
-    <section className="surface kuavo-info">
-      <strong>手柄操作 · 使用乐聚原映射</strong>
-      <p>Grip：控制同侧手臂，两侧可同时握持。Trigger：独立接管夹爪，0 张开、1 闭合。<br/>开始时先松开 Grip 与 Trigger。左 Y：双臂模式下松开两侧 Grip 和 Trigger 后回位（单臂禁用）；右 B：取消回位。<br/>A/X 不映射为天机 Marvin M6 的采集按钮；结束会话请使用本页按钮。</p>
-    </section>
-    <section className="surface kuavo-info">
-      <strong>本地记录</strong>
-      <p>{status.log_directory ? '会话日志：'+status.log_directory : '启动会话后自动保存输入、机器人回执、退出报告；暂不生成同步图像数据集或上传平台。'}</p>
-      <details><summary>日志与待接入说明</summary><ul>{status.limitations?.map(text=><li key={text}>{text}</li>)}</ul><pre>{status.logs?.slice(-12).join('\n')||'暂无日志'}</pre></details>
+      <div className="teleop-manual-body" style={{minHeight:72}} />
     </section>
   </div>;
 }

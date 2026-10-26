@@ -274,3 +274,42 @@ def test_unuploaded_teleop_still_requires_original_authorization(tmp_path):
         uploader.scan_once()
         assert uploader.status()['failed'] == 1
         assert not (folder / collection_uploader.UPLOADED_MARKER).exists()
+
+
+def test_worker_upgrade_waits_for_new_implementation(tmp_path, monkeypatch):
+    from teleop_control import background_upload
+    root=tmp_path/'.background-upload'
+    config=root/'config.json'
+    private_json(config,dict(version=1,uploaders=[],implementation='old-test-version'))
+    command=[sys.executable,'-m','teleop_control.background_upload','--config',str(config)]
+    env=dict(os.environ,PYTHONPATH=str(ROOT/'teleop_control/src'))
+    original_popen=subprocess.Popen
+    old=original_popen(command,env=env)
+    replacements=[]
+    def launch(*args,**kwargs):
+        process=original_popen(*args,**kwargs)
+        replacements.append(process)
+        return process
+    try:
+        wait_for(lambda:(root/'worker-state.json').exists())
+        monkeypatch.setattr(background_upload.subprocess,'Popen',launch)
+        background_upload.ensure_service(tmp_path,[],systemd=False)
+        state=json.loads((root/'worker-state.json').read_text())
+        expected=json.loads(config.read_text())['implementation']
+        assert state['implementation']==expected and expected!='old-test-version'
+        assert state['pid']==replacements[0].pid and state['pid']!=old.pid
+        assert old.wait(5)==0
+        duplicate=original_popen(command,env=env)
+        assert duplicate.wait(5)==0
+    finally:
+        for process in [old,*replacements]:
+            if process.poll() is None:process.terminate()
+            process.wait(8)
+
+
+def test_old_worker_heartbeat_is_not_ready_after_upgrade(tmp_path):
+    from teleop_control.background_upload import wait_for_worker
+    private_json(tmp_path/'config.json',dict(implementation='new-version'))
+    private_json(tmp_path/'worker-state.json',dict(pid=os.getpid(),updated_at=time.time(),implementation='old-version'))
+    with pytest.raises(RuntimeError,match='未就绪'):
+        wait_for_worker(tmp_path,timeout=.15)

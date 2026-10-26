@@ -19,18 +19,20 @@ interface TeleopPanelProps {
   error: string | null;
   onBusyChange?: (busy: boolean) => void;
   onRobotModelChange?: (model: string) => void;
+  onStepChange?: (step: 1 | 2) => void;
 }
 
 // Register a separate workspace for each supported robot. Never fall back to G2
 // for an unknown model: its joint limits, telemetry and commands are G2-specific.
 const ROBOTS: Record<string, { label: string; Workspace: ComponentType<TeleopPanelProps & { task: string }> }> = {
-  'agibot-g2': { label: '智元 G2', Workspace: G2TeleopWorkspace },
-  'kuavo-5w': { label: '乐聚 KUAVO 5-W', Workspace: KuavoTeleopWorkspace },
   'tianji': { label: '天机 Marvin M6', Workspace: TianjiTeleopWorkspace },
+  'kuavo-5w': { label: '乐聚 KUAVO 5-W', Workspace: KuavoTeleopWorkspace },
+  'agibot-g2': { label: '智元 G2', Workspace: G2TeleopWorkspace },
 };
 
 export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
   const [step, setStep] = useState<1 | 2>(1);
+  useEffect(() => { props.onStepChange?.(step); }, [step, props.onStepChange]);
   const [uploadTarget,setUploadTarget]=useState<{selected:string;web_url:string}|null>(null);
   useEffect(()=>{
     if(step!==1)return;

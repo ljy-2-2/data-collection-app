@@ -3,7 +3,6 @@ import {
   Settings2,
   ChevronUp,
   ChevronDown,
-  X,
   Play,
   RefreshCw,
   Square,
@@ -90,6 +89,7 @@ export function TianjiTeleopWorkspace({
   const [parameters, setParameters] = useState<TianjiParameters>({
     ...TIANJI_DEFAULTS,
   });
+  const [parameterDraft,setParameterDraft]=useState<TianjiParameters>({...TIANJI_DEFAULTS});
   const [saved, setSaved] = useState<TianjiParameters | null>(null);
   const [saving, setSaving] = useState(false);
   const [parametersLoaded, setParametersLoaded] = useState(false);
@@ -211,12 +211,21 @@ export function TianjiTeleopWorkspace({
   const dirty =
     !saved || TIANJI_FIELDS.some(({ key }) => parameters[key] !== saved[key]);
   const valid = validTianjiParameters(parameters);
+  function closeParameters() {
+    setParametersOpen(false);
+  }
+  function confirmParameters() {
+    if(!validTianjiParameters(parameterDraft))return;
+    setParameters(current=>({...current,...Object.fromEntries(otherFields.map(f=>[f.key,parameterDraft[f.key]]))}));
+    setSaveFailure(null);setParametersOpen(false);
+  }
   const canMove = Boolean(state) && live && !locked && !saving && !dirty;
   const canRecover = Boolean(state) && ['idle', 'error'].includes(state!.state)
     && parametersLoaded && !pending && !saving && !dirty && !collectionBusy && !collecting && !cameraSettingsBusy;
   useEffect(() => {
     if (
       !parametersLoaded ||
+      parametersOpen ||
       state?.state !== 'idle' ||
       pending ||
       saving ||
@@ -253,6 +262,7 @@ export function TianjiTeleopWorkspace({
   }, [
     api,
     parametersLoaded,
+    parametersOpen,
     state?.state,
     pending,
     saving,
@@ -364,22 +374,13 @@ export function TianjiTeleopWorkspace({
           <section className="teleop-setup-section teleop-mode-section">
             <div className="teleop-setup-label">
               <span>01</span>
-              <strong>上传曲线</strong>
-              <small className="tianji-autosave-label" role="status">
-                {saveFailure
-                  ? '保存失败'
-                  : !valid
-                    ? '参数超出范围'
-                    : saving || dirty
-                      ? '自动保存中…'
-                      : null}
-              </small>
+              <strong>遥操作设置</strong>
             </div>
             <select
               value={mode}
               disabled={locked}
               onChange={(e) => setMode(e.target.value as TianjiMode)}
-              aria-label="天机 Marvin M6上传曲线"
+              aria-label="天机 Marvin M6遥操作设置"
             >
               <option value="dual">双臂</option>
               <option value="left">左臂</option>
@@ -466,6 +467,7 @@ export function TianjiTeleopWorkspace({
               kind="secondary"
               disabled={locked}
               onClick={() => {
+                setParameterDraft({...parameters});
                 setParametersOpen(true);
               }}
             >
@@ -506,22 +508,19 @@ export function TianjiTeleopWorkspace({
           ref={parameterDialog}
           className="tianji-parameter-dialog"
           aria-labelledby="tianji-parameters-title"
+          onClick={(event) => {
+            if(event.target!==event.currentTarget)return;
+            const bounds=event.currentTarget.getBoundingClientRect();
+            if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)closeParameters();
+          }}
           onCancel={(event) => {
             event.preventDefault();
-            setParametersOpen(false);
+            closeParameters();
           }}
         >
           <div className="tianji-parameter-header">
             <h3 id="tianji-parameters-title">其它参数</h3>
-            <button
-              type="button"
-              className="tianji-dialog-close"
-              aria-label="关闭其它参数"
-              disabled={Boolean(pending)}
-              onClick={() => setParametersOpen(false)}
-            >
-              <X size={18} />
-            </button>
+
           </div>
           <fieldset disabled={locked}>
             <div className="tianji-parameter-grid">
@@ -537,12 +536,12 @@ export function TianjiTeleopWorkspace({
                       step="any"
                       required
                       value={
-                        Number.isFinite(parameters[f.key])
-                          ? parameters[f.key]
+                        Number.isFinite(parameterDraft[f.key])
+                          ? parameterDraft[f.key]
                           : ''
                       }
                       onChange={(e) =>
-                        setParameters((p) => ({
+                        setParameterDraft((p) => ({
                           ...p,
                           [f.key]:
                             e.target.value === ''
@@ -562,16 +561,13 @@ export function TianjiTeleopWorkspace({
               {saveFailure.message}
             </div>
           ) : null}
-          <div className="tianji-autosave-status" role="status">
-            {saveFailure
-              ? '自动保存未完成，可通过检查设备重试'
-              : !valid
-                ? '请输入范围内的参数'
-                : saving || dirty
-                  ? '等待自动保存'
-                  : null}
+          {!validTianjiParameters(parameterDraft) && <div className="inline-alert" role="alert">请输入范围内的参数</div>}
+          <div className="parameter-dialog-actions">
+            <ActionButton disabled={locked||!validTianjiParameters(parameterDraft)} onClick={confirmParameters}>确认</ActionButton>
+            <ActionButton kind="secondary" onClick={closeParameters}>取消</ActionButton>
           </div>
         </dialog>
+        {!valid && !parametersOpen && <div className="inline-alert" role="alert">参数超出范围，请打开其它参数修改后确认保存。</div>}
         {moving && state?.recovery ? (
           <div className="inline-alert teleop-panel-alert" role="status">
             {state.recovery.detail}
@@ -628,7 +624,7 @@ export function TianjiTeleopWorkspace({
               <ActionButton
                 busy={pending === 'start'}
                 disabled={count !== 3 || locked || saving || !valid || dirty}
-                onClick={() => act('start', { task, mode: 'dual', upload_mode: mode, parameters: saved })}
+                onClick={() => act('start', { task, mode, upload_mode: mode, parameters: saved })}
               >
                 <Play size={15} fill="currentColor" />
                 开始遥操作
@@ -654,10 +650,10 @@ export function TianjiTeleopWorkspace({
               <h3>机器人姿态</h3>
               {live ? <span>实时关节状态</span> : null}
             </div>
-            <div className="compact-status">
+            {live && <div className="compact-status">
               <StatusDot online={live} pulse={live} />
-              {live ? '遥测在线' : '无遥测'}
-            </div>
+              {live ? '遥测在线' : ''}
+            </div>}
           </div>
           <div className="teleop-visual-stage">
             <TianjiRobotPreview

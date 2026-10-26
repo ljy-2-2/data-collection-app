@@ -107,6 +107,45 @@ def test_old_poll_failure_cannot_overwrite_state_after_stop(bridge):
     assert bridge.state['tianji']['state']=='idle'
 
 
+@pytest.mark.parametrize('entry',['configure','navigate'])
+@pytest.mark.parametrize('late',['done','failed'])
+def test_tianji_reentry_clears_notices_and_rejects_old_status(bridge,entry,late):
+    bridge.demo=False;requests=[]
+    bridge.request=lambda path,*args,**kw:requests.append((path,kw))
+    old_status=dict(state='idle',error='上次设备错误',camera_error='上次预览错误',
+                    collection={'upload':{'error':'上传待重试'}})
+    bridge.update(authenticated=True,teleopStep=2,robot='tianji',tianji=old_status,
+                  error='上次操作错误',notice='上次操作提示',
+                  cameraApplyError='上次相机参数失败',cameraApplyMessage='相机参数应用失败')
+    bridge.poll()
+    old=next(kw for path,kw in requests if path=='/tianji/status')
+    if entry=='configure':
+        bridge.update(teleopStep=1)
+        bridge.configureTeleop('重新进入','tianji')
+        bridge.save_timer.stop()
+    else:
+        bridge.navigate('umi');bridge.navigate('teleop')
+    assert all(not bridge.state[key] for key in ('error','notice','cameraApplyError','cameraApplyMessage'))
+    assert not bridge.state['tianjiStatusFresh']
+    assert bridge.state['tianji']==old_status, 'Keep actual device/recording state intact'
+    old[late](dict(state='error',error='旧请求返回') if late=='done' else '旧请求超时')
+    assert not bridge.state['tianjiStatusFresh']
+    assert bridge.state['tianji']==old_status
+    bridge.last_poll.clear();bridge.poll()
+    current=next(kw for path,kw in reversed(requests) if path=='/tianji/status')
+    current['done'](dict(state='error',error='当前设备故障'))
+    assert bridge.state['tianjiStatusFresh']
+    assert bridge.state['tianji']['error']=='当前设备故障'
+
+
+def test_reentry_does_not_erase_camera_apply_in_progress(bridge):
+    bridge.update(authenticated=True,page='umi',cameraApplyBusy=True,
+                  cameraApplyMessage='正在应用相机参数…')
+    bridge.navigate('teleop')
+    assert bridge.state['cameraApplyBusy']
+    assert bridge.state['cameraApplyMessage']=='正在应用相机参数…'
+
+
 @pytest.mark.parametrize('state',['idle','error'])
 def test_zero_recovery_available_without_vr_or_normal_device_precheck(bridge,state):
     bridge.update(authenticated=True,robot='tianji',busy='',selectedPose='zero',

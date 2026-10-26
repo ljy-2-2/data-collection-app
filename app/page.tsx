@@ -158,7 +158,10 @@ function UsageGuide({ image, alt }: { image: string; alt: string }) {
   return (
     <div className="usage-guide" tabIndex={0}>
       <span className="usage-guide-label"><CircleHelp size={19} aria-hidden="true" />使用说明</span>
-      <figure className="usage-guide-popover"><img src={image} alt={alt} /></figure>
+      <figure className="usage-guide-popover" aria-label={alt}>
+        <figcaption>使用说明</figcaption>
+        <div className="usage-guide-image">{image ? <img src={image} alt={alt} /> : null}</div>
+      </figure>
     </div>
   );
 }
@@ -749,6 +752,7 @@ export default function Home() {
   const [agentOnline, setAgentOnline] = useState(false);
   const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null);
   const [teleopRobotModel, setTeleopRobotModel] = useState('tianji');
+  const [teleopStep, setTeleopStep] = useState<1 | 2>(1);
   const [teleopStatus, setTeleopStatus] = useState<TeleopStatus | null>(null);
   const [preview, setPreview] = useState<PreviewStatus | null>(null);
   const [umiStatus, setUmiStatus] = useState<UmiStatus | null>(null);
@@ -1154,17 +1158,17 @@ export default function Home() {
 
         <main className="app-main">
           <section className="page">
-            {active !== 'ego' ? (
+            {active === 'umi' || (active === 'teleop' && teleopStep === 2) ? (
               <div className="page-tools">
                 {active === 'teleop'
-                  ? (teleopRobotModel === 'kuavo-5w' ? null : <UsageGuide image="/teleop-usage-guide.png" alt="遥操作手柄按键使用说明" />)
+                  ? <UsageGuide key={teleopRobotModel} image={teleopRobotModel === 'kuavo-5w' ? '' : teleopRobotModel === 'tianji' ? '/tianji-usage-guide.png' : '/teleop-usage-guide.png'} alt={teleopRobotModel === 'kuavo-5w' ? '乐聚使用说明' : '遥操作手柄按键使用说明'} />
                   : <UsageGuide image="/umi-usage-guide.png" alt="UMI 手柄、脚踏板和键盘按键使用说明" />}
               </div>
             ) : null}
             {authNotice ? <output className="inline-alert"><span>{authNotice}</span></output> : null}
             {error?.startsWith('退出登录失败') ? <div className="inline-alert" role="alert"><WifiOff size={16} /><span>{error}</span></div> : null}
             <div className="collection-view" hidden={active !== 'teleop'}>
-              <TeleopPanel onRobotModelChange={setTeleopRobotModel} baseUrl={controlBase} status={teleopStatus} preview={preview} darkMode={darkMode} action={action} onAction={stableRunAction} error={error} />
+              <TeleopPanel onStepChange={setTeleopStep} onRobotModelChange={setTeleopRobotModel} baseUrl={controlBase} status={teleopStatus} preview={preview} darkMode={darkMode} action={action} onAction={stableRunAction} error={error} />
             </div>
             <div className="collection-view" hidden={active !== 'umi'}>
               <UmiPanel baseUrl={controlBase} status={umiStatus} action={action} error={error || umiStatusError} onAction={stableRunAction} visible={active === 'umi'} />

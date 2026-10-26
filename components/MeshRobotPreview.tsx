@@ -10,7 +10,8 @@ import {
   type TianjiModel,
 } from '../lib/tianjiModel';
 
-const DEFAULT_VIEW = { yaw: -0.08, pitch: 0.03, zoom: 1 };
+// Front view from base +X toward -X, keeping +Z vertical.
+const DEFAULT_VIEW = { yaw: Math.PI, pitch: 0, zoom: 1 };
 
 export function MeshRobotPreview({
   modelUrl, title, darkMode, anglesForModel, initialView=DEFAULT_VIEW,
@@ -22,8 +23,8 @@ export function MeshRobotPreview({
   const canvas = useRef<HTMLCanvasElement>(null);
   const draw = useRef<(() => void) | null>(null);
   const pose = useRef({ anglesForModel, darkMode });
-  const view = useRef({ ...initialView });
-  const drag = useRef<{ x: number; y: number } | null>(null);
+  const view = useRef({ ...initialView, panX: 0, panY: 0 });
+  const drag = useRef<{ x: number; y: number; pan: boolean } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -63,7 +64,7 @@ export function MeshRobotPreview({
         );
         const fs = shader(
           gl.FRAGMENT_SHADER,
-          'precision mediump float; varying vec3 normal; uniform vec3 color; void main(){vec3 n=normalize(normal); if(!gl_FrontFacing) n=-n; float light=.32+.58*max(dot(n,normalize(vec3(-.6,-.4,1.))),0.)+.1*max(dot(n,normalize(vec3(.5,.6,.2))),0.);gl_FragColor=vec4(color*light,1.);}',
+          'precision mediump float; varying vec3 normal; uniform vec3 color; void main(){vec3 n=normalize(normal); if(!gl_FrontFacing) n=-n; float light=.50+.35*max(dot(n,normalize(vec3(.6,-.4,1.))),0.)+.15*max(dot(n,normalize(vec3(-.5,.6,.5))),0.);gl_FragColor=vec4(color*light,1.);}',
         );
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
@@ -80,7 +81,7 @@ export function MeshRobotPreview({
         const buffers = Object.fromEntries(
           Object.entries(model.meshes).map(([key, mesh]) => {
             const data: number[] = [];
-            for (const f of mesh.faces) {
+            for (const [faceIndex, f] of mesh.faces.entries()) {
               const [a, b, c] = f.map((i) => mesh.vertices[i]);
               const u = b.map((v, i) => v - a[i]),
                 v = c.map((v, i) => v - a[i]);
@@ -90,8 +91,11 @@ export function MeshRobotPreview({
                 u[0] * v[1] - u[1] * v[0],
               ];
               const length = Math.hypot(...normal) || 1;
-              for (const point of [a, b, c])
-                data.push(...point, ...normal.map((x) => x / length));
+              for (const [corner, point] of [a, b, c].entries()) {
+                const index = mesh.normal_indices?.[faceIndex]?.[corner];
+                const lightingNormal = index === undefined ? undefined : mesh.normals?.[index];
+                data.push(...point, ...(lightingNormal ?? normal.map((x) => x / length)));
+              }
             }
             const buffer = gl.createBuffer()!;
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -192,7 +196,7 @@ export function MeshRobotPreview({
     };
   }, [modelUrl]);
   const zoom = (delta: number) => {
-    view.current.zoom = Math.min(1.7, Math.max(0.6, view.current.zoom + delta));
+    view.current.zoom = Math.min(3.4, Math.max(0.6, view.current.zoom + delta));
     draw.current?.();
   };
   return (
@@ -216,7 +220,7 @@ export function MeshRobotPreview({
           type="button"
           aria-label={"恢复"+title+"视角"}
           onClick={() => {
-            view.current = { ...initialView };
+            view.current = { ...initialView, panX: 0, panY: 0 };
             draw.current?.();
           }}
         >
@@ -241,21 +245,30 @@ export function MeshRobotPreview({
             draw.current?.();
           }
         }}
+        onContextMenu={(e) => e.preventDefault()}
+        onLostPointerCapture={() => { drag.current = null; }}
         onPointerDown={(e) => {
-          drag.current = { x: e.clientX, y: e.clientY };
+          if (e.button !== 0 && e.button !== 2) return;
+          e.preventDefault();
+          drag.current = { x: e.clientX, y: e.clientY, pan: e.button === 2 };
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
           if (!drag.current) return;
-          view.current.yaw += (e.clientX - drag.current.x) * 0.008;
-          view.current.pitch = Math.max(
-            -0.6,
-            Math.min(
-              0.8,
-              view.current.pitch + (e.clientY - drag.current.y) * 0.006,
-            ),
-          );
-          drag.current = { x: e.clientX, y: e.clientY };
+          if (drag.current.pan) {
+            view.current.panX += e.clientX - drag.current.x;
+            view.current.panY += e.clientY - drag.current.y;
+          } else {
+            view.current.yaw += (e.clientX - drag.current.x) * 0.008;
+            view.current.pitch = Math.max(
+              -0.6,
+              Math.min(
+                0.8,
+                view.current.pitch + (e.clientY - drag.current.y) * 0.006,
+              ),
+            );
+          }
+          drag.current = { ...drag.current, x: e.clientX, y: e.clientY };
           draw.current?.();
         }}
         onPointerUp={() => {

@@ -200,6 +200,8 @@ class TianjiCollection:
                 "collection_trigger": "controller",
                 "author": self.owner,
                 "upload_sides": list(self.upload_sides),
+                **({"upload_camera_policy":"selected_wrist_optional_head_v1"}
+                   if len(self.controlled_sides)==1 else {}),
                 **context,
             }
             self.job = threading.Thread(
@@ -220,6 +222,8 @@ class TianjiCollection:
             metadata["author"] = info["author"]
             metadata["teleop_session_id"] = info["teleop_session_id"]
             metadata["upload_sides"] = info["upload_sides"]
+            if "upload_camera_policy" in info:
+                metadata["upload_camera_policy"] = info["upload_camera_policy"]
             if "upload_destination" in info:
                 metadata["upload_destination"] = info["upload_destination"]
             dump(episode.directory / "meta_info.json", metadata)

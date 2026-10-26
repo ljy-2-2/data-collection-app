@@ -112,11 +112,16 @@ def unit_quote(value):
 def wait_for_worker(root, timeout=10):
     """Never present an operational app when its durable queue failed to start."""
     deadline = time.monotonic() + timeout
+    try:
+        expected=json.loads((root/'config.json').read_text()).get('implementation')
+    except (OSError,ValueError):
+        expected=None
     while time.monotonic() < deadline:
         try:
             state = json.loads((root / 'worker-state.json').read_text())
             os.kill(int(state['pid']), 0)
-            if 0 <= time.time() - float(state['updated_at']) < 5:
+            if (0 <= time.time() - float(state['updated_at']) < 5
+                    and (expected is None or state.get('implementation')==expected)):
                 return
         except (OSError, ValueError, KeyError, TypeError):
             pass
@@ -142,7 +147,11 @@ def ensure_service(data_root, uploaders, *, systemd=True, default_destination=No
         default_destination = previous.get('default_destination') or default_destination
     except (OSError, ValueError):
         pass
-    config = dict(version=1, uploaders=queue_specs, default_destination=default_destination)
+    # Persistent workers can outlive an in-place app update. Restart gracefully
+    # when their implementation changes, including camera/curve export policy.
+    implementation=hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes()
+        for name in ('background_upload.py','collection_uploader.py','tianji_export.py','umi_uploader.py'))).hexdigest()
+    config = dict(version=1, implementation=implementation, uploaders=queue_specs, default_destination=default_destination)
     private_json(config_path, config)
     for uploader, spec in zip(uploaders, specs):
         uploader.external_status_path = status_file(root, spec)
@@ -155,7 +164,7 @@ def ensure_service(data_root, uploaders, *, systemd=True, default_destination=No
         unit_dir = Path.home() / '.config/systemd/user'
         unit_dir.mkdir(parents=True, exist_ok=True)
         unit_path = unit_dir / name
-        unit = ('[Unit]\nDescription=Xiaokai completed recording upload queue\n'
+        unit = ('# Implementation: '+implementation+'\n[Unit]\nDescription=Xiaokai completed recording upload queue\n'
                 '[Service]\nType=simple\nExecStart=' + ' '.join(map(unit_quote, command)) + '\n'
                 'Environment=' + unit_quote('PYTHONPATH=' + source) + '\n'
                 'UnsetEnvironment=DATA_COLLECTION_GATE_FILE\nRestart=always\nRestartSec=5\n'
@@ -193,13 +202,24 @@ def run(config_path):
     from .umi_uploader import UmiRosbagUploader
     from .collection_uploader import CollectionUploader
     root = config_path.parent
+    config = json.loads(config_path.read_text())
     os.umask(0o077)
     os.environ.pop('DATA_COLLECTION_GATE_FILE', None)
     with (root / 'worker.lock').open('a') as singleton:
-        try:
-            fcntl.flock(singleton, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return
+        deadline=time.monotonic()+600
+        while True:
+            try:
+                fcntl.flock(singleton, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                # A replacement waits for the old transfer to drain. Duplicate
+                # launches of the same implementation still exit immediately.
+                try:
+                    state=json.loads((root/'worker-state.json').read_text())
+                    if state.get('implementation')==config.get('implementation'):return
+                except (OSError,ValueError):pass
+                if time.monotonic()>=deadline:raise RuntimeError('等待旧后台上传进程退出超时')
+                time.sleep(.2)
         handler = RotatingFileHandler(root / 'worker.log', maxBytes=2*1024*1024, backupCount=2)
         logging.basicConfig(level=logging.INFO, handlers=[handler],
                             format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -228,7 +248,7 @@ def run(config_path):
             uploader.start()
         try:
             while not stopped.wait(1):
-                private_json(root / 'worker-state.json', dict(pid=os.getpid(), updated_at=time.time()))
+                private_json(root / 'worker-state.json', dict(pid=os.getpid(), updated_at=time.time(),implementation=config.get('implementation')))
                 for spec, uploader in uploaders:
                     if hasattr(uploader, 'status'):
                         private_json(status_file(root, spec), uploader.status())
@@ -239,7 +259,7 @@ def run(config_path):
             # Do not close an HTTP client under an in-flight transfer. Normal
             # app exit never reaches this path: the service remains running.
             while any(u._thread and u._thread.is_alive() for _, u in uploaders):
-                private_json(root / 'worker-state.json', dict(pid=os.getpid(), updated_at=time.time()))
+                private_json(root / 'worker-state.json', dict(pid=os.getpid(), updated_at=time.time(),implementation=config.get('implementation')))
                 time.sleep(1)
             for _, uploader in uploaders:
                 if uploader._thread:

@@ -79,7 +79,8 @@ test('Tianji workspace has three modes, three named cameras, modal parameters an
   const fields = html.indexOf('class="tianji-primary-parameters"');
   const otherButton = html.indexOf('其它参数');
   assert.ok(modeSelectEnd < fields && fields < otherButton);
-  assert.match(html, /自动保存/);
+  assert.match(html, /<strong>遥操作设置<\/strong>/);
+  assert.doesNotMatch(html, /tianji-autosave-label|等待自动保存/);
   assert.doesNotMatch(html, /已自动保存|本阶段不触发采集/);
   assert.match(html, /本次完成 <strong>0<\/strong> Episode/);
   assert.match(html, /未开始遥操作/);

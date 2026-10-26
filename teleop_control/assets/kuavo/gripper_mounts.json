@@ -1,0 +1,68 @@
+{
+  "purpose": "Display-only provisional assembly; no robot commands, TCP or control URDF changes.",
+  "units": "translation in mm; RPY angles in degrees (Rz yaw * Ry pitch * Rx roll)",
+  "alignment": {
+    "method": "Coincide radial hole axes; retain the 0.4 mm shoulder discrepancy instead of shifting the holes apart.",
+    "bracket_drawing": "https://github.com/LejuRobotics/kuavo-ros-opensource/blob/main/docs/models/\u624b\u638c\u8fde\u63a5\u4e3b\u652f\u67b6.pdf",
+    "bracket_bottom_z_in_wrist_mm": -67.0,
+    "bracket_radial_hole_from_bottom_mm": 8.4,
+    "bracket_radial_hole_z_in_wrist_mm": -58.6,
+    "flange_radial_hole_z_in_cad_mm": 29.5,
+    "flange_gripper_face_z_in_cad_mm": 52.7,
+    "gripper_mount_face_z_in_source_mm": 52.7,
+    "initial_orientation": "Both grippers rotate 90 degrees relative to the flange so their jaw separation axes run from the left arm to the right arm (base -Y) at the zero arm pose; flange radial hole alignment is preserved."
+  },
+  "display_open_fraction": 0.5,
+  "left": {
+    "flange_from_wrist": {
+      "translation_mm": [
+        0,
+        0,
+        -29.1
+      ],
+      "rpy_deg": [
+        180,
+        0,
+        45
+      ]
+    },
+    "gripper_from_flange": {
+      "translation_mm": [
+        0,
+        0,
+        0
+      ],
+      "rpy_deg": [
+        0,
+        0,
+        90
+      ]
+    }
+  },
+  "right": {
+    "flange_from_wrist": {
+      "translation_mm": [
+        0,
+        0,
+        -29.1
+      ],
+      "rpy_deg": [
+        180,
+        0,
+        45
+      ]
+    },
+    "gripper_from_flange": {
+      "translation_mm": [
+        0,
+        0,
+        0
+      ],
+      "rpy_deg": [
+        0,
+        0,
+        90
+      ]
+    }
+  }
+}

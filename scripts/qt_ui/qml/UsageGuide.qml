@@ -34,19 +34,29 @@ Item {
         parent: root
         x: root.width-width
         y: root.height+4
-        width: Math.max(100, Math.min(900, root.viewportWidth-32))
-        height: Math.max(80, Math.min(root.viewportHeight-120, (width-18)*picture.sourceSize.height/Math.max(1,picture.sourceSize.width)+18))
-        padding: 9
+        width: Math.max(100, Math.min(600, root.viewportWidth-32))
+        height: Math.max(80, Math.min((root.viewportHeight-120)*2/3, root.source.toString() ? (width-26)*picture.sourceSize.height/Math.max(1,picture.sourceSize.width)+70 : 118))
+        padding: 12
         modal: false
         focus: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {color: Theme.surface;radius: 12;border.color: Theme.line}
-        contentItem: Image {
-            id: picture
-            source: root.source
-            fillMode: Image.PreserveAspectFit
-            mipmap: true
+        background: Item {
+            Rectangle {x: 0;y: 5;width: parent.width;height: parent.height;radius: 12;color: "#000000";opacity: Theme.dark ? .25 : .10}
+            Rectangle {anchors.fill: parent;radius: 12;color: Theme.surface;border.color: Theme.lineStrong}
+            Rectangle {anchors.left: parent.left;anchors.right: parent.right;anchors.bottom: parent.bottom;anchors.margins: 9;height: 2;radius: 1;color: Theme.lineStrong}
+        }
+        contentItem: Item {
             HoverHandler {id: previewHover}
+            Txt {text: "使用说明";height: 22;font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
+            Rectangle {y: 27;width: parent.width;height: 1;color: Theme.line}
+            Image {
+                id: picture
+                objectName: "usageGuideImage"
+                y: 38;width: parent.width;height: Math.max(0,parent.height-46)
+                source: root.source
+                fillMode: Image.PreserveAspectFit
+                mipmap: true
+            }
         }
     }
 }

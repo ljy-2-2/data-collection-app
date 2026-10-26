@@ -30,6 +30,13 @@ class GripperSettings(BaseModel):
     right: GripperValues
 
 
+class MotionSettings(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    position_scale: float = Field(default=1., ge=.1, le=1., allow_inf_nan=False)
+    max_velocity_rad_s: float = Field(default=.7, ge=.01, le=.7, allow_inf_nan=False)
+    planning_acceleration_rad_s2: float = Field(default=5., ge=.01, le=5., allow_inf_nan=False)
+
+
 class ConnectionSettings(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     host: str = Field(min_length=1, max_length=64)
@@ -61,6 +68,13 @@ class LocalSettings:
         self.directory = Path(root)/'teleop_control/runtime/kuavo'
         self.gripper_path = self.directory/'gripper_config.json'
         self.connection_path = self.directory/'connection.json'
+        self.motion_path = self.directory/'motion_settings.json'
+        self.motion = MotionSettings()
+        self.motion_error = ''
+        if self.motion_path.exists():
+            try:self.motion = MotionSettings.model_validate(json.loads(self.motion_path.read_text()))
+            except (OSError, ValueError, TypeError):
+                self.motion_error = '本地遥操作参数无法读取，请重新保存'
         self.baseline = json.loads(BASELINE.read_text())
         self.document = copy.deepcopy(self.baseline)
         self.error = ''
@@ -97,6 +111,23 @@ class LocalSettings:
     def save_grippers(self, document):
         atomic_json(self.gripper_path, document)
         self.document, self.error = document, ''
+
+    def save_motion(self, settings):
+        atomic_json(self.motion_path, settings.model_dump())
+        self.motion, self.motion_error = settings, ''
+
+    def motion_snapshot(self):
+        supported = (not self.motion_error and self.motion.max_velocity_rad_s == .7
+                     and self.motion.planning_acceleration_rad_s2 == 5.)
+        return dict(values=self.motion.model_dump(), saved=self.motion_path.exists(),
+                    supported=supported, error=self.motion_error, file=str(self.motion_path),
+                    message=self.motion_error or ('参数已保存；位移倍率下次启动生效，手臂速度和加速度沿用原服务值'
+                        if supported and self.motion_path.exists() else '默认参数；修改后请保存'
+                        if supported else '已保存到本机，速度或加速度待机器人服务及客户端协议支持；当前不能按此参数启动'))
+
+    def require_supported_motion(self):
+        status = self.motion_snapshot()
+        if not status['supported']:raise ValueError(status['message'])
 
     def expected_gripper_hash(self):
         if self.error: raise ValueError(self.error)

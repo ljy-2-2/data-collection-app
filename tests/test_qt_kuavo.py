@@ -24,7 +24,12 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             bridge=Bridge({},demo=True,settings_path=config)
             bridge.poll_timer.stop()
             bridge.update(ready=True,authenticated=True)
-            calls=[]
+            calls=[];saves=[]
+            original_demo=bridge.demo_action
+            def demo_action(path,payload):
+                if path=='/kuavo/motion':saves.append(payload.copy())
+                return original_demo(path,payload)
+            bridge.demo_action=demo_action
             bridge.action=lambda *args,**kw:calls.append((args,kw))
             bridge.configureTeleop('乐聚测试','kuavo-5w')
             assert bridge.state['robot']=='kuavo-5w' and bridge.state['teleopStep']==2
@@ -32,16 +37,20 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             assert bridge.state['kuavoNamespace']=='current'
             bridge.teleop('check')
             assert calls[-1][0][1]=='/kuavo/check'
-            bridge.setValue('kuavoBusAccepted',True)
             bridge.setValue('kuavoArmMode','left')
             bridge.setValue('kuavoPositionScale',.5)
+            QTest.qWait(450)
+            assert not bridge.state['kuavoMotionPending']
             bridge.teleop('start')
             assert calls[-1][0][1]=='/kuavo/start'
             assert calls[-1][0][2]['confirm_motion'] is True
+            assert calls[-1][0][2]['network_namespace']=='current'
+            assert calls[-1][0][2]['accept_unverified_gripper_bus'] is True
             assert calls[-1][0][2]['arm_mode']=='left' and calls[-1][0][2]['position_scale']==.5
             assert not bridge.can_move()
             status=dict(state='idle',active=False,service={'management_ready':True,'service':{'ready_to_start':True}},
                         pico_sdk_available=True,vr_ready=True,pico_ready=True,vr_checked=True,preparation={},logs=[],limitations=['相机预览和同步数据集暂未接入'],session={})
+            status['motion_settings']=dict(values=dict(position_scale=.5,max_velocity_rad_s=.7,planning_acceleration_rad_s2=5.),supported=True,saved=True)
             from teleop_control.kuavo_preview import KuavoModel
             model=KuavoModel();status.update(reference=model.reference,segments=model.segments())
             bridge.update(kuavo=status)
@@ -59,7 +68,8 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
                 for child in obj.childItems():yield from walk(child)
             def item(name):return next(o for o in walk(window.contentItem()) if o.objectName()==name)
             assert item('kuavoWorkspace').isVisible()
-            assert not item('usageGuide').isVisible(), 'Do not show Tianji button instructions for KUAVO'
+            assert item('usageGuide').isVisible()
+            assert item('usageGuide').property('source').isEmpty(), 'KUAVO guide must remain blank'
             assert not item('teleopWorkspace').isVisible()
             from shiboken6 import isValid
             layered=[child for child in walk(window.contentItem()) if QQmlProperty(child,'layer.enabled').read()]
@@ -78,43 +88,54 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
                 window.grabWindow().save(str(screenshot.with_stem('kuavo-'+str(width))))
             window.setWidth(1280);QTest.qWait(80)
             window.grabWindow().save(str(screenshot))
+            assert not any(o.property('text')=='接受原项目夹爪与手臂共用 CAN 总线的使用条件（兼容性尚未完成验证）' for o in walk(window.contentItem()))
+            item('kuavoVelocity').edited.emit(.4);QTest.qWait(20)
+            assert not item('kuavoStart').property('enabled')
+            assert not any(o.objectName() in ('kuavoMotionSave','kuavoConnection') for o in walk(window.contentItem()))
+            QTest.qWait(450)
+            assert saves[-1]==dict(position_scale=.5,max_velocity_rad_s=.4,planning_acceleration_rad_s2=5.)
+            assert not bridge.state['kuavoMotionPending'] and not bridge.state['kuavoMotionSaving']
+            assert not item('kuavoStart').property('enabled')
+            bridge.setValue('kuavoVelocity',.7)
+            QTest.qWait(450)
+            assert item('kuavoStart').property('enabled')
             other=item('kuavoOtherParameters')
             point=other.mapToScene(QPointF(other.width()/2,other.height()/2)).toPoint()
             QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(50)
             dialog=window.findChild(__import__('PySide6.QtCore',fromlist=['QObject']).QObject,'kuavoGripperDialog')
             assert dialog.property('opened')
             window.grabWindow().save(str(screenshot.with_stem('kuavo-grippers')))
-            # Cancel discards a draft; reopening starts from persisted values.
+            assert not any(o.objectName()=='kuavoGripperClose' for o in walk(window.contentItem()))
             count=len(calls)
-            field=item('kuavo-left-open_rad')
-            field.edited.emit(-2.5)
-            assert dialog.property('draft').toVariant()['left']['open_rad']==-2.5
-            dialog.close();QTest.qWait(30)
-            assert len(calls)==count
+            original_open=dialog.property('draft').toVariant()['left']['open_rad']
+            field=item('kuavo-left-open_rad');field.edited.emit(-2.5)
+            QTest.qWait(450);assert len(calls)==count
+            item('kuavoGripperCancel').clicked.emit();QTest.qWait(50)
+            assert not dialog.property('opened') and len(calls)==count and not dialog.property('dirty')
             dialog.open();QTest.qWait(30)
-            assert dialog.property('draft').toVariant()['left']['open_rad']==-2.67
+            assert dialog.property('draft').toVariant()['left']['open_rad']==original_open
             item('kuavo-left-open_rad').edited.emit(-2.5)
-            save=item('kuavoGripperSave')
-            point=save.mapToScene(QPointF(save.width()/2,save.height()/2)).toPoint()
-            QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(30)
-            assert calls[-1][0][1]=='/kuavo/grippers'
-            assert calls[-1][0][2]['left']['open_rad']==-2.5
-            assert set(calls[-1][0][2]['left'])=={'open_rad','closed_rad','speed_rad_s','accel_rad_s2'}
-            # Failed saves keep the draft; success closes the dialog.
-            calls[-1][1]['on_failed']('offline validation failed');QTest.qWait(30)
-            assert dialog.property('opened') and dialog.property('error')=='offline validation failed'
-            dialog.setProperty('saving',True)
-            calls[-1][1]['done'](status);QTest.qWait(30)
+            item('kuavoGripperConfirm').clicked.emit();QTest.qWait(30)
             assert not dialog.property('opened')
-            connect=item('kuavoConnection')
-            point=connect.mapToScene(QPointF(connect.width()/2,connect.height()/2)).toPoint()
-            QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(30)
-            connection=window.findChild(__import__('PySide6.QtCore',fromlist=['QObject']).QObject,'kuavoConnectionDialog')
-            assert connection.property('opened')
-            token_field=item('kuavoConnectionToken')
-            token_field.setProperty('text','b'*64)
-            connection.close();QTest.qWait(30)
-            assert token_field.property('text')==''
+            assert len(calls)==count+1 and calls[-1][0][1]=='/kuavo/grippers'
+            assert calls[-1][0][2]['left']['open_rad']==-2.5
+            assert not item('kuavoStart').property('enabled')
+            calls[-1][1]['on_failed']('offline validation failed');QTest.qWait(30)
+            assert dialog.property('dirty') and dialog.property('error')=='offline validation failed'
+            dialog.open();QTest.qWait(30)
+            assert dialog.property('draft').toVariant()['left']['open_rad']==-2.5
+            assert len(calls)==count+1
+            item('kuavoGripperConfirm').clicked.emit();QTest.qWait(30)
+            assert len(calls)==count+2
+            saved_status={**status,'gripper_settings':dict(values=calls[-1][0][2],saved=True,matches_service=False)}
+            calls[-1][1]['done'](saved_status);QTest.qWait(30)
+            assert not dialog.property('opened') and not dialog.property('dirty') and not dialog.property('saving')
+            dialog.open();QTest.qWait(30)
+            assert dialog.property('draft').toVariant()['left']['open_rad']==-2.5
+            item('kuavo-left-open_rad').edited.emit(-2.6)
+            QTest.keyClick(window,Qt.Key_Escape);QTest.qWait(30)
+            assert not dialog.property('opened') and len(calls)==count+2
+            bridge.update(kuavo=status)
             start=item('kuavoStart');assert start.property('enabled')
             assert all(d['status']=='connected' for d in item('kuavoDevices').property('items').toVariant())
             bridge.update(kuavo={**status,'vr_ready':False})
@@ -137,10 +158,44 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             assert calls[-1][0][2]=={'session_id':'test-session'}
             bridge.update(kuavo=status)
             bridge.returnTeleop();assert bridge.state['teleopStep']==1
+            bridge.update(error='',notice='')
+            window.findChild(__import__('PySide6.QtCore',fromlist=['QObject']).QObject,'kuavoConfirm').close()
+            QTest.qWait(30)
+            assert not item('usageGuide').isVisible()
+            assert not item('pageTools').isVisible()
+            assert item('robotType').property('model')==['天机 Marvin M6','乐聚 KUAVO 5-W','智元 G2']
             bridge.configureTeleop('天机','tianji')
             assert bridge.state['robot']=='tianji' and bridge.save_timer.isActive()
             bridge.save_timer.stop()
             original=dict(bridge.state['tianji'])
+            bridge.update(paramSaved=True)
+            QTest.qWait(30)
+            assert item('usageGuide').isVisible() and not item('usageGuide').property('source').isEmpty()
+            params=window.findChild(__import__('PySide6.QtCore',fromlist=['QObject']).QObject,'parameterDialog')
+            params.open();QTest.qWait(30)
+            previous=bridge.state['parameters']['right_gripper_speed']
+            field=item('tianji-extra-right_gripper_speed')
+            field.edited.emit(previous+.1);QTest.qWait(450)
+            assert bridge.state['parameters']['right_gripper_speed']==previous
+            assert not bridge.save_timer.isActive()
+            # Escape discards drafts; confirm captures even a still-focused input.
+            text_input=next(o for o in walk(field) if o.metaObject().className().startswith('TextField_'))
+            text_input.forceActiveFocus();text_input.setProperty('text',str(previous+.2))
+            QTest.keyClick(window,Qt.Key_Escape);QTest.qWait(450)
+            assert not params.property('opened')
+            assert bridge.state['parameters']['right_gripper_speed']==previous
+            params.open();QTest.qWait(30)
+            field=item('tianji-extra-right_gripper_speed')
+            text_input=next(o for o in walk(field) if o.metaObject().className().startswith('TextField_'))
+            text_input.forceActiveFocus();text_input.setProperty('text',str(previous+.2))
+            item('tianjiParametersConfirm').clicked.emit();QTest.qWait(450)
+            assert not params.property('opened')
+            assert bridge.state['parameters']['right_gripper_speed']==previous+.2
+            assert bridge.state['paramSaved'] and not bridge.state['paramSaving']
+            for mode in ['dual','left','right']:
+                bridge.setValue('uploadMode',mode);bridge.teleop('start')
+                assert calls[-1][0][1]=='/tianji/start'
+                assert calls[-1][0][2]['mode']==mode and calls[-1][0][2]['upload_mode']==mode
             for state,active,label,can_check in [
                 ('checking',False,'开始遥操作',False),
                 ('unknown',False,'开始遥操作',True),

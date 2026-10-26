@@ -21,7 +21,7 @@ from .platform_auth import (
     platform_api_client,
     platform_session_available,
 )
-from .tianji_export import CURVE_FILES, project_row, upload_sides
+from .tianji_export import CURVE_FILES, project_row, upload_sides, select_upload_cameras, camera_file_selected, project_cameras
 
 READY_MARKER = ".data-platform-ready.json"
 UPLOADED_MARKER = ".data-platform-uploaded.json"
@@ -64,19 +64,23 @@ def _write_episode_tar(
     archive_path: Path,
     relative_files: list[str],
     curve_sides: tuple[str, ...] | None = None,
+    selected_cameras: tuple[str, ...] | None = None,
 ) -> None:
     """Archive original files, optionally projecting only uploaded Tianji curves."""
     with tarfile.open(archive_path, mode="w") as archive:
         for relative in relative_files:
-            if curve_sides and len(curve_sides) == 1 and relative in CURVE_FILES | {"meta_info.json"}:
+            project_curves=curve_sides and len(curve_sides)==1 and relative in CURVE_FILES | {"meta_info.json"}
+            project_camera_metadata=selected_cameras is not None and relative.startswith('record/') and relative.endswith(('.json','.jsonl'))
+            if project_curves or project_camera_metadata:
                 # Spill long recordings to disk rather than retaining all samples.
                 with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as projected:
                     with (episode_dir / relative).open(encoding="utf-8") as source:
-                        rows = [json.load(source)] if relative == "meta_info.json" else (
+                        rows = [json.load(source)] if relative.endswith('.json') else (
                             json.loads(line) for line in source if line.strip()
                         )
                         for row in rows:
-                            value = project_row(relative, row, curve_sides)
+                            value = (project_row(relative,row,curve_sides,selected_cameras) if project_curves
+                                     else project_cameras(row,selected_cameras))
                             projected.write((json.dumps(value, ensure_ascii=False, allow_nan=False) + "\n").encode())
                     header = archive.gettarinfo(episode_dir / relative, arcname=f"{episode_dir.name}/{relative}")
                     header.size = projected.tell()
@@ -449,12 +453,18 @@ class CollectionUploader:
         if not isinstance(metadata, dict):
             raise ValueError("completed teleop episode has invalid meta_info.json")
         curve_sides = upload_sides(metadata) if metadata.get("robot_type") == "tianji" else None
+        selected_cameras = select_upload_cameras(metadata,episode_dir,curve_sides) if metadata.get("robot_type")=="tianji" else None
+        if selected_cameras is not None:
+            local_relative_files=[name for name in local_relative_files if camera_file_selected(name,selected_cameras)]
+            source_files=[f"{episode_dir.name}/{name}" for name in local_relative_files]
+            metadata=project_cameras(metadata,selected_cameras)
         if curve_sides and len(curve_sides) == 1:
             local_relative_files = [name for name in local_relative_files
                                     if name not in {f"record/{side}_gripper.jsonl"
                                                     for side in ("left", "right") if side not in curve_sides}]
             source_files = [f"{episode_dir.name}/{name}" for name in local_relative_files]
         requested_cameras = info.get("requested_cameras", [])
+        if selected_cameras is not None:requested_cameras=list(selected_cameras)
         cameras = metadata.get("cameras", {})
         missing_extra_cameras: list[str] = []
         for camera in requested_cameras if isinstance(requested_cameras, list) else []:
@@ -510,7 +520,7 @@ class CollectionUploader:
             raise ValueError(f"presign response omitted {archive_name}")
         with tempfile.TemporaryDirectory(prefix="data-platform-gdk-") as temporary_dir:
             archive_path = Path(temporary_dir) / archive_name
-            _write_episode_tar(episode_dir, archive_path, local_relative_files, curve_sides)
+            _write_episode_tar(episode_dir, archive_path, local_relative_files, curve_sides, selected_cameras)
             uploaded = self.client.put(
                 target["put_url"],
                 timeout=httpx.Timeout(180.0, connect=5.0, write=30.0, pool=5.0),
@@ -608,6 +618,7 @@ class CollectionUploader:
                     },
                     "controlled_sides": metadata.get("controlled_sides", ["left", "right"]),
                     "upload_sides": list(curve_sides) if curve_sides else None,
+                    **({"upload_cameras":list(selected_cameras)} if selected_cameras is not None else {}),
                     "data_validate": metadata.get("data_validate"),
                     "source_features": {
                         "observation.state": {

@@ -1,0 +1,1620 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="kuavo_5w_with_grippers">
+  <!-- Visual/kinematic assembly with nominal fixed grasp-center TCPs. No calibrated mass, collision model or physical TCP calibration. -->
+  <!-- Generated from public/kuavo-model.json; mount settings: gripper_mounts.json. -->
+  <link name="dummy_link" />
+  <link name="base_link">
+    <visual name="base_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_000.obj" scale="1 1 1" />
+      </geometry>
+      <material name="base_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="wheel_left_front">
+    <visual name="wheel_left_front_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_001.obj" scale="1 1 1" />
+      </geometry>
+      <material name="wheel_left_front_material_0">
+        <color rgba="0.19 0.22 0.27 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="wheel_right_front">
+    <visual name="wheel_right_front_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_002.obj" scale="1 1 1" />
+      </geometry>
+      <material name="wheel_right_front_material_0">
+        <color rgba="0.19 0.22 0.27 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="wheel_left_behind">
+    <visual name="wheel_left_behind_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_003.obj" scale="1 1 1" />
+      </geometry>
+      <material name="wheel_left_behind_material_0">
+        <color rgba="0.19 0.22 0.27 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="wheel_right_behind">
+    <visual name="wheel_right_behind_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_004.obj" scale="1 1 1" />
+      </geometry>
+      <material name="wheel_right_behind_material_0">
+        <color rgba="0.19 0.22 0.27 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="base_to_joint">
+    <visual name="base_to_joint_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_005.obj" scale="1 1 1" />
+      </geometry>
+      <material name="base_to_joint_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="knee_link">
+    <visual name="knee_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_006.obj" scale="1 1 1" />
+      </geometry>
+      <material name="knee_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="leg_link">
+    <visual name="leg_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_007.obj" scale="1 1 1" />
+      </geometry>
+      <material name="leg_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="waist_link">
+    <visual name="waist_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_008.obj" scale="1 1 1" />
+      </geometry>
+      <material name="waist_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="waist_yaw_link">
+    <visual name="waist_yaw_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_009.obj" scale="1 1 1" />
+      </geometry>
+      <material name="waist_yaw_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l1_link">
+    <visual name="zarm_l1_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_010.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l1_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l2_link">
+    <visual name="zarm_l2_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_011.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l2_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l3_link">
+    <visual name="zarm_l3_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_012.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l3_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l4_link">
+    <visual name="zarm_l4_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_013.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l4_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l5_link">
+    <visual name="zarm_l5_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_014.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l5_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l6_link">
+    <visual name="zarm_l6_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_015.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l6_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l7_link">
+    <visual name="zarm_l7_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_016.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_l7_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_l7_end_effector" />
+  <link name="zarm_l7_end_effector_1" />
+  <link name="zarm_l7_end_effector_2" />
+  <link name="zarm_r1_link">
+    <visual name="zarm_r1_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_017.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r1_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r2_link">
+    <visual name="zarm_r2_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_018.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r2_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r3_link">
+    <visual name="zarm_r3_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_019.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r3_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r4_link">
+    <visual name="zarm_r4_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_020.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r4_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r5_link">
+    <visual name="zarm_r5_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_021.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r5_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r6_link">
+    <visual name="zarm_r6_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_022.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r6_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r7_link">
+    <visual name="zarm_r7_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_023.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zarm_r7_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zarm_r7_end_effector" />
+  <link name="zarm_r7_end_effector_1" />
+  <link name="zarm_r7_end_effector_2" />
+  <link name="zhead_1_link">
+    <visual name="zhead_1_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_024.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zhead_1_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="zhead_2_link">
+    <visual name="zhead_2_link_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_025.obj" scale="1 1 1" />
+      </geometry>
+      <material name="zhead_2_link_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="head_camera_base">
+    <visual name="head_camera_base_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_026.obj" scale="1 1 1" />
+      </geometry>
+      <material name="head_camera_base_material_0">
+        <color rgba="0.86 0.89 0.92 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="head_camera_depth">
+    <visual name="head_camera_depth_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_027.obj" scale="1 1 1" />
+      </geometry>
+      <material name="head_camera_depth_material_0">
+        <color rgba="0.19 0.22 0.27 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="radar">
+    <visual name="radar_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_028.obj" scale="1 1 1" />
+      </geometry>
+      <material name="radar_material_0">
+        <color rgba="0.19 0.22 0.27 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_flange_l">
+    <visual name="kuavo_tool_flange_l_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_029.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_flange_l_material_0">
+        <color rgba="0.67 0.7 0.74 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_L">
+    <visual name="kuavo_tool_gripper_L_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_030.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_0">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_1">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_031.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_1">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_2">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_032.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_2">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_3">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_033.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_3">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_4">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_034.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_4">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_5">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_035.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_5">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_6">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_036.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_6">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_7">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_037.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_7">
+        <color rgba="0.1 0.12 0.15" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_8">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_038.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_8">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_9">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_039.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_9">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_10">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_040.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_10">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_11">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_041.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_11">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_12">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_042.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_12">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_13">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_043.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_13">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_14">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_044.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_14">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_15">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_045.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_15">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_16">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_046.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_16">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_17">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_047.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_17">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_18">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_048.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_18">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_19">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_049.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_19">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_20">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_050.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_20">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_21">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_051.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_21">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_22">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_052.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_22">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_23">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_053.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_23">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_24">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_054.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_24">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_25">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_055.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_25">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_26">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_056.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_26">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_27">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_057.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_27">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_28">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_058.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_28">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_29">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_059.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_29">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_30">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_060.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_30">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_31">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_061.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_31">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_32">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_062.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_32">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_33">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_063.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_33">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_34">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_064.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_34">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_35">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_065.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_35">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_36">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_066.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_36">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_37">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_067.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_37">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_38">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_068.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_38">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_39">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_069.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_39">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_40">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_070.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_40">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_41">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_071.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_41">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_42">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_072.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_42">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_43">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_073.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_43">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_visual_44">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_074.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_material_44">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_L_shaft">
+    <visual name="kuavo_tool_gripper_L_shaft_visual_0">
+      <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_075.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_shaft_material_0">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_shaft_visual_1">
+      <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_076.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_shaft_material_1">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_L_1">
+    <visual name="kuavo_tool_gripper_L_1_visual_0">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_077.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_1_material_0">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_1_visual_1">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_078.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_1_material_1">
+        <color rgba="0.12 0.14 0.16" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_1_visual_2">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_079.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_1_material_2">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_L_17">
+    <visual name="kuavo_tool_gripper_L_17_visual_0">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_080.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_17_material_0">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_17_visual_1">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_081.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_17_material_1">
+        <color rgba="0.12 0.14 0.16" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_L_17_visual_2">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_082.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_L_17_material_2">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_grasp_center_L" />
+  <link name="kuavo_tool_flange_r">
+    <visual name="kuavo_tool_flange_r_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_029.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_flange_r_material_0">
+        <color rgba="0.67 0.7 0.74 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_R">
+    <visual name="kuavo_tool_gripper_R_visual_0">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_083.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_0">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_1">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_084.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_1">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_2">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_085.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_2">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_3">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_086.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_3">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_4">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_087.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_4">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_5">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_088.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_5">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_6">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_089.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_6">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_7">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_090.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_7">
+        <color rgba="0.1 0.12 0.15" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_8">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_091.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_8">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_9">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_092.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_9">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_10">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_093.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_10">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_11">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_094.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_11">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_12">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_095.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_12">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_13">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_096.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_13">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_14">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_097.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_14">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_15">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_098.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_15">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_16">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_099.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_16">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_17">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_100.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_17">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_18">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_101.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_18">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_19">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_102.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_19">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_20">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_103.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_20">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_21">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_104.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_21">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_22">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_105.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_22">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_23">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_106.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_23">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_24">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_107.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_24">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_25">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_108.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_25">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_26">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_109.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_26">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_27">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_110.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_27">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_28">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_111.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_28">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_29">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_112.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_29">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_30">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_113.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_30">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_31">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_114.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_31">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_32">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_115.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_32">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_33">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_116.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_33">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_34">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_117.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_34">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_35">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_118.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_35">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_36">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_119.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_36">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_37">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_120.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_37">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_38">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_121.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_38">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_39">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_122.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_39">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_40">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_123.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_40">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_41">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_124.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_41">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_42">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_125.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_42">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_43">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_126.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_43">
+        <color rgba="0.23 0.25 0.29" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_visual_44">
+      <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_127.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_material_44">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_R_shaft">
+    <visual name="kuavo_tool_gripper_R_shaft_visual_0">
+      <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_128.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_shaft_material_0">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_shaft_visual_1">
+      <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_129.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_shaft_material_1">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_R_1">
+    <visual name="kuavo_tool_gripper_R_1_visual_0">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_130.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_1_material_0">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_1_visual_1">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_131.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_1_material_1">
+        <color rgba="0.12 0.14 0.16" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_1_visual_2">
+      <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_132.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_1_material_2">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_gripper_R_17">
+    <visual name="kuavo_tool_gripper_R_17_visual_0">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_133.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_17_material_0">
+        <color rgba="0.79 0.82 0.86" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_17_visual_1">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_134.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_17_material_1">
+        <color rgba="0.12 0.14 0.16" />
+      </material>
+    </visual>
+    <visual name="kuavo_tool_gripper_R_17_visual_2">
+      <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
+      <geometry>
+        <mesh filename="gripper_model_meshes/mesh_135.obj" scale="1 1 1" />
+      </geometry>
+      <material name="kuavo_tool_gripper_R_17_material_2">
+        <color rgba="0.55 0.59 0.64" />
+      </material>
+    </visual>
+  </link>
+  <link name="kuavo_tool_grasp_center_R" />
+  <joint name="base_link_to_dummy_link" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="dummy_link" />
+  </joint>
+  <joint name="wheel_left_front_joint" type="continuous">
+    <origin xyz="0.23865 0.23865 0.13035" rpy="0 0 0.7854" />
+    <parent link="base_link" />
+    <child link="wheel_left_front" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <joint name="wheel_right_front_joint" type="continuous">
+    <origin xyz="0.23865 -0.23865 0.13035" rpy="0 0 -0.7854" />
+    <parent link="base_link" />
+    <child link="wheel_right_front" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <joint name="wheel_left_behind_joint" type="continuous">
+    <origin xyz="-0.23865 0.23865 0.13035" rpy="0 0 2.3562" />
+    <parent link="base_link" />
+    <child link="wheel_left_behind" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <joint name="wheel_right_behind_joint" type="continuous">
+    <origin xyz="-0.23865 -0.23865 0.13035" rpy="0 0 -2.3562" />
+    <parent link="base_link" />
+    <child link="wheel_right_behind" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <joint name="base_to_joint" type="fixed">
+    <origin xyz="0.093 0 0.30085" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="base_to_joint" />
+  </joint>
+  <joint name="knee_joint" type="revolute">
+    <origin xyz="0 0 0.1055" rpy="0 0 0" />
+    <parent link="base_to_joint" />
+    <child link="knee_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.44862327915529" effort="668.53" velocity="25.33" />
+  </joint>
+  <joint name="leg_joint" type="revolute">
+    <origin xyz="-0.46521 0 0.18325" rpy="0 0 0" />
+    <parent link="knee_link" />
+    <child link="leg_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.80998009571087" upper="0.0" effort="668.53" velocity="25.33" />
+  </joint>
+  <joint name="waist_pitch_joint" type="revolute">
+    <origin xyz="0.48296 0 0.12941" rpy="0 0 0" />
+    <parent link="leg_link" />
+    <child link="waist_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.15707963267949" upper="2.9845130209103" effort="618.48" velocity="25.33" />
+  </joint>
+  <joint name="waist_yaw_joint" type="revolute">
+    <origin xyz="0 0 0.25" rpy="0 0 0" />
+    <parent link="waist_link" />
+    <child link="waist_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.14159265358979" upper="3.14159265358979" effort="618.48" velocity="25.33" />
+  </joint>
+  <joint name="zarm_l1_joint" type="revolute">
+    <origin xyz="0 0.253 0.227" rpy="0 0 0" />
+    <parent link="waist_yaw_link" />
+    <child link="zarm_l1_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.14159265358979" upper="1.5707963267949" effort="85.0" velocity="13.0" />
+  </joint>
+  <joint name="zarm_l2_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="zarm_l1_link" />
+    <child link="zarm_l2_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.349065850398866" upper="3.49065850398866" effort="75.0" velocity="8.0" />
+  </joint>
+  <joint name="zarm_l3_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="zarm_l2_link" />
+    <child link="zarm_l3_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.48352986419518" upper="1.48352986419518" effort="57.0" velocity="7.5" />
+  </joint>
+  <joint name="zarm_l4_joint" type="revolute">
+    <origin xyz="0.02 0 -0.2837" rpy="0 0 0" />
+    <parent link="zarm_l3_link" />
+    <child link="zarm_l4_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.61799387799149" upper="0.0" effort="75.0" velocity="8.0" />
+  </joint>
+  <joint name="zarm_l5_joint" type="revolute">
+    <origin xyz="-0.02 0 -0.1195" rpy="0 0 0" />
+    <parent link="zarm_l4_link" />
+    <child link="zarm_l5_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267949" upper="1.5707963267949" effort="14.1" velocity="17.5" />
+  </joint>
+  <joint name="zarm_l6_joint" type="revolute">
+    <origin xyz="0 0 -0.114" rpy="0 0 0" />
+    <parent link="zarm_l5_link" />
+    <child link="zarm_l6_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.30899693899575" upper="0.698131700797732" effort="14.1" velocity="17.5" />
+  </joint>
+  <joint name="zarm_l7_joint" type="revolute">
+    <origin xyz="0 0 -0.021" rpy="0 0 0" />
+    <parent link="zarm_l6_link" />
+    <child link="zarm_l7_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.698131700797732" upper="0.698131700797732" effort="14.1" velocity="17.5" />
+  </joint>
+  <joint name="zarm_l7_end_effector_joint" type="fixed">
+    <origin xyz="0 0 -0.17" rpy="0 0 0" />
+    <parent link="zarm_l7_link" />
+    <child link="zarm_l7_end_effector" />
+  </joint>
+  <joint name="zarm_l7_end_effector_1_joint" type="fixed">
+    <origin xyz="0 0 -0.08" rpy="0 0 0" />
+    <parent link="zarm_l7_link" />
+    <child link="zarm_l7_end_effector_1" />
+  </joint>
+  <joint name="zarm_l7_end_effector_2_joint" type="fixed">
+    <origin xyz="0.03 0 -0.17" rpy="0 0 0" />
+    <parent link="zarm_l7_link" />
+    <child link="zarm_l7_end_effector_2" />
+  </joint>
+  <joint name="zarm_r1_joint" type="revolute">
+    <origin xyz="0 -0.253 0.227" rpy="0 0 0" />
+    <parent link="waist_yaw_link" />
+    <child link="zarm_r1_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.14159265358979" upper="1.5707963267949" effort="85.0" velocity="13.0" />
+  </joint>
+  <joint name="zarm_r2_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="zarm_r1_link" />
+    <child link="zarm_r2_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-3.49065850398866" upper="0.349065850398866" effort="75.0" velocity="8.0" />
+  </joint>
+  <joint name="zarm_r3_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="zarm_r2_link" />
+    <child link="zarm_r3_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.48352986419518" upper="1.48352986419518" effort="57.0" velocity="7.5" />
+  </joint>
+  <joint name="zarm_r4_joint" type="revolute">
+    <origin xyz="0.02 0 -0.2837" rpy="0 0 0" />
+    <parent link="zarm_r3_link" />
+    <child link="zarm_r4_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.61799387799149" upper="0.0" effort="75.0" velocity="8.0" />
+  </joint>
+  <joint name="zarm_r5_joint" type="revolute">
+    <origin xyz="-0.02 0 -0.1195" rpy="0 0 0" />
+    <parent link="zarm_r4_link" />
+    <child link="zarm_r5_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267949" upper="1.5707963267949" effort="14.1" velocity="17.5" />
+  </joint>
+  <joint name="zarm_r6_joint" type="revolute">
+    <origin xyz="0 0 -0.114" rpy="0 0 0" />
+    <parent link="zarm_r5_link" />
+    <child link="zarm_r6_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.698131700797732" upper="1.30899693899575" effort="14.1" velocity="17.5" />
+  </joint>
+  <joint name="zarm_r7_joint" type="revolute">
+    <origin xyz="0 0 -0.021" rpy="0 0 0" />
+    <parent link="zarm_r6_link" />
+    <child link="zarm_r7_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.698131700797732" upper="0.698131700797732" effort="14.1" velocity="17.5" />
+  </joint>
+  <joint name="zarm_r7_end_effector_joint" type="fixed">
+    <origin xyz="0 0 -0.17" rpy="0 0 0" />
+    <parent link="zarm_r7_link" />
+    <child link="zarm_r7_end_effector" />
+  </joint>
+  <joint name="zarm_r7_end_effector_1_joint" type="fixed">
+    <origin xyz="0 0 -0.08" rpy="0 0 0" />
+    <parent link="zarm_r7_link" />
+    <child link="zarm_r7_end_effector_1" />
+  </joint>
+  <joint name="zarm_r7_end_effector_2_joint" type="fixed">
+    <origin xyz="0.03 0 -0.17" rpy="0 0 0" />
+    <parent link="zarm_r7_link" />
+    <child link="zarm_r7_end_effector_2" />
+  </joint>
+  <joint name="zhead_1_joint" type="revolute">
+    <origin xyz="0 0 0.43935" rpy="0 0 0" />
+    <parent link="waist_yaw_link" />
+    <child link="zhead_1_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.57" upper="1.57" effort="15.5" velocity="2.198" />
+  </joint>
+  <joint name="zhead_2_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="zhead_1_link" />
+    <child link="zhead_2_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.526" upper="0.526" effort="14.5" velocity="2.198" />
+  </joint>
+  <joint name="head_camera_base_joint" type="fixed">
+    <origin xyz="0.099619 0 0.032844" rpy="0 0.3406 0" />
+    <parent link="zhead_2_link" />
+    <child link="head_camera_base" />
+  </joint>
+  <joint name="head_camera_depth_joint" type="fixed">
+    <origin xyz="0.011715 0.0475 0.014311" rpy="0 0 0" />
+    <parent link="head_camera_base" />
+    <child link="head_camera_depth" />
+  </joint>
+  <joint name="radar" type="fixed">
+    <origin xyz="0 0 -0.078453" rpy="0 0 0" />
+    <parent link="zhead_1_link" />
+    <child link="radar" />
+  </joint>
+  <joint name="kuavo_tool_flange_mount_l" type="fixed">
+    <origin xyz="0 0 -0.0291" rpy="3.14159265359 0 0.785398163397" />
+    <parent link="zarm_l7_link" />
+    <child link="kuavo_tool_flange_l" />
+  </joint>
+  <joint name="kuavo_tool_gripper_mount_L" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 1.57079632679" />
+    <parent link="kuavo_tool_flange_l" />
+    <child link="kuavo_tool_gripper_L" />
+  </joint>
+  <joint name="kuavo_tool_gripper_drive_L" type="revolute">
+    <origin xyz="0 0 0.1084" rpy="0 0 0" />
+    <parent link="kuavo_tool_gripper_L" />
+    <child link="kuavo_tool_gripper_L_shaft" />
+    <axis xyz="0 0 -1" />
+    <limit lower="0" upper="1.0760578316929892" effort="2" velocity="7" />
+  </joint>
+  <joint name="kuavo_tool_gripper_jaw_1_L" type="revolute">
+    <origin xyz="-0.0267808527242 -0.00133343247549 0.142209847021" rpy="0 0 -0.233752984275" />
+    <parent link="kuavo_tool_gripper_L" />
+    <child link="kuavo_tool_gripper_L_1" />
+    <axis xyz="0.851657354998 -0.524098261908 0.000872664524251" />
+    <limit lower="0" upper="0.5083435505396878" effort="2" velocity="7" />
+    <mimic joint="kuavo_tool_gripper_drive_L" multiplier="0.47241285325705773" offset="0" />
+  </joint>
+  <joint name="kuavo_tool_gripper_jaw_17_L" type="revolute">
+    <origin xyz="0.00133402270615 0.0267808233307 0.14220984702" rpy="0 0 -0.233752984275" />
+    <parent link="kuavo_tool_gripper_L" />
+    <child link="kuavo_tool_gripper_L_17" />
+    <axis xyz="0.851657354998 -0.524098261908 0.000872664524251" />
+    <limit lower="-0.5083435505396878" upper="0" effort="2" velocity="7" />
+    <mimic joint="kuavo_tool_gripper_drive_L" multiplier="-0.47241285325705773" offset="0" />
+  </joint>
+  <joint name="kuavo_tool_grasp_center_fixed_L" type="fixed">
+    <origin xyz="0 0 0.142225549599" rpy="0 -1.57079632679 -0.785398163397" />
+    <parent link="kuavo_tool_gripper_L" />
+    <child link="kuavo_tool_grasp_center_L" />
+  </joint>
+  <joint name="kuavo_tool_flange_mount_r" type="fixed">
+    <origin xyz="0 0 -0.0291" rpy="3.14159265359 0 0.785398163397" />
+    <parent link="zarm_r7_link" />
+    <child link="kuavo_tool_flange_r" />
+  </joint>
+  <joint name="kuavo_tool_gripper_mount_R" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 1.57079632679" />
+    <parent link="kuavo_tool_flange_r" />
+    <child link="kuavo_tool_gripper_R" />
+  </joint>
+  <joint name="kuavo_tool_gripper_drive_R" type="revolute">
+    <origin xyz="0 0 0.1084" rpy="0 0 0" />
+    <parent link="kuavo_tool_gripper_R" />
+    <child link="kuavo_tool_gripper_R_shaft" />
+    <axis xyz="0 0 -1" />
+    <limit lower="0" upper="1.2921362630655375" effort="2" velocity="7" />
+  </joint>
+  <joint name="kuavo_tool_gripper_jaw_1_R" type="revolute">
+    <origin xyz="-0.0267808527242 -0.00133343247549 0.142209847021" rpy="0 0 -0.233752984275" />
+    <parent link="kuavo_tool_gripper_R" />
+    <child link="kuavo_tool_gripper_R_1" />
+    <axis xyz="0.851657354998 -0.524098261908 0.000872664524251" />
+    <limit lower="0" upper="0.5083435505396878" effort="2" velocity="7" />
+    <mimic joint="kuavo_tool_gripper_drive_R" multiplier="0.39341326845333224" offset="0" />
+  </joint>
+  <joint name="kuavo_tool_gripper_jaw_17_R" type="revolute">
+    <origin xyz="0.00133402270615 0.0267808233307 0.14220984702" rpy="0 0 -0.233752984275" />
+    <parent link="kuavo_tool_gripper_R" />
+    <child link="kuavo_tool_gripper_R_17" />
+    <axis xyz="0.851657354998 -0.524098261908 0.000872664524251" />
+    <limit lower="-0.5083435505396878" upper="0" effort="2" velocity="7" />
+    <mimic joint="kuavo_tool_gripper_drive_R" multiplier="-0.39341326845333224" offset="0" />
+  </joint>
+  <joint name="kuavo_tool_grasp_center_fixed_R" type="fixed">
+    <origin xyz="0 0 0.142225549599" rpy="0 -1.57079632679 -0.785398163397" />
+    <parent link="kuavo_tool_gripper_R" />
+    <child link="kuavo_tool_grasp_center_R" />
+  </joint>
+</robot>
