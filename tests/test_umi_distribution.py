@@ -60,6 +60,8 @@ def test_distribution_has_no_capture_time_downloads_or_compilation(tmp_path):
     assert services["config-init"]["entrypoint"] == ["python3"]
     assert "galaxis_studio_bridge" in services["galaxis_monitor"]["command"]
     assert any("runtime_galaxis_devices.yaml" in v for v in services["galaxis"]["volumes"])
+    assert ("./galaxis_description/urdf:"
+            "/root/ros2_ws/install/galaxis_description/share/galaxis_description/urdf:ro") in services["galaxis"]["volumes"]
     assert (project / ".env").is_file()
 
 
@@ -80,6 +82,9 @@ def test_incremental_release_reapplies_runtime_after_source_copy(tmp_path):
         assert service["pull_policy"] == "never"
         assert "build" not in service
     assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
+    assert services['galaxis']['volumes'].count(
+        './galaxis_description/urdf:'
+        '/root/ros2_ws/install/galaxis_description/share/galaxis_description/urdf:ro') == 1
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Compose CLI integration check")

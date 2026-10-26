@@ -58,6 +58,13 @@ def configure_umi_runtime(project: Path, manifest: dict):
     # active even though the desktop workspace contained the new implementation.
     volumes.append("./galaxis-core/galaxis-core/galaxis_core:"
                    "/root/ros2_ws/src/galaxis-core/galaxis_core:ro")
+    # The launch file loads the Xacro from the ROS package share directory.
+    # Bind that directory explicitly so model edits also reach prebuilt images.
+    urdf_binding = ("./galaxis_description/urdf:"
+                    "/root/ros2_ws/install/galaxis_description/share/galaxis_description/urdf:ro")
+    device_volumes = services["galaxis"].setdefault("volumes", [])
+    if urdf_binding not in device_volumes:
+        device_volumes.append(urdf_binding)
     for name in ('encoder_protocol.py', 'encoder_node.py', 'camera_devices.py',
                  'camera_supervisor.py', 'camera_control_node.py'):
         services["galaxis"].setdefault("volumes", []).append(
