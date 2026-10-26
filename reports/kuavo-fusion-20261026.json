@@ -1,12 +1,12 @@
 {
   "completed_at": "2026-10-26T14:59:09.892047+08:00",
-  "status": "source_merge_complete_and_offline_checks_passed",
+  "status": "source_merge_and_local_installation_complete",
   "target": "/home/ljy/桌面/galaxis/data-collection-app",
   "incoming_source": "/home/ljy/桌面/data-collection-app",
   "target_original_head": "e1f443edca6095172bd64905cee86215d12d52d7",
   "incoming_head": "9abe1d1705ef5d5c6b12a637b3ff91b942c07431",
   "common_base": "473a90cf70c95b0ebd19c5615234988cfce291b8",
-  "scope": "仅融合源码、资源、依赖声明与测试；未替换 /opt 下已安装桌面软件，未连接或控制真实机器人。",
+  "scope": "已融合源码、资源、依赖与测试，并同步更新 /opt 下安装版和当前用户工作区；未发送机器人运动指令。",
   "counts_excluding_merge_reports": {
     "modified": 49,
     "added": 167
@@ -132,5 +132,111 @@
   },
   "backup_directory": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026",
   "per_file_manifest": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/final-file-manifest.json",
-  "rollback_materials": "before/ours 为合并前差异文件备份；before/theirs 为来源文件快照；manifest 中 added 项原先不存在，回退时须单独处理。原有 Git HEAD 未改变。"
+  "rollback_materials": "before/ours 为合并前差异文件备份；before/theirs 为来源文件快照；manifest 中 added 项原先不存在，回退时须单独处理。原有 Git HEAD 未改变。",
+  "local_deployment": {
+    "completed_on": "2026-10-26",
+    "status": "installed_and_started",
+    "hotfix": "kuavo-fusion-20261026",
+    "installation": {
+      "passed": true,
+      "hotfix": "kuavo-fusion-20261026",
+      "build_id": "0.1.0+20261023122000.merge2.standalone",
+      "file_writes_verified": 488,
+      "protected_files_verified": 11,
+      "workspace": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone",
+      "robot_motion_commands_sent": false,
+      "rollback_manifest": "/home/ljy/桌面/galaxis/data-collection-app/backups/kuavo-fusion-20261026/deployment/before-install/rollback-manifest.json"
+    },
+    "runtime_validation": {
+      "passed": true,
+      "policy": "mirrored_reference_local_ik_v11",
+      "loaded_control": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/vendor/tianji/teleop/marvin_teleop/control.py",
+      "loaded_solver": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/vendor/tianji/teleop/marvin_teleop/pose_tracking.py",
+      "installed_and_workspace_hashes_verified": true,
+      "runtime_saved_acceleration": 900,
+      "per_axis_caps": [
+        450,
+        450,
+        900,
+        900,
+        900,
+        900,
+        900
+      ],
+      "teleop_j4_max_deg": -5,
+      "robot_motion_commands_sent": false,
+      "physical_robot_connected": false,
+      "transition_results": [
+        {
+          "side": "left",
+          "initial_j4": 60.0,
+          "final_j4": 49.00963108984921,
+          "monotone_transition": true,
+          "bounded_stopping": true
+        },
+        {
+          "side": "left",
+          "initial_j4": 0.0,
+          "final_j4": -11.71431317167163,
+          "monotone_transition": true,
+          "bounded_stopping": true
+        },
+        {
+          "side": "left",
+          "initial_j4": -10.0,
+          "final_j4": -11.994676769067658,
+          "monotone_transition": true,
+          "bounded_stopping": true
+        },
+        {
+          "side": "right",
+          "initial_j4": 60.0,
+          "final_j4": 49.00963108984964,
+          "monotone_transition": true,
+          "bounded_stopping": true
+        },
+        {
+          "side": "right",
+          "initial_j4": 0.0,
+          "final_j4": -11.714313171676213,
+          "monotone_transition": true,
+          "bounded_stopping": true
+        },
+        {
+          "side": "right",
+          "initial_j4": -10.0,
+          "final_j4": -11.994676769071612,
+          "monotone_transition": true,
+          "bounded_stopping": true
+        }
+      ],
+      "source_files_verified_per_copy": 1559,
+      "mcap_roundtrip": true
+    },
+    "desktop_start": {
+      "passed": true,
+      "desktop_launch": "normal",
+      "frontend_pid": 376865,
+      "display_backend": "Wayland",
+      "qml_startup_completed": true,
+      "health_url": "http://127.0.0.1:8011/healthz",
+      "health": {
+        "status": "ok"
+      },
+      "native_service_ready": true,
+      "uploader_active": true,
+      "uploader_loaded_merged_implementation": true,
+      "robot_motion_commands_sent": false
+    },
+    "installed_desktop_smoke": "passed",
+    "app_files_updated_per_copy": 221,
+    "dependency_files_added": 46,
+    "runtime_dependencies": [
+      "mcap 1.6.0",
+      "lz4 4.4.5",
+      "zstandard 0.25.0"
+    ],
+    "installation_method": "本机增量更新；保留原 Debian 包版本与工作区编号，未重新生成分发安装包。",
+    "robot_motion_commands_sent": false
+  }
 }
