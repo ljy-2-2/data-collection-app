@@ -82,21 +82,22 @@ struct buffer
 /// @brief Get epoch time shift in microseconds
 /// @details Run this at start of process to calculate epoch time shift
 /// @ref https://stackoverflow.com/questions/10266451/where-does-v4l2-buffer-timestamp-value-starts-counting
+inline time_t epoch_time_shift_us(const timeval & epoch_time, const timespec & monotonic_time)
+{
+  const int64_t uptime_us = monotonic_time.tv_sec * 1000000LL +
+    static_cast<int64_t>(std::round(monotonic_time.tv_nsec / 1000.0));
+  // timeval.tv_usec is already microseconds, unlike timespec.tv_nsec.
+  const int64_t epoch_us = epoch_time.tv_sec * 1000000LL + epoch_time.tv_usec;
+  return static_cast<time_t>(epoch_us - uptime_us);
+}
+
 inline time_t get_epoch_time_shift_us()
 {
   struct timeval epoch_time;
   struct timespec monotonic_time;
-
   gettimeofday(&epoch_time, NULL);
   clock_gettime(CLOCK_MONOTONIC, &monotonic_time);
-
-  const int64_t uptime_us =
-    monotonic_time.tv_sec * 1000000 + static_cast<int64_t>(
-    std::round(monotonic_time.tv_nsec / 1000.0));
-  const int64_t epoch_us =
-    epoch_time.tv_sec * 1000000 + epoch_time.tv_usec / 1000.0;
-
-  return static_cast<time_t>(epoch_us - uptime_us);
+  return epoch_time_shift_us(epoch_time, monotonic_time);
 }
 
 /// @brief Calculate image timestamp from buffer time and epoch time shift.

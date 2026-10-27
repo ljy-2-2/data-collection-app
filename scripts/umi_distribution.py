@@ -83,6 +83,10 @@ def configure_umi_runtime(project: Path, manifest: dict):
             source = project / 'third_party/usb_cam/src/usb_cam.cpp'
             if source.exists() and build.get('source_sha256') != hashlib.sha256(source.read_bytes()).hexdigest():
                 raise ValueError('相机源码已变化，请重新构建对应架构的原生组件')
+            for relative, digest in build.get('headers_sha256', {}).items():
+                header = project / 'third_party/usb_cam' / relative
+                if not header.is_file() or hashlib.sha256(header.read_bytes()).hexdigest() != digest:
+                    raise ValueError('相机头文件已变化，请重新构建对应架构的原生组件')
             camera_binding = (f'./{camera_library}:'
                               '/root/ros2_ws/install/usb_cam/lib/libusb_cam.so:ro')
             device_volumes[:] = [v for v in device_volumes

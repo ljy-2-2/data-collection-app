@@ -16,6 +16,10 @@ from .capture_recovery import complete_messages, requires_interval_recovery
 from .mp4_worker import atomic_json
 
 
+class RawCaptureIntegrityError(ValueError):
+    """The captured source itself needs recovery, independently of encoding."""
+
+
 def finalize_raw(folder, metadata, *, source=None, native=None):
     folder = Path(folder)
     marker = folder / '.compressed-raw.json'
@@ -35,7 +39,7 @@ def finalize_raw(folder, metadata, *, source=None, native=None):
         if Path(name).name != name or not name.endswith('.mcap.partial'):
             raise ValueError('Invalid raw staging filename')
         if requires_interval_recovery(staging.get('continuity_issue')):
-            raise ValueError('暂存数据存在真实缺口，保留原始数据等待区间恢复')
+            raise RawCaptureIntegrityError('暂存数据存在真实缺口，保留原始数据等待区间恢复')
         source = folder / name
     source = Path(source)
     if source.is_symlink():
@@ -51,23 +55,26 @@ def finalize_raw(folder, metadata, *, source=None, native=None):
         shutil.rmtree(stage)
     bag = CompressedBag(stage, native=native, encoder_timeout=None)
     (stage / '.owned-raw-stage').write_text('umi-mcap-h264-v1')
+    from .finalizer_pause import checkpoint
     counts, issues = {}, []
     try:
         for schema, channel, message in complete_messages(source, issues):
             if not schema or channel.message_encoding != 'cdr':
                 raise ValueError('Unsupported raw recording schema')
+            checkpoint(bag.encoders)
             bag.topic(channel.topic, schema.name, schema.data,
                       channel.metadata.get('offered_qos_profiles', ''))
             bag.message(channel.topic, message.data, message.log_time,
                         message.publish_time, message.sequence)
             counts[channel.topic] = counts.get(channel.topic, 0) + 1
         if normal_capture and counts != {t: n for t, n in staging.get('counts', {}).items() if n}:
-            raise ValueError('Staging message counts differ from capture; originals retained')
+            raise RawCaptureIntegrityError('Staging message counts differ from capture; originals retained')
         if issues:
-            raise ValueError('Damaged raw staging file: ' + '; '.join(issues))
+            raise RawCaptureIntegrityError('Damaged raw staging file: ' + '; '.join(issues))
+        checkpoint(bag.encoders)
         bag.close()
         if normal_capture and bag.continuity_issue:
-            raise ValueError('原始数据连续性检查失败，暂存文件保留')
+            raise RawCaptureIntegrityError('原始数据连续性检查失败，暂存文件保留')
         if bag.counts != counts:
             raise ValueError('Raw compression changed message counts; staging retained')
         saved = json.loads((stage / '.compressed-raw.json').read_text())

@@ -301,3 +301,54 @@ def test_local_destination_still_rejects_gaps_and_preserves_original(tmp_path):
     with pytest.raises(ValueError, match='连续性'):
         finalize_episode(folder)
     assert source.exists() and (folder / '.mp4-pending.json').exists()
+
+
+def test_deferred_encoder_uses_cooperative_pause_without_signals(tmp_path, monkeypatch):
+    folder, source = job(tmp_path)
+    (folder/'.deferred-raw.json').write_text('{}')
+    package = ROOT/'umi_collection/vendor/galaxis/galaxis-core/galaxis-core'
+    monkeypatch.setenv('PYTHONPATH', str(package)+os.pathsep+os.environ.get('PYTHONPATH',''))
+    code = 'from galaxis_core.finalizer_pause import checkpoint; import time\nwhile True:\n checkpoint({}); time.sleep(.01)'
+    worker = BackgroundFinalizer(tmp_path, command_factory=lambda _: [sys.executable,'-c',code])
+    monkeypatch.setattr(worker,'_can_keep_encoder_memory',lambda:True)
+    thread=threading.Thread(target=worker.run);thread.start();priority=CapturePriority(tmp_path)
+    try:
+        wait_until(lambda:worker.process is not None)
+        original=worker.process
+        for _ in range(3):
+            priority.acquire()
+            assert worker.process is original and original.poll() is None
+            assert (folder/'.finalizer-pause.ack').exists()
+            # A kernel-stopped process reports T, whereas cooperative pause sleeps.
+            state=Path(f'/proc/{original.pid}/stat').read_text().rsplit(')',1)[1].split()[0]
+            assert state!='T'
+            priority.release();wait_until(lambda:worker.paused_at is None)
+            wait_until(lambda:not (folder/'.finalizer-pause.ack').exists())
+        assert source.exists() and not (folder/'recording-failure.json').exists()
+    finally:
+        priority.release();worker.stop_event.set();thread.join(5)
+    assert not thread.is_alive()
+
+
+def test_codec_failure_retries_complete_capture_without_recovery(tmp_path, monkeypatch):
+    from galaxis_core import mp4_worker
+    folder, source = job(tmp_path)
+    (folder/'.deferred-raw.json').write_text('{}')
+    pending=(folder/'.mp4-pending.json').read_bytes()
+    monkeypatch.setattr(mp4_worker,'finalize_episode',lambda _:(_ for _ in ()).throw(BrokenPipeError('codec exit')))
+    monkeypatch.setattr(sys,'argv',['mp4_worker','--episode',str(folder)])
+    with pytest.raises(BrokenPipeError):mp4_worker.main()
+    assert (folder/'.mp4-pending.json').read_bytes()==pending
+    assert not (folder/'capture-recovery.json').exists()
+    worker=BackgroundFinalizer(tmp_path,command_factory=lambda _:[sys.executable,'-c','import time;time.sleep(60)'])
+    worker.folder=folder;worker._fail('codec exit')
+    failure=folder/'recording-failure.json';value=json.loads(failure.read_text())
+    assert value['stage']=='raw-finalization'
+    value['retry_after']=0;atomic_json(failure,value)
+    try:
+        worker.tick()
+        assert worker.folder==folder and worker.process is not None
+        assert not failure.exists()
+        assert source.exists() and (folder/'.mp4-pending.json').read_bytes()==pending
+        assert not (folder/'capture-recovery.json').exists()
+    finally:worker._stop_conversion()

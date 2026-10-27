@@ -149,7 +149,7 @@ class LiveEncoder:
 
     def check(self):
         if self.failure:
-            raise RuntimeError(self.failure)
+            raise RuntimeError(self.failure + ': ' + ''.join(self.errors)[-1200:])
         if self.process.poll() is not None:
             raise RuntimeError('视频编码进程退出: '+''.join(self.errors)[-1200:])
         if self.started and self.accepted-self.count > 3:
@@ -168,7 +168,7 @@ class LiveEncoder:
                 raise RuntimeError('视频编码结束超时，未标记为完整回合')
             code = self.process.wait(timeout=None if self.managed else 2)
             if code or self.failure or self.count != self.accepted:
-                raise RuntimeError(self.failure or f'视频帧不完整: {self.count}/{self.accepted}, {code}')
+                raise RuntimeError((self.failure or f'视频帧不完整: {self.count}/{self.accepted}, {code}') + ': ' + ''.join(self.errors)[-1200:])
         finally:
             if self.process.poll() is None:
                 self.process.kill()

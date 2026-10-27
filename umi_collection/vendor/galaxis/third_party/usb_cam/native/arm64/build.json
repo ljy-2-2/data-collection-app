@@ -1,7 +1,24 @@
 {
   "architecture": "arm64",
   "runtime_image": "xiaokai-umi-runtime:20261015.local-cloud-arm64",
-  "sha256": "09e041fdb61a7af5fc61c95aa33ca9460d982e7a4e6aa293942314da4ef202e7",
+  "sha256": "d89db5e9479794e69774f8c4ad5f512b4d1255641f82d76fd71d62ad3945bc38",
   "source_sha256": "3547b18027577f1acc3977abebfd75191eb9386785f607c62669c30bb1f24c28",
-  "capture_buffers": 8
+  "capture_buffers": 8,
+  "headers_sha256": {
+    "include/usb_cam/constants.hpp": "696af333b248b7b477ae66b3bdd2cc83b120d6ed381452add2386e000580dae5",
+    "include/usb_cam/conversions.hpp": "0ec8d79edb4522e02ab9b44d1fa78aa53feece65b547ddf4c1b9babff5cb0299",
+    "include/usb_cam/formats/av_pixel_format_helper.hpp": "0fc6c8bdb567b0b233ef044a1e562066be521aff8b1c0cacfbcb48c2d806ee32",
+    "include/usb_cam/formats/m420.hpp": "fd2b68a2494412bec5d75f28a5a8b6b1bf3f3d9f8c61bcf9fed5a56a86c67ac0",
+    "include/usb_cam/formats/mjpeg.hpp": "7450016ebe3785461a9f7f79d915755e2c4843902efc80417a1906a0ceac3bb8",
+    "include/usb_cam/formats/mono.hpp": "797ddf97fe6bb00d2b1fe96a95c18cf863003c6f1a106b3bd78c70271a3a6d9f",
+    "include/usb_cam/formats/pixel_format_base.hpp": "25411c89217272ba4d09425003b98d4f6bd9579619ef08bae845c5a56b58e209",
+    "include/usb_cam/formats/rgb.hpp": "cdd0b97974b52a874885c5b1b7a6b4bd5c7c1084f80a773d22a8763ec699d511",
+    "include/usb_cam/formats/utils.hpp": "b4b967e469a67a92367da3c2ed7c55621e507624bea630fa81810424d93ebff5",
+    "include/usb_cam/formats/uyvy.hpp": "8d6f90e0e134715b504fa35f4301305aa3b0f6a65c6a6aa62af288dcbbf3c100",
+    "include/usb_cam/formats/yuyv.hpp": "f7cdaf39edd193cccd8def39d37349e29ffd49883424fc4bff7cc0774be53492",
+    "include/usb_cam/jpeg_payload.hpp": "ef49a29027b6134c1499c47d294a3b5ee6f10b2b2f66b5f6bff4eb8e9f869460",
+    "include/usb_cam/usb_cam.hpp": "7375910bd1b41bc814f359788b2267608bd43e17171697609f7a0c02b479bd28",
+    "include/usb_cam/usb_cam_node.hpp": "c4c537c660aaa24633c8e5a93e751fe20c64764c60d96325ce3d038f7aacfe87",
+    "include/usb_cam/utils.hpp": "f033b62fd4325e1fae9500ec1ae450d1f6ec19ebb4955b9a41f7a7520f68fc69"
+  }
 }
