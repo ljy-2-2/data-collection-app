@@ -114,7 +114,7 @@ def test_stop_releases_faulted_connection_and_allows_a_fresh_check(monkeypatch, 
     monkeypatch.setattr(worker, "RecordingRobot", Robot)
     monkeypatch.setattr(worker, "Publisher", Publisher)
     monkeypatch.setattr(worker, "PicoLauncher", lambda config: SimpleNamespace(
-        start=lambda: None, close=lambda: None, app_started=True, status="fixture"))
+        start=lambda: None, close=lambda **kwargs: None, app_started=True, status="fixture"))
     monkeypatch.setattr(worker, "LocalVRConnection", lambda *args, **kwargs: SimpleNamespace(
         check=lambda: None, close=lambda: None, snapshot=lambda: (None, False, "", True)))
     command("check")

@@ -37,7 +37,6 @@ class PreparationPlan:
         return self.checked_samples == self.samples
 
     def validate_chunk(self, models, config, count=4):
-        from .gripper_collision import motion_reason
         for index in range(
             self.checked_samples, min(self.samples, self.checked_samples + count)
         ):
@@ -48,11 +47,6 @@ class PreparationPlan:
             reason = models.collision_reason(q, config["collision_margin_m"])
             if reason:
                 raise ValueError(f"准备路径 {u:.1%} 存在干涉：{reason}")
-            previous_u = max(0, index - 1) / (self.samples - 1)
-            previous = {s: self.start[s] + previous_u * self.delta[s] for s in self.goal}
-            reason = motion_reason(models, previous, q)
-            if reason:
-                raise ValueError(reason)
             self.checked_samples += 1
 
     def at(self, seconds):

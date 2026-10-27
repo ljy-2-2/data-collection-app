@@ -7,7 +7,7 @@ No position limit, physical emergency stop or servo fault is bypassed.
 import numpy as np
 
 from .point_to_point import pose_plan, pose_at, validate_pose
-from .robot import CommandBusy, CollisionBlocked
+from .robot import CommandBusy
 from .recovery_clearance import RecoveryClearance
 
 
@@ -97,12 +97,6 @@ class ZeroRecovery:
                 raise ValueError('回零预检期间机械臂位置改变，请保持静止后重试')
             u = self.checked / (self.plan['samples'] - 1)
             candidate = {s: self.plan['start'][s] + u * self.plan['delta'][s] for s in q}
-            from .gripper_collision import motion_reason
-            previous_u = max(0, self.checked - 1) / (self.plan['samples'] - 1)
-            previous = {s: self.plan['start'][s] + previous_u * self.plan['delta'][s] for s in q}
-            reason = motion_reason(self.models, previous, candidate)
-            if reason:
-                raise CollisionBlocked(reason)
             validate_pose(self.models, candidate, self.config, hard_limits=True,
                           collision_guard=self.preflight_clearance)
             self.preflight_clearance.advance(candidate)

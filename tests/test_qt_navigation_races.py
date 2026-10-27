@@ -111,7 +111,7 @@ def test_old_poll_failure_cannot_overwrite_state_after_stop(bridge):
 @pytest.mark.parametrize('late',['done','failed'])
 def test_tianji_reentry_clears_notices_and_rejects_old_status(bridge,entry,late):
     bridge.demo=False;requests=[]
-    bridge.request=lambda path,*args,**kw:requests.append((path,kw))
+    bridge.request=lambda path,*args,**kw:requests.append((path,{**kw,**({'done':args[1]} if len(args)>1 else {})}))
     old_status=dict(state='idle',error='上次设备错误',camera_error='上次预览错误',
                     collection={'upload':{'error':'上传待重试'}})
     bridge.update(authenticated=True,teleopStep=2,robot='tianji',tianji=old_status,
@@ -124,7 +124,13 @@ def test_tianji_reentry_clears_notices_and_rejects_old_status(bridge,entry,late)
         bridge.configureTeleop('重新进入','tianji')
         bridge.save_timer.stop()
     else:
-        bridge.navigate('umi');bridge.navigate('teleop')
+        bridge.navigate('umi')
+        assert bridge.state['page']=='teleop', 'Wait for PICO shutdown before leaving'
+        next(kw for path,kw in requests if path=='/tianji/close')['done']({'ok':True})
+        bridge.navigate('teleop')
+        assert bridge.state['teleopStep']==1
+        bridge.configureTeleop('重新进入','tianji')
+        bridge.save_timer.stop()
     assert all(not bridge.state[key] for key in ('error','notice','cameraApplyError','cameraApplyMessage'))
     assert not bridge.state['tianjiStatusFresh']
     assert bridge.state['tianji']==old_status, 'Keep actual device/recording state intact'

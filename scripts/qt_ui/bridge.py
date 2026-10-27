@@ -393,6 +393,11 @@ class Bridge(QObject):
         if self._state['busy'] or self._state['closing'] or not self._state['authenticated']:return
         if self.umiOnly and page != 'umi':return
         if page in ('teleop','umi','ego'):
+            if self._state['page']=='teleop' and page!='teleop' and self._state['robot']=='tianji':
+                if self.teleop_active():self.fail('请先停止遥操作、手动运动和采集');return
+                self.revision+=1
+                self.action('close','/tianji/close',done=lambda _:self.update(page=page,teleopStep=1,error=''))
+                return
             entering=page=='teleop' and self._state['page']!=page
             if self._state['page']!=page:self.revision+=1
             if entering:self.reset_teleop_notices()

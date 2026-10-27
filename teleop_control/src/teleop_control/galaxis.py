@@ -116,6 +116,15 @@ class GalaxisHeadsetSetup:
             self.last_error = "PICO 已授权，但 Galaxis VR 尚未启动"
         return ready
 
+    def stop_app(self, serial: str) -> bool:
+        """Exit a previously verified headset's app without touching other devices."""
+        result = self._run("-s", serial, "shell", "am", "force-stop", self.package, timeout=2)
+        if self._require_success(result, "退出 PICO Galaxis VR"):
+            return True
+        devices = self._run("devices", timeout=2)
+        return bool(devices is not None and devices.returncode == 0 and not any(
+            row.split()[:2] == [serial, "device"] for row in devices.stdout.splitlines()))
+
     def wake(self) -> bool:
         """Keep a running VR sender awake without resetting its in-app switches."""
         result = self._run(

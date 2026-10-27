@@ -6,8 +6,10 @@ import numpy as np
 from .geometry import angle, relative_target
 from .mapping import same_facing_map
 from .protocol import GRIP_ON, GRIP_OFF
-from .robot import CommandExpired, CommandBusy, CollisionBlocked
-from .pose_tracking import TELEOP_ELBOW_MAX_DEG, valid_teleop_joints
+from .robot import CommandExpired, CommandBusy
+from .pose_tracking import TELEOP_ELBOW_MAX_DEG, valid_teleop_joints, _ElbowLimitedArm
+from .hand_stability import HandStability
+from .motion import advance
 
 SIDES = ("left", "right")
 NAMES = {"left": "左臂", "right": "右臂"}
@@ -83,6 +85,9 @@ class ArmControl:
     hand_rotation_speed_deg_s: object = None
     command_rotation_speed_deg_s: object = None
     acceleration_limited: bool = False
+    hand_stability: object = None
+    stationary_hold: bool = False
+    stationary_hand: object = None
 
 
 class Controller:
@@ -174,6 +179,10 @@ class Controller:
                 "hand_rotation_speed_deg_s": a.hand_rotation_speed_deg_s,
                 "command_rotation_speed_deg_s": a.command_rotation_speed_deg_s,
                 "acceleration_limited": a.acceleration_limited,
+                "hand_position_held": bool(a.hand_stability and a.hand_stability.position_held),
+                "hand_rotation_held": bool(a.hand_stability and a.hand_stability.rotation_held),
+                "stationary_joint_hold": a.stationary_hold,
+                "hold_policy": "joint_latch_v2",
                 "joint_acceleration_limits_deg_s2": np.minimum(
                     self.cfg["max_joint_accel_deg_s2"],
                     self.models.arms[s].acceleration_limits).tolist(),
@@ -236,6 +245,9 @@ class Controller:
         a.input_rate_hz = a.hand_rotation_speed_deg_s = a.command_rotation_speed_deg_s = None
         a.input_age_s = None
         a.acceleration_limited = False
+        a.hand_stability = None
+        a.stationary_hold = False
+        a.stationary_hand = None
         a.elapsed = 0.0
         a.velocity = np.zeros(7)
         a.next_velocity = np.zeros(7)
@@ -326,6 +338,9 @@ class Controller:
         a.velocity, a.elapsed = np.zeros(7), 0.0
         a.anchor = (frame.hands[side].copy(), self.models.arms[side].fk(q[side]))
         a.previous_hand, a.sequence = frame.hands[side].copy(), frame.sequence
+        a.hand_stability = HandStability(frame.hands[side], getattr(frame, 'source_time', frame.received))
+        a.stationary_hold = False
+        a.stationary_hand = None
         a.mode = "ACTIVE"
         a.released = False
         self.suspend_reason = None
@@ -375,6 +390,44 @@ class Controller:
         # Track observed input independently of successful SDK writes. A busy
         # send slot must not accumulate normal hand motion into a false jump.
         a.previous_hand, a.sequence = hand.copy(), frame.sequence
+        # Check discontinuities on raw XR above. Only the commanded hand target
+        # is stabilized; tracking/lease/grip/emergency signals are never filtered.
+        hand = a.hand_stability.update(hand, getattr(frame, 'source_time', frame.received))
+        if a.hand_stability.position_held and a.hand_stability.rotation_held:
+            if not a.stationary_hold:
+                model.reset_pose_tracking()
+                a.stationary_hand = hand.copy()
+            a.stationary_hold = True
+            # A held hand is a JOINT hold, not another Cartesian solve. Cancel
+            # unsent IK goals and brake only accepted momentum. Never chase an
+            # old singular/nullspace goal after the operator has stopped.
+            domain = _ElbowLimitedArm(model, max(TELEOP_ELBOW_MAX_DEG, float(a.commanded[3])))
+            desired, _ = advance(domain, a.commanded, a.commanded, a.velocity, dt,
+                                 self.cfg['max_joint_speed_deg_s'],
+                                 self.cfg['max_joint_accel_deg_s2'])
+            a.next_velocity = (desired-a.commanded)/dt
+            a.target_pose = model.fk(desired)
+            measured_pose = model.fk(q[side])
+            a.position_error_m = float(np.linalg.norm(a.target_pose[:3,3]-measured_pose[:3,3]))
+            a.rotation_error_rad = angle(a.target_pose[:3,:3] @ measured_pose[:3,:3].T)
+            a.input_age_s = max(0.,(self.last_tick or frame.received)-frame.received)
+            a.input_rate_hz = 1./a.hand_stability.sample_interval if a.hand_stability.sample_interval else 0.
+            a.hand_rotation_speed_deg_s = 0.
+            a.command_rotation_speed_deg_s = float(np.degrees(np.linalg.norm(
+                model.world_jacobian(a.commanded, model.fk(a.commanded))[3:] @ np.radians(a.next_velocity))))
+            a.acceleration_limited = bool(np.any(np.abs(a.next_velocity)>1e-9))
+            a.speed_limited = False
+            a.ik_detail = '手柄静止：停止逆解追赶，保持已接受的关节目标'
+            a.reason = '手柄静止：减速保持；移动手柄后继续跟随'
+            return desired
+        if a.stationary_hold:
+            # Resume from the accepted stopped command and held hand, not a
+            # pre-stop Cartesian residual. This also works during braking and
+            # after SDK busy deferrals; commanded/velocity commit only on send.
+            a.anchor = (a.stationary_hand.copy(), model.fk(a.commanded))
+            model.reset_pose_tracking()
+            a.stationary_hold = False
+            a.stationary_hand = None
         hand0, flange0 = a.anchor
         target = relative_target(hand, hand0, flange0, a.basis, self.cfg["scale"])
         a.target_clamped = False
@@ -558,14 +611,6 @@ class Controller:
                 )
                 if reason:
                     raise RuntimeError(reason)  # shared collision risk => both stop
-            from .gripper_collision import motion_reason
-            if hasattr(self.robot, "collision_openings"):
-                self.models.gripper_openings = self.robot.collision_openings()
-            blocked = motion_reason(self.models, q, proposal)
-            if blocked:
-                proposal = {s: q[s].copy() for s in SIDES}
-                targets = {}
-                self._collision_hold(q, frame, blocked)
             elapsed = time.monotonic() - started
             if elapsed > 0.05:
                 self.slow_cycles += 1
@@ -583,11 +628,6 @@ class Controller:
                     else None,
                 ):
                     return
-            except CollisionBlocked as error:
-                # The final SDK guard used newer feedback and sent a measured
-                # hold. Keep the clutch active so reversing the hand can escape.
-                self._collision_hold(self.robot.q, frame, str(error))
-                return
             except CommandExpired:
                 # Expiry at the compute/send boundary is ordinary input loss,
                 # not a servo fault. The expired motion goal is never retried.
@@ -601,22 +641,6 @@ class Controller:
                 a.commanded = target
                 a.velocity = a.next_velocity.copy()
                 a.previous_hand, a.sequence = frame.hands[side].copy(), frame.sequence
-
-    def _collision_hold(self, q, frame, reason):
-        self.holds = {s: values.copy() for s, values in q.items()}
-        for side, a in self.arms.items():
-            a.commanded = q[side].copy()
-            a.velocity = np.zeros(7)
-            a.next_velocity = np.zeros(7)
-            a.reason = reason
-            a.target_clamped = True
-            if frame is not None and a.mode == "ACTIVE" and not a.preparing:
-                a.anchor = (frame.hands[side].copy(), self.models.arms[side].fk(q[side]))
-                a.previous_hand = frame.hands[side].copy()
-                a.sequence = frame.sequence
-                reset = getattr(self.models.arms[side], "reset_pose_tracking", None)
-                if reset:
-                    reset()
 
     def _dispatch(self, proposal, now, deadline=None):
         try:

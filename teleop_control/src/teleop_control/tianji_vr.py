@@ -66,6 +66,11 @@ class LocalVRConnection:
             raise
 
     def close(self):
-        if self.input is not None:
-            self.input.close()
-            self.input = None
+        try:
+            if self.input is not None:
+                self.input.close()
+                self.input = None
+        finally:
+            # Closing the SDK subscriber alone leaves the PICO sender connected
+            # to RoboticsService. Stop that exact bridge to close its sockets.
+            self.service.stop()

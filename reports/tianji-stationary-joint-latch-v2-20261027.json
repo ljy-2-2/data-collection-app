@@ -1,0 +1,309 @@
+{
+  "date": "2026-10-27",
+  "fix": "tianji-stationary-joint-latch-v2",
+  "user_observation": "握住接管键、手柄停住时抖动，左臂尤甚；松开接管键立即停稳",
+  "findings": [
+    "旧版本仅保持手柄目标，静止期间仍持续逆运动学跟踪，离线复现出现关节目标波动",
+    "静止检测在移动后停止并带噪声时可能反复退出保持状态"
+  ],
+  "changes": [
+    "静止时停止逆解迭代，基于已接受指令按原加速度限幅减速至零，然后保持关节指令",
+    "以窗口均值及均方根判断静止，适度位移需持续确认，大位移立即解除保持",
+    "继续移动时从停止位置重新锚定，避免追赶旧目标",
+    "后台记录最近 2000 条控制诊断，结束控制或退出软件时保存"
+  ],
+  "regression": {
+    "passed": 233,
+    "details": "232 项相关回归通过；诊断模块新增 IPC 传输测试后该模块 3 项通过（原 2 项，净增 1 项）"
+  },
+  "offline_reproduction": {
+    "hardware_motion": false,
+    "before": [
+      {
+        "case": 0,
+        "side": "left",
+        "held_frames": 124,
+        "max_speed_while_held": 9.049666109203969,
+        "tail_range_deg": 0.688835267176465,
+        "tail_peak_speed": 16.197507520251264
+      },
+      {
+        "case": 0,
+        "side": "right",
+        "held_frames": 124,
+        "max_speed_while_held": 3.5697286572311526,
+        "tail_range_deg": 0.7904997060674646,
+        "tail_peak_speed": 19.95633722795702
+      },
+      {
+        "case": 7,
+        "side": "left",
+        "held_frames": 124,
+        "max_speed_while_held": 5.736507006703562,
+        "tail_range_deg": 0.6576537844976258,
+        "tail_peak_speed": 17.452748157813147
+      },
+      {
+        "case": 7,
+        "side": "right",
+        "held_frames": 124,
+        "max_speed_while_held": 20.264116406210952,
+        "tail_range_deg": 1.6196156078475923,
+        "tail_peak_speed": 28.361950870226416
+      },
+      {
+        "case": 59,
+        "side": "left",
+        "held_frames": 124,
+        "max_speed_while_held": 11.933153083518633,
+        "tail_range_deg": 0.8543147132123607,
+        "tail_peak_speed": 18.828347816666735
+      },
+      {
+        "case": 59,
+        "side": "right",
+        "held_frames": 124,
+        "max_speed_while_held": 3.9114694720527643,
+        "tail_range_deg": 0.3526482791579866,
+        "tail_peak_speed": 9.84151773649462
+      },
+      {
+        "case": 62,
+        "side": "left",
+        "held_frames": 124,
+        "max_speed_while_held": 4.299616213127422,
+        "tail_range_deg": 0.2995917258706271,
+        "tail_peak_speed": 9.263687229209694
+      },
+      {
+        "case": 62,
+        "side": "right",
+        "held_frames": 124,
+        "max_speed_while_held": 3.0939327317227594,
+        "tail_range_deg": 0.26025312334518036,
+        "tail_peak_speed": 9.292512644381645
+      }
+    ],
+    "after": [
+      {
+        "case": 0,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 0,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 7,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 7,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 59,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 59,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 62,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 62,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      }
+    ]
+  },
+  "installed_verification": {
+    "files_verified": 15,
+    "package_cases": [
+      {
+        "case": 0,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 0,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 7,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 7,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 59,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 59,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 62,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 62,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      }
+    ],
+    "workspace_cases": [
+      {
+        "case": 0,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 0,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 7,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 7,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 59,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 59,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 62,
+        "side": "left",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      },
+      {
+        "case": 62,
+        "side": "right",
+        "held_frames": 300,
+        "max_speed_while_held": 0.0,
+        "tail_range_deg": 0.0,
+        "tail_peak_speed": 0.0
+      }
+    ],
+    "trace_persistence_both_roots": true
+  },
+  "backup": "/home/ljy/桌面/galaxis/data-collection-app/backups/tianji-stationary-joint-latch-v2-20261027/1793095738837280279",
+  "hardware_verification": "未发送实机运动指令。尚不能据离线测试确认实机抖动完全消失。",
+  "installed_files": [
+    "/opt/xiaokai-lab-data-collection/app/README.md",
+    "/opt/xiaokai-lab-data-collection/app/teleop_control/vendor/tianji/teleop/marvin_teleop/control.py",
+    "/opt/xiaokai-lab-data-collection/app/teleop_control/vendor/tianji/teleop/marvin_teleop/hand_stability.py",
+    "/opt/xiaokai-lab-data-collection/app/teleop_control/src/teleop_control/tianji.py",
+    "/opt/xiaokai-lab-data-collection/app/teleop_control/src/teleop_control/tianji_worker.py",
+    "/opt/xiaokai-lab-data-collection/app/teleop_control/src/teleop_control/tianji_motion_trace.py",
+    "/opt/xiaokai-lab-data-collection/app/fusion_data_collection/teleop_patch/marvin_teleop/collection_telemetry.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/README.md",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/vendor/tianji/teleop/marvin_teleop/control.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/vendor/tianji/teleop/marvin_teleop/hand_stability.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/src/teleop_control/tianji.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/src/teleop_control/tianji_worker.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/teleop_control/src/teleop_control/tianji_motion_trace.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261023122000.merge2.standalone/fusion_data_collection/teleop_patch/marvin_teleop/collection_telemetry.py",
+    "/opt/xiaokai-lab-data-collection/package-build.json"
+  ]
+}

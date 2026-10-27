@@ -88,9 +88,16 @@ def test_reclutch_refreshes_only_selected_arm_without_pose_jump(session, side):
     hands[side][:3, 3] = [.005, .002, -.003]
     hands[side][:3, :3] = rotation([1, 0, 0], .02)
     session.tick(grips, yaw=-np.pi/3, hands=hands)
+    session.tick(grips, yaw=-np.pi/3, hands=hands)
+    # A fresh hand sample now passes through 25 ms SE(3) smoothing; the
+    # shared basis and clutch anchor must still map that pose identically.
+    alpha = 1.-np.exp(-.02/.025)
+    filtered = np.eye(4)
+    filtered[:3,3] = alpha*hands[side][:3,3]
+    filtered[:3,:3] = rotation([1,0,0],alpha*.02)
     expected = selected.anchor[1].copy()
-    expected[:3, 3] += expected_basis@hands[side][:3, 3]
-    expected[:3, :3] = expected_basis@hands[side][:3, :3]@expected_basis.T@selected.anchor[1][:3, :3]
+    expected[:3, 3] += expected_basis@filtered[:3, 3]
+    expected[:3, :3] = expected_basis@filtered[:3, :3]@expected_basis.T@selected.anchor[1][:3, :3]
     np.testing.assert_allclose(selected.target_pose, expected, atol=1e-12)
     np.testing.assert_allclose(session.controller.arms[peer].basis, peer_basis)
     np.testing.assert_allclose(session.controller.arms[peer].target_pose, peer_anchor, atol=1e-12)
@@ -111,15 +118,24 @@ def test_continuous_clutch_does_not_clip_translation_or_rotation(session, side, 
         hands[side][:3, 3] = [direction * step * .05, 0., 0.]
         hands[side][:3, :3] = rotation([0, 1, 0], step * .02)
         session.tick(grips, hands=hands)
+        # Closed-form response to the ramp. Smoothing delays the target but
+        # must not impose a workspace clamp or change the shared frame.
+        decay = np.exp(-.01/.025)
+        filtered_step = step - decay*(1-decay**step)/(1-decay)
         expected = anchor.copy()
-        expected[:3, 3] += basis @ hands[side][:3, 3] * session.controller.cfg['scale']
-        expected[:3, :3] = basis @ hands[side][:3, :3] @ basis.T @ anchor[:3, :3]
+        expected[:3, 3] += basis @ np.array([direction*filtered_step*.05,0.,0.]) * session.controller.cfg['scale']
+        expected[:3, :3] = basis @ rotation([0,1,0],filtered_step*.02 if step>1 else 0.) @ basis.T @ anchor[:3, :3]
         np.testing.assert_allclose(selected.target_pose, expected, atol=1e-12)
         assert selected.mode == 'ACTIVE'
         assert not session.controller.status()[side]['target_clamped']
         np.testing.assert_allclose(session.controller.arms[peer].target_pose,
                                    session.controller.arms[peer].anchor[1], atol=1e-12)
-    assert np.linalg.norm(selected.target_pose[:3, 3] - anchor[:3, 3]) > .5
+    assert np.linalg.norm(selected.target_pose[:3, 3] - anchor[:3, 3]) > .49
+    # Stopping now cancels the unreachable old task goal (this fixture's IK
+    # intentionally returns no movement), rather than chasing it forever.
+    for _ in range(50):session.tick(grips, hands=hands)
+    assert selected.stationary_hold
+    np.testing.assert_allclose(selected.target_pose, session.models.arms[side].fk(selected.commanded), atol=1e-12)
 
 
 @pytest.mark.parametrize('side', ['left', 'right'])
@@ -208,7 +224,9 @@ def test_controller_passes_original_capture_time_when_reusing_an_xr_frame(sessio
         return reference.copy()
     monkeypatch.setattr(session.models.arms['right'], 'pose_tracking_ik', solve)
     session.tick({'left': 0., 'right': 1.})
-    frame = session.tick({'left': 0., 'right': 1.})
+    hands = {'left':np.eye(4),'right':np.eye(4)}
+    hands['right'][0,3] = .01
+    frame = session.tick({'left': 0., 'right': 1.}, hands=hands)
     assert seen[-1]['input_time_s'] == frame.source_time
     session.controller.tick(frame, True, False, now=frame.received+.005)
     assert seen[-1]['input_time_s'] == frame.source_time

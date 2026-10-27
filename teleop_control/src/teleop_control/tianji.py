@@ -31,6 +31,7 @@ from .tianji_camera_session import CameraSession
 from .tianji_camera_recovery import restart_local_preview
 from .tianji_preview_recovery import recover_preview_gap, inventory_changed
 from .tianji_camera_settings import CameraSettings
+from .tianji_motion_trace import MotionTrace
 
 APP_ROOT = Path(__file__).resolve().parents[3]
 RUNTIME = APP_ROOT / "teleop_control/runtime/tianji"
@@ -51,6 +52,7 @@ class TianjiManager:
         self.control_pending = set()
         self.pending = {}
         self.value = {}
+        self.headset_apps = set()
         self.received = 0.0
         self.error = ""
         self.camera_error = ""
@@ -72,6 +74,7 @@ class TianjiManager:
         self.camera_recovery_cancel = threading.Event()
         self.diagnostic_events = deque(maxlen=64)
         self.collection = TianjiCollection(self)
+        self.motion_trace = MotionTrace(RUNTIME / 'motion-last.json')
         self.camera_settings = CameraSettings(self)
         atexit.register(self.close)
 
@@ -108,6 +111,7 @@ class TianjiManager:
             except ValueError:
                 continue
             if "telemetry" in data:
+                self.motion_trace.accept(data["telemetry"])
                 try:
                     self.collection.accept(data["telemetry"])
                 except Exception as exc:
@@ -117,6 +121,9 @@ class TianjiManager:
             with self.lock:
                 if process is not self.process:
                     return
+                headset = data.get("headset") or {}
+                if headset.get("serial") and headset.get("package"):
+                    self.headset_apps.add((headset["serial"], headset["package"]))
                 if "status" in data:
                     self.value, self.received = data["status"], time.monotonic()
                     if self.value.get('state') in ('running','moving'):
@@ -286,6 +293,7 @@ class TianjiManager:
                         last_operator_access=self.last_access,
                         camera_phase=self.camera_phase,
                         camera_thread_alive=bool(self.camera_thread and self.camera_thread.is_alive()),
+                        motion_trace=self.motion_trace.status(),
                         events=list(self.diagnostic_events))
 
     def snapshot(self, *, touch=True):
@@ -676,7 +684,22 @@ class TianjiManager:
                 with self.lock:
                     self.frames.clear()
 
-    def close(self):
+    def close(self, *, quit_pico=True):
+        try:
+            return self._close_devices(quit_pico=quit_pico)
+        finally:
+            self.motion_trace.flush()
+            if quit_pico:
+                # Page departure ends the worker but leaves the headset app open.
+                # Remember its verified identity so a later desktop exit can stop it.
+                from .galaxis import GalaxisHeadsetSetup
+                for serial, package in tuple(self.headset_apps):
+                    headset = GalaxisHeadsetSetup(package=package)
+                    if not headset.stop_app(serial):
+                        raise RuntimeError(headset.last_error)
+                    self.headset_apps.discard((serial, package))
+
+    def _close_devices(self, *, quit_pico):
         self.camera_settings.cancel()
         self.camera_recovery_cancel.set()
         self.collection.disarm("app_closed")
@@ -685,7 +708,7 @@ class TianjiManager:
             self.camera_client.close()
         if self.active():
             try:
-                self._command("close", {})
+                self._command("close", {"quit_pico": quit_pico})
                 self.process.wait(timeout=8)
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
                 self.process.terminate()
@@ -765,7 +788,7 @@ def tianji_router(manager):
 
     @router.post("/close")
     def close():
-        return call(manager.close)
+        return call(lambda: manager.close(quit_pico=False))
 
     @router.post('/camera-preview/reconnect')
     def reconnect_camera_preview():

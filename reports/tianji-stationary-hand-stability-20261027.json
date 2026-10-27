@@ -1,0 +1,131 @@
+{
+  "issue": "stationary XR noise drives repeated IK/velocity updates while grip is held",
+  "reproduction": "synthetic input on original CAD kinematics; not captured hardware trajectory",
+  "before": [
+    {
+      "case": 0,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 0,
+      "noise": 0.0003,
+      "range_deg": 0.21664300333747555,
+      "max_speed": 8.458618966446174,
+      "travel_deg": 25.252739716673638
+    },
+    {
+      "case": 7,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 7,
+      "noise": 0.0003,
+      "range_deg": 0.11566438914110222,
+      "max_speed": 5.640129781625447,
+      "travel_deg": 16.5432771957429
+    },
+    {
+      "case": 59,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 59,
+      "noise": 0.0003,
+      "range_deg": 0.19600509816162903,
+      "max_speed": 5.40944032838242,
+      "travel_deg": 18.699708703227962
+    },
+    {
+      "case": 62,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 62,
+      "noise": 0.0003,
+      "range_deg": 0.1667865950917442,
+      "max_speed": 8.348222904887436,
+      "travel_deg": 22.85789581273626
+    }
+  ],
+  "after": [
+    {
+      "case": 0,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 0,
+      "noise": 0.0003,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 7,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 7,
+      "noise": 0.0003,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 59,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 59,
+      "noise": 0.0003,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 62,
+      "noise": 0.0,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    },
+    {
+      "case": 62,
+      "noise": 0.0003,
+      "range_deg": 0.0,
+      "max_speed": 0.0,
+      "travel_deg": 0.0
+    }
+  ],
+  "regression_tests": 219,
+  "installed_files_verified": 7,
+  "backup": "/home/ljy/桌面/galaxis/data-collection-app/backups/tianji-stationary-hand-stability-20261027/1793094189718159011",
+  "hardware_motion_tested": false,
+  "live_diagnostics_available": false,
+  "settings": {
+    "time_constant_s": 0.025,
+    "settle_window_s": 0.15,
+    "hand_position_band_m": 0.0008,
+    "hand_rotation_band_deg": 0.2
+  }
+}

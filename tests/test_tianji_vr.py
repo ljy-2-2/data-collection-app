@@ -121,3 +121,11 @@ def test_manager_rejects_check_before_worker_or_vr_mutation(monkeypatch,busy):
     m._command.assert_not_called()
     m.collection.armed=False
     if busy=='saving':monkeypatch.setattr(m.collection,'active',lambda:False)
+
+
+def test_disconnect_closes_sdk_and_desktop_bridge_even_if_sdk_close_fails(connection):
+    vr,old,fresh,service,ensure,factory=connection
+    vr.input=old
+    old.close.side_effect=RuntimeError('SDK close failed')
+    with pytest.raises(RuntimeError,match='SDK close'):vr.close()
+    service.stop.assert_called_once()

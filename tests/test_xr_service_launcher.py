@@ -77,3 +77,23 @@ def test_xr_env_finds_relocated_private_libraries_and_matching_sdk(tmp_path, mon
     assert libraries[-1] == "/custom"
     assert env["QT_PLUGIN_PATH"] == str(vendor / "plugins")
     assert env["QT_QPA_PLATFORM"] == "offscreen"
+
+
+def test_stop_closes_exact_bridge_without_starting_it_again(monkeypatch,tmp_path):
+    service=XrServiceLauncher(str(tmp_path/'runService.sh'))
+    monkeypatch.setattr(service,'_service_pids',lambda:[123])
+    monkeypatch.setattr(service,'_ready',Mock(side_effect=[True,False,False,False]))
+    kill=Mock();monkeypatch.setattr(xr_service.os,'kill',kill)
+    start=Mock();monkeypatch.setattr(service,'_start_locked',start)
+    service.stop()
+    kill.assert_called_once_with(123,xr_service.signal.SIGTERM)
+    start.assert_not_called()
+
+
+def test_stop_refuses_an_unrelated_port_owner(monkeypatch,tmp_path):
+    service=XrServiceLauncher(str(tmp_path/'runService.sh'))
+    monkeypatch.setattr(service,'_service_pids',lambda:[])
+    monkeypatch.setattr(service,'_ready',lambda:True)
+    kill=Mock();monkeypatch.setattr(xr_service.os,'kill',kill)
+    with pytest.raises(XrServiceStartError,match='owner'):service.stop()
+    kill.assert_not_called()

@@ -69,12 +69,19 @@ class PicoLauncher:
         self.done = threading.Event()
         self.thread = None
         self.serial = None
+        self.verified_serial = None
         self.app_started = False
         self.saved_reverse = None
+        self.adb_lock = threading.Lock()
+        self.closed = False
+        self.app_stopped = False
 
-    def adb(self, *args, selected=True, timeout=8):
+    def adb(self, *args, selected=True, timeout=8, cleanup=False):
         cmd = ["adb"] + (["-s", self.serial] if selected else []) + list(args)
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        with self.adb_lock:
+            if self.done.is_set() and not cleanup:
+                raise RuntimeError("PICO connection closed")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         if result.returncode:
             raise RuntimeError((result.stderr or result.stdout).strip())
         return result.stdout.strip()
@@ -102,6 +109,7 @@ class PicoLauncher:
         model = self.adb("shell", "getprop", "ro.product.model")
         if "pico" not in (maker + " " + model).lower() and model != "A9210":
             raise RuntimeError(f"device is not a PICO: {maker} {model}")
+        self.verified_serial = self.serial
 
     def ensure(self):
         serial = self.devices()
@@ -133,7 +141,12 @@ class PicoLauncher:
         ):
             self.adb("reverse", "tcp:63901", f"tcp:{target}")
         if not self.app_started:
-            # No custom intents, no force-stop, no reinstall, no preference changes.
+            try:
+                self.app_started = bool(self.adb("shell", "pidof", package))
+            except RuntimeError:
+                self.app_started = False
+        if not self.app_started:
+            # Launch the installed app without changing its preferences.
             self.adb(
                 "shell",
                 "monkey",
@@ -167,20 +180,37 @@ class PicoLauncher:
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
 
-    def close(self):
+    def close(self, *, quit_app=True):
         self.done.set()
         if self.thread:
             self.thread.join(timeout=9)
-        # Direct mode temporarily routes the original headset port to Python.
-        if (
-            self.cfg["input"] == "tcp"
-            and self.serial
-            and self.saved_reverse is not None
-        ):
+        if self.closed and (not quit_app or self.app_stopped):
+            return
+        errors = []
+        # Page departure removes only the tunnel. The desktop VR bridge closes
+        # existing sockets separately. Only application shutdown stops the APK.
+        if self.serial and self.serial == self.verified_serial:
+            commands = [("reverse", "--remove", "tcp:63901")]
+            if quit_app:
+                commands.insert(0, ("shell", "am", "force-stop", self.cfg["package"]))
+            for args in commands:
+                try:
+                    self.adb(*args, timeout=2, cleanup=True)
+                except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+                    if args[0] == "reverse" and "not found" in str(exc).lower():
+                        continue  # Already removed by an earlier cleanup attempt.
+                    errors.append(str(exc))
+        if errors:
+            # An unplugged device is already disconnected. If it is still
+            # online, surface cleanup failure so the operator can retry.
             try:
-                if self.saved_reverse:
-                    self.adb("reverse", "tcp:63901", self.saved_reverse)
-                else:
-                    self.adb("reverse", "--remove", "tcp:63901")
+                online = self.adb("devices", selected=False, timeout=2, cleanup=True)
             except (OSError, RuntimeError, subprocess.TimeoutExpired):
-                pass  # USB may already be unplugged; no application state was changed.
+                online = f"{self.serial}\tdevice"
+            if any(line.split()[:2] == [self.serial, "device"] for line in online.splitlines()):
+                raise RuntimeError("PICO 断开失败：" + "; ".join(errors))
+        if quit_app:
+            self.app_started = False
+            self.app_stopped = True
+        self.closed = True
+        self.status = "PICO 已断开"

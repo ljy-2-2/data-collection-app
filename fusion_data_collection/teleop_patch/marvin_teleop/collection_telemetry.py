@@ -103,6 +103,8 @@ class Publisher:
             }
             if "teleop_mapping" in value:
                 row["teleop_mapping"] = value["teleop_mapping"]
+            if value.get("motion_debug") is not None:
+                row["motion_debug"] = value["motion_debug"]
             if self.feedback_batches:
                 row["gripper_feedback"] = feedback_head(self.pending_feedback)
                 row["gripper_feedback_dropped"] = self.feedback_dropped.copy()

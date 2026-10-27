@@ -255,7 +255,9 @@ def main() -> int:
                 print(f"WARNING: {exc}", file=sys.stderr)
         for process in reversed(processes):
             try:
-                stop_process_group(process)
+                # Allow the backend to stop robot control, close the VR SDK
+                # and remove the selected headset's ADB tunnel before killing it.
+                stop_process_group(process, timeout=25 if process is processes[0] else 6)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 print(f"WARNING: 无法停止本机服务 {process.pid}：{exc}", file=sys.stderr)
         try:

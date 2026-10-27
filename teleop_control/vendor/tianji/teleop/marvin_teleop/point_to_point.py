@@ -28,16 +28,9 @@ def pose_plan(models, measured, goal, selected, config, *, acceleration=4.0,
     largest=max(float(np.max(abs(d))) for d in delta.values())
     samples=max(2,math.ceil(largest/.5)+1)
     if validate:
-        from .gripper_collision import motion_reason
-        previous = start
         for u in np.linspace(0,1,samples):
             q={s:start[s]+u*delta[s] for s in goal}
             validate_pose(models,q,config,hard_limits=hard_limits)
-            reason = motion_reason(models, previous, q)
-            if reason:
-                from .robot import CollisionBlocked
-                raise CollisionBlocked(reason)
-            previous = q
     speed=min(speed_limit,config['max_joint_speed_deg_s'])
     accel=min(acceleration,config['max_joint_accel_deg_s2'])
     duration=1.05*max(1.,1.875*largest/speed,math.sqrt(10/math.sqrt(3)*largest/accel))

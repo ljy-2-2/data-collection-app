@@ -92,31 +92,39 @@ class XrServiceLauncher:
         with self._lock:
             return self._start_locked()
 
-    def restart(self) -> None:
-        """Replace the exact vendor bridge process after a connected-but-dead stream."""
-        with self._lock:
-            pids = self._service_pids()
-            if self._ready() and not pids:
-                raise XrServiceStartError(
-                    "Port 60061 is open but its owner is not RoboticsServiceProcess"
-                )
-            for pid in pids:
+    def _stop_locked(self) -> None:
+        pids = self._service_pids()
+        if self._ready() and not pids:
+            raise XrServiceStartError(
+                "Port 60061 is open but its owner is not RoboticsServiceProcess"
+            )
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        deadline = time.monotonic() + 5.0
+        while self._ready() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if self._ready():
+            for pid in self._service_pids():
                 try:
-                    os.kill(pid, signal.SIGTERM)
+                    os.kill(pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-            deadline = time.monotonic() + 5.0
+            deadline = time.monotonic() + 2.0
             while self._ready() and time.monotonic() < deadline:
                 time.sleep(0.1)
-            if self._ready():
-                for pid in self._service_pids():
-                    try:
-                        os.kill(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                deadline = time.monotonic() + 2.0
-                while self._ready() and time.monotonic() < deadline:
-                    time.sleep(0.1)
-            if self._ready():
-                raise XrServiceStartError("旧 Galaxis VR 服务无法停止")
+        if self._ready():
+            raise XrServiceStartError("旧 Galaxis VR 服务无法停止")
+
+    def stop(self) -> None:
+        """Close only this vendor bridge and all of its existing sockets."""
+        with self._lock:
+            self._stop_locked()
+
+    def restart(self) -> None:
+        """Replace the exact vendor bridge after a connected-but-dead stream."""
+        with self._lock:
+            self._stop_locked()
             self._start_locked()

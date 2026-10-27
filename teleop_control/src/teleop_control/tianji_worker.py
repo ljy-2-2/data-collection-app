@@ -31,7 +31,7 @@ from marvin_teleop.control import Controller  # noqa: E402
 from marvin_teleop.launcher import PicoLauncher, ensure_service  # noqa: E402
 from marvin_teleop.model import Models  # noqa: E402
 from marvin_teleop.preview import validate_preview  # noqa: E402
-from marvin_teleop.robot import Robot, CollisionBlocked  # noqa: E402
+from marvin_teleop.robot import Robot  # noqa: E402
 from marvin_teleop.recovery import ZeroRecovery  # noqa: E402
 from marvin_teleop.xr_input import SDKInput  # noqa: E402
 
@@ -152,6 +152,9 @@ def main():
     output_done = threading.Event()
 
     def emit(value):
+        serial = getattr(launcher, "verified_serial", None)
+        if serial:
+            value["headset"] = {"serial": serial, "package": config["package"]}
         if "reply" in value:
             replies.put(value)
             return True
@@ -184,7 +187,6 @@ def main():
     models.validate()
     robot = None
     vr = launcher = ctrl = grippers = motion = None
-    gripper_hold = None
     recovery = None
     recovery_report = None
     state, error, mode = "idle", "", "dual"
@@ -193,10 +195,10 @@ def main():
     last_publish = 0.0
     last_tick = time.monotonic()
     robot_ready = False
+    quit_pico = False
 
     def halt():
-        nonlocal ctrl, grippers, motion, state, recovery, recovery_report, gripper_hold
-        gripper_hold = None
+        nonlocal ctrl, grippers, motion, state, recovery, recovery_report
         # Always try both stop paths; a failed stop is surfaced, never reported as idle.
         errors = []
         if grippers:
@@ -222,12 +224,17 @@ def main():
         if errors:
             raise RuntimeError("; ".join(errors))
 
+    def disconnect_vr():
+        nonlocal vr
+        try:
+            if launcher:
+                launcher.close(quit_app=quit_pico)
+        finally:
+            if vr:
+                vr.close()
+                vr = None
+
     def setup_grippers(selected):
-        nonlocal grippers, gripper_hold
-        if grippers is not None:
-            grippers.close()
-            grippers = None
-        gripper_hold = None
         gc = gripper_configuration(config.get("app_parameters", {}), selected)
         return Grippers(gc, True, config["vr_timeout_s"], robot=robot, rate_hz=config["rate_hz"])
 
@@ -297,7 +304,6 @@ def main():
                             config.update(req.parameters.model_dump())
                             config["app_parameters"] = req.parameters.model_dump()
                             measured = robot.read()
-                            models.gripper_openings = robot.collision_openings() if hasattr(robot, "collision_openings") else {}
                             if any(np.max(np.abs(v)) > 0.5 for v in robot.velocities.values()):
                                 raise ValueError("机械臂尚未静止")
                             mode = req.mode
@@ -326,16 +332,15 @@ def main():
                                 robot = None
                             error = ""
                         elif action == "close":
-                            halt()
+                            quit_pico = bool((cmd.get("payload") or {}).get("quit_pico", True))
+                            try:
+                                halt()
+                            finally:
+                                disconnect_vr()
                             quitting.set()
                         else:
                             raise ValueError("不支持的天机 Marvin M6控制指令")
                         emit({"reply": cmd.get("id"), "ok": True, "state": state})
-                    except CollisionBlocked as exc:
-                        # A rejected manual plan is not a lost connection or
-                        # servo fault. Keep controls available for an outward jog.
-                        error = str(exc)
-                        emit({"reply": cmd.get("id"), "ok": False, "error": error, "state": state})
                     except Exception as exc:
                         if action in ("stop", "close"):
                             state = "error"
@@ -344,8 +349,7 @@ def main():
                                 halt()
                         error = str(exc)
                         emit({"reply": cmd.get("id"), "ok": False, "error": error, "state": state})
-                if now - last_lease > 8 and (state in ("running", "moving")
-                        or bool(robot and getattr(robot, "enabled", False)) or grippers):
+                if now - last_lease > 8 and state in ("running", "moving"):
                     halt()
                     error = "页面连接中断，控制已停止"
                 if now - last_lease > 60:
@@ -359,7 +363,6 @@ def main():
                         error = ""
                 elif robot and robot_ready:
                     measured = robot.read()
-                    models.gripper_openings = robot.collision_openings() if hasattr(robot, "collision_openings") else {}
                     robot_ready = True
                 if ctrl:
                     ctrl.tick(frame, connected, emergency, now)
@@ -367,9 +370,6 @@ def main():
                         grippers.submit(frame, connected, emergency or ctrl.fault)
                     if ctrl.fault:
                         raise RuntimeError(ctrl.reason)
-                if gripper_hold is not None and grippers is not None:
-                    gripper_hold.received = now
-                    grippers.submit(gripper_hold, True, False)
                 if motion and "gripper_side" in motion:
                     from types import SimpleNamespace
 
@@ -399,18 +399,7 @@ def main():
                     feedback = motor.get("feedback") or {}
                     points = motor["display_endpoints_rad"]
                     target = points["open_rad"] if motion["closure"] == 0 else points["closed_rad"]
-                    if motor.get("collision_blocked"):
-                        # Keep the motor holding its measured opening, cancel
-                        # the rejected automatic open/close goal, allow arm jogs.
-                        held = feedback.get("position")
-                        if held is None:
-                            raise ValueError("夹爪保持缺少位置反馈")
-                        sample.triggers[motion["gripper_side"]] = max(0., min(1.,
-                            (held - points["open_rad"]) / (points["closed_rad"] - points["open_rad"])))
-                        gripper_hold = sample
-                        grippers.submit(gripper_hold, True, False)
-                        error, state, motion = motor["reason"], "idle", None
-                    elif (
+                    if (
                         elapsed > 0.3
                         and motor["state"] == "ACTIVE"
                         and abs(feedback.get("position", float("inf")) - target) < 0.04
@@ -449,12 +438,6 @@ def main():
                                 halt()
                             elif motion["elapsed"] > motion["duration"] + 3:
                                 raise RuntimeError("未按时到达目标姿态")
-            except CollisionBlocked as exc:
-                # The SDK guard already sent a measured hold when applicable.
-                # Do not disable/release the robot or require device reconnection.
-                motion = recovery = None
-                recovery_report = None
-                state, error = "idle", str(exc)
             except Exception as exc:
                 robot_ready = False
                 # An idle feedback/check failure is a connection fault, not a
@@ -475,6 +458,20 @@ def main():
                     "grippers": grippers.status() if grippers else None,
                     "gripper_feedback": grippers.drain_feedback() if grippers else {},
                     "joint_command": getattr(robot, "last_command", None) if ctrl else None,
+                    "motion_debug": {
+                        "hold_policy": "joint_latch_v2",
+                        "source_time": getattr(frame, 'source_time', None),
+                        "input_age_s": now-frame.received if frame else None,
+                        "hands": {s: p.tolist() for s,p in frame.hands.items()} if frame else {},
+                        "feedback_velocity_deg_s": {s: v.tolist() for s,v in getattr(robot, 'velocities', {}).items()},
+                        "arms": {s: {
+                            "mode": a.mode, "stationary_joint_hold": a.stationary_hold,
+                            "hand_position_held": bool(a.hand_stability and a.hand_stability.position_held),
+                            "hand_rotation_held": bool(a.hand_stability and a.hand_stability.rotation_held),
+                            "accepted_velocity_deg_s": a.velocity.tolist(),
+                            "target_pose": a.target_pose.tolist() if a.target_pose is not None else None,
+                        } for s,a in ctrl.arms.items()},
+                    } if ctrl else None,
                     "teleop_mapping": {
                         "coordinate_revision": models.mapping_report.get("coordinate_revision"),
                         "ik_policy": models.mapping_report.get("ik_policy"),
@@ -518,16 +515,17 @@ def main():
         try:
             halt()
         finally:
-            if vr:
-                vr.close()
-            if launcher:
-                launcher.close()
-            if robot:
-                robot.close()
-            lease_file.close()
-            publisher.close()
-            output_done.set()
-            output_thread.join(timeout=1)
+            try:
+                disconnect_vr()
+            finally:
+                try:
+                    if robot:
+                        robot.close()
+                finally:
+                    lease_file.close()
+                    publisher.close()
+                    output_done.set()
+                    output_thread.join(timeout=1)
 
 
 if __name__ == "__main__":
