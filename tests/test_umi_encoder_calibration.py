@@ -98,7 +98,7 @@ def read_and_publish(node, side, absolute_degrees):
         node._stop.set()  # Finish the production reader loop after this sample.
         return f"{side[0].upper()}001,{math.radians(absolute_degrees):.17g}\n".encode()
 
-    state.ser = SimpleNamespace(readline=readline, close=lambda: None)
+    state.ser = SimpleNamespace(read=lambda _n: readline(), in_waiting=100, close=lambda: None)
     state.connected = True
     node._reader_loop(side, state)
     node.on_timer()
@@ -300,7 +300,7 @@ def test_wrong_side_encoder_never_publishes_as_selected_hand(encoder_factory):
     def readline():
         node._stop.set()
         return b'R003,0.2\n'
-    state.ser=SimpleNamespace(readline=readline,close=lambda:None)
+    state.ser=SimpleNamespace(read=lambda _n: readline(),in_waiting=100,close=lambda:None)
     state.connected=True
     node._reader_loop('left',state)
     node.on_timer()

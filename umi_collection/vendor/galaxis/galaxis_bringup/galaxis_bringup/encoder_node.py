@@ -14,7 +14,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
-from .encoder_protocol import ENCODER_BAUD, open_encoder_serial, parse_encoder_line
+from .encoder_protocol import ENCODER_BAUD, open_encoder_serial, parse_encoder_line, read_encoder_line
 
 
 RECONNECT_INTERVAL_SEC = 1.0
@@ -43,7 +43,7 @@ def parse_line(ser: serial.Serial, logger=None) -> Tuple[Optional[str], Optional
       "1.57079632"       -> (None, 1.5707...)   # backward compat
       "# ..."            -> (None, None)         # comment/header
     """
-    return parse_encoder_line(ser.readline(), logger)
+    return parse_encoder_line(read_encoder_line(ser), logger)
 
 
 class DualEncoderJointStateNode(Node):

@@ -48,3 +48,13 @@ def test_statistics_are_bounded_and_snapshot_is_independent():
     copy['topics']['/joint_states']['samples'] = 0
     assert metrics.topics['/joint_states']['samples'] == 10000
     assert len(metrics.previous) == len(metrics.topics) == 1
+
+
+def test_raw_ros_message_info_dict_keeps_dds_clock_and_sequence():
+    from galaxis_core.reception_metrics import message_info_value
+    from types import SimpleNamespace
+    values=dict(received_timestamp=123456789,source_timestamp=123456000,publication_sequence_number=42)
+    for info in (values,SimpleNamespace(**values)):
+        assert [message_info_value(info,k) for k in values]==list(values.values())
+    assert message_info_value({},'received_timestamp')==0
+    assert message_info_value({'publication_sequence_number':-1},'publication_sequence_number')==0

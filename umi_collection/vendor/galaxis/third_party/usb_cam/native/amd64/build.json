@@ -1,0 +1,7 @@
+{
+  "architecture": "amd64",
+  "runtime_image": "xiaokai-umi-runtime:20261015.local-cloud-amd64",
+  "sha256": "789939c21576f8bd5b91050e50de72e76ba4c5d971726f6c3779177a37249015",
+  "source_sha256": "3547b18027577f1acc3977abebfd75191eb9386785f607c62669c30bb1f24c28",
+  "capture_buffers": 8
+}

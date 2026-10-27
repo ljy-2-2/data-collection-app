@@ -5,6 +5,13 @@ reported as clock anomalies, not interpreted as negative transport latency.
 Counters include every recorded topic and allocate no per-frame history.
 """
 import struct
+from collections.abc import Mapping
+
+
+def message_info_value(info, key):
+    """Jazzy raw subscriptions supply a dict; typed subscriptions use attributes."""
+    value = info.get(key, 0) if isinstance(info, Mapping) else getattr(info, key, 0)
+    return max(0, int(value or 0))
 
 
 class ReceptionMetrics:
@@ -54,6 +61,9 @@ class ReceptionMetrics:
         row['writes_over_200ms'] += int(elapsed_ns > 200_000_000)
 
     def snapshot(self):
-        return dict(version=1, warning_threshold_ms=200,
+        result = dict(version=1, warning_threshold_ms=200,
                     timing_basis='host_wall_clock_dds_and_monotonic_write_duration',
                     topics={topic: dict(row) for topic, row in self.topics.items()})
+        if hasattr(self, 'writer_queue'):
+            result['writer_queue'] = dict(self.writer_queue)
+        return result

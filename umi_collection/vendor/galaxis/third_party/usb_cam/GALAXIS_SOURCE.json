@@ -7,7 +7,8 @@
   "changes": [
     "Opt-in MJPEG passthrough keeps original camera JPEG and V4L2 capture timestamp",
     "Correct raw_mjpeg publisher selection and publish only actual bytesused",
-    "Skip invalid or absent MJPEG buffers rather than publishing stale frames"
+    "Skip invalid or absent MJPEG buffers rather than publishing stale frames",
+    "Eight capture buffers with driver-granted count handling to tolerate short scheduler/publication stalls"
   ],
   "scope": "ROS 2 UMI compressed-image recording; YUYV conversion remains supported"
 }

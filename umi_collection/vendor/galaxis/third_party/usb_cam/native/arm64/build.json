@@ -1,0 +1,7 @@
+{
+  "architecture": "arm64",
+  "runtime_image": "xiaokai-umi-runtime:20261015.local-cloud-arm64",
+  "sha256": "09e041fdb61a7af5fc61c95aa33ca9460d982e7a4e6aa293942314da4ef202e7",
+  "source_sha256": "3547b18027577f1acc3977abebfd75191eb9386785f607c62669c30bb1f24c28",
+  "capture_buffers": 8
+}

@@ -22,7 +22,8 @@ from .live_encoder import LiveEncoder
 from .mcap_video import FORMAT, VIDEO_TYPE, VIDEO_SCHEMA, video_message
 from .mp4_worker import atomic_json
 from .video_bundle import CAMERAS, split_image
-from .reception_metrics import ReceptionMetrics
+from .reception_metrics import ReceptionMetrics, message_info_value
+from .recording_queue import RecordingQueue
 
 
 class DurableStream:
@@ -273,6 +274,12 @@ def main():
         signal.signal(sig, lambda *_: stopped.set())
     subscriptions = {}
     failure = []
+    def write_received(item):
+        topic, payload, arrival, source, sequence = item
+        started_ns = time.monotonic_ns()
+        bag.message(topic, payload, arrival, source, sequence)
+        bag.reception.written(topic, time.monotonic_ns() - started_ns)
+    inbox = RecordingQueue(write_received)
     def discover():
         available = dict(node.get_topic_names_and_types())
         for topic in args.topics:
@@ -303,21 +310,17 @@ def main():
                 setattr(qos, key, value)
             bag.topic(topic, type_name, message_definition(type_name))
             def callback(data, info, topic=topic):
-                started_ns = time.monotonic_ns()
                 try:
-                    arrival = getattr(info, 'received_timestamp', 0) or node.get_clock().now().nanoseconds
-                    source = getattr(info, 'source_timestamp', 0) or arrival
+                    arrival = message_info_value(info, 'received_timestamp') or node.get_clock().now().nanoseconds
+                    source = message_info_value(info, 'source_timestamp') or arrival
                     bag.reception.received(topic, data, arrival, source, time.time_ns())
-                    bag.message(topic, data, arrival, source,
-                                getattr(info, 'publication_sequence_number', 0))
+                    inbox.submit((topic, data, arrival, source,
+                                  message_info_value(info, 'publication_sequence_number')), len(data))
                 except Exception as exc:
                     reason = f'{topic}: {type(exc).__name__}: {exc}'
                     failure.append(reason)
                     print('录制接收失败：' + reason, file=sys.stderr, flush=True)
                     stopped.set()
-                finally:
-                    if topic in bag.reception.topics:
-                        bag.reception.written(topic, time.monotonic_ns() - started_ns)
             subscriptions[topic] = node.create_subscription(get_message(type_name), topic,
                                                              callback, qos, raw=True)
     def check_storage():
@@ -332,18 +335,26 @@ def main():
     last_check = 0
     try:
         while rclpy.ok() and not stopped.is_set():
+            inbox.check()
             now = time.monotonic()
             if now-last_check > .5:
                 discover(); last_check = now
             rclpy.spin_once(node, timeout_sec=.02)
         stopped.set()
         checker.join()
+        inbox.close()
+        bag.reception.writer_queue = inbox.statistics()
         if failure:
             raise RuntimeError(failure[0])
         bag.close()
     except Exception as exc:
         stopped.set()
         checker.join()
+        try:
+            inbox.close()
+        except Exception:
+            pass  # Preserve the original error and finalize the recoverable bag.
+        bag.reception.writer_queue = inbox.statistics()
         # Finalization of a failed round deliberately raises "interrupted".
         # It must never replace the original receiving/encoding exception.
         try:
