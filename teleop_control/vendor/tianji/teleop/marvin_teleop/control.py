@@ -6,7 +6,7 @@ import numpy as np
 from .geometry import angle, relative_target
 from .mapping import same_facing_map
 from .protocol import GRIP_ON, GRIP_OFF
-from .robot import CommandExpired, CommandBusy
+from .robot import CommandExpired, CommandBusy, CollisionBlocked
 from .pose_tracking import TELEOP_ELBOW_MAX_DEG, valid_teleop_joints
 
 SIDES = ("left", "right")
@@ -558,6 +558,14 @@ class Controller:
                 )
                 if reason:
                     raise RuntimeError(reason)  # shared collision risk => both stop
+            from .gripper_collision import motion_reason
+            if hasattr(self.robot, "collision_openings"):
+                self.models.gripper_openings = self.robot.collision_openings()
+            blocked = motion_reason(self.models, q, proposal)
+            if blocked:
+                proposal = {s: q[s].copy() for s in SIDES}
+                targets = {}
+                self._collision_hold(q, frame, blocked)
             elapsed = time.monotonic() - started
             if elapsed > 0.05:
                 self.slow_cycles += 1
@@ -575,6 +583,11 @@ class Controller:
                     else None,
                 ):
                     return
+            except CollisionBlocked as error:
+                # The final SDK guard used newer feedback and sent a measured
+                # hold. Keep the clutch active so reversing the hand can escape.
+                self._collision_hold(self.robot.q, frame, str(error))
+                return
             except CommandExpired:
                 # Expiry at the compute/send boundary is ordinary input loss,
                 # not a servo fault. The expired motion goal is never retried.
@@ -588,6 +601,22 @@ class Controller:
                 a.commanded = target
                 a.velocity = a.next_velocity.copy()
                 a.previous_hand, a.sequence = frame.hands[side].copy(), frame.sequence
+
+    def _collision_hold(self, q, frame, reason):
+        self.holds = {s: values.copy() for s, values in q.items()}
+        for side, a in self.arms.items():
+            a.commanded = q[side].copy()
+            a.velocity = np.zeros(7)
+            a.next_velocity = np.zeros(7)
+            a.reason = reason
+            a.target_clamped = True
+            if frame is not None and a.mode == "ACTIVE" and not a.preparing:
+                a.anchor = (frame.hands[side].copy(), self.models.arms[side].fk(q[side]))
+                a.previous_hand = frame.hands[side].copy()
+                a.sequence = frame.sequence
+                reset = getattr(self.models.arms[side], "reset_pose_tracking", None)
+                if reset:
+                    reset()
 
     def _dispatch(self, proposal, now, deadline=None):
         try:

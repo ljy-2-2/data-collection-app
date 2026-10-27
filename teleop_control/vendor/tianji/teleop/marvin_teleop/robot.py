@@ -3,6 +3,7 @@
 import ctypes
 from collections import deque
 import time
+import threading
 import numpy as np
 
 # Vendor FxRtCSDef.h ArmState: 101/109 are normal transitional states.
@@ -30,10 +31,22 @@ class CommandExpired(RuntimeError):
     """A VR goal expired before send; discard it and send a measured hold."""
 
 
+class CollisionBlocked(ValueError):
+    """Rejected tool approach; the SDK boundary replaces motion with a hold."""
+
+
 class Robot:
     def __init__(self, config):
+        from .model import Models
         from SDK_PYTHON.fx_robot import Marvin_Robot, DCSS
 
+        # Every real SDK owner gets the same guard, including alternate launchers.
+        # Build/validate geometry before opening a hardware connection.
+        self.gripper_guard = Models(config).gripper_guard
+        self.safety_lock = threading.RLock()
+        self.gripper_feedback = {}
+        self.gripper_targets = {}
+        self.joint_targets = {}
         self.api, self.dcss = Marvin_Robot(), DCSS()
         self.config = config
         self.enabled_sides = set()
@@ -204,6 +217,7 @@ class Robot:
         self.checked(self.api.set_vel_acc(channel, 100, 100), "recovery velocity settings")
         self.checked(self.api.set_joint_cmd_pose(channel, self.q[side].tolist()), "recovery initial hold")
         self.checked(self.api.send_cmd(), "recovery hold send")
+        self.joint_targets[side] = self.q[side].copy()
 
     def check_servo_errors(self):
         for side, errors in self.read_servo_errors().items():
@@ -250,13 +264,56 @@ class Robot:
                 self.frames[side],
             )
         self.checked(self.api.send_cmd(), "enable send")
+        self.joint_targets.update({s: q[s].copy() for s in selected})
         return q  # read() observes startup ACKs without blocking VR/status.
 
     def command(self, q, deadline=None):
+        with self.safety_lock:
+            return self._command(q, deadline)
+
+    def collision_openings(self):
+        now = time.monotonic()
+        feedback = self.gripper_feedback.copy()
+        return {s: value if 0 <= now - stamp <= timeout else None
+                for s, (value, stamp, timeout) in feedback.items()}
+
+    def gripper_motion_reason(self, side, opening, target):
+        """Called under safety_lock by the motor sender; never reads the SDK."""
+        now = time.monotonic()
+        if self.q is None or any(now - stamp > self.config["robot_timeout_s"]
+                                 for stamp in self.changed.values()):
+            return "双臂状态过期，夹爪保持，等待最新状态"
+        openings = self.collision_openings()
+        openings[side] = opening
+        goals = dict(openings)
+        goals.update({s: v for s, v in self.gripper_targets.items()
+                      if openings.get(s) is not None})
+        goals[side] = target
+        joint_goal = {s: self.joint_targets.get(s, v) if s in self.enabled_sides else v
+                      for s, v in self.q.items()}
+        # Neither actuator may rely on the other escaping first.
+        return (self.gripper_guard.reason(self.q, self.q, openings, goals)
+                or self.gripper_guard.reason(self.q, joint_goal, openings, goals))
+
+    def _command(self, q, deadline=None):
         if not q:
             return
         if not set(q) <= self.enabled_sides:
             raise ValueError("joint command for an arm not enabled by this runtime")
+        measured = self.read()
+        proposal = {s: q.get(s, self.joint_targets.get(s, measured[s])
+                            if s in self.enabled_sides else measured[s]) for s in measured}
+        openings = self.collision_openings()
+        goals = dict(openings)
+        goals.update({s: v for s, v in self.gripper_targets.items()
+                      if openings.get(s) is not None})
+        blocked = (self.gripper_guard.reason(measured, proposal, openings)
+                   or self.gripper_guard.reason(measured, proposal, openings, goals))
+        if blocked:
+            # Replace the previously outstanding target too: rejecting alone
+            # would let the controller continue towards its old target.
+            q = {s: measured[s] for s in self.enabled_sides}
+            deadline = None
         self._clear_buffer("clear_set")
         for side, joints in q.items():
             self.checked(
@@ -268,6 +325,9 @@ class Robot:
         if deadline is not None and time.monotonic() >= deadline:
             raise CommandExpired("VR command expired while waiting for SDK send buffer")
         self.checked(self.api.send_cmd(), "joint send")
+        self.joint_targets.update({s: values.copy() for s, values in q.items()})
+        if blocked:
+            raise CollisionBlocked(blocked)
 
     def stop(self, sides=None):
         # Explicit sides => nonblocking low-level disable. No argument =>

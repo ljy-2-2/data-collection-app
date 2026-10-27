@@ -235,6 +235,14 @@
     <origin xyz="0 -0.095 0" rpy="1.57079632679 -1.57079632679 0" />
   </joint>
   <link name="gripper_R">
+    <collision name="safety_35mm_gripper_R">
+      <origin xyz="0.017397848796 -0.017398552742 0.083402588964" rpy="0 0 0" />
+      <geometry><box size="0.203944181835 0.203945196707 0.236805177927" /></geometry>
+    </collision>
+    <collision name="safety_35mm_camera_R">
+      <origin xyz="0.057577336740 -0.057578606694 0.156719125807" rpy="0 0 0" />
+      <geometry><box size="0.118135551771 0.118135430406 0.108169190288" /></geometry>
+    </collision>
     <visual name="gR_00">
       <origin xyz="0 0 0" rpy="0 0 -0.233752984275" />
       <geometry>
@@ -674,6 +682,10 @@
     </inertial>
   </link>
   <link name="gripper_R_shaft">
+    <collision name="safety_35mm_gripper_R_shaft">
+      <origin xyz="0.000000000000 0.000000000000 0.022299995905" rpy="0 0 0" />
+      <geometry><box size="0.104995177791 0.104988304777 0.136999994218" /></geometry>
+    </collision>
     <visual name="gR_21">
       <origin xyz="0 0 -0.1084" rpy="0 0 -0.233752984275" />
       <geometry>
@@ -699,6 +711,10 @@
     </inertial>
   </link>
   <link name="gripper_R_1">
+    <collision name="safety_35mm_gripper_R_1">
+      <origin xyz="0.006096496286 -0.007431528754 0.038895139549" rpy="0 0 0" />
+      <geometry><box size="0.130341270598 0.126513042808 0.177563030733" /></geometry>
+    </collision>
     <visual name="gR_01">
       <origin xyz="-0.00822861675775 -0.0476946707073 -0.136382333742" rpy="-0.396722718402 0.233346120461 -0.0475149182235" />
       <geometry>
@@ -745,6 +761,10 @@
     </inertial>
   </link>
   <link name="gripper_R_17">
+    <collision name="safety_35mm_gripper_R_17">
+      <origin xyz="0.009328666864 0.001929686751 0.038895144053" rpy="0 0 0" />
+      <geometry><box size="0.123877538003 0.127117041309 0.177563019462" /></geometry>
+    </collision>
     <visual name="gR_17">
       <origin xyz="0.0109263060445 -0.0165796026979 -0.143347010136" rpy="0.0685092034194 -0.0421050661654 -0.00137287272265" />
       <geometry>

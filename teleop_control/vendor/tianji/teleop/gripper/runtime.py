@@ -1,6 +1,7 @@
 """Gripper worker at the arm command rate, with independent feedback watchdogs."""
 
 import copy
+from contextlib import nullcontext
 import math
 import threading
 import time
@@ -19,6 +20,7 @@ class Control:
                 "state": "WAIT_RELEASE",
                 "target_rad": None,
                 "command_velocity_rad_s": 0.0,
+                "collision_blocked": False,
                 "reason": "先松开扳机，再按下接管",
             }
             for s in motors
@@ -28,12 +30,17 @@ class Control:
         self.last_tick = None
         self.enabling_since = {}
         self.period = None
+        self.collision_check = None
+        self.feedback_observer = None
+        self.position_observer = None
+        self.safety_lock = None
 
     def disable(self, reason):
         # Attempt every motor even if a CAN write fails for one side.
         errors = []
         for side, state in self.states.items():
-            state.update(state="WAIT_RELEASE", reason=reason, target_rad=None, command_velocity_rad_s=0.0)
+            state.update(state="WAIT_RELEASE", reason=reason, target_rad=None, command_velocity_rad_s=0.0,
+                         collision_blocked=False)
             try:
                 self.driver.disable(side)
             except OSError as error:
@@ -51,6 +58,8 @@ class Control:
         self.last_tick = now
         # Drain feedback even while waiting for VR, avoiding stale queued replies.
         self.driver.poll()
+        if self.feedback_observer:
+            self.feedback_observer(self.driver.feedback)
         feedback_now = max(now, time.monotonic())
         if sample and sample["emergency"] and not self.fault:
             self.fault = "停止请求或机械臂故障；重启前排除故障"
@@ -78,7 +87,8 @@ class Control:
                                time.monotonic() + self.period / len(self.motors))
                 self.driver.set_send_deadline(side, deadline)
             try:
-                self._motor_step(side, m, sample, now, feedback_now, dt)
+                with self.safety_lock if self.safety_lock is not None else nullcontext():
+                    self._motor_step(side, m, sample, now, feedback_now, dt)
             except TransportBusy as error:
                 busy = error
             finally:
@@ -123,7 +133,15 @@ class Control:
             elif t > 0.05:
                 s["target_rad"] = bounded_position(m, f.position)
                 s["command_velocity_rad_s"] = 0.0
+                reason = self.collision_check(side, f.position, s["target_rad"]) if self.collision_check else None
+                s["collision_blocked"] = bool(reason)
+                if reason:
+                    self.driver.disable(side)
+                    s["reason"] = reason
+                    return
                 self.driver.enable(side, s["target_rad"])
+                if self.position_observer:
+                    self.position_observer(side, s["target_rad"])
                 self.enabling_since[side] = now
                 s.update(state="ENABLING", reason="等待电机使能反馈")
             else:
@@ -135,7 +153,15 @@ class Control:
                 )
             elif now - self.enabling_since[side] > m["feedback_timeout_s"]:
                 raise RuntimeError(f"{side}: enable acknowledgement timeout")
-            self.driver.send_position(side, s["target_rad"])
+            target = s["target_rad"]
+            reason = self.collision_check(side, f.position, target) if self.collision_check else None
+            s["collision_blocked"] = bool(reason)
+            if reason:
+                target = bounded_position(m, f.position)
+                s.update(target_rad=target, command_velocity_rad_s=0.0, reason=reason)
+            self.driver.send_position(side, target)
+            if self.position_observer:
+                self.position_observer(side, target)
         else:
             if f.state != 1:
                 raise RuntimeError(f"{side}: motor unexpectedly disabled")
@@ -147,7 +173,16 @@ class Control:
             target, velocity = ramp(s["target_rad"], s["command_velocity_rad_s"], goal,
                                     min(dt, .02), m["speed_rad_s"],
                                     m.get("accel_rad_s2", 20.0), lo, hi)
+            reason = self.collision_check(side, f.position, target) if self.collision_check else None
+            s["collision_blocked"] = bool(reason)
+            if reason:
+                target, velocity = bounded_position(m, f.position), 0.0
+                s["reason"] = reason
+            else:
+                s["reason"] = "扳机 0=打开，1=闭合；握把可独立松开"
             self.driver.send_position(side, target)
+            if self.position_observer:
+                self.position_observer(side, target)
             s["target_rad"] = target
             s["command_velocity_rad_s"] = velocity
 
@@ -222,6 +257,8 @@ class Grippers:
         self.rate_hz = rate_hz
         self.period = 1 / rate_hz
         self.live = live
+        self.robot = robot
+        self.motor_sides = tuple(config["motors"])
         if live and config["transport"] == "marvin_can":
             from .marvin_can import RoutedDriver
 
@@ -239,6 +276,31 @@ class Grippers:
             self.driver.close()
             raise
         self.control = Control(config["motors"], self.driver, timeout)
+        if live:
+            if robot is None or not hasattr(robot, "gripper_guard"):
+                self.driver.close()
+                raise ValueError("实机夹爪需要机械臂防碰撞状态")
+            def opening(side, position):
+                from marvin_teleop.gripper_collision import normalized_opening
+                return normalized_opening(config["motors"][side], position)
+
+            def observe(feedback):
+                with robot.safety_lock:
+                    for side, value in feedback.items():
+                        robot.gripper_feedback[side] = (opening(side, value.position), value.received,
+                                                        config["motors"][side]["feedback_timeout_s"])
+
+            def collision_check(side, measured, target):
+                return robot.gripper_motion_reason(side, opening(side, measured), opening(side, target))
+            def accepted(side, target):
+                robot.gripper_targets[side] = opening(side, target)
+            self.control.collision_check = collision_check
+            self.control.feedback_observer = observe
+            self.control.position_observer = accepted
+            self.control.safety_lock = robot.safety_lock
+            with robot.safety_lock:
+                for side in self.motor_sides:
+                    robot.gripper_targets.pop(side, None)
         self.control.period = self.period
         self.busy_since = None
         self.busy_timeout = min(m["feedback_timeout_s"] for m in config["motors"].values())
@@ -350,3 +412,7 @@ class Grippers:
         self.shutdown.set()
         self.thread.join(timeout=1)
         self.driver.close()
+        if self.live and self.robot is not None:
+            with self.robot.safety_lock:
+                for side in self.motor_sides:
+                    self.robot.gripper_targets.pop(side, None)

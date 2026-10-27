@@ -504,6 +504,16 @@ class Models:
             vertices = vertices @ mt[:3, :3].T + mt[:3, 3]
             triangles = vertices.reshape(-1, 3, 3)
             self.obstacles.append(StaticMesh(triangles))
+        from .gripper_collision import GripperCollisionGuard
+        self.gripper_guard = GripperCollisionGuard(self.arms)
+        self.mapping_report["gripper_protection"] = {
+            "padding_m": 0.035,
+            "includes_camera": True,
+            "jaw_envelope": "moving_urdf_links; full_travel_fallback_without_fresh_feedback",
+            "scope": "tools_vs_tools_and_arm_housings",
+            "mount_exclusion": "own_Link7_only",
+            "inside_reserve": "hold_or_outward_only",
+        }
 
     def validate(self):
         from .differential import jacobian
