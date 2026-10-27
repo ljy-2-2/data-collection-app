@@ -1874,7 +1874,8 @@ class UmiManager:
     def upload_queue(self):
         from .umi_queue import queue_summary
         targets = getattr(self, 'upload_targets', None)
-        return queue_summary(self.data_root, targets.snapshot() if targets else None)
+        return queue_summary(self.data_root, targets.snapshot() if targets else None,
+                             raw_only=getattr(targets, 'raw_only', False))
 
     def processing_counts(self) -> tuple[int, int]:
         pending = list((self.data_root / "rosbags").glob("*/*/.mp4-pending.json"))

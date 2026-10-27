@@ -24,7 +24,8 @@ def wait_until(predicate, timeout=12):
 def alive(pid):
     try:
         return Path(f'/proc/{pid}/stat').read_text().split(') ', 1)[1][0] != 'Z'
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # /proc can disappear after open but before read when the child exits.
         return False
 
 

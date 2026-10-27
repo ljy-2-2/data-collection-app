@@ -213,9 +213,25 @@ def create_app(
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/storage/status")
+    def storage_status():
+        raw_only = getattr(login_service, 'raw_only', False) is True
+        return dict(storage_mode='raw-only' if raw_only else 'platform',
+                    upload_enabled=not raw_only,
+                    local_session=raw_only,
+                    rosbag_path=str(umi.data_root / 'rosbags') if umi is not None else '')
+
+    @app.post("/umi/storage/retry", response_model=UmiStatus)
+    async def retry_umi_storage():
+        from .raw_storage import retry_raw_finalization
+        await asyncio.to_thread(retry_raw_finalization, require_umi().data_root)
+        return await asyncio.to_thread(require_umi().status)
+
     @app.get("/platform/status")
     async def platform_status() -> dict[str, object]:
         """Report platform reachability and the current user session."""
+        if getattr(login_service, 'raw_only', False) is True:
+            return {**login_service.status(), 'healthy': True, 'api_url': '', 'upload_mode': 'disabled'}
         current_api = upload_targets.api_url if upload_targets is not None else platform_api_url
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -281,6 +297,8 @@ def create_app(
     @app.post("/platform/auth/login")
     def platform_auth_login(request: PlatformLoginRequest, http_request: Request) -> dict[str, object]:
         check_login_origin(http_request)
+        if getattr(login_service, 'raw_only', False) is True:
+            raise HTTPException(status_code=409, detail='本设备为本地原始数据模式，无需平台登录')
         try:
             return login_service.login(
                 request.username, request.password,
@@ -302,6 +320,8 @@ def create_app(
     @app.post("/platform/auth/logout")
     def platform_auth_logout(request: Request) -> dict[str, object]:
         check_login_origin(request)
+        if getattr(login_service, 'raw_only', False) is True:
+            return login_service.status()
         return login_service.logout()
 
     def require_umi() -> UmiProvider:
@@ -377,6 +397,10 @@ def create_app(
 
     @app.post("/umi/import/scan", response_model=UmiStatus)
     async def scan_umi_imports() -> UmiStatus:
+        if getattr(login_service, 'raw_only', False) is True:
+            from .raw_storage import retry_raw_finalization
+            await asyncio.to_thread(retry_raw_finalization, require_umi().data_root)
+            return await asyncio.to_thread(require_umi().status)
         if umi_uploader is None:
             raise HTTPException(status_code=503, detail="UMI import is not configured")
         await asyncio.to_thread(umi_uploader.request_scan)

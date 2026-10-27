@@ -55,7 +55,7 @@ def initial_state():
         preview=dict(available=False,joint_positions={},cameras=[]),
         umi=dict(state='idle',monitor={},log_tail=[],monitor_connected=False,recording=False),
         encoders={},encoderHistory=dict(left=[],right=[]),minima={},cameraRoles={},cameraLive={},
-        checkedProfile='', umiPedalMessage='', preferences={},uploadTarget={},poses=[],selectedPose='zero',theme='system')
+        checkedProfile='', umiPedalMessage='', preferences={},uploadTarget={},storagePath='',poses=[],selectedPose='zero',theme='system')
 
 
 class Bridge(QObject):
@@ -148,6 +148,10 @@ class Bridge(QObject):
         return {side:closure(self._state['tianji'],side,self.calibration) for side in ('left','right')}
     @Property(str,constant=True)
     def baseUrl(self): return self.base
+    @Property(bool, constant=True)
+    def rawOnly(self):
+        return self.values.get('DATA_COLLECTION_STORAGE_MODE') == 'raw-only'
+
     @Property(str,notify=changed)
     def platformWebUrl(self):
         return self._state['uploadTarget'].get('web_url') or self.values.get('PLATFORM_WEB_URL','http://127.0.0.1:5173')
@@ -250,6 +254,15 @@ class Bridge(QObject):
         self.auth_revision+=1;auth_revision=self.auth_revision
         self.update(ready=True,startupError='',error='',notice='')
         if self.demo:return
+        if self.rawOnly:
+            def local_ready(value):
+                if auth_revision != self.auth_revision or self._state['closing']:return
+                if value.get('storage_mode') != 'raw-only' or not value.get('local_session'):
+                    self.fail('本地保存模式与后台配置不一致');return
+                self.update(authenticated=True, username='本地采集', uploadTarget={}, preferences={},storagePath=value.get('rosbag_path',''))
+                self.poll()
+            self.request('/storage/status', done=local_ready)
+            return
         def current():
             return auth_revision==self.auth_revision and not self._state['closing']
         def preferences(value):
@@ -268,6 +281,7 @@ class Bridge(QObject):
 
     @Slot(str)
     def selectUploadTarget(self,kind):
+        if self.rawOnly:return
         s=self._state
         if s['busy'] or s['closing']:return
         if s['umi'].get('state') not in ('idle','error') or self.teleop_active():
@@ -298,6 +312,7 @@ class Bridge(QObject):
 
     @Slot(str,str,bool,bool,bool)
     def login(self,username,password,remember,auto,saved):
+        if self.rawOnly:return
         if self._state['busy'] or self._state['closing']:return
         self.auth_revision+=1
         username=username.strip()
@@ -938,10 +953,13 @@ class Bridge(QObject):
         self.action('stop-umi','/umi/sessions/'+quote(sid,safe='')+'/stop',done=lambda value:self.update(umi=value,umiStep=1,checkedProfile='',minima={},cameraLive={}),timeout=250000,priority=True)
 
     @Slot()
-    def retryUploads(self):self.action('upload','/umi/import/scan',done=lambda v:self.update(umi=v))
+    def retryUploads(self):
+        path='/umi/storage/retry' if self.rawOnly else '/umi/import/scan'
+        self.action('save' if self.rawOnly else 'upload',path,done=lambda v:self.update(umi=v))
 
     @Slot()
     def logout(self):
+        if self.rawOnly:return
         if self.teleop_active() or self._state['umi'].get('state') not in ('idle','error'):
             self.fail('请先结束采集和控制，再退出登录');return
         def done(_):
@@ -957,6 +975,7 @@ class Bridge(QObject):
 
     @Slot()
     def openPlatform(self):
+        if self.rawOnly:return
         from PySide6.QtGui import QDesktopServices
         url=QUrl(self.platformWebUrl)
         if url.scheme() in ('http','https'):QDesktopServices.openUrl(url)

@@ -343,8 +343,10 @@ def main() -> None:
     root = Path(__file__).parents[3]
     headset_setup = GalaxisHeadsetSetup(adb_path=args.adb)
     xr_service = XrServiceLauncher(args.xr_service)
-    login = PlatformLogin(args.api_url)
-    targets = UploadTargets(Path(args.umi_data_root), login,
+    from .raw_storage import RawOnlySession, raw_only_enabled
+    raw_only = raw_only_enabled()
+    login = None if raw_only else PlatformLogin(args.api_url)
+    targets = RawOnlySession() if raw_only else UploadTargets(Path(args.umi_data_root), login,
                             os.getenv('PLATFORM_WEB_URL', 'http://127.0.0.1:5173'),
                             local_api=os.getenv('UMI_LOCAL_API_URL', 'http://127.0.0.1:8000'),
                             local_web=os.getenv('UMI_LOCAL_WEB_URL', 'http://127.0.0.1:5173'))
@@ -367,7 +369,7 @@ def main() -> None:
         headset_setup=headset_setup,
         xr_service=xr_service,
     )
-    umi_uploader = UmiRosbagUploader(args.umi_data_root, args.api_url, targets=targets)
+    umi_uploader = None if raw_only else UmiRosbagUploader(args.umi_data_root, args.api_url, targets=targets)
     app = create_app(
         controller,
         cors_origins=[item.strip() for item in origins.split(",")],
@@ -379,26 +381,28 @@ def main() -> None:
         upload_targets=targets,
         umi_gate=umi_gate,
     )
-    uploaders = [
-        CollectionUploader(args.output, args.api_url, targets=targets),
-        umi_uploader,
-    ]
-    tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.output, args.api_url, targets=targets)
-    app.state.tianji_manager.collection.uploader = tianji_uploader
-    uploaders.append(tianji_uploader)
-    output_root = Path(args.output).expanduser().resolve()
-    right_arm_root = Path(args.right_arm_import_root).expanduser().resolve()
-    if right_arm_root != output_root:
-        uploaders.append(
-            CollectionUploader(
-                right_arm_root,
-                args.api_url,
-                discover_completed=True, targets=targets,
+    uploaders = []
+    if not raw_only:
+        uploaders = [
+            CollectionUploader(args.output, args.api_url, targets=targets),
+            umi_uploader,
+        ]
+        tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.output, args.api_url, targets=targets)
+        app.state.tianji_manager.collection.uploader = tianji_uploader
+        uploaders.append(tianji_uploader)
+        output_root = Path(args.output).expanduser().resolve()
+        right_arm_root = Path(args.right_arm_import_root).expanduser().resolve()
+        if right_arm_root != output_root:
+            uploaders.append(
+                CollectionUploader(
+                    right_arm_root,
+                    args.api_url,
+                    discover_completed=True, targets=targets,
+                )
             )
-        )
-    from .background_upload import ensure_service
-    targets.background_credentials = ensure_service(args.umi_data_root, uploaders,
-        systemd=not args.mock, default_destination=targets.targets[targets.default_kind])
+        from .background_upload import ensure_service
+        targets.background_credentials = ensure_service(args.umi_data_root, uploaders,
+            systemd=not args.mock, default_destination=targets.targets[targets.default_kind])
     try:
         # MJPEG responses are intentionally long-lived. Bound graceful shutdown
         # so a browser tab cannot keep a host-service restart waiting forever.

@@ -521,3 +521,13 @@ bash scripts/push_github.sh "new"
 天机使用说明图片为 App 内 `public/tianji-usage-guide.png`，复制自桌面的“VR控制器按键操作指南.png”；智元沿用原遥操作说明，UMI 保留原说明，乐聚图片仍留空。共用说明浮层缩为原宽度约 2/3（Qt 上限 600 px，网页 480 px），保留图片比例并限制视口高度，增加标题分隔线、圆角边框、阴影及底部分隔线。
 
 天机与乐聚的显示光照已按正面视角调整：基础照明从 0.32 提高到 0.50，主光源朝向基座 +X 前上方，增加反向补光；Qt 和网页保持一致。此设置只影响显示颜色，不改相机采集亮度或机器人参数。当前 TCP 图可用 `scripts/render_kuavo_tcp.py outputs/kuavo-tcp/current-tcp.png` 在具备 Qt OpenGL 的离线环境重新生成；图中红点和坐标轴来自装配 URDF 的左右固定 TCP，图片不代表实测标定。
+
+## 开发板独立原始数据保存（2026-10-27）
+
+开发板使用 `DATA_COLLECTION_STORAGE_MODE=raw-only`，直接进入本地采集，无需平台账号。停止回合后仍执行原始数据恢复、整理与压缩，最终保存 rosbag/MCAP；不启动自动上传服务，也不依赖平台数据库、MinIO 或预览/导出服务。电脑端保持默认 `platform` 模式，可继续使用平台。
+
+配置写入各设备的 `~/.config/xiaokai-lab-data-collection/.env`。UMI 保存根目录仍由 `UMI_DATA_ROOT` 决定，开发板目前为 `/home/orangepi/galaxis_data/rosbags/<任务>/<回合>/`。移动硬盘必须在采集前挂载并配置对应数据根目录。
+
+“原始数据已保存”表示整理完成；后台整理中或带 `.partial` 的文件还不是正式完成文件。复制数据时保留整个回合目录（MCAP、metadata.yaml、meta.json 及相关元数据），随后在电脑端导入或处理。原有异常恢复、采集优先调度、压缩流程均保留。界面“重试保存”只重试本地整理，不产生网络上传。
+
+切换模式不会自动删除历史原始数据或平台服务。板端平台卸载单独执行，并保护采集 Docker 运行环境及原始数据 finalizer；不能使用全局 Docker 清理代替卸载。`.uploads-disabled` 标记可阻止该数据根目录的后台上传服务再次启动。

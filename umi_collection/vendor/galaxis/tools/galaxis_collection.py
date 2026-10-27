@@ -296,6 +296,8 @@ def apply_offline_runtime(record_format: str = "rosbag") -> None:
     upload_section = cfg.setdefault("upload_targets", {})
     if not isinstance(upload_section, dict):
         raise CollectionError("galaxis_config.yaml 的 upload_targets 段格式无效")
+    if os.environ.get('DATA_COLLECTION_STORAGE_MODE') == 'raw-only':
+        params['upload_enabled'] = False
     upload_section["delete_after_upload"] = False
     upload_section["local_retention_hours"] = 0
     single.write_text(

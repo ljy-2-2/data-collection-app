@@ -12,11 +12,13 @@ def read_json(path):
         return {}
 
 
-def queue_summary(data_root, destination=None):
+def queue_summary(data_root, destination=None, *, raw_only=False):
     root = Path(data_root)
     default = read_json(root / '.background-upload/config.json').get('default_destination')
     result = dict(pending=0, uploaded=0, processing=0, failed_processing=0,
                   other_pending=0, waiting_auth=0, uploading=0, failed=0, message='')
+    if raw_only:
+        result.update(saved=0, upload_enabled=False)
     reasons = []
     bags = (root / 'rosbags').resolve()
     recovery = {}
@@ -38,13 +40,16 @@ def queue_summary(data_root, destination=None):
         failure = (folder / 'recording-failure.json').is_file()
         complete = ((folder / 'media/video-manifest.json').is_file() or
                     ((folder / 'metadata.yaml').is_file() and any(folder.glob('*.mcap'))))
-        if destination is not None and target != destination:
+        if not raw_only and destination is not None and target != destination:
             if not receipt and (processing or complete):
                 result['other_pending'] += 1
             continue
         if processing:
             result['failed_processing' if failure else 'processing'] += 1
         elif complete and not failure:
+            if raw_only:
+                result['saved'] += 1
+                continue
             if receipt:
                 result['uploaded'] += 1
                 continue

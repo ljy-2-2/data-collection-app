@@ -28,16 +28,18 @@ Column {
         return String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0")
     }
     spacing: 12
+    Txt {visible: backend.rawOnly;width: parent.width;text: "仅保存原始 rosbag · 保存位置："+(s.storagePath||"正在读取")
+        font.pixelSize: 11;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
     Setup {visible: s.umiStep===1;width: parent.width;umi: true}
     Card {
         visible: s.umiStep===1 && ((root.status.pending_processing||0)>0 || (root.status.pending_imports||0)>0 || (root.status.failed_processing||0)>0)
         width: parent.width;height: idleUploads.implicitHeight+24
         Column {id: idleUploads;x: 12;y: 12;width: parent.width-24;spacing: 5
-            Txt {text: "后台处理与上传";font.weight: Font.DemiBold}
-            Txt {width: parent.width;text: "采集已结束，后台加速处理与上传；关闭软件后也会继续。";wrapMode: Text.Wrap;elide: Text.ElideNone;font.pixelSize: 12}
-            Txt {width: parent.width;text: "原始数据整理中 "+(root.status.pending_processing||0)+" 段 · 原始数据已就绪、待上传 "+(root.status.pending_imports||0)+" 段";color: Theme.inkSoft;font.pixelSize: 11}
-            Txt {visible: (root.status.failed_processing||0)>0;width: parent.width;text: "处理失败 "+(root.status.failed_processing||0)+" 段，请重试处理/上传";color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
-            Btn {text: "重试处理/上传";ghost: true;enabled: !s.busy;onClicked: backend.retryUploads()}
+            Txt {text: backend.rawOnly?"原始数据保存":"后台处理与上传";font.weight: Font.DemiBold}
+            Txt {width: parent.width;text: backend.rawOnly?"采集已结束，后台整理并压缩原始 rosbag；关闭软件后也会继续，不上传平台。":"采集已结束，后台加速处理与上传；关闭软件后也会继续。";wrapMode: Text.Wrap;elide: Text.ElideNone;font.pixelSize: 12}
+            Txt {width: parent.width;text: "原始数据整理中 "+(root.status.pending_processing||0)+" 段 · "+(backend.rawOnly?"原始数据已保存 "+((root.status.upload_queue||{}).saved||0):"原始数据已就绪、待上传 "+(root.status.pending_imports||0))+" 段";color: Theme.inkSoft;font.pixelSize: 11}
+            Txt {visible: (root.status.failed_processing||0)>0;width: parent.width;text: "处理失败 "+(root.status.failed_processing||0)+" 段，请重试";color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
+            Btn {text: backend.rawOnly?"重试保存":"重试处理/上传";ghost: true;enabled: !s.busy;onClicked: backend.retryUploads()}
         }
     }
     Card {
@@ -161,12 +163,12 @@ Column {
                     }
                 }
                 Rectangle {Layout.fillWidth: true;Layout.preferredHeight: Math.max(198,recordActions.y+recordActions.implicitHeight+10);color: Theme.muted;border.color: Theme.line;radius: 9
-                    Txt {x: 10;y: 8;text: "采集统计 · "+(s.uploadTarget.selected==="local"?"上传本机平台":"上传云端平台");font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
+                    Txt {x: 10;y: 8;text: "采集统计 · "+(backend.rawOnly?"仅保存原始 rosbag":s.uploadTarget.selected==="local"?"上传本机平台":"上传云端平台");font.pixelSize: 12;font.weight: Font.DemiBold;color: Theme.inkMuted}
                     RowLayout {x: 10;y: 37;width: parent.width-20;height: 62;spacing: 6
-                        Repeater {model: ["本次完成","当前回合","本回合录制时长","待上传"]
+                        Repeater {model: ["本次完成","当前回合","本回合录制时长",backend.rawOnly?"原始数据已保存":"待上传"]
                             Column {required property string modelData;required property int index;Layout.fillWidth: true;Layout.preferredWidth: 1;Layout.minimumWidth: 0;spacing: 3
                                 Txt {width: parent.width;text: modelData;font.pixelSize: 10;color: Theme.inkSoft}
-                                Txt {objectName: index===2?"umiEpisodeDuration":"";width: parent.width;text: index===0?String(root.status.episodes_completed||0):index===1?((root.status.monitor||{}).episode||{}).label||"—":index===2?root.recordingDuration(((root.status.monitor||{}).episode||{}).elapsed_sec):String(root.status.pending_imports||0);font.pixelSize: index===0?20:12;color: index===0?Theme.accentStrong:Theme.ink;font.weight: Font.DemiBold}
+                                Txt {objectName: index===2?"umiEpisodeDuration":"";width: parent.width;text: index===0?String(root.status.episodes_completed||0):index===1?((root.status.monitor||{}).episode||{}).label||"—":index===2?root.recordingDuration(((root.status.monitor||{}).episode||{}).elapsed_sec):String(backend.rawOnly?((root.status.upload_queue||{}).saved||0):(root.status.pending_imports||0));font.pixelSize: index===0?20:12;color: index===0?Theme.accentStrong:Theme.ink;font.weight: Font.DemiBold}
                                 Txt {text: index===0?"Episode":"";font.pixelSize: 9;color: Theme.inkSoft}
                             }
                         }
@@ -182,7 +184,7 @@ Column {
                         Row {spacing: 6
                             Btn {objectName: "umiRecord";text: root.recording?"完成本段":"开始采集";glyph: root.recording?"Square":"Radio";primary: true;textSize: 11;height: 32;enabled: !s.busy && (root.recording||root.ready);onClicked: backend.recordUmi(root.recording?"stop":"start")}
                             Btn {text: root.recording?"放弃本段":"结束返回";ghost: true;danger: true;textSize: 11;height: 32;enabled: !s.busy;onClicked: {if(root.recording)discardDialog.open();else backend.stopUmi()}}
-                            Btn {text: "重试处理/上传";ghost: true;textSize: 11;height: 32;enabled: !s.busy;onClicked: backend.retryUploads()}
+                            Btn {text: backend.rawOnly?"重试保存":"重试处理/上传";ghost: true;textSize: 11;height: 32;enabled: !s.busy;onClicked: backend.retryUploads()}
                         }
                     }
                 }

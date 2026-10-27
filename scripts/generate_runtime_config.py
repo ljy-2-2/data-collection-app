@@ -29,6 +29,9 @@ def platform_urls(values: dict[str, str]) -> dict[str, str]:
     """Resolve the API and web addresses together; never mix cloud and loopback."""
     defaults = {"PLATFORM_API_URL": "http://127.0.0.1:8000",
                 "PLATFORM_WEB_URL": "http://127.0.0.1:5173"}
+    # A standalone recorder must not depend on obsolete platform URLs.
+    if values.get('DATA_COLLECTION_STORAGE_MODE') == 'raw-only':
+        return defaults
     result = {}
     local = []
     for key, default in defaults.items():
