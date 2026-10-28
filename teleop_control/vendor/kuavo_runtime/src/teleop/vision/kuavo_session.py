@@ -3,6 +3,7 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime
 import fcntl
+import json
 import os
 from pathlib import Path
 import re
@@ -24,6 +25,7 @@ MASTER = '/tmp/kuavo5-agx-video-ssh-master'
 SETUP = '/home/leju_kuavo/kuavo_ros_application/devel/setup.bash'
 PACKAGE = 'com.galaxis.vrteleop'
 VIDEO_PORT = 63903
+PREPARED_MASTER_FILE = 'prepared-video-master.json'
 
 
 @contextmanager
@@ -45,11 +47,17 @@ def choose_socket(requested, directory, *, master_alive):
     return str(Path(directory) / ('agx-' + uuid.uuid4().hex[:10]))
 
 
-def pico_open_command(serial, request):
-    return ['adb', '-s', serial, 'shell', 'am', 'start', '-W', '--activity-single-top',
+def pico_open_command(serial, request, *, mode='video_only', session_id=None):
+    if mode not in ('video_only', 'teleop_video') or (mode == 'teleop_video' and
+            (not isinstance(session_id, str) or re.fullmatch('[0-9a-f]{32}', session_id) is None)):
+        raise ValueError('explicit joint session identity required')
+    command = ['adb', '-s', serial, 'shell', 'am', 'start', '-W', '--activity-single-top',
             '-n', PACKAGE + '/com.unity3d.player.UnityPlayerActivity',
             '--es', 'galaxis_video_source', 'kuavo5w-head',
             '--es', 'galaxis_video_request', request]
+    if mode == 'teleop_video':
+        command += ['--es', 'galaxis_session_mode', mode, '--es', 'galaxis_session_id', session_id]
+    return command
 
 
 def probe_stream(host, port, timeout=1.5):
@@ -87,6 +95,92 @@ def private_directory():
     return directory
 
 
+@contextmanager
+def _registry_directory(directory):
+    directory = Path(directory).absolute()
+    if '..' in directory.parts:
+        raise RuntimeError('invalid video connection registry directory')
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(descriptor)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise RuntimeError('video connection registry requires an owner-only 0700 directory')
+        yield directory, descriptor
+    finally:
+        os.close(descriptor)
+
+
+def _validate_prepared_master(master, directory):
+    if not isinstance(master, str):
+        raise RuntimeError('invalid video connection registry path')
+    path = Path(master)
+    if master == MASTER:
+        return master
+    if (not path.is_absolute() or '..' in path.parts or str(path) != master
+            or path.parent != directory or re.fullmatch(r'agx-[0-9a-f]{10}', path.name) is None):
+        raise RuntimeError('video connection registry names an unexpected socket')
+    return master
+
+
+def read_prepared_master(directory):
+    """Read a bounded private connection hint, never credentials or commands."""
+    with _registry_directory(directory) as (directory, parent):
+        try:
+            descriptor = os.open(PREPARED_MASTER_FILE,
+                                 os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        except FileNotFoundError:
+            return None
+        try:
+            info = os.fstat(descriptor)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 1024):
+                raise RuntimeError('video connection registry must be a small owner-only 0600 file')
+            with os.fdopen(descriptor, 'rb', closefd=False) as stream:
+                raw = stream.read(1025)
+            if len(raw) > 1024:
+                raise RuntimeError('video connection registry is oversized')
+        finally:
+            os.close(descriptor)
+        try:
+            def unique_fields(pairs):
+                result = {}
+                for key, value in pairs:
+                    if key in result:
+                        raise ValueError('duplicate registry field')
+                    result[key] = value
+                return result
+            value = json.loads(raw, object_pairs_hook=unique_fields)
+        except (ValueError, UnicodeError) as error:
+            raise RuntimeError('invalid video connection registry JSON') from error
+        if (not isinstance(value, dict) or set(value) != {'version', 'master'}
+                or type(value['version']) is not int or value['version'] != 1):
+            raise RuntimeError('unsupported video connection registry')
+        return _validate_prepared_master(value['master'], directory)
+
+
+def save_prepared_master(directory, master):
+    """Remember a successfully verified connection without touching old sockets."""
+    read_prepared_master(directory)  # Do not overwrite unknown files or links.
+    with _registry_directory(directory) as (directory, parent):
+        master = _validate_prepared_master(master, directory)
+        raw = (json.dumps({'version': 1, 'master': master}, sort_keys=True) + '\n').encode()
+        temporary = '.prepared-video-' + uuid.uuid4().hex + '.tmp'
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=parent)
+        try:
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, PREPARED_MASTER_FILE, src_dir_fd=parent, dst_dir_fd=parent)
+            os.fsync(parent)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=parent)
+            except FileNotFoundError:
+                pass
+
+
 def master_alive(path):
     return subprocess.run(['ssh', '-F', '/dev/null', '-S', str(path), '-O', 'check', TARGET],
                           capture_output=True, timeout=5).returncode == 0
@@ -101,7 +195,7 @@ def run(command, *, capture=False, timeout=30):
     return result.stdout if capture else ''
 
 
-def prepare_pico():
+def prepare_pico(*, joint=False):
     output = run(['adb', 'devices', '-l'], capture=True)
     candidates = []
     for line in output.splitlines():
@@ -116,9 +210,14 @@ def prepare_pico():
     serial = candidates[0]
     package = run(['adb', '-s', serial, 'shell', 'dumpsys', 'package', PACKAGE], capture=True)
     version = re.search(r'versionCode=(\d+)', package)
+    if joint and (not version or int(version.group(1)) < 8):
+        raise RuntimeError('联合会话需要本次 Galaxis 1.1.14/versionCode 8 或更新版；未开始遥操')
     if not version or int(version.group(1)) < 6:
         raise RuntimeError('纯视频自动打开需要 Galaxis 1.1.12/versionCode 6 或更新版，请先安装项目新 APK')
     run(['adb', '-s', serial, 'reverse', 'tcp:63903', 'tcp:63903'])
+    if joint:
+        for port in (63901, 63904):
+            run(['adb', '-s', serial, 'reverse', 'tcp:'+str(port), 'tcp:'+str(port)])
     return serial
 
 
@@ -147,7 +246,9 @@ class Session:
     def spawn(self, command, *, source=None, ready=None):
         process = subprocess.Popen(command, cwd=RUNTIME, stdin=subprocess.PIPE if source else subprocess.DEVNULL,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                   start_new_session=True, close_fds=True)
+                                   start_new_session=True, close_fds=True,
+                                   env=dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[3]/'src'),
+                                            PYTHONDONTWRITEBYTECODE='1'))
         self.children.append(process)
 
         def collect():
@@ -171,9 +272,37 @@ class Session:
                 process.stdin.close()
         return process
 
-    def connect(self, directory):
+    def connect(self, directory, *, interactive=True):
+        if not interactive:
+            # A detached producer cannot borrow the operator's terminal or
+            # request credentials. Verify only the pre-established video
+            # connection; the helper must not fall back to creating one if
+            # the master disappears between these two checks.
+            try:
+                prepared = read_prepared_master(directory)
+                master = MASTER
+                alive = master_alive(master)
+                if not alive and prepared and prepared != master:
+                    master = prepared
+                    alive = master_alive(master)
+                if not alive:
+                    raise RuntimeError('AGX 视频专用连接尚未建立或已经过期')
+                self.say('VIDEO_STEP ssh：只核对并复用已准备的 AGX 视频连接')
+                run([sys.executable, str(RUNTIME / 'apps/connect_kuavo_video_ssh.py'),
+                     '--ssh-socket', master, '--require-existing'], capture=True, timeout=15)
+            except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+                raise RuntimeError(
+                    '视频连接未准备好：请在笔记本终端运行 '
+                    '`bash scripts/kuavo-arms-network --prepare-video`，'
+                    '仅准备视频连接，不启动主控或机器人运动。原因：' + str(error)) from error
+            return master
+        prepared = read_prepared_master(directory)
         alive = master_alive(MASTER)
-        master = choose_socket(MASTER, directory, master_alive=alive)
+        master = MASTER
+        if not alive and prepared and prepared != master and master_alive(prepared):
+            master, alive = prepared, True
+        else:
+            master = choose_socket(MASTER, directory, master_alive=alive)
         if not alive:
             self.say('VIDEO_STEP network：准备乐聚有线网络，可能提示电脑密码')
             run(['sudo', '-v'], timeout=None)
@@ -181,6 +310,7 @@ class Session:
         self.say('VIDEO_STEP ssh：检查或建立 AGX 专用连接，可能提示 AGX 密码')
         run([sys.executable, str(RUNTIME / 'apps/connect_kuavo_video_ssh.py'),
              '--ssh-socket', master], timeout=None)
+        save_prepared_master(directory, master)
         return master
 
     def camera(self, master):
@@ -240,6 +370,8 @@ def main():
     parser.add_argument('--quality', type=int, default=90)
     parser.add_argument('--duration', type=float, default=0, help='秒；0 持续运行到 Ctrl-C')
     parser.add_argument('--no-pico', action='store_true', help='只启动 PC 视频，不检查或打开头显')
+    parser.add_argument('--non-interactive', action='store_true',
+                        help='仅复用已准备的视频连接；不申请 sudo、不提示 SSH 密码')
     parser.add_argument('--status', action='store_true', help='只读检查63903新帧，不启动任何服务')
     args = parser.parse_args()
     import math
@@ -284,7 +416,7 @@ def main():
         log = logpath.open('x', encoding='utf-8')
         session = Session(log)
         session.say(f'KUAVO_VIDEO_SESSION log={logpath} robot_commands_sent=False')
-        master = session.connect(directory)
+        master = session.connect(directory, interactive=not args.non_interactive)
         camera = session.camera(master)
         bridge, frame = session.bridge(master, args)
         open_pico(serial)

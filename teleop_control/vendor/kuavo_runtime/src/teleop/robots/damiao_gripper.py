@@ -5,7 +5,7 @@ discovery, register writes or implicit initialization. The Leju CAN-owner bridge
 is injected separately. Submission means queue acceptance, not motor ACK.
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from collections import deque
 import math
 import struct
@@ -308,7 +308,8 @@ class DamiaoGripperDriver:
         self.dropped_feedback = dict.fromkeys(profiles, 0)
 
     def receive(self, bus, can_id, data, *, received_ns, is_fd=False,
-                is_extended=False, is_remote=False, is_error=False, tx_echo=False):
+                is_extended=False, is_remote=False, is_error=False, tx_echo=False,
+                position_offset_rad=0., recording_target=None):
         """Called only for an actual received classic CAN data frame, never TX echo."""
         if any((is_fd, is_extended, is_remote, is_error, tx_echo)):
             return False  # This offline boundary currently models classic STD data frames.
@@ -326,12 +327,18 @@ class DamiaoGripperDriver:
                 if old and received_ns <= old.received_ns:
                     return False
                 value = decode_feedback(profile, data, received_ns, 1 if old is None else old.sequence+1)
+                raw_position = value.position_rad
+                offset = finite(position_offset_rad, 'session position offset')
+                if offset:
+                    value = replace(value, position_rad=raw_position-offset)
                 self._feedback[side] = value
                 self._stamps[side].append(received_ns)
                 rows = self._history[side]
                 if len(rows) == rows.maxlen:
                     self.dropped_feedback[side] += 1
-                rows.append(dict(asdict(value), bus=bus, can_id=can_id, raw_hex=data.hex()))
+                rows.append(dict(asdict(value), bus=bus, can_id=can_id, raw_hex=data.hex(),
+                                 raw_position_rad=raw_position, position_offset_rad=offset,
+                                 recording_target=dict(recording_target) if recording_target else None))
             return True
         return False
 

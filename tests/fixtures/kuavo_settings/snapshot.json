@@ -1,0 +1,23 @@
+{
+  "bundle_sha256": "1e53c25de606895526cd1f02a468e9c21c77ba5f72a75596cbec633781f0bdb9",
+  "installation_sha256": "5c6f97e219b26446094e6110d1e66365a7e58dc1dc40b67ed78e3425b705fb54",
+  "protocol": "kuavo_session_settings_v2",
+  "revision": 2,
+  "settings_sha256": "214120bfbbd19c578a132e407f59c82fe385a3b6cd6a88d8dbaf794c5af5a1bd",
+  "values": {
+    "left_arm_acceleration_rad_s2": 5.0,
+    "left_arm_scale": 1.0,
+    "left_arm_speed_rad_s": 0.7,
+    "left_gripper_acceleration_rad_s2": 200.0,
+    "left_gripper_closed_target_rad": -1.19,
+    "left_gripper_open_target_rad": -2.62,
+    "left_gripper_speed_rad_s": 15.0,
+    "right_arm_acceleration_rad_s2": 5.0,
+    "right_arm_scale": 1.0,
+    "right_arm_speed_rad_s": 0.7,
+    "right_gripper_acceleration_rad_s2": 200.0,
+    "right_gripper_closed_target_rad": -0.79,
+    "right_gripper_open_target_rad": -2.22,
+    "right_gripper_speed_rad_s": 15.0
+  }
+}

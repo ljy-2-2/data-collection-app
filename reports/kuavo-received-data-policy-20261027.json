@@ -1,0 +1,25 @@
+{
+  "schema_version": 4,
+  "recording_policy": "received_data_v1",
+  "duration_limit": null,
+  "joint_silence_abort": false,
+  "input_silence_abort": false,
+  "minimum_rate_for_save_or_upload": null,
+  "requires_all_sources": false,
+  "camera_disconnect": "record missing source and continue; resume when a feed returns",
+  "partial_frames_and_source_overflow": "record warnings, preserve available samples",
+  "save_triggers": ["B button", "teleoperation session end"],
+  "sparse_preview": "unmatched fields are null; raw per-source samples are retained",
+  "severe_error_examples": ["invalid joint names or numeric values", "timestamp or sequence reversal", "corrupt record structure", "file write failure"],
+  "empty_episode_upload": false,
+  "readonly_source_age_limit_for_recording": null,
+  "readonly_preview_marks_stale_data": true,
+  "robot_motion_safety_changed": false,
+  "robot_services_changed": false,
+  "old_episodes_modified": false,
+  "runtime_activation": "requires app restart; an active prepared robot session was observed, so the backend was not restarted",
+  "verification": {
+    "recording_decode_and_readonly_tests": 49,
+    "broader_recording_upload_and_tianji_suite": "106 passed; one localhost listener test blocked by sandbox, then passed separately with network permission"
+  }
+}

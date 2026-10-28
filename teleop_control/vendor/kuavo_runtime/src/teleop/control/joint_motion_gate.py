@@ -33,7 +33,8 @@ class JointMotionGate:
                  max_acceleration_rad_s2=None,
                  max_offset_rad=math.radians(10), period_s=0.02,
                  max_tracking_error_rad=0.2, max_state_age_ms=250,
-                 synchronization_groups=None):
+                 synchronization_groups=None, joint_velocity_limits=None,
+                 joint_acceleration_limits=None):
         if not isinstance(schema, JointSchema) or not schema.names:
             raise ValueError("non-empty joint schema is required")
         for name, value in (("max_velocity_rad_s", max_velocity_rad_s),
@@ -73,6 +74,16 @@ class JointMotionGate:
         self.velocity = float(max_velocity_rad_s)
         self.acceleration = (None if max_acceleration_rad_s2 is None
                              else float(max_acceleration_rad_s2))
+        def limits(values, ceiling, label):
+            if values is None:
+                return dict.fromkeys(schema.names, ceiling)
+            if (ceiling is None or not isinstance(values, dict) or set(values) != set(schema.names)
+                    or any(type(v) not in (int, float) or not math.isfinite(v)
+                           or not 0 < v <= ceiling for v in values.values())):
+                raise ValueError('exact finite positive joint '+label+' limits within ceiling required')
+            return {n: float(v) for n, v in values.items()}
+        self.joint_velocity_limits = limits(joint_velocity_limits, self.velocity, 'velocity')
+        self.joint_acceleration_limits = limits(joint_acceleration_limits, self.acceleration, 'acceleration')
         self.offset = None if max_offset_rad is None else float(max_offset_rad)
         self.period = float(period_s)
         self.tracking_error = float(max_tracking_error_rad)
@@ -151,7 +162,8 @@ class JointMotionGate:
             factor = 1.0
             for name in group:
                 joint = self.schema.get(name)
-                speed = min(self.velocity, joint.max_velocity or self.velocity)
+                speed = min(self.joint_velocity_limits[joint.name],
+                            joint.max_velocity or self.joint_velocity_limits[joint.name])
                 if delta[name]:
                     factor = min(factor, speed*elapsed / abs(delta[name]))
             factors.update(dict.fromkeys(group, factor))
@@ -164,11 +176,13 @@ class JointMotionGate:
             targets, velocities = {}, {}
             for joint in self.schema.joints:
                 name = joint.name
-                speed = min(self.velocity, joint.max_velocity or self.velocity)
-                change = self.acceleration*elapsed
+                speed = min(self.joint_velocity_limits[joint.name],
+                            joint.max_velocity or self.joint_velocity_limits[joint.name])
+                acceleration = self.joint_acceleration_limits[name]
+                change = acceleration*elapsed
                 distance = abs(delta[name])
                 target_speed = self._braking_velocity_limit(
-                    distance, self.acceleration, elapsed, speed)
+                    distance, acceleration, elapsed, speed)
                 desired_velocity = math.copysign(
                     min(abs(factors[name]*delta[name]/elapsed), target_speed), delta[name]) \
                     if delta[name] else 0.
@@ -179,9 +193,9 @@ class JointMotionGate:
                 upper = (joint.position_max if self.offset is None else
                          min(joint.position_max, anchor[name]+self.offset))
                 safe_low = -self._braking_velocity_limit(
-                    previous[name]-lower, self.acceleration, elapsed, speed)
+                    previous[name]-lower, acceleration, elapsed, speed)
                 safe_high = self._braking_velocity_limit(
-                    upper-previous[name], self.acceleration, elapsed, speed)
+                    upper-previous[name], acceleration, elapsed, speed)
                 allowed_low, allowed_high = max(accel_low, safe_low), min(accel_high, safe_high)
                 if allowed_low > allowed_high+1e-9:
                     raise MotionGateError('cannot preserve acceleration and range bounds')

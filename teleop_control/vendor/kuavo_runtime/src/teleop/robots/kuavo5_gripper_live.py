@@ -398,10 +398,15 @@ def capture_calibration_sample(client, values=None):
     started = time.monotonic_ns()
     client.refresh_status(expected_state=0)
     position = client.register(0x50, "f")
+    position_received_ns = client.last_register_received_ns
     xout = client.register(0x51, "f")
     xout_received_ns = client.last_register_received_ns
+    # Bracket the output-encoder read with two precise position reads. A later
+    # status frame alone must not hide hand movement during the register pair.
+    position_after = client.register(0x50, "f")
+    position_after_received_ns = client.last_register_received_ns
     event = client.refresh_status(expected_state=0)
-    for name, value in (("position", position), ("xout", xout)):
+    for name, value in (("position", position), ("xout", xout), ("position_after", position_after)):
         finite_range(value, -values["pmax"], values["pmax"], name)
     f = decode_feedback(SimpleNamespace(motor_id=client.mid, **{
         k: values[k] for k in ("pmax", "vmax", "tmax")}), event["data"], event["received_ns"], client.feedback_sequence)
@@ -409,9 +414,17 @@ def capture_calibration_sample(client, values=None):
         raise RuntimeError("calibration sample stale or motor moving; settle at endpoint")
     if max(f.mos_c, f.rotor_c) >= 60:
         raise RuntimeError("motor too hot for calibration")
-    if abs(position-f.position_rad) > max(.002, 3*2*values["pmax"]/65535):
+    if max(abs(position-f.position_rad), abs(position_after-position)) > max(.002, 3*2*values["pmax"]/65535):
         raise RuntimeError("motor moved while calibration positions were read")
+    client.log("position_reference_sample", position_rad=position,
+               position_received_ns=position_received_ns, xout_rad=xout,
+               xout_received_ns=xout_received_ns, position_after_rad=position_after,
+               position_after_received_ns=position_after_received_ns,
+               feedback_received_ns=f.received_ns, state=f.state,
+               motor_control_sent=False)
     return dict(position_rad=position, xout_rad=xout, xout_received_ns=xout_received_ns,
+                position_received_ns=position_received_ns,
+                position_after_rad=position_after, position_after_received_ns=position_after_received_ns,
                 received_ns=event["received_ns"],
                 feedback=f, readback=dict(values), raw_hex=event["data"].hex())
 

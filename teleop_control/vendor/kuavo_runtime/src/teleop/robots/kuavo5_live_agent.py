@@ -3,6 +3,7 @@
 import hashlib
 import json
 import math
+import re
 from collections import deque
 from pathlib import Path
 from queue import Empty, Full, Queue
@@ -19,13 +20,13 @@ from teleop.retargeting.dual_arm import DualArmRetargeter
 from teleop.retargeting.kuavo_target_progress import KuavoTargetProgress, FixedAnchorTargetProgress
 from teleop.robots.kuavo5 import schema_from_urdf
 from teleop.robots.kuavo5_arm_ros_transport import bind_ros
-from teleop.robots.kuavo5_live_guard import COMMAND_TOPICS, SERVICE_OWNERS, FeedbackGuard, check_graph, MAX_ODOMETRY_FUTURE_SKEW_NS, RuntimeMotionPaused
+from teleop.robots.kuavo5_live_guard import COMMAND_TOPICS, SERVICE_OWNERS, FeedbackGuard, check_graph, MAX_ODOMETRY_FUTURE_SKEW_NS, RuntimeMotionPaused, BaseYawTransientFilter
 from teleop.robots.kuavo5_live_protocol import (
     InputLease, StaleInputLease, DIAGNOSTIC_EVENTS, encode_robot_packet)
 from teleop.robots.kuavo5_native_ik import (
     ARM_NAMES, KuavoNativeIKSolver, OFFICIAL_UPPER_BODY_IK_PARAMS)
 from teleop.robots.kuavo5_native_rpc_backend import KuavoNativeRPCBackend
-from teleop.robots.kuavo5_diagnostics import ComputeResponseRejected, SuccessTraceSampler
+from teleop.robots.kuavo5_diagnostics import ComputeResponseRejected, SuccessTraceSampler, CollectionBuffer
 
 
 URDF_SHA = 'fecef6f980806af7d2c4b1abe56d3fe1d0dbfbd69b3475303eb158bcc06c85dc'
@@ -47,6 +48,10 @@ LIVE_TRACKING_SOFT_LEAD_RAD = .15
 # This is planning smoothing, not a physical or vendor-certified acceleration
 # cap; actual publication intervals and measured motor response can differ.
 LIVE_PLANNING_ACCELERATION_RAD_S2 = 5.
+LIVE_NUMERIC_SPEED_POLICY = 'bounded_1p0_10_v1'
+LIVE_NUMERIC_ACCELERATION_POLICY = 'independent_bounded_10_v1'
+LIVE_PER_ARM_MOTION_POLICY = 'per_arm_scale_speed_acceleration_v1'
+LIVE_MOBILE_BASE_POLICY = 'owned_body_relative_v1'
 # The existing recovery gate already permits at most 0.2 rad from both the
 # last published reference and measured feedback. Reuse that bound before a
 # mode3 candidate can enter the control session; this is not a new wider limit.
@@ -71,7 +76,8 @@ def tracking_soft_lead(target_recovery, speed_profile='steady'):
     raise ValueError('responsive speed requires bounded_candidate; unknown speeds refused')
 
 
-def motion_profile(target_recovery, speed_profile='steady'):
+def motion_profile(target_recovery, speed_profile='steady', *, arm_velocity_rad_s=None,
+                   arm_acceleration_rad_s2=None):
     """Validate coupled settings locally and remotely before hardware I/O."""
     lead = tracking_soft_lead(target_recovery, speed_profile)
     velocity = .7 if speed_profile == 'responsive' else LIVE_MAX_VELOCITY_RAD_S
@@ -80,9 +86,55 @@ def motion_profile(target_recovery, speed_profile='steady'):
         # User-selected candidate, not a manufacturer speed certification.
         # Preserve responsive/steady values and unchanged .2 tracking bound.
         velocity, acceleration = 1., 10.
+    if arm_velocity_rad_s is not None:
+        if (target_recovery != 'bounded_candidate' or speed_profile != 'responsive'
+                or type(arm_velocity_rad_s) not in (int, float)
+                or not 0 < arm_velocity_rad_s <= 1. or not math.isfinite(arm_velocity_rad_s)):
+            raise ValueError('numeric arm speed requires bounded_candidate/responsive and 0 < speed <= 1.0 rad/s')
+        velocity = float(arm_velocity_rad_s)
+        # Parameters are frozen before startup. Reuse the existing 1.0/10
+        # profile for faster values; retain the original ramp at <= 0.7.
+        if velocity > .7:
+            acceleration = 10.
+    if arm_acceleration_rad_s2 is not None:
+        if (target_recovery != 'bounded_candidate' or speed_profile != 'responsive'
+                or arm_velocity_rad_s is None
+                or type(arm_acceleration_rad_s2) not in (int, float)
+                or not math.isfinite(arm_acceleration_rad_s2)
+                or not 0 < arm_acceleration_rad_s2 <= 10.):
+            raise ValueError('explicit arm acceleration requires bounded_candidate/responsive, '
+                             'numeric speed and 0 < acceleration <= 10 rad/s^2')
+        acceleration = float(arm_acceleration_rad_s2)
     KuavoTrackingGovernor(lead_rad=lead).validate_profile(
         velocity=velocity, acceleration=acceleration, period=.01, hard_tracking=.2)
     return velocity, acceleration
+
+
+def arm_motion_profile(target_recovery, speed_profile='steady', *, arm_motion_parameters=None,
+                       arm_velocity_rad_s=None, arm_acceleration_rad_s2=None):
+    """Validate each side before ROS imports, threads, or transport setup."""
+    if arm_motion_parameters is None:
+        velocity, acceleration = motion_profile(target_recovery, speed_profile,
+            arm_velocity_rad_s=arm_velocity_rad_s, arm_acceleration_rad_s2=arm_acceleration_rad_s2)
+        return velocity, acceleration, None
+    if arm_velocity_rad_s is not None or arm_acceleration_rad_s2 is not None:
+        raise ValueError('cannot mix scalar and per-arm motion settings')
+    if not isinstance(arm_motion_parameters, dict) or set(arm_motion_parameters) != {'left', 'right'}:
+        raise ValueError('exact left/right arm motion parameters required')
+    checked = {}
+    for side, values in arm_motion_parameters.items():
+        if not isinstance(values, dict) or set(values) != {'scale', 'speed_rad_s', 'acceleration_rad_s2'}:
+            raise ValueError('exact arm scale, speed and acceleration required')
+        scale = values['scale']
+        if type(scale) not in (int, float) or not math.isfinite(scale) or not .1 <= scale <= 2.:
+            raise ValueError('arm position scale must remain within 0.1..2')
+        velocity, acceleration = motion_profile(target_recovery, speed_profile,
+            arm_velocity_rad_s=values['speed_rad_s'],
+            arm_acceleration_rad_s2=values['acceleration_rad_s2'])
+        checked[side] = dict(scale=float(scale), speed_rad_s=velocity,
+                             acceleration_rad_s2=acceleration)
+    return (max(p['speed_rad_s'] for p in checked.values()),
+            max(p['acceleration_rad_s2'] for p in checked.values()), checked)
 
 
 def target_progress_profile(target_recovery):
@@ -108,10 +160,13 @@ def target_progress_profile(target_recovery):
 
 def make_live_controller(schema, transport, *, solver, diagnostic,
                          clock=time.monotonic_ns, target_recovery='baseline', candidate_model=None,
-                         speed_profile='steady', return_config=None):
+                         speed_profile='steady', return_config=None, arm_velocity_rad_s=None,
+                         arm_acceleration_rad_s2=None, arm_motion_parameters=None):
     """Build the reviewed live profile without ROS discovery or device I/O."""
     target_progress_profile(target_recovery)  # Reject before creating any threads.
-    velocity, acceleration = motion_profile(target_recovery, speed_profile)
+    velocity, acceleration, arms = arm_motion_profile(target_recovery, speed_profile,
+        arm_motion_parameters=arm_motion_parameters, arm_velocity_rad_s=arm_velocity_rad_s,
+        arm_acceleration_rad_s2=arm_acceleration_rad_s2)
     progress = FixedAnchorTargetProgress() if target_recovery == 'fixed_anchor' else KuavoTargetProgress()
     reference_sync = 'all_joints'
     if target_recovery == 'bounded_candidate':
@@ -122,11 +177,17 @@ def make_live_controller(schema, transport, *, solver, diagnostic,
                                             workspace_soft_margin_m=.05)
         reference_sync = 'per_arm'
     return KuavoLiveController(schema, transport,
-        solve=NativeArmWorkSolver(solver, DualArmRetargeter(),
+        solve=NativeArmWorkSolver(solver, DualArmRetargeter(
+            **({'scales': {side: p['scale'] for side, p in arms.items()}} if arms else {})),
                                   target_progress=progress),
         clock=clock, control_period_s=.01, diagnostic=diagnostic,
         max_velocity_rad_s=velocity,
         max_acceleration_rad_s2=acceleration,
+        **({'joint_velocity_limits': {name: arms[side]['speed_rad_s']
+                for side, names in (('left', ARM_NAMES[:7]), ('right', ARM_NAMES[7:])) for name in names},
+            'joint_acceleration_limits': {name: arms[side]['acceleration_rad_s2']
+                for side, names in (('left', ARM_NAMES[:7]), ('right', ARM_NAMES[7:])) for name in names}}
+           if arms else {}),
         reuse_valid_solution_seed=True,
         reference_sync=reference_sync,
         tracking_governor=KuavoTrackingGovernor(
@@ -296,8 +357,25 @@ class DirectRosCompute:
 
 class RuntimeGuard:
     """ROS callbacks copy state; no callback can enable, configure or publish."""
-    def __init__(self, rospy, master, stop):
+    def __init__(self, rospy, master, stop, *, base_mode='disabled'):
+        if base_mode not in ('disabled', 'vendor_vr_x'):
+            raise ValueError('unknown unified base mode')
         self.ros, self.master, self.stop = rospy, master, stop
+        self.base_mode = base_mode
+        self._odom_max_age_ns = 250_000_000
+        self._odom_skew_budget_ns = 0
+        if base_mode == 'vendor_vr_x':
+            # Both channels consume the same chassis clock. Charge the same
+            # uncertainty budget instead of accepting a sample on only one.
+            from teleop.robots.kuavo5_base_ros import (
+                ODOM_CLOCK_SKEW_BUDGET_NS, ODOM_FEEDBACK_MAX_AGE_NS)
+            self._odom_max_age_ns = ODOM_FEEDBACK_MAX_AGE_NS
+            self._odom_skew_budget_ns = ODOM_CLOCK_SKEW_BUDGET_NS
+        self._base_check = None
+        self._graph_stop = threading.Event()
+        self._mobile_source_ns = None
+        self._mobile_ros_ns = None
+        self._mobile_quiet_since_ns = None
         self.lock = threading.RLock()
         self.error = None
         self.diagnostic = None
@@ -310,6 +388,8 @@ class RuntimeGuard:
         self._odom_quiet_since = None
         self._odom_received_ns = None
         self._odom_observation = None
+        self._yaw_filter = BaseYawTransientFilter()
+        self._odom_history = deque(maxlen=64)
         self.graph_ns = None
         self.arm_connections = None
         # The audited v63 HardwareNode publishes a logical loop counter in
@@ -325,8 +405,23 @@ class RuntimeGuard:
                 self.error = str(error)
                 self.diagnostic = diagnostic
 
+    def set_base_check(self, callback):
+        """Attach the same session's read-only base authority/freshness check.
+
+        The callback must not call this arm guard, avoiding a lock cycle. It
+        cannot create a publisher, switch modes or extend an input deadline.
+        """
+        if self.base_mode != 'vendor_vr_x' or not callable(callback):
+            raise ValueError('unified base mode and callable base check required')
+        with self.lock:
+            if self._base_check is not None:
+                raise ValueError('base authority check is already installed')
+            self._base_check = callback
+
     def command(self, message, topic):
         caller = (getattr(message, '_connection_header', None) or {}).get('callerid')
+        if self.base_mode == 'vendor_vr_x' and topic == '/cmd_vel' and caller == self.own_node:
+            return
         if topic == '/cmd_vel' and caller == '/humanoid_joy_control_auto_gait_with_vel':
             try:
                 values = (message.linear.x, message.linear.y, message.linear.z,
@@ -359,6 +454,27 @@ class RuntimeGuard:
         with self.lock:
             return dict(self.feedback_guard.last_timing or {})
 
+    def _latch_base_pause(self, evidence, decision_reason, now):
+        # Caller holds self.lock. Diagnostics are bounded copies, never I/O.
+        if self._motion_pause is not None:
+            return
+        self._motion_pause = 'base motion pause; await quiet base and new Grip release'
+        self._motion_pause_generation += 1
+        self._odom_quiet_since = None
+        self._motion_pause_evidence = dict(evidence, event='guard_pause',
+            reason=self._motion_pause, decision_reason=decision_reason,
+            paused=True, quiet_duration_ms=0.,
+            decision_monotonic_ns=now, yaw_filter=self._yaw_filter.snapshot(now),
+            recent_observations=list(self._odom_history))
+
+    def _check_yaw_deadline(self, now):
+        if self.base_mode == 'vendor_vr_x':
+            return
+        if self._motion_pause is None:
+            reason = self._yaw_filter.deadline_reason(now)
+            if reason is not None and self._odom_observation is not None:
+                self._latch_base_pause(self._odom_observation, reason, now)
+
     def odometry(self, message):
         from teleop.robots.kuavo5_diagnostics import scalar, vector
         evidence = dict(event='guard_failure', schema_version=1, source='/odom',
@@ -366,9 +482,17 @@ class RuntimeGuard:
         try:
             now = time.monotonic_ns()
             stamp = message.header.stamp.to_nsec()
-            age = self.ros.Time.now().to_nsec()-stamp
+            ros_now = self.ros.Time.now().to_nsec()
+            age = ros_now-stamp
             evidence.update(observed_monotonic_ns=now, source_ros_ns=stamp, source_age_ns=age)
-            if not -MAX_ODOMETRY_FUTURE_SKEW_NS <= age < 250_000_000:
+            if self.base_mode == 'vendor_vr_x':
+                age += self._odom_skew_budget_ns
+                evidence.update(conservative_age_ns=age,
+                    clock_skew_budget_ns=self._odom_skew_budget_ns,
+                    max_feedback_age_ns=self._odom_max_age_ns)
+                if not 0 <= age < self._odom_max_age_ns:
+                    raise ValueError('odometry source stale/future with chassis clock budget')
+            elif not -MAX_ODOMETRY_FUTURE_SKEW_NS <= age < 250_000_000:
                 raise ValueError('odometry source stale/future')
             p, q, twist = message.pose.pose.position, message.pose.pose.orientation, message.twist.twist
             values = (p.x, p.y, p.z, q.x, q.y, q.z, q.w,
@@ -377,6 +501,18 @@ class RuntimeGuard:
                 velocity=dict(zip(('vx_m_s', 'vy_m_s', 'wz_rad_s'), map(scalar, values[7:]))))
             if not all(math.isfinite(x) for x in values) or not .9 <= sum(x*x for x in values[3:7]) <= 1.1:
                 raise ValueError('invalid base observation')
+            if self.base_mode == 'vendor_vr_x':
+                caller = (getattr(message, '_connection_header', None) or {}).get('callerid')
+                if caller != '/ukf_odom' or message.header.frame_id != 'odom' \
+                        or message.child_frame_id != 'base_footprint':
+                    raise ValueError('unreviewed odometry source/frame')
+                velocity = (twist.linear.x, twist.linear.y, twist.linear.z,
+                            twist.angular.x, twist.angular.y, twist.angular.z)
+                if any(type(v) not in (int, float) or not math.isfinite(v) for v in velocity):
+                    raise ValueError('invalid six-axis base velocity')
+                self._mobile_odometry(values, velocity, evidence, now=now, stamp=stamp,
+                                      ros_now=ros_now, age=age)
+                return
             with self.lock:
                 if self.odom_anchor is None:
                     self.odom_anchor = values[:7]
@@ -401,16 +537,19 @@ class RuntimeGuard:
                     self._odom_quiet_since = None
                 self._odom_received_ns = now
                 self.odom_ns = now-max(0, age)
-                if max(map(abs, values[7:])) > .02:
+                exceeded = [name for name, value in
+                    zip(('vx_m_s', 'vy_m_s', 'wz_rad_s'), values[7:]) if abs(value) > .02]
+                evidence['exceeded_velocity_components'] = exceeded
+                self._odom_history.append(dict(received_ns=now, source_ns=stamp,
+                    source_age_ns=age, velocity=list(values[7:]),
+                    distance_m=distance, angle_rad=angle))
+                decision = self._yaw_filter.observe(now_ns=now, source_ns=stamp,
+                    source_age_ns=age, vx=values[7], vy=values[8], wz=values[9],
+                    distance_m=distance, angle_rad=angle)
+                if self._motion_pause is None and decision is not None:
+                    self._latch_base_pause(evidence, decision, now)
+                elif self._motion_pause is not None and exceeded:
                     self._odom_quiet_since = None
-                    if self._motion_pause is None:
-                        self._motion_pause = 'base motion pause; await quiet base and new Grip release'
-                        self._motion_pause_generation += 1
-                        evidence.update(event='guard_pause', reason=self._motion_pause,
-                            exceeded_velocity_components=[name for name, value in
-                                zip(('vx_m_s', 'vy_m_s', 'wz_rad_s'), values[7:])
-                                if abs(value) > .02])
-                        self._motion_pause_evidence = evidence
                 elif self._motion_pause is not None:
                     # Keep the original .02 motion cutoff. Recovery requires a
                     # stricter .01 quiet threshold for 500 ms; a single quiet
@@ -423,18 +562,73 @@ class RuntimeGuard:
                         self._motion_pause = None
                 self._odom_observation = dict(evidence, event='guard_trace',
                     paused=self._motion_pause is not None,
+                    yaw_filter=self._yaw_filter.snapshot(now),
                     quiet_duration_ms=(0. if self._odom_quiet_since is None
                                        else (now-self._odom_quiet_since)/1e6))
         except Exception as exc:
             evidence.update(reason=str(exc)[:512], error_type=type(exc).__name__)
             self.fail(exc, evidence)
 
+    def _mobile_odometry(self, values, velocity, evidence, *, now, stamp, ros_now, age):
+        """Body-relative arm mode permits planar motion only, never waist motion."""
+        with self.lock:
+            if type(stamp) is not int or stamp <= 0 or (
+                    self._mobile_source_ns is not None and stamp <= self._mobile_source_ns):
+                raise ValueError('odometry source repeated or reordered')
+            if self._mobile_ros_ns is not None and ros_now < self._mobile_ros_ns:
+                raise ValueError('odometry ROS clock moved backwards')
+            if self._odom_received_ns is not None and now <= self._odom_received_ns:
+                raise ValueError('odometry receipt clock did not advance')
+            if self.odom_anchor is None:
+                self.odom_anchor = values[:7]
+            anchor = self.odom_anchor
+            # Gravity expressed in the chassis frame ignores world yaw. Using
+            # the full quaternion difference here would reject every turn.
+            def gravity(quaternion):
+                norm = math.sqrt(sum(v*v for v in quaternion))
+                x, y, z, w = (v/norm for v in quaternion)
+                return (2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y))
+            tilt_dot = sum(a*b for a, b in zip(gravity(values[3:7]), gravity(anchor[3:7])))
+            tilt = math.acos(max(-1., min(1., tilt_dot)))
+            height = abs(values[2]-anchor[2])
+            evidence.update(base_motion_policy='body_relative_planar_v1',
+                height_change_m=height, tilt_change_rad=tilt,
+                height_limit_m=.02, tilt_limit_rad=math.radians(2),
+                six_axis_velocity=list(velocity), anchor_pose=list(anchor))
+            if height > .02 or tilt > math.radians(2):
+                raise ValueError('base height or tilt outside planar-motion envelope')
+            if max(abs(velocity[i]) for i in (2, 3, 4)) > .02:
+                raise ValueError('non-planar base velocity outside envelope')
+            if self.phase != 'runtime':
+                distance = math.dist(values[:3], anchor[:3])
+                scale = math.sqrt(sum(x*x for x in values[3:7])*sum(x*x for x in anchor[3:7]))
+                dot = abs(sum(a*b for a, b in zip(values[3:7], anchor[3:7])))/scale
+                angle = 2*math.acos(min(1., dot))
+                if distance > .02 or angle > math.radians(2):
+                    raise ValueError('base moved outside startup stationary envelope')
+            consecutive = (self._odom_received_ns is not None
+                and 0 < now-self._odom_received_ns <= 100_000_000
+                and 0 < stamp-self._mobile_source_ns <= 100_000_000)
+            if not consecutive or max(map(abs, velocity)) > .01:
+                self._mobile_quiet_since_ns = None
+            if max(map(abs, velocity)) <= .01 and self._mobile_quiet_since_ns is None:
+                self._mobile_quiet_since_ns = stamp
+            self._mobile_source_ns, self._mobile_ros_ns = stamp, ros_now
+            self._odom_received_ns = now
+            self.odom_ns = now-max(0, age)
+            quiet_span = (0 if self._mobile_quiet_since_ns is None
+                          else stamp-self._mobile_quiet_since_ns)
+            self._odom_observation = dict(evidence, event='guard_trace', paused=False,
+                                         quiet_duration_ms=quiet_span/1e6)
+
     def graph(self):
-        while not self.stop.is_set():
+        graph_stop = self._graph_stop if self.base_mode == 'vendor_vr_x' else self.stop
+        while not graph_stop.is_set():
             try:
                 pub, sub, srv = self.master.getSystemState()
                 pub, sub, srv = dict(pub), dict(sub), dict(srv)
-                check_graph(pub, sub, srv, own_node=self.own_node)
+                check_graph(pub, sub, srv, own_node=self.own_node,
+                            own_base_control=self.base_mode == 'vendor_vr_x')
                 arm_connections = len(set(sub.get('/kuavo_arm_traj', [])))
                 with self.lock:
                     self.graph_ns = time.monotonic_ns()
@@ -442,7 +636,7 @@ class RuntimeGuard:
             except Exception as exc:
                 self.fail('ROS graph: '+str(exc))
                 return
-            self.stop.wait(.2)
+            graph_stop.wait(.2)
 
     def motion_pause_snapshot(self):
         with self.lock:
@@ -476,9 +670,14 @@ class RuntimeGuard:
             if self.error:
                 raise ValueError(self.error)
             for name, stamp, age in (('feedback', None if self.feedback is None else self.feedback.timestamp_ns, 250_000_000),
-                                      ('odometry', self.odom_ns, 250_000_000), ('graph', self.graph_ns, 1_000_000_000)):
+                                      ('odometry', self.odom_ns, self._odom_max_age_ns), ('graph', self.graph_ns, 1_000_000_000)):
                 if stamp is None or not 0 <= now-stamp < age:
                     raise ValueError(name+' missing or stale')
+            self._check_yaw_deadline(now)
+            if self.base_mode == 'vendor_vr_x' and self.phase == 'runtime':
+                if self._base_check is None:
+                    raise ValueError('unified base authority check unavailable')
+                self._base_check()
             return self.feedback
 
     def check(self):
@@ -486,6 +685,15 @@ class RuntimeGuard:
             feedback = self.check_observations()
             if self._motion_pause is not None:
                 raise RuntimeMotionPaused(self._motion_pause)
+            if self.base_mode == 'vendor_vr_x' and self.phase != 'runtime':
+                if self._mobile_quiet_since_ns is None or self._mobile_source_ns is None \
+                        or self._mobile_source_ns-self._mobile_quiet_since_ns < 500_000_000:
+                    raise RuntimeMotionPaused('startup requires 500ms fresh quiet base observations')
+            if self.phase != 'runtime' and self._yaw_filter.pending_since_ns is not None:
+                # The transient allowance applies only to an established arm
+                # session. Startup FK/profile checks cannot treat pending
+                # motion as proof that the base is quiet.
+                raise RuntimeMotionPaused('startup requires quiet base; yaw observation pending')
             return feedback
 
     def check_exit(self):
@@ -493,7 +701,7 @@ class RuntimeGuard:
         with self.lock:
             now = time.monotonic_ns()
             for name, stamp, age in (('feedback', None if self.feedback is None else self.feedback.timestamp_ns, 250_000_000),
-                                      ('odometry', self.odom_ns, 250_000_000), ('graph', self.graph_ns, 1_000_000_000)):
+                                      ('odometry', self.odom_ns, self._odom_max_age_ns), ('graph', self.graph_ns, 1_000_000_000)):
                 if stamp is None or not 0 <= now-stamp < age:
                     raise ValueError(name+' missing or stale during vendor exit')
             return self.feedback
@@ -506,6 +714,7 @@ class RuntimeGuard:
             return self.arm_connections
 
     def close(self):
+        self._graph_stop.set()
         for handle in self.handles:
             handle.unregister()
 
@@ -569,7 +778,23 @@ def _identity_and_types(rospy, master, rosservice):
 
 def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=None, writer=None,
               target_recovery='baseline', speed_profile='steady', gripper_mode='off', arm_posture='baseline', gripper_config=None,
-              return_home_config=None, standalone_return=False):
+              return_home_config=None, standalone_return=False, arm_velocity_rad_s=None,
+              arm_acceleration_rad_s2=None, arm_motion_parameters=None, settings_identity=None,
+              base_mode='disabled'):
+    if base_mode not in ('disabled', 'vendor_vr_x'):
+        raise ValueError('unknown base mode')
+    if base_mode != 'disabled' and (target_recovery != 'bounded_candidate' or standalone_return):
+        raise ValueError('mobile base requires shared bounded arm input session')
+    settings_fields = {}
+    if settings_identity is not None:
+        if (not isinstance(settings_identity, dict)
+                or set(settings_identity) != {'revision', 'settings_sha256'}
+                or type(settings_identity['revision']) is not int or settings_identity['revision'] < 0
+                or not isinstance(settings_identity['settings_sha256'], str)
+                or re.fullmatch('[a-f0-9]{64}', settings_identity['settings_sha256']) is None):
+            raise ValueError('valid session settings revision and digest required before I/O')
+        settings_fields = dict(session_settings_revision=settings_identity['revision'],
+                               session_settings_sha256=settings_identity['settings_sha256'])
     from teleop.robots.kuavo5_posture import posture_profile, KuavoElbowPreferenceSolver, validate_geometry
     posture = posture_profile(arm_posture, target_recovery)
     from teleop.control.kuavo5_gripper_teleop import KuavoGripperTeleop, validate_gripper_mode
@@ -598,7 +823,9 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
     if motion_enabled is not True or configure_vendor_profile is not True:
         raise ValueError('robot execution requires explicit motion and vendor profile permissions')
     progress_profile = target_progress_profile(target_recovery)
-    velocity, acceleration = motion_profile(target_recovery, speed_profile)
+    velocity, acceleration, arms = arm_motion_profile(target_recovery, speed_profile,
+        arm_motion_parameters=arm_motion_parameters, arm_velocity_rad_s=arm_velocity_rad_s,
+        arm_acceleration_rad_s2=arm_acceleration_rad_s2)
     import rospy
     import rosgraph
     import rosservice
@@ -612,6 +839,8 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
     outgoing = PriorityPacketQueue(max_control=32, max_diagnostic=64,
                                    **({'coalesce_challenges': True} if target_recovery == 'bounded_candidate' else {}))
     trace_sampler = SuccessTraceSampler() if target_recovery == 'bounded_candidate' else None
+    collection_buffer = CollectionBuffer()
+    last_collection = 0
     transport = live = guard = numeric = None
     gripper_owner = None
     grippers = KuavoGripperTeleop() if gripper_mode == 'preview' else None
@@ -620,6 +849,11 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
     return_coordinator = None
     arm_return_config = None
     return_fields = {}
+    base = None
+    base_report = None
+    base_fields = {} if base_mode == 'disabled' else dict(
+        base_mode=base_mode, base_lock_button='left_x', base_reference_frame='body_relative',
+        base_speed_profile='vendor_vr', base_motion_policy=LIVE_MOBILE_BASE_POLICY)
     exit_code = 1
     def read():
         try:
@@ -651,6 +885,8 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                 guard.fail('output writer failed: '+str(exc))
             stop.set()
     def emit(packet):
+        # Capture every accepted publication before reducing large UI diagnostics.
+        collection_buffer.accept(packet)
         if trace_sampler is not None:
             packet = trace_sampler.select(packet)
             if packet is None:
@@ -682,9 +918,10 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
             # guessed zero pose is used for this arms-only return.
             arm_return_config = resolve_vendor_return(return_settings,
                 rospy.get_param('/robot_init_state_param'), schema)
-        guard = RuntimeGuard(rospy, master, stop)
+        guard = RuntimeGuard(rospy, master, stop, **({'base_mode': base_mode} if base_mode != 'disabled' else {}))
         pub, sub, srv = master.getSystemState()
-        check_graph(dict(pub), dict(sub), dict(srv), own_node=guard.own_node)
+        check_graph(dict(pub), dict(sub), dict(srv), own_node=guard.own_node,
+                    **({'own_base_control': True} if base_mode != 'disabled' else {}))
         guard.graph_ns = time.monotonic_ns()  # Initial graph above was checked synchronously.
         for topic in COMMAND_TOPICS:
             message_type = Twist if topic == '/cmd_vel' else rospy.AnyMsg
@@ -706,8 +943,15 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
         guard.phase = 'startup_feedback'
         guard.handles.append(rospy.Subscriber('/sensors_data_raw', sensorsData, guard.sensors, queue_size=1, tcp_nodelay=True))
         guard.handles.append(rospy.Subscriber('/odom', Odometry, guard.odometry, queue_size=1, tcp_nodelay=True))
+        if base_mode != 'disabled':
+            from teleop.robots.kuavo5_mobile_session import JointBaseRuntime
+            base = JointBaseRuntime()
+            base.start(rospy, master)
+            guard.set_base_check(base.check)
         if stop.wait(1.):
             raise ValueError('operator disconnected during preflight')
+        if base is not None:
+            base.preflight(stop)
         guard.check_startup()
         if numeric is not None:
             numeric.check = guard.check  # All FK/IK calls now require full observations.
@@ -727,7 +971,8 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
             gripper_owner = OwnerGripperSession(
                 gripper_settings.owner_directory, gripper_settings.profiles,
                 gripper_settings.occupied_ids,
-                lambda event, **fields: emit(dict(event='gripper_trace', kind=event, **fields)))
+                lambda event, **fields: emit(dict(event='gripper_trace', kind=event, **fields)),
+                motor_records=gripper_settings.document['motors'])
             gripper_owner.start()
             grippers = KuavoGripperTeleop(gripper_owner.driver)
             guard.check_startup()
@@ -760,6 +1005,10 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
         live = make_live_controller(schema, transport, solver=solver,
                                     diagnostic=emit, target_recovery=target_recovery,
                                     candidate_model=candidate_model, speed_profile=speed_profile,
+                                    **({'arm_velocity_rad_s': arm_velocity_rad_s} if arm_velocity_rad_s is not None else {}),
+                                    **({'arm_acceleration_rad_s2': arm_acceleration_rad_s2}
+                                       if arm_acceleration_rad_s2 is not None else {}),
+                                    **({'arm_motion_parameters': arms} if arms is not None else {}),
                                     **({'return_config': arm_return_config} if arm_return_config is not None else {}))
         # Construct the real solver/session before any control configuration.
         transport.prepare_profile(check=guard.check, exit_check=guard.check_exit,
@@ -767,8 +1016,13 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
         guard.check_startup()
         if return_settings is not None:
             from teleop.control.kuavo5_return_coordinator import KuavoReturnCoordinator
-            return_coordinator = KuavoReturnCoordinator(live, grippers,
-                initial_gripper_targets, emit=emit, timeout_s=return_settings['timeout_s'])
+            if base is not None:
+                from teleop.control.kuavo5_mobile_return import MobileReturnCoordinator
+                return_coordinator = MobileReturnCoordinator(live, grippers,
+                    initial_gripper_targets, base=base.session, emit=emit, timeout_s=return_settings['timeout_s'])
+            else:
+                return_coordinator = KuavoReturnCoordinator(live, grippers,
+                    initial_gripper_targets, emit=emit, timeout_s=return_settings['timeout_s'])
             return_fields = dict(return_home_enabled=True,
                 return_home_config_sha256=return_config_digest(return_settings),
                 return_home_buttons=dict(RETURN_BUTTONS),
@@ -783,8 +1037,11 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
         else:
             lease = InputLease()
         request_deadline = time.monotonic_ns()+3_000_000_000
+        if base is not None:
+            base.activate()
         guard.phase = 'runtime'
         emit(dict(event='ready', robot_version='63', urdf_sha256=URDF_SHA,
+                  **(base_fields or {'base_motion_policy': BaseYawTransientFilter.policy}),
                   sensor_timestamp_policy='vendor_cycle_counter',
                   sensor_feedback_age_basis='ros_header',
                   ik_model_sha256=numeric.identity['ik_sha256'] if numeric is not None else IK_MODEL_SHA,
@@ -805,12 +1062,15 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                   ik_fallback_max_seed_delta_rad=LIVE_IK_FALLBACK_MAX_SEED_DELTA_RAD,
                   ik_primary_max_seed_delta_rad=LIVE_IK_PRIMARY_MAX_SEED_DELTA_RAD,
                   candidate_joint_margin_deg=math.degrees(LIVE_CANDIDATE_JOINT_MARGIN_RAD),
-                  ik_fallback_restores_mode0=True, **progress_profile, **posture, **return_fields))
+                  ik_fallback_restores_mode0=True, **progress_profile, **posture, **return_fields,
+                  **({'arm_motion_parameters': arms} if arms is not None else {}),
+                  **settings_fields))
         last_challenge, last_report = 0, 0
         pause_generation, base_was_paused = 0, False
         while not stop.is_set() and not rospy.is_shutdown():
             started = time.monotonic_ns()
             feedback = guard.check_observations()
+            accepted_this_tick = False
             while True:
                 try:
                     packet, received_ns = incoming.get_nowait()
@@ -827,6 +1087,7 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                               input_transport_timing=lease.last_timing, robot_received_ns=received_ns))
                     continue
                 if frame is not None:
+                    accepted_this_tick = True
                     input_timing = dict(lease.last_timing, robot_received_ns=received_ns)
                     live.observe(frame)
                     if grippers is not None:
@@ -840,6 +1101,17 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                     elif return_coordinator is not None:
                         return_coordinator.observe(frame,
                             allowed=not guard.motion_pause_snapshot()['active'])
+                    if base is not None:
+                        base.observe(frame)
+                        # Consume every leased button edge, including a press
+                        # and release received in the same stream batch.
+                        base_report = base.tick(inhibit=bool(return_coordinator and return_coordinator.status()['active']))
+                        if base_report['error']:
+                            raise ValueError('base execution fault: '+base_report['error'])
+            if base is not None:
+                base_report = base.tick(inhibit=bool(return_coordinator and return_coordinator.status()['active']))
+                if base_report['error']:
+                    raise ValueError('base execution fault: '+base_report['error'])
             pause = guard.motion_pause_snapshot()
             if pause['active']:
                 # Continue input/diagnostics, but grant no IK or publication
@@ -856,18 +1128,26 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                           reason='base quiet for 500ms; new Grip release/press required'))
             base_was_paused = pause['active']
             if return_coordinator is not None:
-                return_coordinator.update(allowed=not pause['active'], reason=pause['reason'])
+                return_coordinator.update(allowed=not pause['active'], reason=pause['reason'],
+                    **({'handoff_allowed': accepted_this_tick} if base is not None else {}))
+            waiting_base = bool(base is not None and return_coordinator is not None
+                and return_coordinator.status()['state'] == 'waiting_base_stop')
+            if waiting_base:
+                live.invalidate('waiting for base stop before return')
             # Same leased input, independent of arm Grip and pending IK.
             if grippers is not None:
                 if gripper_owner is not None:
                     for side, error in gripper_owner.status()['errors'].items():
                         grippers.transport_failed(side, error)
-                grippers.tick(allowed=not pause['active'], reason=pause['reason'])
+                grippers.tick(allowed=not pause['active'] and not waiting_base,
+                              reason='waiting for base stop before return' if waiting_base else pause['reason'])
             if return_coordinator is not None:
-                return_coordinator.update(allowed=not pause['active'], reason=pause['reason'])
+                return_coordinator.update(allowed=not pause['active'], reason=pause['reason'],
+                    **({'handoff_allowed': accepted_this_tick} if base is not None else {}))
             result = live.tick(feedback)
             if return_coordinator is not None:
-                return_coordinator.update(allowed=not pause['active'], reason=pause['reason'])
+                return_coordinator.update(allowed=not pause['active'], reason=pause['reason'],
+                    **({'handoff_allowed': accepted_this_tick} if base is not None else {}))
             if result.status == 'fault':
                 raise ValueError('execution session fault: '+result.reason)
             if transport.status()['fault']:
@@ -887,6 +1167,13 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                     challenge['robot_issued_ns'] = issued_ns
                 emit(challenge)
                 last_challenge = started
+            if started-last_collection >= 50_000_000:
+                snapshot = grippers.status() if grippers is not None else {}
+                samples = gripper_owner.driver.drain_feedback() if gripper_owner is not None else {}
+                emit(collection_buffer.drain(now_ns=time.monotonic_ns(), samples=samples,
+                    dropped_feedback=gripper_owner.driver.dropped_feedback if gripper_owner is not None else {},
+                    motors=(snapshot or {}).get('motors', {})))
+                last_collection = started
             if started-last_report >= 200_000_000:
                 observation = guard.motion_pause_snapshot()['observation']
                 if observation is not None:
@@ -900,17 +1187,15 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                         for side, record in gripper_settings.document['motors'].items()}
                     # Preserve actual measured samples for collection. The UI
                     # status cadence must not manufacture 100 Hz feedback.
-                    measured_samples = gripper_owner.driver.drain_feedback()
-                    if any(measured_samples.values()):
-                        emit(dict(event='gripper_trace', kind='feedback_batch',
-                                  samples=measured_samples,
-                                  dropped_feedback=dict(gripper_owner.driver.dropped_feedback)))
+                    # Full samples travel in collection_batch, separately from
+                    # the 5 Hz display snapshot below.
                 emit(dict(event='status', status='paused_base' if pause['active'] else result.status,
                           reason=pause['reason'] if pause['active'] else result.reason,
                           max_step_rad=result.max_step_rad, transport=transport.status(),
                           sensor_timing=guard.sensor_timing_snapshot(),
                           tracking_governor=live.tracking_diagnostics,
                           grippers=gripper_snapshot,
+                          **({'base': base_report} if base is not None else {}),
                           **({'return_home': return_coordinator.status()} if return_coordinator is not None else {})))
                 last_report = started
             stop.wait(max(0., .01-(time.monotonic_ns()-started)/1e9))
@@ -927,6 +1212,26 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
             pass
     finally:
         stop.set()
+        base_transport_report = None
+        base_begin_error = None
+        early_arm_report = None
+        if base is not None:
+            try:
+                base.begin_close('unified input/session ended')
+            except Exception as exc:
+                base_begin_error = str(exc)
+                exit_code = 1
+            # Revoke arm work before any gripper/network cleanup may wait.
+            # ROS observers remain alive until both channels finish cleanup.
+            try:
+                if live is not None:
+                    early_arm_report = live.close()
+                elif transport is not None:
+                    early_arm_report = transport.close()
+            except Exception as exc:
+                early_arm_report = dict(closed=False, cleanup_error=str(exc),
+                                        physical_stop_verified=False)
+                exit_code = 1
         gripper_report = None
         gripper_transport_report = None
         try:
@@ -944,8 +1249,12 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
                 except Exception as exc:
                     gripper_transport_report = {'closed': False, 'errors': [str(exc)]}
                     exit_code = 1
-        report = live.close() if live is not None else transport.close() if transport is not None else {
-            'physical_stop_verified': False, 'publish_attempts': 0, 'profile_configured': False}
+        try:
+            report = early_arm_report if early_arm_report is not None else live.close() if live is not None else transport.close() if transport is not None else {
+                'physical_stop_verified': False, 'publish_attempts': 0, 'profile_configured': False}
+        except Exception as exc:
+            report = dict(closed=False, cleanup_error=str(exc), physical_stop_verified=False)
+            exit_code = 1
         if numeric is not None:
             try:
                 numeric.close()
@@ -955,14 +1264,41 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
         # Do not abandon a late external-mode service: remain alive so its serial
         # worker can follow it with mode0. A failed hold is reported, never retried.
         if transport is not None:
-            while transport.status()['mode_request_inflight'] is not None or transport.status()['mode_request_pending'] is not None:
-                print('Awaiting arm mode reply; physical stop unverified. Use hardware emergency stop if needed.', file=sys.stderr, flush=True)
-                time.sleep(.2)
-            report.update(transport.status())
+            try:
+                while transport.status()['mode_request_inflight'] is not None or transport.status()['mode_request_pending'] is not None:
+                    try:
+                        print('Awaiting arm mode reply; physical stop unverified. Use hardware emergency stop if needed.', file=sys.stderr, flush=True)
+                    except (OSError, ValueError) as exc:
+                        # A closed console must not abandon the serial mode
+                        # worker before its late external/hold request resolves.
+                        report['cleanup_console_error'] = str(exc)
+                    time.sleep(.2)
+                report.update(transport.status())
+            except Exception as exc:
+                report['cleanup_error'] = str(exc)
+                exit_code = 1
         if close_report_failed(report):
             exit_code = 1
+        if base is not None:
+            try:
+                base_transport_report = base.close()
+            except Exception as exc:
+                base_transport_report = dict(closed=False, errors=[str(exc)],
+                    publish_attempts=0, stop_observed=False, physical_stop_verified=False)
+            if base_begin_error:
+                base_transport_report['stop_error'] = base_begin_error
+            if (base_transport_report['errors'] or base_transport_report.get('stop_error')
+                    or (base_transport_report['publish_attempts'] and not base_transport_report['stop_observed'])):
+                exit_code = 1
+        elif base_mode != 'disabled':
+            base_transport_report = dict(closed=True,errors=[],publish_attempts=0,
+                stop_observed=False,physical_stop_verified=False)
         if guard is not None:
-            guard.close()
+            try:
+                guard.close()
+            except Exception as exc:
+                report['guard_cleanup_error'] = str(exc)
+                exit_code = 1
         try:
             outgoing.discard_diagnostics()
             report['stream_diagnostics_dropped'] = outgoing.dropped_diagnostics_total
@@ -970,7 +1306,8 @@ def run_robot(*, motion_enabled=False, configure_vendor_profile=False, reader=No
             if trace_sampler is not None:
                 report['diagnostic_sampling'] = trace_sampler.status()
             outgoing.put_nowait(dict(event='closed', exit_code=exit_code, transport=report,
-                                    grippers=gripper_report, gripper_transport=gripper_transport_report))
+                                    grippers=gripper_report, gripper_transport=gripper_transport_report,
+                                    **({'base_transport': base_transport_report} if base_mode != 'disabled' else {})))
             outgoing.put_nowait(None)
             output_thread.join(timeout=.5)
         except Full:

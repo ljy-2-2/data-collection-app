@@ -67,11 +67,15 @@ const src=fs.readFileSync('lib/tianjiModel.ts','utf8');
 const js=ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
 const math=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 const model=JSON.parse(fs.readFileSync('public/kuavo-model.json','utf8'));
+const previewSrc=fs.readFileSync('lib/kuavoPreview.ts','utf8');
+const previewJS=ts.transpileModule(previewSrc,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
+const preview=await import('data:text/javascript;base64,'+Buffer.from(previewJS).toString('base64'));
+const gripperAngles=preview.kuavoPreviewAngles(model,{}, {left:{closure_fraction:1},right:{closure_fraction:0}});
 const angles={...model.display_joint_defaults,zarm_l1_joint:-.6,zarm_l4_joint:-.8};
 const links=math.linkTransforms(model,angles);
 const t=JSON.parse(fs.readFileSync('public/tianji-model.json','utf8'));
 const tianji=math.linkTransforms(t,{Joint1_L:Math.PI/6});
-console.log(JSON.stringify({links,tianji}));
+console.log(JSON.stringify({links,tianji,grippers:math.linkTransforms(model,gripperAngles),body:math.linkTransforms(model,{...model.display_joint_defaults,waist_yaw_joint:.3,zhead_1_joint:.2,zhead_2_joint:-.1})}));
 '''
     result=subprocess.run(['node','--input-type=module','-e',node],cwd=ROOT,text=True,capture_output=True,check=True)
     expected=tmp_path/'transforms.json';expected.write_text(result.stdout)
@@ -108,6 +112,25 @@ for side in ('l','r'):
             assert not np.allclose(part.matrix,zero[id(part)])
             assert np.allclose(part.matrix,world_delta@zero[id(part)])
         else:assert np.array_equal(part.matrix,zero[id(part)])
+k.update_pose({'telemetry':{'joints':{'waist_yaw_joint':.3,'zhead_1_joint':.2,'zhead_2_joint':-.1}}})
+for name,part in k.by_link:
+    matrix=np.array(expected['body'][name]).reshape(4,4)@transform(part.visual['xyz'],part.visual['rpy'])
+    assert np.allclose(part.matrix,matrix),name
+assert k._pose_angles['waist_yaw_joint']==.3 and k._pose_angles['zhead_1_joint']==.2
+# Actual left closed/right open move only their jaws/shafts, identically to web.
+k.update_pose({})
+initial={id(part):part.matrix.copy() for name,part in k.by_link}
+k.update_pose({'telemetry':{'grippers':{'left':{'closure_fraction':1},'right':{'closure_fraction':0}}}})
+for name,part in k.by_link:
+    matrix=np.array(expected['grippers'][name]).reshape(4,4)@transform(part.visual['xyz'],part.visual['rpy'])
+    assert np.allclose(part.matrix,matrix),name
+    if name in ('kuavo_tool_gripper_L_1','kuavo_tool_gripper_R_1'):
+        assert not np.allclose(part.matrix,initial[id(part)])
+    elif not name.startswith('kuavo_tool_gripper_'):
+        assert np.array_equal(part.matrix,initial[id(part)])
+assert k._pose_angles['kuavo_tool_gripper_drive_L']==0
+assert k._pose_angles['kuavo_tool_gripper_drive_R']>0
+
 t.update_pose({'joints':{'left':[30,0,0,0,0,0,0]}})
 for name,part in t.by_link:
     if name.startswith('gripper'):continue

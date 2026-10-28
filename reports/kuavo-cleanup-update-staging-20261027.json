@@ -1,0 +1,19 @@
+{
+  "release_id": "20261027T063136Z-fdd6d11e9dd5",
+  "package_sha256": "c2faa41e245448d25d9ff2f74cda15f44a0550690e0caf5135004d488bdcaee7",
+  "installer_sha256": "538531886de5c6b0873213146421f7cfba20819921c9f33f4a14850bf4528c37",
+  "installation_sha256": "9d8ba9880487399f4f27aa6294e7b456aa7d44dfa46a8479af376618d1ca0fc3",
+  "bundle_sha256": "1e53c25de606895526cd1f02a468e9c21c77ba5f72a75596cbec633781f0bdb9",
+  "connection_identity_reused": true,
+  "stage": "staged_and_preflight_passed_not_installed",
+  "robot_staging_path": "/home/lab/.cache/kuavo-cleanup-20261027-fdd6d11e9dd5",
+  "ready_for_install": true,
+  "changed_service_files": [
+    "src/teleop/robots/kuavo5_session_worker.py"
+  ],
+  "motion_bundle_unchanged": true,
+  "candidate_fake_tests_passed": 9,
+  "service_files_verified": 28,
+  "service_switched": false,
+  "old_session_recovered": false
+}

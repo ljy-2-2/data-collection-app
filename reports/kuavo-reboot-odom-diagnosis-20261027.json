@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-27",
+  "robot_service": {
+    "phase": "idle",
+    "ready_to_start": true,
+    "owner_present": false,
+    "blocked_reason": null,
+    "service_instance_id": "c89a995d40ee5fdecc2e8bd4f52ee1aa",
+    "last_session_exit_code": 1,
+    "last_session_software_cleanup_confirmed": true
+  },
+  "app_last_start_failure": {
+    "reason": "odometry source stale or future",
+    "raw_age_ms": 2197.331349,
+    "allowed_raw_age_ms": [
+      -20,
+      180
+    ],
+    "arm_publish_attempts": 0,
+    "profile_configured": false
+  },
+  "main_clock_ahead_of_odom_host_seconds_interval": [
+    1.101022481918335,
+    3.048997640609741
+  ],
+  "odom_local_readonly_sample": {
+    "samples": 238,
+    "topic": "/odom",
+    "motion_publishers_created": false,
+    "receive_hz": 59.55259106252785,
+    "local_age_ms_min": 0.264207,
+    "local_age_ms_median": 0.32063149999999996,
+    "local_age_ms_max": 2.33671,
+    "source_hz": 59.547546480570446,
+    "repeated_or_reordered": 0,
+    "callers": [
+      "/ukf_odom"
+    ],
+    "frames": [
+      [
+        "odom",
+        "base_footprint"
+      ]
+    ]
+  },
+  "odom_host_time_sync": {
+    "host": "192.168.26.22",
+    "service": "systemd-timesyncd",
+    "server": "192.168.26.12",
+    "reported_synchronized": true,
+    "reported_last_offset_us": 365,
+    "poll_interval_s": 2048
+  },
+  "main_clock_configuration": "pending_operator_readonly_output; old SSH authorization expired after reboot",
+  "actions": {
+    "robot_motion_commands_sent": false,
+    "clock_changed": false,
+    "services_restarted": false
+  },
+  "diagnosis": "Earlier session cleanup lock absent after reboot; fresh local odometry plus measured cross-host clock offset explains startup timestamp rejection. Main clock synchronization configuration still to be checked."
+}

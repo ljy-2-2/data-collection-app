@@ -21,6 +21,8 @@ import sys
 KIND = 'compatible_pc_client_v1'
 APPS = ('kuavo5_current_client.py', 'pico_kuavo5_arms_live.py',
         'kuavo5_service_request.py', 'kuavo5_current_pc_release.py')
+VIDEO_APPS = ('connect_kuavo_video_ssh.py', 'kuavo_camera_session.py',
+              'kuavo_video_bridge.py', 'kuavo_camera_worker.py')
 REQUIRED = {'apps/' + name for name in APPS} | {
     'scripts/kuavo-network', 'src/teleop/__init__.py',
     'src/teleop/robots/kuavo5_service_contract.py',
@@ -75,7 +77,7 @@ def _code_name(name):
     path = PurePosixPath(name)
     if path.is_absolute() or '..' in path.parts or path.as_posix() != name:
         return False
-    return (name in {'apps/' + app for app in APPS} or name == 'scripts/kuavo-network'
+    return (name in {'apps/' + app for app in APPS + VIDEO_APPS} or name == 'scripts/kuavo-network'
             or (name.startswith('src/teleop/') and name.endswith('.py')
                 and '__pycache__' not in path.parts))
 
@@ -90,7 +92,7 @@ def prepare(source_root, destination):
         name = source.relative_to(source_root).as_posix()
         if _code_name(name):
             files[name] = _read(source)
-    for name in ('scripts/kuavo-network', *('apps/' + app for app in APPS)):
+    for name in ('scripts/kuavo-network', *('apps/' + app for app in APPS + VIDEO_APPS)):
         files[name] = _read(source_root / name)
     if not REQUIRED <= set(files):
         raise ValueError('incomplete PC client source')

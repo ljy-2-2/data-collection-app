@@ -33,6 +33,77 @@ MAX_SENSOR_HEADER_AGE_NS = 50_000_000
 # Project allowance for bounded skew between the body and chassis clocks.
 # This is not an offset calibration: larger future timestamps still refuse.
 MAX_ODOMETRY_FUTURE_SKEW_NS = 10_000_000
+
+
+class BaseYawTransientFilter:
+    """Bounded tolerance for small yaw-rate transients, never for translation.
+
+    This is a project candidate, not a manufacturer standstill guarantee.
+    The original .02 rate gate becomes a pending observation only for yaw:
+    <= .08 rad/s, <= 5 mm and <= .5 degree from the fixed session anchor.
+    At most 100 ms may pass without a <= .01 quiet yaw sample. Receipt AND
+    source progress must remain <= 50 ms and samples <= 50 ms old. Thus
+    missing, delayed or replayed observations cannot manufacture recovery.
+    At the rate ceiling the 100 ms window represents < .5 degree; the
+    independent 20 mm/2 degree hard envelope is still checked by the caller.
+    No commands, Grip state, clutch anchors or IK state are changed here.
+    """
+    policy = 'small_yaw_transient_100ms_v1'
+    confirm_ns = 100_000_000
+    max_gap_ns = 50_000_000
+    yaw_ceiling_rad_s = .08
+    small_distance_m = .005
+    small_angle_rad = math.radians(.5)
+
+    def __init__(self):
+        self.pending_since_ns = None
+        self.previous_received_ns = None
+        self.previous_source_ns = None
+        self.last_reason = None
+
+    def deadline_reason(self, now_ns):
+        if self.pending_since_ns is not None and now_ns-self.pending_since_ns >= self.confirm_ns:
+            return 'yaw observation not quiet within 100ms'
+        return None
+
+    def observe(self, *, now_ns, source_ns, source_age_ns, vx, vy, wz,
+                distance_m, angle_rad):
+        timing_ok = (self.previous_received_ns is not None
+            and 0 < now_ns-self.previous_received_ns <= self.max_gap_ns
+            and 0 < source_ns-self.previous_source_ns <= self.max_gap_ns
+            and -MAX_ODOMETRY_FUTURE_SKEW_NS <= source_age_ns <= self.max_gap_ns)
+        self.previous_received_ns, self.previous_source_ns = now_ns, source_ns
+        reason = self.deadline_reason(now_ns)
+        if abs(vx) > .02 or abs(vy) > .02:
+            reason = 'translation velocity exceeds stationary threshold'
+        elif abs(wz) > self.yaw_ceiling_rad_s:
+            reason = 'yaw velocity exceeds transient ceiling'
+        elif self.pending_since_ns is not None or abs(wz) > .02:
+            if distance_m > self.small_distance_m or angle_rad > self.small_angle_rad:
+                reason = 'yaw transient exceeds small-motion allowance'
+            elif not timing_ok:
+                reason = 'yaw transient lacks consecutive fresh observations'
+        if reason is not None:
+            self.last_reason = reason
+            self.pending_since_ns = None
+            return reason
+        if abs(wz) <= .01:
+            self.pending_since_ns = None
+        elif abs(wz) > .02 and self.pending_since_ns is None:
+            self.pending_since_ns = now_ns
+        return None
+
+    def snapshot(self, now_ns):
+        return dict(policy=self.policy, pending=self.pending_since_ns is not None,
+            pending_since_ns=self.pending_since_ns,
+            pending_duration_ms=(0. if self.pending_since_ns is None
+                                 else max(0, now_ns-self.pending_since_ns)/1e6),
+            confirmation_ms=self.confirm_ns/1e6, max_observation_gap_ms=self.max_gap_ns/1e6,
+            yaw_ceiling_rad_s=self.yaw_ceiling_rad_s,
+            small_distance_m=self.small_distance_m, small_angle_rad=self.small_angle_rad,
+            last_pause_reason=self.last_reason)
+
+
 SERVICE_OWNERS = {'/ik/fk_srv': '/arms_ik_node',
     '/ik/two_arm_hand_pose_cmd_srv': '/arms_ik_node',
     '/wheel_arm_change_arm_ctrl_mode': '/mobile_manipulator_sqp_mpc_node',
@@ -40,7 +111,9 @@ SERVICE_OWNERS = {'/ik/fk_srv': '/arms_ik_node',
        '/enable_lb_arm_quick_mode', '/enable_arm_traj_interpolator', '/change_lb_mpc_obs_update_mode')}}
 
 
-def check_graph(publishers, subscribers, services, *, own_node):
+def check_graph(publishers, subscribers, services, *, own_node, own_base_control=False):
+    if type(own_base_control) is not bool:
+        raise ValueError('explicit own-base-control boolean required')
     for name, owner in SERVICE_OWNERS.items():
         if services.get(name) != [owner]:
             raise ValueError('service owner mismatch: '+name)
@@ -52,7 +125,8 @@ def check_graph(publishers, subscribers, services, *, own_node):
     if not required <= arm_subscribers <= allowed:
         raise ValueError('unreviewed arm trajectory subscriber: '+repr(subscribers.get('/kuavo_arm_traj')))
     for name in COMMAND_TOPICS:
-        allowed = KNOWN_PUBLISHERS.get(name, set()) | ({own_node} if name == '/kuavo_arm_traj' else set())
+        owned = name == '/kuavo_arm_traj' or (own_base_control and name == '/cmd_vel')
+        allowed = KNOWN_PUBLISHERS.get(name, set()) | ({own_node} if owned else set())
         extra = set(publishers.get(name, []))-allowed
         if extra:
             raise ValueError('unreviewed command publisher: '+name+' '+repr(sorted(extra)))

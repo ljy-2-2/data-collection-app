@@ -10,7 +10,7 @@ import math
 from pathlib import Path
 
 
-RETURN_BUTTONS = {'request': 'left_y', 'cancel': 'right_b'}
+RETURN_BUTTONS = {'request': 'left_y', 'cancel': 'left_y'}
 DEFAULT_RETURN_CONFIG = {
     'schema_version': 1,
     'pose_source': 'robot_init_state_param',

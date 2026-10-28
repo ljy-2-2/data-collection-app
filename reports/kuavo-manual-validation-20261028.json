@@ -1,0 +1,43 @@
+{
+  "task": "KUAVO manual control",
+  "date": "2026-10-28",
+  "scope": "local_code_only_user_requested",
+  "layout": {
+    "left": "7 arm joints and gripper",
+    "center": "4 torso joints, 2 head joints, circular base control",
+    "right": "7 arm joints and gripper"
+  },
+  "offline_regression": {
+    "passed": 191,
+    "failed": 0,
+    "command_scope": "KUAVO manager, settings, standby, preparation, recording, collection, cameras, Qt workspaces and manual control"
+  },
+  "manual_checks": [
+    "measured-relative degree conversion",
+    "whole-group held targets",
+    "joint bounds",
+    "invalid/nonfinite requests",
+    "out-of-order UI sequence rejection",
+    "robot challenge mismatch rejection",
+    "base heartbeat cannot renew UI press",
+    "release/cancel/disabled-control stop requests",
+    "manual/teleop exclusion",
+    "unconfirmed cleanup retains ownership",
+    "stale acquisition header rejection",
+    "real manual loop with fake IO",
+    "Qt rendering without QML warnings"
+  ],
+  "typescript_check": "passed",
+  "web_production_build": "passed",
+  "robot_python_38_parse": "passed",
+  "robot_package_validated": true,
+  "robot_package": "teleop_control/runtime/kuavo/manual-update-20261028-r4/release",
+  "release_id": "20261028T013732Z-bdd46063bf91",
+  "package_sha256": "db46f368d1723d1c118b79711e1aab3cb4d03ddb915e9d14ef5f24c653247a21",
+  "installation_sha256": "8d53c6ed969cac79a8bdd1268bbd9245257eb8347533a4c0dd24095caf9a0121",
+  "accepted_teleop_core_unchanged": true,
+  "robot_deployed": false,
+  "robot_motion_tested": false,
+  "settings_migration_required_before_activation": true,
+  "screenshot": "reports/kuavo-manual-preview-20261028.png"
+}

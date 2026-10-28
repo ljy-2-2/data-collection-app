@@ -485,19 +485,42 @@ class CollectionUploader:
                 missing_extra_cameras.append(camera)
 
         archive_name = f"{episode_dir.name}.tar"
-        if metadata.get("robot_type") == "tianji":
+        if metadata.get("robot_type") in ("tianji","kuavo"):
+            received_data = (metadata.get('robot_type')=='kuavo' and metadata.get('schema_version')==4
+                and metadata.get('recording_policy')=='received_data_v1')
+            optional_commands = received_data or (metadata.get("robot_type") == "kuavo"
+                and metadata.get("schema_version") == 3
+                and metadata.get("recording_policy") == "feedback_with_optional_commands_v1"
+                and metadata.get("joint_quality_passed") is True)
             if (
                 not metadata.get("complete")
-                or not metadata.get("actions_recorded")
+                or (not metadata.get("actions_recorded") and not optional_commands)
                 or missing_extra_cameras
             ):
-                raise ValueError("天机 Marvin M6回合未完整保存，拒绝上传")
+                raise ValueError("遥操作回合未完整保存，拒绝上传")
+            required_records = ["bundles.jsonl"]
+            if received_data:
+                from .kuavo_recording import validate_received_upload
+                validate_received_upload(episode_dir,metadata)
+            if optional_commands:
+                if not received_data:required_records.append("joints.jsonl")
+                actions_path=episode_dir / "record" / "actions.jsonl"
+                count=metadata.get("action_samples")
+                if (type(count) is not int or count<0
+                    or type(metadata.get("actions_recorded")) is not bool
+                    or metadata["actions_recorded"] != bool(count)
+                    or not actions_path.is_file()
+                    or (not metadata.get("actions_recorded") and
+                        (metadata.get("action_samples") != 0 or actions_path.stat().st_size != 0))):
+                    raise ValueError("乐聚动作记录与采集元数据不一致，拒绝上传")
+            if metadata.get("actions_recorded") or not optional_commands:
+                required_records.append("actions.jsonl")
             if any(
                 not (episode_dir / "record" / name).is_file()
                 or not (episode_dir / "record" / name).stat().st_size
-                for name in ("actions.jsonl", "bundles.jsonl")
+                for name in required_records
             ):
-                raise ValueError("天机 Marvin M6回合缺少动作或对齐记录，拒绝上传")
+                raise ValueError("遥操作回合缺少动作或对齐记录，拒绝上传")
             if any("native" in Path(name).parts for name in local_relative_files):
                 raise ValueError("天机 Marvin M6回合包含不应上传的 native 图像")
         presign = self.client.post(
@@ -553,7 +576,7 @@ class CollectionUploader:
             if isinstance(metadata.get("frames_recorded"), int) and duration_s and duration_s > 0
             else 30.0
         )
-        fps = round(fps) if 20 <= fps <= 40 else 30
+        fps = (round(fps,3) if metadata.get("robot_type")=="kuavo" else round(fps) if 20 <= fps <= 40 else 30)
         if metadata.get("robot_type") == "tianji":
             fps, sample_duration = _tianji_playback_timing(metadata)
             if sample_duration is not None:
@@ -649,6 +672,29 @@ class CollectionUploader:
                     },
                 }
             )
+        if metadata.get("robot_type")=="kuavo":
+            joint_names=metadata.get("joint_order",[])
+            extra.update(robot_type="kuavo",robot_name="乐聚 KUAVO 5-W",fps=fps,cameras=camera_features,
+                camera_mapping=metadata.get("camera_mapping"),controlled_sides=metadata.get("controlled_sides"),
+                timing=dict(sample_clock="pc_monotonic_ns",bundle_timestamp_field="timestamp_ns",hardware_synchronized=False,
+                            timestamp_is_exposure_time=False,full_rate_dataset=False,
+                            camera_timestamp_files={name:"record/"+name+"_frames.jsonl" for name in cameras}),
+                source_features={key:dict(dtype="float32",shape=[len(joint_names)],names=joint_names) for key in ("observation.state","action")})
+            if metadata.get("recording_policy") in ("feedback_with_optional_commands_v1","received_data_v1"):
+                extra.update(recording_policy=metadata["recording_policy"],
+                    actions_recorded=metadata.get("actions_recorded"),action_samples=metadata.get("action_samples"),
+                    arm_action_policy=metadata.get("arm_action_policy"),
+                    gripper_statistics=metadata.get("gripper_statistics"),
+                    gripper_quality_passed=metadata.get("gripper_quality_passed"),
+                    acceptance_policy=metadata.get('acceptance_policy'),quality_warnings=metadata.get('quality_warnings',[]),
+                    joint_quality_passed=metadata.get('joint_quality_passed'),closure_reason=metadata.get('closure_reason'),
+                    gripper_features={side:dict(state='state__'+side+'_effector__position',
+                        action='action__'+side+'_effector__position',unit='rad',
+                        target_policy=metadata.get('gripper_action_policy','command_only'),
+                        target_source_field='gripper_target_sources.'+side)
+                        for side in metadata.get('controlled_sides',[])})
+                extra["source_features"]["action"].update(nullable=True,
+                    validity_field="action_observed",missing_policy="null_without_observed_command")
         if right_only:
             extra.update(
                 {

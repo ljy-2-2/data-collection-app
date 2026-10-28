@@ -17,6 +17,13 @@ def validate_profile(profile):
     if not isinstance(profile, dict):
         raise ValueError('fixed network profile required')
     expected = set(ARM_PROFILE)
+    if 'base_mode' in profile:
+        expected.add('base_mode')
+        if profile['base_mode'] not in ('disabled', 'vendor_vr_x'):
+            raise ValueError('unsupported installed base mode')
+        if profile['base_mode'] == 'vendor_vr_x' and (
+                profile.get('gripper_mode') != 'damiao' or 'return_home_config_sha256' not in profile):
+            raise ValueError('joint base mode requires the combined gripper and return profile')
     if profile.get('gripper_mode') == 'damiao':
         expected.add('gripper_config_sha256')
         if not valid_digest(profile.get('gripper_config_sha256')):
@@ -35,6 +42,8 @@ def validate_profile(profile):
 
 def bundle_profile(bundle, *, return_config_validator=None):
     profile = {key: bundle.get(key) for key in ARM_PROFILE}
+    if 'base_mode' in bundle:
+        profile['base_mode'] = bundle['base_mode']
     if profile['gripper_mode'] == 'damiao':
         document = bundle.get('gripper_config')
         if not isinstance(document, dict):

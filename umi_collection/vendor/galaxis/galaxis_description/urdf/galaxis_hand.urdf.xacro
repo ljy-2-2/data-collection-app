@@ -28,7 +28,7 @@
   <xacro:property name="mount_y" value="-0.0309"/>
   <xacro:property name="mount_z" value="0.0525"/>
   <xacro:property name="mount_roll" value="0.0"/>
-  <xacro:property name="mount_pitch" value="0.0"/>
+  <xacro:property name="mount_pitch" value="-0.7854"/>
   <xacro:property name="mount_yaw" value="0.0"/>
 
   <!-- continuous expresses encoder-driven rotation without model limits.

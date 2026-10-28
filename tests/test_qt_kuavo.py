@@ -11,7 +11,7 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
     script=textwrap.dedent('''
         import tempfile
         from pathlib import Path
-        from PySide6.QtCore import QUrl, QPointF, Qt
+        from PySide6.QtCore import QUrl, QPointF, Qt, QObject
         from PySide6.QtGui import QGuiApplication
         from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType, QQmlProperty
         from PySide6.QtTest import QTest
@@ -37,6 +37,9 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             assert bridge.state['kuavoNamespace']=='current'
             bridge.teleop('check')
             assert calls[-1][0][1]=='/kuavo/check'
+            assert calls[-1][0][2]['prepare_controller'] and calls[-1][0][2]['confirm_motion']
+            assert calls[-1][0][2]['motor_ids_confirmed'] and calls[-1][0][2]['prepare_grippers']
+            assert calls[-1][1]['timeout']==920000
             bridge.setValue('kuavoArmMode','left')
             bridge.setValue('kuavoPositionScale',.5)
             QTest.qWait(450)
@@ -48,7 +51,7 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             assert calls[-1][0][2]['accept_unverified_gripper_bus'] is True
             assert calls[-1][0][2]['arm_mode']=='left' and calls[-1][0][2]['position_scale']==.5
             assert not bridge.can_move()
-            status=dict(state='idle',active=False,service={'management_ready':True,'service':{'ready_to_start':True}},
+            status=dict(state='idle',active=False,control_ready=True,service={'management_ready':True,'service':{'ready_to_start':True}},
                         pico_sdk_available=True,vr_ready=True,pico_ready=True,vr_checked=True,preparation={},logs=[],limitations=['相机预览和同步数据集暂未接入'],session={})
             status['motion_settings']=dict(values=dict(position_scale=.5,max_velocity_rad_s=.7,planning_acceleration_rad_s2=5.),supported=True,saved=True)
             from teleop_control.kuavo_preview import KuavoModel
@@ -68,9 +71,61 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
                 for child in obj.childItems():yield from walk(child)
             def item(name):return next(o for o in walk(window.contentItem()) if o.objectName()==name)
             assert item('kuavoWorkspace').isVisible()
+            for collection,label in [({},'未开始遥操作'),({'armed':True},'等待手柄 A'),({'armed':True,'recording':True},'● 采集中'),({'busy':True},'正在保存'),({'state':'incomplete'},'本轮不完整')]:
+                bridge.update(kuavo={**status,'collection':{**collection,'completed':2}})
+                QTest.qWait(20)
+                assert item('kuavoCompletedEpisodes').property('text')=='本次已完成  2 Episode'
+                assert item('kuavoCollectionStatus').property('text')==label
+            bridge.update(kuavo=status)
+            assert all(item('kuavoCameraTile-'+role).isVisible() for role in ('head','left','right'))
+            item('kuavoCameraSettings').clicked.emit();QTest.qWait(50)
+            assert window.findChild(QObject,'kuavoCameraDialog').property('visible')
+            assert all(item('cameraDraftResolution-'+role).property('count')==0 for role in ('head','left','right'))
+            assert all(not item('cameraDraftBrightness-'+role).property('enabled') for role in ('head','left','right'))
+            window.findChild(QObject,'kuavoCameraDialog').close();QTest.qWait(30)
+            assert item('kuavoArmMode').property('model')==['双臂','双臂＋底盘','左臂','右臂']
             assert item('usageGuide').isVisible()
-            assert item('usageGuide').property('source').isEmpty(), 'KUAVO guide must remain blank'
+            assert item('usageGuide').property('source').toString().endswith('kuavo-usage-guide.png')
             assert not item('teleopWorkspace').isVisible()
+            bridge.update(kuavo={**status,'state':'error','parameter_mode':'service','session_settings':None,'motion_controls':{}})
+            QTest.qWait(30)
+            for name in ('kuavoScale','kuavoVelocity','kuavoAcceleration'):
+                assert item(name).isVisible() and not item(name).property('enabled')
+            bridge.update(kuavo=status)
+            bridge.update(kuavo={**status,'control_ready':False})
+            QTest.qWait(20)
+            assert not item('kuavoStart').property('enabled'), 'device checks alone are not session readiness'
+            bridge.update(kuavo={**status,'control_ready':False,'can_restart':True})
+            QTest.qWait(20)
+            assert item('kuavoStart').property('enabled')
+            bridge.teleop('start')
+            request=calls[-1][0][2]
+            assert calls[-1][0][1]=='/kuavo/start' and request['restart_after_stop']
+            assert all(request[k] for k in ('prepare_controller','prepare_grippers','prepare_session','require_prepared','motor_ids_confirmed'))
+            assert calls[-1][1]['timeout']==920000
+            bridge.update(kuavo={**status,'state':'ready','active':True,'session_id':'prepared','control_ready':True})
+            QTest.qWait(20)
+            assert item('kuavoStart').isVisible() and item('kuavoStart').property('enabled')
+            assert not item('kuavoStop').isVisible()
+            assert item('kuavoScale').property('enabled')
+            assert item('pageStepper').property('returnEnabled')
+            for phase in ('checking','preparing'):
+                bridge.update(kuavo={**status,'state':phase,'active':True},busy='check')
+                QTest.qWait(20)
+                assert not item('kuavoStop').isVisible()
+                assert item('pageStepper').property('returnEnabled')
+            bridge.update(busy='')
+            bridge.update(kuavo={**status,'state':'starting','active':True,'session_id':'fake-session',
+                'execution_notice':'机器人正在准备计算模块，手柄暂不生效',
+                'preparation_progress':'厂家主控与初始化已就绪'})
+            QTest.qWait(20)
+            assert item('kuavoStop').isVisible() and item('kuavoStop').property('text')=='结束遥操作'
+            assert not any(o.objectName() in ('kuavoExecutionNotice','kuavoPreparationProgress') for o in walk(window.contentItem()))
+            bridge.update(error='button error',notice='button notice')
+            assert not item('pageNotice').isVisible()
+            bridge.update(error='',notice='')
+            bridge.update(kuavo=status)
+            QTest.qWait(20)
             from shiboken6 import isValid
             layered=[child for child in walk(window.contentItem()) if QQmlProperty(child,'layer.enabled').read()]
             for child in layered:
@@ -146,8 +201,11 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             bridge.update(kuavo=status);QTest.qWait(20)
             assert start.property('enabled')
             point=start.mapToScene(QPointF(start.width()/2,start.height()/2)).toPoint()
+            before_click=len(calls)
             QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(50)
-            assert engine.rootObjects()[0].findChild(__import__('PySide6.QtCore',fromlist=['QObject']).QObject,'kuavoConfirm').property('opened')
+            assert len(calls)==before_click+1 and calls[-1][0][1]=='/kuavo/start'
+            assert calls[-1][0][2]['confirm_motion'] is True
+            assert window.findChild(QObject,'kuavoConfirm') is None
             bridge.update(kuavo={**status,'state':'running','active':True,'session_id':'test-session'})
             assert bridge.teleop_active()
             bridge.setValue('kuavoArmMode','right');bridge.setValue('kuavoPositionScale',.2)
@@ -157,9 +215,11 @@ def test_kuavo_workspace_navigation_and_request_isolation(tmp_path):
             assert calls[-1][0][1]=='/kuavo/stop'
             assert calls[-1][0][2]=={'session_id':'test-session'}
             bridge.update(kuavo=status)
-            bridge.returnTeleop();assert bridge.state['teleopStep']==1
+            bridge.returnTeleop()
+            assert calls[-1][0][1]=='/kuavo/cancel-preparation'
+            calls[-1][1]['done'](status)
+            assert bridge.state['teleopStep']==1
             bridge.update(error='',notice='')
-            window.findChild(__import__('PySide6.QtCore',fromlist=['QObject']).QObject,'kuavoConfirm').close()
             QTest.qWait(30)
             assert not item('usageGuide').isVisible()
             assert not item('pageTools').isVisible()

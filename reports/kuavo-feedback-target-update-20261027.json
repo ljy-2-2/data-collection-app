@@ -1,0 +1,54 @@
+{
+  "release_id": "20261027T081627Z-6da886f8e052",
+  "bundle_sha256": "350c9d5ba76e39f7dc37bd31170ebacd4dfd83d48e9b53079b83ea54ea0efd0c",
+  "installation_sha256": "2fddaec94c9e2a667caf78ccfa8161ad352a4ee0c242b4bf63869a2182e5e738",
+  "installed": true,
+  "activated": true,
+  "settings_preserved": 14,
+  "offline_tests_passed": 98,
+  "manufacturer_controller_restarted": false,
+  "physical_robot_command_sent": false,
+  "real_feedback_rate_verified": false,
+  "robot_status_after_switch": {
+    "phase": "idle",
+    "owner_present": false,
+    "blocked_reason": null,
+    "service_instance_id": "7ce2cd515b27b732384a537f8a83195a",
+    "installation_sha256": "2fddaec94c9e2a667caf78ccfa8161ad352a4ee0c242b4bf63869a2182e5e738"
+  },
+  "requested_gripper_hz": 100,
+  "disabled_feedback_polling_hz": 100,
+  "active_feedback_policy": "accepted_commands_only_native_limits_preserved",
+  "arm_action_sampling": "every_publication",
+  "gripper_action_policy": "initial_feedback_then_last_target",
+  "real_rate_validation_pending": true,
+  "autostart_updated": true,
+  "partial_candidate_retained": "20261027T080258Z-ce868f9fe4c5 (failed passive shared-source check, never started)",
+  "installed_inactive_candidate": "20261027T080930Z-c098fb7f9066",
+  "camera_preview_after_update": [
+    {
+      "id": "head",
+      "connected": true,
+      "error": ""
+    },
+    {
+      "id": "left",
+      "connected": true,
+      "error": ""
+    },
+    {
+      "id": "right",
+      "connected": true,
+      "error": ""
+    }
+  ],
+  "current_updated": true,
+  "boot_selection_verified": true,
+  "maintenance": false,
+  "preparation_status_read_ok": true,
+  "preparation_reported_phase": "ready",
+  "preparation_status_can_frames_sent": false,
+  "app_state_after_settings_read": "idle",
+  "app_error_after_settings_read": "",
+  "publication_fix": "Formal current release was still old after listener switch; audited adopt-running publication updated it; read-only preparation status then succeeded."
+}

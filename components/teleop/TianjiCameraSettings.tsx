@@ -4,21 +4,26 @@ import { ActionButton } from '../CollectionUi';
 import { brightnessValue, type CameraBrightnessState } from '../CameraBrightness';
 import { requestJson } from '../../lib/http';
 
-const roles = [{id:'usb_1',label:'主相机'},{id:'usb_4',label:'左相机'},{id:'usb_2',label:'右相机'}];
+const defaultRoles = [{id:'usb_1',label:'主相机'},{id:'usb_4',label:'左相机'},{id:'usb_2',label:'右相机'}];
 type Mode = { id: string; label: string };
-type Settings = { brightness: CameraBrightnessState; resolution: { options: Mode[]; selected: Mode; editable: boolean } };
+export type CameraSettings = { brightness: CameraBrightnessState; resolution: { options: Mode[]; selected: Mode; editable: boolean } };
 type Draft = {mode_id:string;brightness:string};
-function checked(value: Settings) {
+function checked(value: CameraSettings) {
   if (!value || typeof value.brightness?.supported!=='boolean' || !value.resolution?.options?.length || !value.resolution.selected) throw new Error('相机设置响应无效');
   return value;
 }
-export function TianjiCameraSettings({baseUrl,open,onClose,cameras,editable,onBusyChange,onApplyStatus}: {
+export function TianjiCameraSettings({baseUrl,open,onClose,cameras,editable,onBusyChange,onApplyStatus,cameraRoles=defaultRoles,loadSettings,applySettings}: {
   baseUrl:string;open:boolean;onClose:()=>void;cameras:{id:string;connected?:boolean}[];editable:boolean;
   onBusyChange:(key:string,busy:boolean)=>void;
   onApplyStatus:(message:string,error:string)=>void;
+  cameraRoles?:{id:string;label:string}[];
+  loadSettings?:(id:string,signal:AbortSignal)=>Promise<CameraSettings>;
+  applySettings?:(changes:Record<string,{mode_id?:string;brightness?:number}>)=>Promise<Record<string,CameraSettings>>;
 }) {
+  const roles=cameraRoles;
+  const loader=useRef(loadSettings);loader.current=loadSettings;
   const dialog=useRef<HTMLDialogElement>(null);
-  const [values,setValues]=useState<Record<string,Settings>>({});
+  const [values,setValues]=useState<Record<string,CameraSettings>>({});
   const [drafts,setDrafts]=useState<Record<string,Draft>>({});
   const [errors,setErrors]=useState<Record<string,string>>({});
   const [message,setMessage]=useState('');
@@ -39,7 +44,7 @@ export function TianjiCameraSettings({baseUrl,open,onClose,cameras,editable,onBu
         if (abort.signal.aborted) break;
         if (!connected.current.some(c=>c.id===role.id&&c.connected!==false)) continue;
         try {
-          const value=checked(await requestJson<Settings>(baseUrl,`/tianji/camera-controls/${role.id}/settings`,{signal:abort.signal}));
+          const value=checked(await (loader.current?loader.current(role.id,abort.signal):requestJson<CameraSettings>(baseUrl,`/tianji/camera-controls/${role.id}/settings`,{signal:abort.signal})));
           if (!abort.signal.aborted) {
             setValues(previous=>({...previous,[role.id]:value}));
             setDrafts(previous=>({...previous,[role.id]:retryDrafts.current?.[role.id]||{mode_id:value.resolution.selected.id,brightness:value.brightness.supported?String(value.brightness.value):''}}));
@@ -79,9 +84,10 @@ export function TianjiCameraSettings({baseUrl,open,onClose,cameras,editable,onBu
     onApplyStatus('正在应用相机参数…','');
     dialog.current?.close();onClose();
     try {
-      const results=await requestJson<Record<string,Settings>>(baseUrl,'/tianji/camera-controls/settings',{
-        method:'POST',body:JSON.stringify({changes:Object.fromEntries(changes.map(change=>[change.id,change.data]))}),
-      });
+      const changesById=Object.fromEntries(changes.map(change=>[change.id,change.data]));
+      const results=await (applySettings?applySettings(changesById):requestJson<Record<string,CameraSettings>>(baseUrl,'/tianji/camera-controls/settings',{
+        method:'POST',body:JSON.stringify({changes:changesById}),
+      }));
       if (!results||Object.keys(results).length!==changes.length) throw new Error('相机返回无效的批量设置');
       for (const change of changes) checked(results[change.id]);
       for (const change of changes) {

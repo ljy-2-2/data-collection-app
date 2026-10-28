@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-27",
+  "recording_policy": "feedback_with_optional_commands_v1",
+  "offline_regression_tests_passed": 82,
+  "local_backend_reloaded": true,
+  "backend_pid": 1439723,
+  "uploader_implementation_matches": true,
+  "uploader_state_recent": true,
+  "robot_services_restarted": false,
+  "robot_control_calls": 0,
+  "real_stationary_recording_test_performed": false,
+  "verification": {
+    "state": "idle",
+    "active": false,
+    "settings_available": true,
+    "collection_error": "",
+    "cameras": [
+      {
+        "role": null,
+        "connected": true,
+        "state": "streaming",
+        "error": ""
+      },
+      {
+        "role": null,
+        "connected": true,
+        "state": "streaming",
+        "error": ""
+      },
+      {
+        "role": null,
+        "connected": true,
+        "state": "streaming",
+        "error": ""
+      }
+    ]
+  }
+}

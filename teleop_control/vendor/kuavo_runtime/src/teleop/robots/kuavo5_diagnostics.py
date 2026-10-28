@@ -2,8 +2,48 @@
 import math
 import threading
 import time
+from collections import deque
 from numbers import Real
 from collections.abc import Mapping
+
+
+class CollectionBuffer:
+    """Compact unsampled publication evidence, independent of UI trace sampling.
+
+    No I/O and no commands. A bounded queue never stalls the motion callback;
+    any loss is explicit and prevents claiming a complete collection stream.
+    """
+    def __init__(self, capacity=256):
+        self._actions = deque(maxlen=capacity)
+        self._lock = threading.Lock()
+        self.dropped = 0
+        self.sequence = 0
+        self._latest_action = None
+
+    def accept(self, packet):
+        if packet.get('event') != 'control_trace':
+            return
+        keys = ('joint_order', 'command_rad', 'feedback_rad', 'feedback_timestamp_ns',
+                'publication_sequence_id', 'publication_completed_monotonic_ns',
+                'command_sequence_id', 'active_sides', 'delivery_scope')
+        row = {k: packet.get(k) for k in keys}
+        with self._lock:
+            if len(self._actions) == self._actions.maxlen:
+                self.dropped += 1
+            self._actions.append(row)
+            self._latest_action = row
+
+    def drain(self, *, now_ns, samples, dropped_feedback, motors):
+        with self._lock:
+            actions = list(self._actions)
+            self._actions.clear()
+            self.sequence += 1
+            return dict(event='gripper_trace', kind='collection_batch', schema_version=1,
+                sequence=self.sequence, robot_monotonic_ns=now_ns,
+                actions=actions, latest_action=self._latest_action, samples=samples, motors=motors,
+                dropped_actions=self.dropped, dropped_feedback=dict(dropped_feedback),
+                requested_gripper_hz=100, action_sampling='every_publication',
+                physical_execution_verified=False)
 
 
 class SuccessTraceSampler:

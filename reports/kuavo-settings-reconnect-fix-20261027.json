@@ -1,0 +1,73 @@
+{
+  "issues": {
+    "settings": {
+      "fixed": true,
+      "cause": "admission block skipped independent parameter read and hid missing controls",
+      "live_fields_read": 14,
+      "editable": false
+    },
+    "cameras": {
+      "fixed": true,
+      "cause": "new stream requested before previous owner released; rejected client never retried",
+      "live_reconnects": [
+        {
+          "cycle": 1,
+          "reconnect_s": 2.5152522419957677,
+          "roles": [
+            {
+              "id": "head",
+              "connected": true,
+              "encoding": null
+            },
+            {
+              "id": "left",
+              "connected": true,
+              "encoding": "camera_native_jpeg"
+            },
+            {
+              "id": "right",
+              "connected": true,
+              "encoding": "camera_native_jpeg"
+            }
+          ]
+        },
+        {
+          "cycle": 2,
+          "reconnect_s": 2.514986266993219,
+          "roles": [
+            {
+              "id": "head",
+              "connected": true,
+              "encoding": null
+            },
+            {
+              "id": "left",
+              "connected": true,
+              "encoding": "camera_native_jpeg"
+            },
+            {
+              "id": "right",
+              "connected": true,
+              "encoding": "camera_native_jpeg"
+            }
+          ]
+        }
+      ],
+      "three_feeds_left_connected": true
+    },
+    "teleoperation_start": {
+      "restored": false,
+      "blocked_reason": "worker_exit_without_confirmed_cleanup",
+      "failed_check": "arm_hold_unconfirmed",
+      "lock_cleared": false
+    }
+  },
+  "app_backend_reloaded_while_idle": true,
+  "robot_controls_executed": false,
+  "tests": {
+    "targeted_passed_before_final_range_display_change": 72,
+    "network_after_error_text_fix": 9,
+    "settings_qt_preparation_readonly_after_final_changes": 58,
+    "typescript": "passed"
+  }
+}

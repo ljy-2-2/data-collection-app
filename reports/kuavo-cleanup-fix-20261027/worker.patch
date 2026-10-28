@@ -1,0 +1,134 @@
+--- a/src/teleop/robots/kuavo5_session_worker.py
++++ b/src/teleop/robots/kuavo5_session_worker.py
+@@ -94,6 +94,48 @@
+         separators=(',', ':')).encode()).hexdigest()
+ 
+ 
++def _activity_scope_valid(evidence):
++    """Old receipts remain conservative; malformed new observations never pass."""
++    if 'activity_scope' not in evidence:
++        return True
++    scope = evidence['activity_scope']
++    counts = ('arm_publications', 'base_publications', 'other_publications',
++              'nonbaseline_control_calls')
++    return (isinstance(scope, dict) and set(scope) == {'version', *counts}
++        and type(scope['version']) is int and scope['version'] == 1
++        and all(type(scope[k]) is int and scope[k] >= 0 for k in counts)
++        and sum(scope[k] for k in counts[:3]) == evidence.get('publication_attempts')
++        and type(evidence.get('control_call_count')) is int
++        and scope['nonbaseline_control_calls'] <= evidence['control_call_count'])
++
++
++def _arm_hold_required(packet, evidence, base_mode):
++    """Exclude only independently observed base-only traffic from arm cleanup.
++
++    No exemption for legacy receipts, unknown topics, any arm publication or
++    attempted non-baseline service call (including failed/rolled-back calls).
++    This proves software scope, never the physical state of the robot.
++    """
++    report = packet['transport']
++    scope = evidence.get('activity_scope')
++    if scope and scope['nonbaseline_control_calls']:
++        return True
++    if not (evidence['publication_attempts'] or report.get('publish_attempts')):
++        return False
++    base = packet.get('base_transport')
++    if not isinstance(base, dict):
++        base = {}
++    base_only = (scope is not None and base_mode == 'vendor_vr_x'
++        and scope['base_publications'] > 0
++        and scope['base_publications'] == base.get('publish_attempts')
++        and scope['arm_publications'] == scope['other_publications'] == 0
++        and type(report.get('publish_attempts')) is int and report['publish_attempts'] == 0
++        and type(report.get('ros_message_attempts')) is int
++        and report['ros_message_attempts'] == 0
++        and report.get('mode') == 'unknown' and report.get('hold_acknowledged') is False)
++    return not base_only
++
++
+ def cleanup_report_ok(packet, receipt=None, bundle_sha256=None, *, gripper_mode='off', gripper_config_sha256=None,
+                       settings_identity=None, base_mode='disabled'):
+     """Require independent post-return software evidence; retain runtime faults.
+@@ -168,6 +210,8 @@
+     publications, calls = evidence.get('publication_attempts'), evidence.get('control_call_count')
+     if type(publications) is not int or publications < 0 or type(calls) is not int or calls < 0:
+         return False
++    if not _activity_scope_valid(evidence):
++        return False
+     if calls == 0:
+         # Interrupted preparation: no actuator-facing calls or publications.
+         return publications == 0 and attempts == 0 and report.get('profile_configured') is False
+@@ -177,7 +221,7 @@
+             or report['desired_mode'] != 0 \
+             or report.get('vendor_fast_profile_active') is not False:
+         return False
+-    if publications or attempts:
++    if _arm_hold_required(packet, evidence, base_mode):
+         return report.get('mode') == 'hold' and report.get('hold_acknowledged') is True
+     return True
+ 
+@@ -271,6 +315,8 @@
+         valid_counts = (type(publications) is int and publications >= 0
+                         and type(calls) is int and calls >= 0)
+         require(valid_counts, 'ros_activity_counts_invalid')
++        scope_valid = _activity_scope_valid(evidence)
++        require(scope_valid, 'ros_activity_scope_invalid')
+         if valid_counts and calls == 0:
+             require(publications == 0 and attempts == 0 and report.get('profile_configured') is False,
+                     'no_control_calls_evidence_inconsistent')
+@@ -280,7 +326,7 @@
+             require(report.get('closed') is True and type(report.get('desired_mode')) is int
+                 and report['desired_mode'] == 0 and report.get('vendor_fast_profile_active') is False,
+                 'arm_transport_cleanup_unconfirmed')
+-            if publications or attempts:
++            if scope_valid and _arm_hold_required(packet, evidence, options.get('base_mode', 'disabled')):
+                 require(report.get('mode') == 'hold' and report.get('hold_acknowledged') is True,
+                         'arm_hold_unconfirmed')
+     return failed[:32] or ['cleanup_report_rejected']
+@@ -321,6 +367,8 @@
+         self.shutdown = False
+         self.handles, self.calls, self.children = [], [], []
+         self.publications, self.unknown_call, self.closed = 0, False, []
++        self.publication_scope = dict(arm_publications=0, base_publications=0, other_publications=0)
++        self.nonbaseline_control_calls = 0
+         self.originals = {}
+ 
+     def install(self):
+@@ -331,6 +379,11 @@
+         class Handle:
+             def __init__(self, raw, publication):
+                 self.raw, self.publication, self.closed = raw, publication, False
++                # Resolved ROS name accounts for remapping; unknown handles
++                # cannot qualify for the narrowly scoped base-only exemption.
++                self.scope = {'/kuavo_arm_traj': 'arm_publications',
++                              '/cmd_vel': 'base_publications'}.get(
++                                  getattr(raw, 'resolved_name', None), 'other_publications')
+             def __getattr__(self, name):
+                 return getattr(self.raw, name)
+             def unregister(self):
+@@ -341,6 +394,7 @@
+             def publish(self, *args, **kwargs):
+                 with observer.lock:
+                     observer.publications += 1
++                    observer.publication_scope[self.scope] += 1
+                 return self.raw.publish(*args, **kwargs)
+         def handle_factory(name, publication):
+             def factory(*args, **kwargs):
+@@ -360,6 +414,8 @@
+                     with observer.lock:
+                         call = dict(name=name, request=dict(fields), completed=False, successful=False)
+                         observer.calls.append(call)
++                        if values or fields != observer.BASELINE.get(name):
++                            observer.nonbaseline_control_calls += 1
+                         if values or name not in observer.BASELINE:
+                             observer.unknown_call = True
+                     try:
+@@ -410,6 +466,8 @@
+                 control_calls_completed=all(c['completed'] for c in self.calls),
+                 control_call_count=len(self.calls), baseline_services_confirmed=baseline,
+                 publication_attempts=self.publications,
++                activity_scope=dict(version=1, **self.publication_scope,
++                    nonbaseline_control_calls=self.nonbaseline_control_calls),
+                 child_processes_exited=all(p.poll() is not None for p in self.children),
+                 observation_complete=not self.unknown_call,
+                 last_control_completions={name: dict(request=c['request'], successful=c['successful'])

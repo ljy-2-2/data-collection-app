@@ -1,0 +1,64 @@
+{
+  "elapsed_s": 20.000201698989258,
+  "transport": "network",
+  "cameras": {
+    "left": {
+      "frames": 381,
+      "fps": 19.049807883650214,
+      "status": {
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 1920,
+        "height": 1080,
+        "age_s": 0.025049879011930898,
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30.0,
+          "brightness": 0.0,
+          "encoding": "camera_native_jpeg"
+        }
+      }
+    },
+    "right": {
+      "frames": 545,
+      "fps": 27.2497251878986,
+      "status": {
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 1920,
+        "height": 1080,
+        "age_s": 0.013221126995631494,
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30.0,
+          "brightness": 0.0,
+          "encoding": "camera_native_jpeg"
+        }
+      }
+    },
+    "head": {
+      "frames": 599,
+      "fps": 29.949697958809654,
+      "status": {
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 1280,
+        "height": 800,
+        "age_s": 0.015618586010532454,
+        "settings": {
+          "width": 1280,
+          "height": 800,
+          "fps": 30.0,
+          "brightness": 0.0
+        }
+      }
+    }
+  },
+  "native_jpeg_decoded_by_qt": true,
+  "camera_module_sha256": "3f66ce6dfa3d62c80cb841a6e9066ee0a807b5f96f97449fd43a8e7c86ff3cb4"
+}

@@ -35,7 +35,8 @@ class KuavoLiveController:
                  control_period_s=.02, diagnostic=None,
                  max_velocity_rad_s=.6, max_acceleration_rad_s2=None,
                  reuse_valid_solution_seed=False, tracking_governor=None,
-                 reference_sync="all_joints", return_config=None):
+                 reference_sync="all_joints", return_config=None,
+                 joint_velocity_limits=None, joint_acceleration_limits=None):
         if type(reuse_valid_solution_seed) is not bool:
             raise ValueError('reuse_valid_solution_seed must be bool')
         if diagnostic is not None and not callable(diagnostic):
@@ -57,7 +58,8 @@ class KuavoLiveController:
             max_velocity_rad_s=max_velocity_rad_s,
             max_acceleration_rad_s2=max_acceleration_rad_s2,
             max_offset_rad=None, recover_unreachable=True,
-            tracking_governor=tracking_governor, reference_sync=reference_sync)
+            tracking_governor=tracking_governor, reference_sync=reference_sync,
+            joint_velocity_limits=joint_velocity_limits, joint_acceleration_limits=joint_acceleration_limits)
         self._solve = solve
         self._requests, self._results = Queue(maxsize=1), Queue(maxsize=1)
         self._closed = threading.Event()

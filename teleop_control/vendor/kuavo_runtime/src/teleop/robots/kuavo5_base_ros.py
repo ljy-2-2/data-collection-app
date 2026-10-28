@@ -62,7 +62,10 @@ def validate_handheld_profile(source, parameters):
 
 
 class BaseRuntimeGuard:
-    def __init__(self, own_node, *, clock=time.monotonic_ns):
+    def __init__(self, own_node, *, clock=time.monotonic_ns, shared_arms=False):
+        if type(shared_arms) is not bool:
+            raise ValueError('shared_arms must be bool')
+        self.shared_arms=shared_arms
         self.own_node=own_node; self.clock=clock
         self.lock=threading.RLock()
         self.error=None; self.graph_ns=None; self.feedback=None
@@ -80,7 +83,11 @@ class BaseRuntimeGuard:
             if type(version) is not int or version!=63 or mpc is not True or simulated is not False:
                 raise ValueError('requires physical v63 manufacturer MPC, no automatic reconfiguration')
             for topic in COMMANDS:
-                allowed=IDLE_PUBLISHERS.get(topic,set()) | ({self.own_node} if topic=='/cmd_vel' else set())
+                allowed=IDLE_PUBLISHERS.get(topic,set()) | ({self.own_node} if topic=='/cmd_vel'
+                    or (self.shared_arms and topic=='/kuavo_arm_traj') else set())
+                if self.shared_arms and topic=='/cmd_vel':
+                    from teleop.robots.kuavo5_live_guard import KNOWN_PUBLISHERS
+                    allowed=allowed | KNOWN_PUBLISHERS[topic]
                 if set(publishers.get(topic,[]))-allowed:
                     raise ValueError('competing command publisher on '+topic)
             expected={'/odom':{'/ukf_odom'}, '/enable_control_state':{'/nodelet_manager'},
@@ -138,6 +145,11 @@ class BaseRuntimeGuard:
     def command(self, topic, caller, values=None):
         with self.lock:
             if topic=='/cmd_vel' and caller==self.own_node: return
+            if self.shared_arms and topic=='/kuavo_arm_traj' and caller==self.own_node: return
+            if self.shared_arms and topic=='/cmd_vel' and caller=='/humanoid_joy_control_auto_gait_with_vel' \
+                    and values is not None and len(values)==6 \
+                    and all(type(v) in (float,int) and math.isfinite(v) and v==0. for v in values):
+                return
             if topic in ('/cmd_vel','/cmd_vel_world') and caller in IDLE_PUBLISHERS[topic] \
                     and values is not None and len(values)==6 \
                     and all(type(v) in (float,int) and math.isfinite(v) and v==0. for v in values):
@@ -160,7 +172,8 @@ class BaseRuntimeGuard:
             downstream_quiet=(not error and self.downstream_velocity is not None
                               and all(abs(v)<=.01 for v in self.downstream_velocity))
             return BaseHealth(self.graph_ns if self.graph_ns is not None else -1,
-                              self.control,self.velocity,self.mpc,error,downstream_quiet),self.feedback
+                              self.control,self.velocity,self.mpc,error,downstream_quiet,
+                              self.downstream_ns),self.feedback
 
 
 def _caller(message):
@@ -172,7 +185,8 @@ def _twist_values(msg):
 
 
 class BaseRosBinding:
-    def __init__(self, *, motion_enabled, ros=None, master=None, clock=time.monotonic_ns,speed_profile='vendor_vr'):
+    def __init__(self, *, motion_enabled, ros=None, master=None, clock=time.monotonic_ns,speed_profile='vendor_vr',
+                 shared_arms=False, master_factory=None):
         if motion_enabled is not True:
             raise ValueError('explicit motion permission required before ROS initialization')
         self.limits=base_speed_limits(speed_profile)
@@ -186,20 +200,37 @@ class BaseRosBinding:
             ros.init_node('teleop_kuavo5_base_'+uuid.uuid4().hex[:10],disable_signals=True,disable_rosout=True)
             master=rosgraph.Master(ros.get_name())
         self.ros=ros; self.master=master; self.clock=clock
-        self.guard=BaseRuntimeGuard(ros.get_name(),clock=clock)
+        # The unified arm guard also polls the supplied Master. rosgraph.Master
+        # owns an xmlrpc ServerProxy whose HTTP connection is not thread safe.
+        # Keep this monitor's graph AND parameter requests on a private client;
+        # a lock only around this binding would not protect the arm guard.
+        # Construct it lazily so fake-interface tests never import/discover ROS.
+        self._master_factory=master_factory
+        self._graph_master=None
+        self._graph_lock=threading.Lock()
+        self.guard=BaseRuntimeGuard(ros.get_name(),clock=clock,shared_arms=shared_arms)
         self.handles=[]; self.publisher=None; self.stop=threading.Event(); self.thread=None
         self.input_deadline_ns=None
 
     def refresh_graph(self):
-        pubs,subs,_=self.master.getSystemState()
-        keys=HANDHELD_KEYS if self.speed_profile=='vendor_handheld' else PROFILE_KEYS
-        parameters={key:self.ros.get_param(key) for key in keys if self.ros.has_param(key)}
-        if self.speed_profile=='vendor_handheld':
-            validate_handheld_profile(Path(HANDHELD_SOURCE).read_text(),parameters)
-        else:
-            validate_vendor_profile(Path(LAUNCH).read_text(),parameters)
-        self.guard.graph(dict(pubs),dict(subs),version=self.ros.get_param('/robot_version'),
-            mpc=self.ros.get_param('/use_external_mpc'),simulated=self.ros.get_param('/use_sim_time',False))
+        with self._graph_lock:
+            if self._graph_master is None:
+                factory=self._master_factory
+                if factory is None:
+                    from rosgraph import Master
+                    factory=Master
+                self._graph_master=factory(self.ros.get_name(),master_uri=self.master.master_uri)
+            master=self._graph_master
+            pubs,subs,_=master.getSystemState()
+            keys=HANDHELD_KEYS if self.speed_profile=='vendor_handheld' else PROFILE_KEYS
+            parameters={key:master.getParam(key) for key in keys if master.hasParam(key)}
+            if self.speed_profile=='vendor_handheld':
+                validate_handheld_profile(Path(HANDHELD_SOURCE).read_text(),parameters)
+            else:
+                validate_vendor_profile(Path(LAUNCH).read_text(),parameters)
+            simulated=master.getParam('/use_sim_time') if master.hasParam('/use_sim_time') else False
+            self.guard.graph(dict(pubs),dict(subs),version=master.getParam('/robot_version'),
+                mpc=master.getParam('/use_external_mpc'),simulated=simulated)
 
     def start(self):
         from geometry_msgs.msg import Twist

@@ -7,6 +7,7 @@ EOF requests the existing core's cleanup. No kill/terminate fallback is used.
 from __future__ import annotations
 
 from collections import deque
+import copy
 import hashlib
 import json
 import math
@@ -28,6 +29,31 @@ MAX_BUNDLE_BYTES = 1_048_576
 MAX_PACKET_BYTES = 65_536
 
 
+def effective_session_bundle(bundle, installation_sha256, snapshot):
+    """Derive scalar overrides without changing the verified source archive."""
+    from teleop.robots.kuavo5_session_settings import validate_snapshot, apply_settings
+    snapshot = validate_snapshot(bundle, installation_sha256, snapshot)
+    effective = apply_settings(bundle, snapshot['values'])
+    effective['runtime_settings_identity'] = dict(revision=snapshot['revision'],
+        settings_sha256=snapshot['settings_sha256'])
+    return effective
+
+
+def read_reserved_settings(bundle, manifest_path, owner_uid, *, ledger_reader=None):
+    """Read the parent's frozen reservation AFTER acquiring the execution lock.
+
+    No client paths or code are accepted. The privileged worker revalidates all
+    numbers against its own immutable installation, not the PC's claimed bounds.
+    """
+    from teleop.robots.kuavo5_execution_lock import _network_owner, NETWORK_OWNER_PATH
+    owner = (ledger_reader or _network_owner)(NETWORK_OWNER_PATH, owner_uid)
+    if (not isinstance(owner, dict) or owner.get('active') is not True
+            or owner.get('operation') == 'preparation' or 'session_settings' not in owner):
+        raise ValueError('active session lacks frozen session settings')
+    installation = hashlib.sha256(Path(manifest_path).read_bytes()).hexdigest()
+    return effective_session_bundle(bundle, installation, owner['session_settings'])
+
+
 def read_installed_bundle(path, expected_sha256):
     """Read server-owned installation data, never code supplied by a client."""
     if not isinstance(expected_sha256, str) or re.fullmatch('[a-f0-9]{64}', expected_sha256) is None:
@@ -44,6 +70,8 @@ def read_installed_bundle(path, expected_sha256):
         raise ValueError('installed bundle must be an object')
     profile = bundle_profile(bundle)
     extra = {'gripper_config', 'gripper_config_sha256'} if profile['gripper_mode'] == 'damiao' else set()
+    if 'base_mode' in profile:
+        extra.add('base_mode')
     if 'return_home_config_sha256' in profile:
         extra |= {'return_home_config', 'return_home_config_sha256'}
     if set(bundle) != {'mode', 'sources', 'sha256', *FIXED_PROFILE} | extra:
@@ -66,7 +94,50 @@ def _packet_digest(packet):
         separators=(',', ':')).encode()).hexdigest()
 
 
-def cleanup_report_ok(packet, receipt=None, bundle_sha256=None, *, gripper_mode='off', gripper_config_sha256=None):
+def _activity_scope_valid(evidence):
+    """Old receipts remain conservative; malformed new observations never pass."""
+    if 'activity_scope' not in evidence:
+        return True
+    scope = evidence['activity_scope']
+    counts = ('arm_publications', 'base_publications', 'other_publications',
+              'nonbaseline_control_calls')
+    return (isinstance(scope, dict) and set(scope) == {'version', *counts}
+        and type(scope['version']) is int and scope['version'] == 1
+        and all(type(scope[k]) is int and scope[k] >= 0 for k in counts)
+        and sum(scope[k] for k in counts[:3]) == evidence.get('publication_attempts')
+        and type(evidence.get('control_call_count')) is int
+        and scope['nonbaseline_control_calls'] <= evidence['control_call_count'])
+
+
+def _arm_hold_required(packet, evidence, base_mode):
+    """Exclude only independently observed base-only traffic from arm cleanup.
+
+    No exemption for legacy receipts, unknown topics, any arm publication or
+    attempted non-baseline service call (including failed/rolled-back calls).
+    This proves software scope, never the physical state of the robot.
+    """
+    report = packet['transport']
+    scope = evidence.get('activity_scope')
+    if scope and scope['nonbaseline_control_calls']:
+        return True
+    if not (evidence['publication_attempts'] or report.get('publish_attempts')):
+        return False
+    base = packet.get('base_transport')
+    if not isinstance(base, dict):
+        base = {}
+    base_only = (scope is not None and base_mode == 'vendor_vr_x'
+        and scope['base_publications'] > 0
+        and scope['base_publications'] == base.get('publish_attempts')
+        and scope['arm_publications'] == scope['other_publications'] == 0
+        and type(report.get('publish_attempts')) is int and report['publish_attempts'] == 0
+        and type(report.get('ros_message_attempts')) is int
+        and report['ros_message_attempts'] == 0
+        and report.get('mode') == 'unknown' and report.get('hold_acknowledged') is False)
+    return not base_only
+
+
+def cleanup_report_ok(packet, receipt=None, bundle_sha256=None, *, gripper_mode='off', gripper_config_sha256=None,
+                      settings_identity=None, base_mode='disabled'):
     """Require independent post-return software evidence; retain runtime faults.
 
     A failed run can finish cleanup successfully. A successful run can also fail
@@ -102,6 +173,19 @@ def cleanup_report_ok(packet, receipt=None, bundle_sha256=None, *, gripper_mode=
             and report.get('worker_start_refused') is True)
     if receipt.get('core_returned') is not True:
         return False
+    if settings_identity is not None and receipt.get('session_settings') != settings_identity:
+        return False
+    if base_mode == 'vendor_vr_x':
+        base = packet.get('base_transport')
+        if (not isinstance(base, dict) or base.get('closed') is not True
+                or base.get('errors') != [] or base.get('physical_stop_verified') is not False
+                or type(base.get('publish_attempts')) is not int or base['publish_attempts'] < 0
+                or type(base.get('stop_observed')) is not bool):
+            return False
+        # Cleanup can be complete even if stopping could not be observed, but
+        # such a run must never be reported as a successful session.
+        if packet['exit_code'] == 0 and base['publish_attempts'] and not base['stop_observed']:
+            return False
     if gripper_mode == 'damiao':
         observed = receipt.get('gripper_evidence')
         if (receipt.get('gripper_config_sha256') != gripper_config_sha256
@@ -126,6 +210,8 @@ def cleanup_report_ok(packet, receipt=None, bundle_sha256=None, *, gripper_mode=
     publications, calls = evidence.get('publication_attempts'), evidence.get('control_call_count')
     if type(publications) is not int or publications < 0 or type(calls) is not int or calls < 0:
         return False
+    if not _activity_scope_valid(evidence):
+        return False
     if calls == 0:
         # Interrupted preparation: no actuator-facing calls or publications.
         return publications == 0 and attempts == 0 and report.get('profile_configured') is False
@@ -135,9 +221,132 @@ def cleanup_report_ok(packet, receipt=None, bundle_sha256=None, *, gripper_mode=
             or report['desired_mode'] != 0 \
             or report.get('vendor_fast_profile_active') is not False:
         return False
-    if publications or attempts:
+    if _arm_hold_required(packet, evidence, base_mode):
         return report.get('mode') == 'hold' and report.get('hold_acknowledged') is True
     return True
+
+
+def cleanup_failure_checks(packet, receipt, bundle_sha256, **options):
+    """Explain rejected evidence using fixed codes only; never authorize cleanup.
+
+    The existing cleanup_report_ok remains the sole acceptance predicate. These
+    diagnostics deliberately omit report values, service messages and stderr,
+    any of which could include a path, credential or arbitrary child output.
+    """
+    try:
+        if cleanup_report_ok(packet, receipt, bundle_sha256, **options):
+            return []
+    except (TypeError, ValueError, OverflowError):
+        return ['cleanup_evidence_invalid']
+    failed = []
+    def require(condition, code):
+        if not condition:
+            failed.append(code)
+    require(isinstance(packet, dict), 'closed_report_missing')
+    require(isinstance(receipt, dict), 'cleanup_receipt_missing')
+    if not isinstance(packet, dict) or not isinstance(receipt, dict):
+        return failed
+    require(packet.get('event') == 'closed' and type(packet.get('exit_code')) is int
+            and packet['exit_code'] in (0, 1), 'closed_report_invalid')
+    report = packet.get('transport')
+    if not isinstance(report, dict):
+        return failed + ['transport_report_missing']
+    require(not report.get('compute_cleanup_error'), 'compute_cleanup_failed')
+    require(report.get('mode_request_inflight') is None, 'mode_request_inflight')
+    require(report.get('mode_request_pending') is None, 'mode_request_pending')
+    attempts = report.get('publish_attempts')
+    require(type(attempts) is int and attempts >= 0, 'publish_attempt_count_invalid')
+    require(receipt.get('event') == 'worker_cleanup'
+        and type(receipt.get('version')) is int and receipt['version'] == 1
+        and type(receipt.get('core_exit_code')) is int
+        and receipt.get('core_exit_code') == packet.get('exit_code')
+        and receipt.get('closed_sha256') == _packet_digest(packet)
+        and receipt.get('bundle_sha256') == bundle_sha256
+        and isinstance(bundle_sha256, str)
+        and receipt.get('physical_stop_verified') is False, 'cleanup_receipt_identity_mismatch')
+    if receipt.get('stage') == 'before_core':
+        require(receipt.get('core_returned') is False
+            and receipt.get('initialization_not_started') is True
+            and receipt.get('ros_started') is False
+            and receipt.get('physical_robot_command_sent') is False
+            and packet.get('exit_code') == 1 and attempts == 0
+            and report.get('profile_configured') is False
+            and report.get('worker_start_refused') is True, 'before_core_evidence_invalid')
+        return failed or ['cleanup_report_rejected']
+    require(receipt.get('core_returned') is True, 'core_return_unconfirmed')
+    settings = options.get('settings_identity')
+    require(settings is None or receipt.get('session_settings') == settings,
+            'settings_identity_mismatch')
+    if options.get('base_mode', 'disabled') == 'vendor_vr_x':
+        base = packet.get('base_transport')
+        if not isinstance(base, dict):
+            failed.append('base_transport_missing')
+        else:
+            require(base.get('closed') is True, 'base_resources_not_closed')
+            require(base.get('errors') == [], 'base_cleanup_errors')
+            require(base.get('physical_stop_verified') is False
+                and type(base.get('publish_attempts')) is int and base['publish_attempts'] >= 0
+                and type(base.get('stop_observed')) is bool, 'base_report_invalid')
+            require(not (packet.get('exit_code') == 0 and base.get('publish_attempts')
+                and not base.get('stop_observed')), 'base_stop_unobserved_on_success')
+    if options.get('gripper_mode', 'off') == 'damiao':
+        require(receipt.get('gripper_config_sha256') == options.get('gripper_config_sha256'),
+                'gripper_config_identity_mismatch')
+        grippers = receipt.get('gripper_evidence')
+        if not isinstance(grippers, dict):
+            failed.append('gripper_evidence_missing')
+        else:
+            count = grippers.get('sessions_created')
+            require(type(count) is int and count in (0, 1), 'gripper_instance_count_invalid')
+            for key in ('sessions_closed', 'threads_exited', 'clients_closed', 'no_possible_enable', 'no_errors'):
+                require(grippers.get(key) is True, 'gripper_' + key + '_unconfirmed')
+            transport = packet.get('gripper_transport')
+            require((isinstance(transport, dict) and transport.get('closed') is True
+                and transport.get('errors') == []) if count else transport is None,
+                'gripper_transport_cleanup_unconfirmed')
+    evidence = receipt.get('evidence')
+    if not isinstance(evidence, dict):
+        failed.append('ros_evidence_missing')
+    else:
+        for key in ('ros_shutdown_returned', 'ros_handles_unregistered', 'control_calls_completed',
+                    'child_processes_exited', 'observation_complete'):
+            require(evidence.get(key) is True, key + '_unconfirmed')
+        publications, calls = evidence.get('publication_attempts'), evidence.get('control_call_count')
+        valid_counts = (type(publications) is int and publications >= 0
+                        and type(calls) is int and calls >= 0)
+        require(valid_counts, 'ros_activity_counts_invalid')
+        scope_valid = _activity_scope_valid(evidence)
+        require(scope_valid, 'ros_activity_scope_invalid')
+        if valid_counts and calls == 0:
+            require(publications == 0 and attempts == 0 and report.get('profile_configured') is False,
+                    'no_control_calls_evidence_inconsistent')
+        elif valid_counts:
+            require(evidence.get('baseline_services_confirmed') is True,
+                    'baseline_services_unconfirmed')
+            require(report.get('closed') is True and type(report.get('desired_mode')) is int
+                and report['desired_mode'] == 0 and report.get('vendor_fast_profile_active') is False,
+                'arm_transport_cleanup_unconfirmed')
+            if scope_valid and _arm_hold_required(packet, evidence, options.get('base_mode', 'disabled')):
+                require(report.get('mode') == 'hold' and report.get('hold_acknowledged') is True,
+                        'arm_hold_unconfirmed')
+    return failed[:32] or ['cleanup_report_rejected']
+
+
+def stderr_exception_summary(lines):
+    """Expose only an allowlisted exception class, never its arbitrary message."""
+    allowed = frozenset(('AssertionError', 'AttributeError', 'BrokenPipeError', 'CannotSendRequest',
+        'ConnectionError', 'EOFError', 'HTTPException', 'KeyError', 'OSError', 'PermissionError',
+        'RemoteDisconnected', 'ResponseNotReady', 'RuntimeError', 'TimeoutError', 'TypeError',
+        'ValueError', 'ROSException', 'ROSInterruptException', 'ServiceException'))
+    exception_type = None
+    for line in reversed(tuple(lines)[-32:]):
+        if not isinstance(line, str) or len(line) > 65536:
+            continue
+        match = re.match(r'^(?:[A-Za-z_][A-Za-z_0-9]*\.){0,4}([A-Za-z_][A-Za-z_0-9]*):', line)
+        if match and match[1] in allowed:
+            exception_type = match[1]
+            break
+    return dict(present=bool(lines), last_exception_type=exception_type, message_omitted=True)
 
 
 class _CleanupObserver:
@@ -158,6 +367,8 @@ class _CleanupObserver:
         self.shutdown = False
         self.handles, self.calls, self.children = [], [], []
         self.publications, self.unknown_call, self.closed = 0, False, []
+        self.publication_scope = dict(arm_publications=0, base_publications=0, other_publications=0)
+        self.nonbaseline_control_calls = 0
         self.originals = {}
 
     def install(self):
@@ -168,6 +379,11 @@ class _CleanupObserver:
         class Handle:
             def __init__(self, raw, publication):
                 self.raw, self.publication, self.closed = raw, publication, False
+                # Resolved ROS name accounts for remapping; unknown handles
+                # cannot qualify for the narrowly scoped base-only exemption.
+                self.scope = {'/kuavo_arm_traj': 'arm_publications',
+                              '/cmd_vel': 'base_publications'}.get(
+                                  getattr(raw, 'resolved_name', None), 'other_publications')
             def __getattr__(self, name):
                 return getattr(self.raw, name)
             def unregister(self):
@@ -178,6 +394,7 @@ class _CleanupObserver:
             def publish(self, *args, **kwargs):
                 with observer.lock:
                     observer.publications += 1
+                    observer.publication_scope[self.scope] += 1
                 return self.raw.publish(*args, **kwargs)
         def handle_factory(name, publication):
             def factory(*args, **kwargs):
@@ -197,6 +414,8 @@ class _CleanupObserver:
                     with observer.lock:
                         call = dict(name=name, request=dict(fields), completed=False, successful=False)
                         observer.calls.append(call)
+                        if values or fields != observer.BASELINE.get(name):
+                            observer.nonbaseline_control_calls += 1
                         if values or name not in observer.BASELINE:
                             observer.unknown_call = True
                     try:
@@ -247,6 +466,8 @@ class _CleanupObserver:
                 control_calls_completed=all(c['completed'] for c in self.calls),
                 control_call_count=len(self.calls), baseline_services_confirmed=baseline,
                 publication_attempts=self.publications,
+                activity_scope=dict(version=1, **self.publication_scope,
+                    nonbaseline_control_calls=self.nonbaseline_control_calls),
                 child_processes_exited=all(p.poll() is not None for p in self.children),
                 observation_complete=not self.unknown_call,
                 last_control_completions={name: dict(request=c['request'], successful=c['successful'])
@@ -292,6 +513,8 @@ def run_core_with_cleanup_receipt(bundle, runner):
                 bundle_sha256=bundle['sha256'], core_returned=True, core_exit_code=result,
                 closed_sha256=_packet_digest(observer.closed[0]),
                 evidence=observer.evidence(), physical_stop_verified=False)
+            if 'runtime_settings_identity' in bundle:
+                receipt['session_settings'] = dict(bundle['runtime_settings_identity'])
             if bundle.get('gripper_mode') == 'damiao':
                 receipt.update(gripper_config_sha256=bundle['gripper_config_sha256'],
                     gripper_evidence=dict(sessions_created=len(gripper_instances),
@@ -320,7 +543,7 @@ class SessionWorker:
     def __init__(self, installed_bundle, expected_sha256, *, backend='disabled',
                  allow_execute=False, python_executable=sys.executable,
                  fixture_path=None, process_factory=subprocess.Popen,
-                 clock=time.monotonic):
+                 clock=time.monotonic, session_settings=None, installation_sha256=None):
         if backend not in ('disabled', 'fake', 'robot') or type(allow_execute) is not bool:
             raise ValueError('explicit fake/robot worker backend required')
         if backend == 'robot' and not allow_execute:
@@ -334,6 +557,8 @@ class SessionWorker:
         self.python_executable = str(python_executable)
         self.fixture_path = None if fixture_path is None else Path(fixture_path)
         self.process_factory, self.clock = process_factory, clock
+        self.session_settings = copy.deepcopy(session_settings)
+        self.installation_sha256 = installation_sha256
         self.process = None
         self._started = self._input_closed = self._spawn_attempted = False
         self._buffers = {'stdout': bytearray(), 'stderr': bytearray()}
@@ -355,6 +580,8 @@ class SessionWorker:
             raise RuntimeError('worker cannot restart; create a new session')
         self._started = True
         bundle = read_installed_bundle(self.bundle_path, self.expected_sha256)
+        if self.session_settings is not None:
+            bundle = effective_session_bundle(bundle, self.installation_sha256, self.session_settings)
         self.profile = bundle_profile(bundle)
         if not Path(self.python_executable).is_absolute():
             raise ValueError('absolute worker interpreter required')
@@ -365,6 +592,8 @@ class SessionWorker:
             if not self.fixture_path.is_absolute() or not self.fixture_path.is_file():
                 raise ValueError('absolute installed fake fixture required')
             command.extend(['--fake-fixture', str(self.fixture_path)])
+            if self.session_settings is not None:
+                command.extend(['--fake-session-settings', json.dumps(self.session_settings, allow_nan=False)])
         else:
             command.append('--execute')
             if self.profile['gripper_mode'] == 'damiao':
@@ -421,11 +650,39 @@ class SessionWorker:
             and self.cleanup_error is None and cleanup_report_ok(
                 self.closed_report, self.cleanup_receipt, self.expected_sha256,
                 gripper_mode=self.profile['gripper_mode'],
-                gripper_config_sha256=self.profile.get('gripper_config_sha256'))
+                gripper_config_sha256=self.profile.get('gripper_config_sha256'),
+                base_mode=self.profile.get('base_mode', 'disabled'),
+                settings_identity=({k: self.session_settings[k] for k in ('revision', 'settings_sha256')}
+                                   if self.session_settings is not None else None))
 
     @property
     def output_drained(self):
         return all(self._eof.values())
+
+    def cleanup_diagnostics(self):
+        """Bounded read-only snapshot; it cannot clear ownership or change I/O."""
+        code = self.poll()
+        failed = cleanup_failure_checks(self.closed_report, self.cleanup_receipt, self.expected_sha256,
+            gripper_mode=self.profile['gripper_mode'],
+            gripper_config_sha256=self.profile.get('gripper_config_sha256'),
+            base_mode=self.profile.get('base_mode', 'disabled'),
+            settings_identity=({k: self.session_settings[k] for k in ('revision', 'settings_sha256')}
+                               if self.session_settings is not None else None))
+        if self.process is None:
+            failed.append('worker_process_unavailable')
+        elif code is None:
+            failed.append('worker_not_exited')
+        elif isinstance(self.closed_report, dict) and code != self.closed_report.get('exit_code'):
+            failed.append('worker_exit_code_mismatch')
+        if not self.output_drained:
+            failed.append('worker_output_not_drained')
+        if self.cleanup_error is not None:
+            failed.append('worker_output_or_pipe_error')
+        return dict(worker_exit_code=code if type(code) is int and -255 <= code <= 255 else None,
+            closed_report_present=isinstance(self.closed_report, dict),
+            cleanup_receipt_present=isinstance(self.cleanup_receipt, dict),
+            output_drained=self.output_drained, cleanup_io_error_present=self.cleanup_error is not None,
+            failed_checks=failed[:32], stderr_summary=stderr_exception_summary(self.stderr_tail))
 
     def request_close(self):
         """Stop accepting input and close only this process's stdin; never kill."""
@@ -580,6 +837,7 @@ def main(argv=None):
     parser.add_argument('--backend', choices=('validate', 'fake', 'robot'), default='validate')
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--fake-fixture')
+    parser.add_argument('--fake-session-settings')
     args = parser.parse_args(argv)
     if args.backend == 'validate' and not args.bundle and not args.execute:
         print(json.dumps(dict(event='KUAVO_SESSION_WORKER_DRY_RUN', process_started=False,
@@ -593,6 +851,8 @@ def main(argv=None):
         parser.error('--execute belongs only to operator-started robot backend')
     if args.backend == 'fake' and not args.fake_fixture:
         parser.error('fake backend requires explicit test fixture')
+    if args.fake_session_settings and args.backend != 'fake':
+        parser.error('injected settings belong only to the explicit offline fake backend')
     bundle = read_installed_bundle(args.bundle, args.sha256)
     if args.backend == 'validate':
         print(json.dumps(dict(event='KUAVO_SESSION_WORKER_VALIDATED', sha256=bundle['sha256'],
@@ -615,7 +875,11 @@ def main(argv=None):
         execution_lock = ExecutionLock(route='network', **lock_options)
         try:
             execution_lock.acquire()
+            if bundle['gripper_mode'] == 'damiao':
+                bundle = read_reserved_settings(bundle, Path(args.bundle).parent/'manifest.json',
+                                                lock_options['trusted_operator_uid'])
         except Exception as exc:
+            execution_lock.close()
             # No core import, ROS initialization or actuator call has happened.
             # A competing SSH session is not this failed worker's resource.
             packet = dict(event='closed', exit_code=1, transport=dict(
@@ -628,7 +892,21 @@ def main(argv=None):
                 ros_started=False, physical_robot_command_sent=False,
                 physical_stop_verified=False)), flush=True)
             return 1
+    if args.backend == 'fake' and args.fake_session_settings:
+        snapshot = json.loads(args.fake_session_settings)
+        bundle = effective_session_bundle(bundle, snapshot.get('installation_sha256'), snapshot)
+    manual_runner = None
+    if args.backend == 'robot':
+        from teleop.robots.kuavo5_execution_lock import _network_owner, NETWORK_OWNER_PATH
+        marker = _network_owner(NETWORK_OWNER_PATH, lock_options.get('trusted_operator_uid', os.getuid()))
+        if marker.get('operation') == 'manual':
+            # Import installed manual code before the pinned core package loader.
+            from teleop.robots.kuavo5_manual_runtime import run_manual
+            manual_runner = run_manual
     _install_bundle(bundle)
+    if manual_runner is not None:
+        try: return manual_runner(bundle)
+        finally: execution_lock.close()
     if args.backend == 'fake':
         import runpy
         fixture = runpy.run_path(args.fake_fixture)
@@ -638,7 +916,11 @@ def main(argv=None):
         return run_core_with_cleanup_receipt(bundle, lambda: run_robot(
             motion_enabled=True, configure_vendor_profile=True,
             **{k: bundle[k] for k in FIXED_PROFILE},
+            **({'base_mode': bundle['base_mode']} if 'base_mode' in bundle else {}),
             **({'gripper_config': bundle['gripper_config']} if bundle['gripper_mode'] == 'damiao' else {}),
+            **({'arm_motion_parameters': bundle['runtime_arm_motion_parameters'],
+                'settings_identity': bundle['runtime_settings_identity']}
+               if 'runtime_settings_identity' in bundle else {}),
             **({'return_home_config': bundle['return_home_config']}
                if 'return_home_config' in bundle else {})))
     finally:

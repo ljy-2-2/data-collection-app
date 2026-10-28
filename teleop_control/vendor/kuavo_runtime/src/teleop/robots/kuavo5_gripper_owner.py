@@ -5,14 +5,18 @@ verifies configuration; it never changes mode, watchdog or enables the motors.
 Robot loop submit() is bounded/nonblocking, with one pending batch per side and
 priority revocation. Serial/CAN ownership remains in the native robot owner.
 """
+import copy
 import math
 import select
 import struct
 import threading
 import time
 
-from .damiao_gripper import DamiaoGripperDriver, DISABLE, ENABLE, encode_position
-from .kuavo5_gripper_live import OwnerBusy, OwnerExpired, OwnerClient, inspect_motor
+from .damiao_gripper import DamiaoGripperDriver, MotorProfile, DISABLE, ENABLE, encode_position
+from .kuavo5_gripper_live import (OwnerBusy, OwnerExpired, OwnerClient, inspect_motor,
+                                capture_calibration_sample)
+from .kuavo5_gripper_reference import require_reference, ReferenceMismatch
+from .kuavo5_gripper_coordinates import resolve_coordinates, validate_policy
 
 
 def limit_wire_target(profile, requested, previous, elapsed_ns):
@@ -54,9 +58,14 @@ def wire_position(profile, payload):
 
 
 class OwnerGripperSession:
-    def __init__(self, directory, profiles, occupied_ids, log=None, *, client_factory=OwnerClient):
+    def __init__(self, directory, profiles, occupied_ids, log=None, *, client_factory=OwnerClient,
+                 motor_records=None):
         self.directory = directory
         self.profiles = dict(profiles)
+        self._motor_records = copy.deepcopy(motor_records)
+        self._reference_reports = {}
+        self._coordinates = {}
+        self._raw_profiles = dict(profiles)
         self._log_callback = log or (lambda event, **fields: None)
         self._log_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -70,6 +79,7 @@ class OwnerGripperSession:
         self._idle_busy = dict.fromkeys(self.profiles, 0)
         self._idle_expired = dict.fromkeys(self.profiles, 0)
         self._reading = set()
+        self._idle_yield_until = dict.fromkeys(self.profiles, 0.)
         self._dropped_targets = dict.fromkeys(self.profiles, 0)
         self._wire_payload = dict.fromkeys(self.profiles, None)
         self._wire_ack_ns = dict.fromkeys(self.profiles, 0)
@@ -84,7 +94,10 @@ class OwnerGripperSession:
     def acknowledged_target(self, side):
         with self._condition:
             payload = self._wire_payload[side]
-            return ((wire_position(self.profiles[side], payload), self._wire_ack_ns[side])
+            position = wire_position(self._raw_profiles[side], payload) if payload is not None else None
+            if position is not None and side in self._coordinates:
+                position = self._coordinates[side].to_canonical(position)
+            return ((position, self._wire_ack_ns[side])
                     if payload is not None else None)
 
     def _log(self, event, **fields):
@@ -95,6 +108,20 @@ class OwnerGripperSession:
         if self._started or self._closed:
             raise RuntimeError("owner session cannot be started twice")
         try:
+            if not isinstance(self._motor_records, dict) or set(self._motor_records) != set(self.profiles):
+                raise ValueError('original calibration motor_records required before owner connection')
+            for side, p in self.profiles.items():
+                record = self._motor_records[side]
+                if not isinstance(record, dict) or not isinstance(record.get('calibration'), dict):
+                    raise ValueError(side+': original dual-position calibration required')
+                if MotorProfile(**record.get('profile', {})) != p:
+                    raise ValueError(side+': reference profile differs from session profile')
+                validate_policy(record)
+                for key in ('hardware_version', 'software_version', 'sub_version'):
+                    if type(record.get('readback', {}).get(key)) is not int:
+                        raise ValueError(side+': recorded motor version required: '+key)
+            # Both sides must pass before any native envelope is commissioned.
+            current_values = {}
             for side, p in self.profiles.items():
                 client = self._client_factory(self.directory, side,
                     lambda event, side=side, **fields: self._log(event, side=side, **fields))
@@ -103,6 +130,10 @@ class OwnerGripperSession:
                 if not client.control:
                     raise RuntimeError(side+": owner is inspect-only; explicit control owner required")
                 values = inspect_motor(client)
+                current_values[side] = values
+                for key in ('hardware_version', 'software_version', 'sub_version'):
+                    if values[key] != self._motor_records[side]['readback'][key]:
+                        raise RuntimeError(side+': motor version differs from reference: '+key)
                 if values["mode"] != p.control_mode:
                     raise RuntimeError(side+": motor mode differs from commissioned profile; no automatic switch")
                 if values["watchdog_ticks"] != 4000:
@@ -112,12 +143,16 @@ class OwnerGripperSession:
                         raise RuntimeError(side+": actual "+key+" differs from calibration")
                 if (p.bus, p.motor_id, p.master_id) != (client.bus, client.mid, 0):
                     raise RuntimeError(side+": profile differs from native fixed route")
+                self._check_reference(side, values)
                 client.on_feedback = lambda event, side=side: self._feedback(side, event)
-                client.refresh_status(expected_state=0)
-                origin = client.register(0x50, "f")
+            for side, p in self.profiles.items():
+                client = self._clients[side]
+                # Refresh this side after inspecting the other side. Never
+                # commission against position/status cached before long reads.
+                origin = self._check_reference(side, current_values[side])
                 if not p.bounds[0] <= origin <= p.bounds[1]:
                     raise RuntimeError(side+": position outside soft travel; move disabled mechanism inside bounds")
-                client.commission(p)
+                client.commission(self._raw_profiles[side])
             self._started = True
             for side in self.profiles:
                 thread = threading.Thread(target=self._worker, args=(side,),
@@ -131,9 +166,31 @@ class OwnerGripperSession:
             self._closed = True
             raise
 
+    def _check_reference(self, side, values):
+        measured = capture_calibration_sample(self._clients[side], values)
+        try:
+            coordinates = resolve_coordinates(self._motor_records[side], measured)
+            report = coordinates.report
+            previous = self._coordinates.get(side)
+            if previous is not None and coordinates.offset_rad != previous.offset_rad:
+                raise RuntimeError(side+': position reference changed during startup; no control sent')
+        except ReferenceMismatch as exc:
+            self._reference_reports[side] = exc.report
+            self._log('gripper_reference_rejected', side=side, report=exc.report)
+            raise
+        self._reference_reports[side] = report
+        self._coordinates[side] = coordinates
+        self._raw_profiles[side] = coordinates.raw_profile
+        self._log('gripper_reference_checked', side=side, report=report)
+        return coordinates.to_canonical(measured['position_rad'])
+
     def _feedback(self, side, event):
         p = self.profiles[side]
-        self.driver.receive(p.bus, event["can_id"], event["data"], received_ns=event["received_ns"])
+        target = self.acknowledged_target(side)
+        self.driver.receive(p.bus, event["can_id"], event["data"], received_ns=event["received_ns"],
+                            position_offset_rad=self._coordinates[side].offset_rad,
+                            recording_target=(dict(position_rad=target[0], source_timestamp_ns=target[1],
+                                source='owner_acknowledged_target') if target is not None else None))
 
     def submit(self, bus, frames, deadline_ns):
         """Accept all of an ordered batch or none; never block waiting for CAN."""
@@ -153,7 +210,14 @@ class OwnerGripperSession:
         try:
             if not self._started or self._closed or self._closing or side in self._errors:
                 return False
-            if (side in self._pending or side in self._reading) and not disable:
+            if side in self._reading and not disable:
+                # The latest-input control loop retries with a NEW command.
+                # Yield two ticks so a phase-aligned 100 Hz read loop cannot
+                # repeatedly occupy every takeover slot. Never queue/replay
+                # this rejected target or extend its original lease.
+                self._idle_yield_until[side] = time.monotonic()+.02
+                return False
+            if side in self._pending and not disable:
                 return False
             if disable:
                 self._generation[side] += 1
@@ -165,8 +229,9 @@ class OwnerGripperSession:
 
     def _worker(self, side):
         client = self._clients[side]
-        p = self.profiles[side]
+        p = self._raw_profiles[side]
         next_status = 0.
+        next_position_register = 0.
         busy_since = None
         operation = 'idle'
         try:
@@ -177,6 +242,8 @@ class OwnerGripperSession:
                 if batch is not None:
                     frames, deadline, generation = batch
                     for cid, payload in frames:
+                        if side in self._coordinates:
+                            payload = self._coordinates[side].to_wire(payload)
                         operation = ('enable' if payload == ENABLE else 'disable' if payload == DISABLE
                                      else 'target' if self._possibly_enabled[side] else 'seed')
                         if generation != self._generation[side]:
@@ -240,7 +307,8 @@ class OwnerGripperSession:
                         self._disabled_ack[side] = True
                         self._log("disabled_acknowledged", side=side)
                     break
-                if not self._possibly_enabled[side] and time.monotonic() >= next_status:
+                if (not self._possibly_enabled[side]
+                        and time.monotonic() >= max(next_status,self._idle_yield_until[side])):
                     # Status carries no target; exact position supports a seed at
                     # current pose after the operator has released the trigger.
                     with self._condition:
@@ -248,8 +316,17 @@ class OwnerGripperSession:
                             continue
                         self._reading.add(side)
                     operation = 'idle query'
+                    query_started = time.monotonic()
+                    scheduled = (next_status if next_status and query_started-next_status < .01
+                                 else query_started)
                     try:
-                        client.register(0x50, "f")
+                        # Keep the precise seed register fresh (<100 ms native
+                        # admission window), but don't read it for every sample.
+                        # Only disabled motors are queried; active motor feedback
+                        # remains tied to accepted commands and native limits.
+                        if query_started >= next_position_register:
+                            client.register(0x50, "f")
+                            next_position_register = time.monotonic()+.05
                         client.refresh_status(expected_state=0)
                     except (OwnerBusy, OwnerExpired) as exc:
                         # Only idle, explicitly unsent reads can be tried again.
@@ -274,7 +351,10 @@ class OwnerGripperSession:
                     if busy_since is not None:
                         self._log("idle_read_recovered", side=side)
                     busy_since = None
-                    next_status = time.monotonic()+.035
+                    # 100 Hz requested cadence, measured from query start.
+                    # An overrun is recorded as a lower actual rate, never a
+                    # catch-up burst or a fabricated feedback sample.
+                    next_status = max(scheduled+.01, time.monotonic()+.001)
                 elif select.select([client.sock], [], [], .001)[0]:
                     client.receive(.01)
                 else:
@@ -315,13 +395,19 @@ class OwnerGripperSession:
     def status(self):
         with self._condition:
             return dict(started=self._started, closed=self._closed,
+                        position_reference=copy.deepcopy(self._reference_reports),
+                        position_coordinates='original_configuration',
                         errors=dict(self._errors), pending_sides=sorted(self._pending),
                         idle_busy_reads=dict(self._idle_busy),
                         idle_expired_reads=dict(self._idle_expired),
                         query_inflight=sorted(self._reading),
                         dropped_unsent_targets=dict(self._dropped_targets),
                         rate_limited_targets=dict(self._rate_limited_targets),
-                        owner_acknowledged_target_rad={s: wire_position(self.profiles[s], payload)
+                        requested_feedback_hz=100,
+                        active_feedback_policy='accepted_commands_only_native_limits_preserved',
+                        owner_acknowledged_target_rad={s: (self._coordinates[s].to_canonical(
+                            wire_position(self._raw_profiles[s], payload)) if s in self._coordinates
+                            else wire_position(self.profiles[s], payload))
                             if payload is not None else None for s, payload in self._wire_payload.items()},
                         possibly_enabled=dict(self._possibly_enabled),
                         disabled_acknowledged=dict(self._disabled_ack))

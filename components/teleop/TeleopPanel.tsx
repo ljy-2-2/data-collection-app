@@ -60,6 +60,12 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
       catch { setReturnError('无法断开天机 Marvin M6设备，请检查本机服务后重试'); return; }
       finally { setRobotBusy(false); }
     }
+    if(configured?.robotModel==='kuavo-5w'){
+      setRobotBusy(true);
+      try{await requestJson(props.baseUrl,'/kuavo/cancel-preparation',{method:'POST'});}
+      catch{return;}
+      finally{setRobotBusy(false);}
+    }
     setReturnError('');
     setStep(1);
   }

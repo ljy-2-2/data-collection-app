@@ -6,6 +6,8 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT/'src') not in sys.path:
+    sys.path.insert(0, str(ROOT/'src'))
 
 
 def main(argv=None):
@@ -21,6 +23,12 @@ def main(argv=None):
     actions.add_argument('--inspect-grippers', action='store_true')
     actions.add_argument('--prepare-grippers', action='store_true')
     actions.add_argument('--preparation-job', metavar='REQUEST_ID', help='observe a previous preparation receipt without repeating it')
+    actions.add_argument('--settings', action='store_true', help='read shared idle-session parameters')
+    actions.add_argument('--preview-settings', metavar='JSON')
+    actions.add_argument('--apply-settings', metavar='JSON')
+    actions.add_argument('--reset-settings', action='store_true', help='restore parameter defaults, not robot home')
+    parser.add_argument('--expected-settings-revision', type=int)
+    parser.add_argument('--confirm-settings', action='store_true')
     parser.add_argument('--confirm-motion', action='store_true')
     parser.add_argument('--motor-ids-confirmed', action='store_true')
     parser.add_argument('--accept-unverified-gripper-bus', action='store_true')
@@ -35,6 +43,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     unknown_type = ()
     try:
+        from teleop.robots.kuavo5_service_client import settings_cli_options
+        settings = settings_cli_options(args)
         preparation = next((name for chosen, name in (
             (args.robot_status, 'status'), (args.start_controller, 'start'),
             (args.initialize, 'initialize'), (args.inspect_grippers, 'grippers_inspect'),
@@ -42,7 +52,7 @@ def main(argv=None):
         maintenance = args.enter_maintenance or args.leave_maintenance
         if args.confirm_maintenance and not maintenance:
             raise ValueError('maintenance confirmation and identity require a maintenance action')
-        if (args.expected_service_instance_id is not None or args.expected_installation_sha256 is not None) and not (maintenance or args.preparation_job):
+        if (args.expected_service_instance_id is not None or args.expected_installation_sha256 is not None) and not (maintenance or args.preparation_job or settings):
             raise ValueError('expected identity requires maintenance or a preparation receipt query')
         if maintenance and (not args.confirm_maintenance or
                 args.expected_service_instance_id is None or args.expected_installation_sha256 is None):
@@ -65,7 +75,7 @@ def main(argv=None):
             raise ValueError('--confirm-stop requires --stop-session')
         if args.stop_session is not None and not args.confirm_stop:
             raise ValueError('--stop-session requires explicit --confirm-stop')
-        if not args.status and args.stop_session is None and not maintenance and preparation is None and not args.preparation_job:
+        if not args.status and args.stop_session is None and not maintenance and preparation is None and not args.preparation_job and not settings:
             print(json.dumps(dict(event='KUAVO_SERVICE_REQUEST_DRY_RUN',
                 network_connected=False, session_start_requested=False,
                 stop_requested=False, physical_robot_command_sent=False)))
@@ -74,8 +84,8 @@ def main(argv=None):
             raise ValueError('--config is required; no automatic service or credentials discovery')
         sys.path.insert(0, str(ROOT/'src'))
         from teleop.robots.kuavo5_service_client import KuavoServiceClient
-        from teleop.robots.kuavo5_direct_channel import StopOutcomeUnknown, MaintenanceOutcomeUnknown, PreparationOutcomeUnknown
-        unknown_type = (StopOutcomeUnknown, MaintenanceOutcomeUnknown, PreparationOutcomeUnknown)
+        from teleop.robots.kuavo5_direct_channel import StopOutcomeUnknown, MaintenanceOutcomeUnknown, PreparationOutcomeUnknown, SettingsOutcomeUnknown
+        unknown_type = (StopOutcomeUnknown, MaintenanceOutcomeUnknown, PreparationOutcomeUnknown, SettingsOutcomeUnknown)
         socket_factory = None
         if args.network_namespace:
             if not (ROOT/'scripts/kuavo-network').is_file():
@@ -83,7 +93,10 @@ def main(argv=None):
             from teleop.robots.kuavo5_session_tcp_socket import namespace_socket
             socket_factory = lambda: namespace_socket(ROOT)
         client = KuavoServiceClient.from_config(args.config, socket_factory=socket_factory)
-        if preparation:
+        if settings:
+            name, positional, keyword = settings
+            result = getattr(client, name)(*positional, **keyword)
+        elif preparation:
             result = client.preparation(preparation, confirm_motion=args.confirm_motion,
                 motor_ids_confirmed=args.motor_ids_confirmed,
                 accept_unverified_gripper_bus=args.accept_unverified_gripper_bus)
@@ -99,6 +112,8 @@ def main(argv=None):
             result = (client.get_status() if args.status else
                       client.stop_session(args.stop_session, confirm_stop=True))
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        if settings:
+            return 0 if result.get('ok') is True else 1
         if preparation or args.preparation_job:
             return 1 if result.get('error') is not None or (result.get('result') or {}).get('ok') is False else 0
         return 0

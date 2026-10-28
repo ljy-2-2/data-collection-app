@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-27",
+  "host": "192.168.26.22",
+  "mode": {
+    "width": 1920,
+    "height": 1080,
+    "format": "MJPG",
+    "nominal_fps": 30,
+    "capture_buffers": 2
+  },
+  "transcoded_60s": [
+    {
+      "port": "2",
+      "measurement_s": 60.008,
+      "received_frames": 1024,
+      "received_fps": 17.06,
+      "preview_frames": 1024,
+      "preview_fps": 17.06,
+      "preview_mbps": 24.14,
+      "max_preview_gap_s": 0.102,
+      "diagnostics": [
+        "{\"negotiated\": {\"fourcc\": 1196444237.0, \"width\": 1920.0, \"height\": 1080.0, \"fps\": 30.0, \"buffers\": 2.0}}\n"
+      ],
+      "stale_samples": 0,
+      "samples": 591,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 1920,
+      "height": 1080,
+      "age_s": 0.008861663998686709
+    },
+    {
+      "port": "4",
+      "measurement_s": 60.008,
+      "received_frames": 1008,
+      "received_fps": 16.8,
+      "preview_frames": 1009,
+      "preview_fps": 16.81,
+      "preview_mbps": 25.64,
+      "max_preview_gap_s": 0.102,
+      "diagnostics": [
+        "{\"negotiated\": {\"fourcc\": 1196444237.0, \"width\": 1920.0, \"height\": 1080.0, \"fps\": 30.0, \"buffers\": 2.0}}\n"
+      ],
+      "stale_samples": 0,
+      "samples": 591,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 1920,
+      "height": 1080,
+      "age_s": 0.03843337199941743
+    }
+  ],
+  "native_mjpeg_60s": [
+    {
+      "port": "2",
+      "measurement_s": 60.074,
+      "received_frames": 1394,
+      "received_fps": 23.2,
+      "preview_frames": 1395,
+      "preview_fps": 23.22,
+      "preview_mbps": 44.52,
+      "max_preview_gap_s": 0.076,
+      "diagnostics": [
+        "{\"negotiated\": {\"fourcc\": 1196444237.0, \"width\": 1920.0, \"height\": 1080.0, \"fps\": 30.0, \"buffers\": 2.0}}\n"
+      ],
+      "stale_samples": 0,
+      "samples": 592,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 1920,
+      "height": 1080,
+      "age_s": 0.014279067996540107
+    },
+    {
+      "port": "4",
+      "measurement_s": 60.074,
+      "received_frames": 1388,
+      "received_fps": 23.1,
+      "preview_frames": 1389,
+      "preview_fps": 23.12,
+      "preview_mbps": 44.59,
+      "max_preview_gap_s": 0.076,
+      "diagnostics": [
+        "{\"negotiated\": {\"fourcc\": 1196444237.0, \"width\": 1920.0, \"height\": 1080.0, \"fps\": 30.0, \"buffers\": 2.0}}\n"
+      ],
+      "stale_samples": 0,
+      "samples": 592,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 1920,
+      "height": 1080,
+      "age_s": 0.02352372200402897
+    }
+  ],
+  "local_capture_without_network_10s": [
+    {
+      "port": "2",
+      "seconds": 10.019954940999924,
+      "frames": 299,
+      "capture_fps": 29.84045355099789,
+      "jpeg_mbps": 57.059028644987634
+    },
+    {
+      "port": "4",
+      "seconds": 10.01993138600028,
+      "frames": 299,
+      "capture_fps": 29.840523700367747,
+      "jpeg_mbps": 57.319475939970665
+    }
+  ],
+  "network": {
+    "route_interface": "enp3s0",
+    "negotiated_mbps": 100,
+    "measured_total_tx_mbps": 97.54097486315095,
+    "sample_s": 5.00489121299961,
+    "laptop_eno1_mbps": 1000
+  },
+  "native_jpeg_decode_verified": [
+    1920,
+    1080
+  ],
+  "scope": "temporary diagnostic configuration; production default remains 640x480; native MJPEG path not integrated into App; camera-only tests; owned readers closed"
+}

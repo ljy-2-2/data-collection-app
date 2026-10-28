@@ -159,10 +159,17 @@ class KuavoScene(RobotScene):
     @Slot('QVariantMap')
     def update_pose(self,status,calibration=None):
         values=(status.get('telemetry') or {}).get('joints') or {}
-        names={f'zarm_{side}{i}_joint' for side in ('l','r') for i in range(1,8)}
+        names={joint['name'] for joint in self.model['joints']
+               if joint['type'] in ('revolute','continuous') and not joint['name'].startswith('kuavo_tool_')}
         angles=dict(self.model.get('display_joint_defaults', {}))
         angles.update({name:float(value) for name,value in values.items()
                 if name in names and type(value) in (int,float) and math.isfinite(value)})
+        grippers=(status.get('telemetry') or {}).get('grippers') or {}
+        for side,letter in (('left','L'),('right','R')):
+            amount=(grippers.get(side) or {}).get('closure_fraction')
+            drive=next((j for j in self.model['joints'] if j['name']==f'kuavo_tool_gripper_drive_{letter}'),None)
+            if type(amount) in (int,float) and math.isfinite(amount) and drive:
+                angles[drive['name']]=(1-max(0.,min(1.,amount)))*float(drive['limit']['upper'])
         self.apply_angles(angles)
 
 class _MjpegPreviewParser:

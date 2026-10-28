@@ -110,3 +110,27 @@ def test_checked_input_survives_idle_but_does_not_claim_live_session(tmp_path):
     status=manager.snapshot()
     assert status['vr_ready'] and status['pico_ready']
     assert not status['active'] and not status['pico_live'] and status['state']=='idle'
+
+
+def test_check_prepares_missing_app_and_tunnel_only_after_pico_identity():
+    headset=Mock();headset._serial='PICO123';headset._device.return_value='PICO123'
+    headset._run.side_effect=[SimpleNamespace(returncode=0,stdout='devices'),
+        SimpleNamespace(returncode=0,stdout='PICO'),SimpleNamespace(returncode=0,stdout='A9210'),
+        SimpleNamespace(returncode=0,stdout='usb tcp:63901 tcp:63901'),
+        SimpleNamespace(returncode=0,stdout='mWakefulness=Awake')]
+    headset.ensure_started.return_value=True
+    assert headset_status(headset,prepare=True)['pico_ready']
+    headset.ensure_started.assert_called_once_with(quick=True,force_relaunch=False)
+    assert headset.verified_serial=='PICO123'
+    headset.reset_mock()
+    headset._run.side_effect=[SimpleNamespace(returncode=0,stdout='devices'),
+        SimpleNamespace(returncode=0,stdout='Other'),SimpleNamespace(returncode=0,stdout='Phone')]
+    assert not headset_status(headset,prepare=True)['pico_ready']
+    headset.ensure_started.assert_not_called()
+
+
+def test_prepared_headset_must_remain_the_verified_device():
+    from teleop_control.kuavo_vr import KuavoHeadsetSetup
+    headset=KuavoHeadsetSetup();headset.verified_serial='PICO123'
+    assert headset._device(SimpleNamespace(returncode=0,stdout='List of devices attached\nOTHER\tdevice\n',stderr='')) is None
+    assert '设备已变化' in headset.last_error

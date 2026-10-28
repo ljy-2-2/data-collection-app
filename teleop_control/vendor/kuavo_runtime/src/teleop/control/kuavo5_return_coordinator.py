@@ -2,7 +2,8 @@
 
 No devices are discovered or created here. There is no second ROS/CAN sender.
 Inputs must already have passed the robot-issued lease. This extra edge fence
-prevents held Y, B+Y and reconnects from becoming new return requests.
+prevents held Y and reconnects from becoming new return requests. Each fresh
+Y edge starts an idle return or cancels the active return; B is unassigned.
 """
 import math
 import time
@@ -46,17 +47,10 @@ class KuavoReturnCoordinator:
         self._sequence, self._device, self._source = (
             frame.sequence_id, frame.device_timestamp_ns, frame.source)
         y = frame.left_controller.buttons.secondary
-        b = frame.right_controller.buttons.secondary
-        # A held cancel consumes this Y press too. Releasing B while Y remains
-        # held must not start a return. Y must be released in a later frame.
-        if b:
-            self._y_armed = False
-            self.cancel('operator pressed B')
-            return
         # Match KuavoLiveController's deliberate Grip-cancel threshold. A
         # light resting squeeze (.17-.20 in the recorded trials) is not a
         # takeover request. Starting a return still requires release below .05;
-        # B cancels immediately at any Grip value.
+        # A second Y edge cancels at any Grip value below that threshold.
         if self._active and any(getattr(frame, side+'_controller').grip > .90
                                 for side in ('left', 'right')):
             self._y_armed = False
@@ -68,7 +62,10 @@ class KuavoReturnCoordinator:
         if not self._y_armed:
             return
         self._y_armed = False
-        self.request(frame, allowed=allowed)
+        if self._active:
+            self.cancel('operator pressed Y again')
+        else:
+            self.request(frame, allowed=allowed)
 
     def request(self, frame, *, allowed=True):
         """Shared request path for a button edge or an explicit one-shot command.

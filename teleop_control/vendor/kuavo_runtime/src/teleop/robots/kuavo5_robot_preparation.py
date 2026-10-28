@@ -355,6 +355,11 @@ class RobotPreparation:
         phase = controller['phase']
         if manager['phase'] == 'not_started' and phase in ('not_started', 'unavailable'):
             phase = 'not_started'
+        elif phase == 'not_started' and manager['phase'] in ('process_running', 'unmanaged_controller'):
+            # The launcher may be alive before any controller ROS nodes appear.
+            # Only the managed launcher establishes startup progress; an external
+            # process without matching ROS state must not invite start/adoption.
+            phase = 'starting' if manager['phase'] == 'process_running' else 'unavailable'
         elif manager['phase'] not in ('process_running', 'unmanaged_controller'):
             phase = 'starting' if manager['phase'] == 'starting' else 'unavailable'
         identity = controller.get('controller_identity')

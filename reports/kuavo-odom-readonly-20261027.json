@@ -1,0 +1,1 @@
+{"samples": 238, "topic": "/odom", "motion_publishers_created": false, "receive_hz": 59.55259106252785, "local_age_ms_min": 0.264207, "local_age_ms_median": 0.32063149999999996, "local_age_ms_max": 2.33671, "source_hz": 59.547546480570446, "repeated_or_reordered": 0, "callers": ["/ukf_odom"], "frames": [["odom", "base_footprint"]]}

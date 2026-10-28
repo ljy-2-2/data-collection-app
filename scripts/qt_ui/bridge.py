@@ -15,6 +15,8 @@ from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSetti
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 ROOT = Path(__file__).resolve().parents[2]
+KUAVO_MOTION_KEYS = dict(kuavoPositionScale='position_scale', kuavoVelocity='max_velocity_rad_s',
+                         kuavoAcceleration='planning_acceleration_rad_s2')
 FIELDS = [
     dict(key='scale',label='比例',unit='×',min=.1,max=2,step=.01,default=1),
     dict(key='max_joint_speed_deg_s',label='关节速度上限',unit='°/s',min=.1,max=180,step=.1,default=180),
@@ -47,7 +49,8 @@ def initial_state():
         uploadMode='dual',g2Scale=.5,g2Speed=.5,extraCameras=[],g2Camera='head_color',tianjiCamera='usb_1',
         tianjiCameraLayout='left-center-right',g2CameraLayout='left-center-right',
         tianji=dict(state='idle',devices=devices('天机 Marvin M6'),joints={},cameras=[],collection={}),tianjiStatusFresh=False,
-        kuavo=dict(state='idle',active=False,error='',service={},preparation={},session={},logs=[],limitations=[]),
+        kuavo=dict(state='idle',active=False,error='',service={},preparation={},session={},logs=[],limitations=[],
+            manual=dict(active=False,available=False,state='idle',joints=json.loads((ROOT/'teleop_control/assets/kuavo/manual-joints.json').read_text()))),
         kuavoNamespace='current',kuavoBusAccepted=True,kuavoArmMode='dual',kuavoPositionScale=1.,kuavoVelocity=.7,kuavoAcceleration=5.,kuavoMotionLoaded=False,kuavoMotionPending=False,kuavoMotionSaving=False,kuavoMotionError="",cameraApplyBusy=False,cameraApplyMessage='',cameraApplyError='',
         g2=dict(devices=devices('G2'),session=dict(state='idle'),motion=dict(state='idle')),
         preview=dict(available=False,joint_positions={},cameras=[]),
@@ -100,6 +103,8 @@ class Bridge(QObject):
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(100);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(350);self.save_timer.timeout.connect(self.save_parameters)
         self.kuavo_motion_timer=QTimer(self);self.kuavo_motion_timer.setSingleShot(True);self.kuavo_motion_timer.setInterval(350);self.kuavo_motion_timer.timeout.connect(self.save_kuavo_motion)
+        self.kuavo_motion_base=None
+        self.kuavo_motion_fields=set()
         self.camera_message_timer=QTimer(self);self.camera_message_timer.setSingleShot(True);self.camera_message_timer.setInterval(2000)
         self.camera_message_timer.timeout.connect(lambda:self.update(cameraApplyMessage=''))
 
@@ -155,10 +160,17 @@ class Bridge(QObject):
     def assetRoot(self): return QUrl.fromLocalFile(str(ROOT/'public')+'/').toString()
 
     def update(self, **values):
+        kuavo = values.get('kuavo', self._state['kuavo'])
+        remote = kuavo.get('parameter_mode')=='service'
+        if remote and ('kuavo' in values or 'kuavoArmMode' in values) and not values.get('kuavoMotionPending', self._state['kuavoMotionPending']):
+            controls = kuavo.get('motion_controls', {}).get(values.get('kuavoArmMode',self._state['kuavoArmMode']), {})
+            if controls:
+                values.update({key:controls['values'][field] for key,field in KUAVO_MOTION_KEYS.items()})
+                values['kuavoMotionLoaded']=True
         if 'tianji' in values:
             values.setdefault('tianjiStatusFresh',True)
         motion = (values.get('kuavo') or {}).get('motion_settings', {}).get('values')
-        if motion and not self._state.get('kuavoMotionLoaded'):
+        if motion and not remote and not self._state.get('kuavoMotionLoaded'):
             values.update(kuavoMotionLoaded=True,kuavoPositionScale=motion['position_scale'],
                           kuavoVelocity=motion['max_velocity_rad_s'],kuavoAcceleration=motion['planning_acceleration_rad_s2'])
         if 'cameraApplyMessage' in values and hasattr(self,'camera_message_timer'):
@@ -307,17 +319,30 @@ class Bridge(QObject):
     def setValue(self,key,value):
         allowed={'robot','task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','theme','kuavoArmMode','kuavoPositionScale','kuavoVelocity','kuavoAcceleration'}
         if key not in allowed or self._state['closing']:return
-        if self._state['busy'] and key not in ('theme','tianjiCameraLayout','g2CameraLayout'):return
+        kuavo_edit=key in ('kuavoArmMode','kuavoPositionScale','kuavoVelocity','kuavoAcceleration') and self.kuavo_prestart() and self._state['busy']=='check'
+        if self._state['busy'] and key not in ('theme','tianjiCameraLayout','g2CameraLayout') and not kuavo_edit:return
         if hasattr(value,'toVariant'):value=value.toVariant()
         if key in ('g2Scale','g2Speed'):
             try:value=float(value)
             except (ValueError,TypeError):return
             if not math.isfinite(value) or not .1<=value<=1:return
         if key in ('kuavoArmMode','kuavoPositionScale','kuavoVelocity','kuavoAcceleration'):
-            if self.teleop_active():return
-            if key=='kuavoArmMode' and value not in ('dual','left','right'):return
-            if key=='kuavoPositionScale' and (type(value) not in (float,int) or not math.isfinite(value) or not .1<=value<=1):return
-            if key in ('kuavoVelocity','kuavoAcceleration') and (type(value) not in (float,int) or not math.isfinite(value) or not .01<=value<=(.7 if key=='kuavoVelocity' else 5.)):return
+            if not self.kuavo_prestart():return
+            if key=='kuavoArmMode':
+                if value not in ('dual','left','right','dual_base') or self._state['kuavoMotionPending'] or self._state['kuavoMotionSaving']:return
+            elif self._state['kuavo'].get('parameter_mode')=='service':
+                k=self._state['kuavo'];form=k.get('session_settings') or {}
+                controls=k.get('motion_controls',{}).get(self._state['kuavoArmMode'],{})
+                spec=controls.get('schema',{}).get(KUAVO_MOTION_KEYS[key])
+                if not form.get('editable') or not spec or self._state['kuavoMotionSaving']:return
+                if (type(value) not in (float,int) or not math.isfinite(value) or not spec['min']<=value<=spec['max']
+                        or spec.get('min_exclusive') and value==spec['min']):return
+                if value==self._state[key] and KUAVO_MOTION_KEYS[key] not in controls['mixed']:return
+                if self.kuavo_motion_base is None:self.kuavo_motion_base=copy.deepcopy(form)
+                self.kuavo_motion_fields.add(KUAVO_MOTION_KEYS[key])
+            else:
+                if key=='kuavoPositionScale' and (type(value) not in (float,int) or not math.isfinite(value) or not .1<=value<=1):return
+                if key in ('kuavoVelocity','kuavoAcceleration') and (type(value) not in (float,int) or not math.isfinite(value) or not .01<=value<=(.7 if key=='kuavoVelocity' else 5.)):return
         if key=='robot':
             if value not in ('tianji','agibot-g2','kuavo-5w') or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
             if self.umiOnly or (self.tianjiOnly and value!='tianji'):return
@@ -344,11 +369,30 @@ class Bridge(QObject):
         s=self._state
         if s['closing'] or not s['authenticated'] or not s['kuavoMotionPending']:return
         if s['kuavoMotionSaving']:return
-        if s['busy'] or self.teleop_active():
+        if s['busy'] not in ('','check') or not self.kuavo_prestart():
             self.kuavo_motion_timer.start();return
         params=self.kuavo_motion_values()
         self.kuavo_motion_revision+=1
         self.update(kuavoMotionSaving=True,kuavoMotionError='')
+        if s['kuavo'].get('parameter_mode')=='service':
+            form=self.kuavo_motion_base
+            if not form:
+                self.update(kuavoMotionSaving=False,kuavoMotionError='请重新检查设备后修改参数');return
+            controls=s['kuavo']['motion_controls'][s['kuavoArmMode']]
+            changes={target:params[field] for field in self.kuavo_motion_fields for target in controls['targets'][field]}
+            payload=dict(action='apply',confirm=True,changes=changes,expected_revision=form['revision'],
+                         expected_service_instance_id=form['service_instance_id'],expected_installation_sha256=form['installation_sha256'])
+            def saved(value):
+                self.kuavo_motion_revision+=1
+                self.kuavo_motion_base=None;self.kuavo_motion_fields.clear()
+                self.update(kuavo=value,kuavoMotionSaving=False,kuavoMotionPending=False,kuavoMotionError='')
+            def rejected(message):
+                self.kuavo_motion_revision+=1
+                self.update(kuavo={**self._state['kuavo'],'session_settings':None},kuavoMotionSaving=False,
+                            kuavoMotionError='参数未确认应用：'+str(message)+'；请重新检查设备并修改')
+            if self.demo:rejected('界面演示不修改机器人')
+            else:self.request('/kuavo/session-settings',payload,saved,failed=rejected,timeout=180000)
+            return
         def done(value):
             self.kuavo_motion_revision+=1
             changed=params!=self.kuavo_motion_values()
@@ -361,12 +405,47 @@ class Bridge(QObject):
         if self.demo:QTimer.singleShot(30,lambda:done(self.demo_action('/kuavo/motion',params)))
         else:self.request('/kuavo/motion',params,done,failed=failed)
 
+    @Slot('QVariantMap')
+    def kuavoCollectionSettings(self, config):
+        if self.demo:return
+        self.request('/kuavo/collection/settings',config,
+            lambda value:self.update(kuavo={**self._state['kuavo'],'collection':value}),
+            failed=lambda message:self.update(kuavo={**self._state['kuavo'],'collection':{**self._state['kuavo'].get('collection',{}),'error':str(message)}}))
+
     @Slot(QUrl)
     def importTianjiCameraCredentials(self, file):
         if not file.isLocalFile():
             self.fail('请选择本地相机配置文件');return
         self.action('camera-credentials','/tianji/camera-credentials',{'path':file.toLocalFile()},
                     done=lambda value:self.update(notice='相机配置已导入，请点击“检查设备”连接三路画面'),timeout=30000)
+
+    kuavoCameraSettingsApplied=Signal(bool,str)
+
+    @Slot(str,'QVariantMap')
+    def kuavoCameraAction(self, action, config):
+        if self._state.get('kuavoCameraBusy') or action not in ('discover','connect','disconnect','reconnect','settings'):return
+        self.update(kuavoCameraBusy=True,kuavoCameraError='')
+        def failed(message):
+            self.update(kuavoCameraBusy=False,kuavoCameraError=str(message))
+            if action=='settings':self.kuavoCameraSettingsApplied.emit(False,str(message))
+        def done(value):
+            self.update(kuavo={**self._state['kuavo'],'camera_preview':value},kuavoCameraBusy=False)
+            if action=='settings':self.kuavoCameraSettingsApplied.emit(True,'')
+        if self.demo:failed('界面演示不连接相机');return
+        if action=='settings':
+            # QML Number values arrive as doubles; preserve strict integer JSON.
+            config=copy.deepcopy(config)
+            for profile in config.values():
+                for key in ('width','height','brightness'):
+                    value=profile.get(key)
+                    if value is None and key=='brightness':continue
+                    if type(value) not in (int,float) or not math.isfinite(value) or value!=int(value):
+                        failed('分辨率和亮度须为支持范围内的整数');return
+                    profile[key]=int(value)
+        if action=='reconnect':
+            self.request('/kuavo/cameras/reconnect',{},done,failed=failed,timeout=30000)
+        else:
+            self.request('/kuavo/cameras/'+action,config if action!='disconnect' else {},done,failed=failed,timeout=60000)
 
     @Slot(str)
     def navigate(self,page):
@@ -411,11 +490,22 @@ class Bridge(QObject):
 
     @Slot()
     def returnTeleop(self):
+        if self._state['robot']=='kuavo-5w' and self.kuavo_prestart() and not self._state['closing']:
+            self.kuavo_motion_timer.stop()
+            if self._state['kuavoMotionPending'] and not self._state['kuavoMotionSaving'] and not self._state['kuavoMotionError']:
+                self.save_kuavo_motion()
+            self.action('return-config','/kuavo/cancel-preparation',done=lambda value:self.update(
+                kuavo=value,teleopStep=1,error='',notice=''),priority=True,timeout=180000)
+            return
         if self._state['busy'] or self._state['closing']:return
         if self.teleop_active():self.fail('请先停止遥操作、手动运动和采集');return
         if self._state['robot']=='tianji':
             self.action('close','/tianji/close',done=lambda _:self.update(teleopStep=1))
         else:self.update(teleopStep=1)
+
+    def kuavo_prestart(self):
+        k=self._state['kuavo']
+        return k.get('prestart_editable',k.get('state') in (None,'idle','error','checking','preparing','ready'))
 
     def teleop_active(self):
         s=self._state;t=s['tianji'];g=s['g2'];c=t.get('collection',{})
@@ -451,14 +541,23 @@ class Bridge(QObject):
         if not s['authenticated']:return
         if s['robot']=='kuavo-5w':
             if action not in ('check','start','stop'):return
+            if action=='check' and s['kuavoMotionError'] and not s['kuavoMotionSaving']:
+                self.kuavo_motion_timer.stop();self.kuavo_motion_base=None;self.kuavo_motion_fields.clear()
+                self.update(kuavoMotionPending=False,kuavoMotionError='')
             if action!='stop' and (s['kuavoMotionPending'] or s['kuavoMotionSaving']):
                 self.save_kuavo_motion();return
             if action=='start' and not self.valid_task(s['task']):return
+            restarting=action=='start' and not s['kuavo'].get('control_ready') and bool(s['kuavo'].get('can_restart'))
+            preparing=action=='check' or restarting
             payload = dict(network_namespace='current',task=s['task'],
-                           arm_mode=s['kuavoArmMode'],position_scale=s['kuavoPositionScale'],
-                           confirm_motion=action=='start',accept_unverified_gripper_bus=True)
-            if action=='stop':payload=dict(session_id=s['kuavo'].get('session_id') or '')
-            self.action(action,'/kuavo/'+action,payload,done=lambda value:self.update(kuavo=value),priority=action=='stop')
+                           arm_mode=s['kuavoArmMode'],position_scale=1. if s['kuavo'].get('parameter_mode')=='service' else s['kuavoPositionScale'],
+                           confirm_motion=action in ('check','start'),prepare_controller=preparing,prepare_grippers=preparing,prepare_session=preparing,require_prepared=action=='start',restart_after_stop=restarting,
+                           motor_ids_confirmed=preparing,accept_unverified_gripper_bus=True)
+            path='/kuavo/'+action
+            if action=='stop':
+                if self.kuavo_prestart():path='/kuavo/cancel-preparation';payload=None
+                else:payload=dict(session_id=s['kuavo'].get('session_id') or '')
+            self.action(action,path,payload,done=lambda value:self.update(kuavo=value),priority=action=='stop',timeout=920000 if preparing else 180000)
         elif s['robot']=='tianji':
             if action=='start':
                 if not self.valid_task(s['task']) or not s['paramSaved'] or s['paramSaving']:return
@@ -475,18 +574,61 @@ class Bridge(QObject):
             sid=s['g2'].get('session',{}).get('session_id')
             if sid:self.action('stop','/sessions/'+quote(sid,safe='')+'/stop',priority=True)
 
+    kuavoManualInputFailed=Signal()
+
+    @Slot(str)
+    def kuavoManual(self, action):
+        if action not in ('start','stop') or not self._state['authenticated']: return
+        manual=self._state['kuavo'].get('manual') or {}
+        self.update(kuavoManualError='')
+        self.action('kuavo-manual-'+action,'/kuavo/manual/'+action,
+            {} if action=='start' else dict(session_id=manual.get('session_id') or ''),
+            done=lambda value:self.update(kuavo=value),priority=action=='stop')
+
+    @Slot('QVariantMap')
+    def kuavoManualInput(self, command):
+        if not self._state['authenticated']: return
+        manual=self._state['kuavo'].get('manual') or {}
+        if not manual.get('active') or not manual.get('session_id'): return
+        self.kuavo_manual_sequence=getattr(self,'kuavo_manual_sequence',0)+1
+        if self.demo: return
+        sid=manual['session_id']
+        def failed(message):
+            if (self._state['kuavo'].get('manual') or {}).get('session_id')!=sid:return
+            if command.get('action')!='heartbeat':self.update(kuavoManualError=message)
+            self.kuavoManualInputFailed.emit()
+        self.request('/kuavo/manual/input',dict(session_id=sid,sequence=self.kuavo_manual_sequence,command=command),
+                     timeout=800,failed=failed)
+
     kuavoSettingsSaved=Signal(bool,str)
+    kuavoSessionSettingsDone=Signal(bool,str)
+
+    @Slot('QVariantMap')
+    def kuavoSessionSettings(self, payload):
+        s=self._state
+        if not s['authenticated'] or s['robot']!='kuavo-5w' or s['busy'] not in ('','check') or not self.kuavo_prestart():
+            self.kuavoSessionSettingsDone.emit(False,'请先结束会话或等待当前操作完成');return
+        if self.demo:
+            self.kuavoSessionSettingsDone.emit(False,'界面演示不读取或修改机器人参数');return
+        def done(value):
+            self.update(kuavo=value)
+            self.kuavoSessionSettingsDone.emit(True,'')
+        def failed(message):
+            self.update(kuavo={**self._state['kuavo'],'session_settings':None,'settings_preview':None})
+            self.kuavoSessionSettingsDone.emit(False,str(message))
+        self.action('kuavo-session-settings','/kuavo/session-settings',payload,done=done,on_failed=failed,priority=s['busy']=='check',timeout=180000)
 
     @Slot(str,'QVariantMap')
     def saveKuavoSettings(self,kind,values):
         s=self._state
-        if not s['authenticated'] or (s['robot']!='kuavo-5w' and kind!='grippers') or s['busy'] or self.teleop_active():
+        kuavo_edit=s['robot']=='kuavo-5w' and self.kuavo_prestart() and s['busy'] in ('','check')
+        if not s['authenticated'] or (s['robot']!='kuavo-5w' and kind!='grippers') or (not kuavo_edit and (s['busy'] or self.teleop_active())):
             self.kuavoSettingsSaved.emit(False,'请先结束会话或等待当前操作完成');return
         if kind not in ('connection','grippers','motion'):return
         def done(value):
             self.update(kuavo=value)
             self.kuavoSettingsSaved.emit(True,'')
-        self.action('kuavo-settings','/kuavo/'+kind,values,done=done,
+        self.action('kuavo-settings','/kuavo/'+kind,values,done=done,priority=kuavo_edit and s['busy']=='check',timeout=180000,
                     on_failed=lambda message:self.kuavoSettingsSaved.emit(False,str(message)))
 
     @Slot(str,bool)

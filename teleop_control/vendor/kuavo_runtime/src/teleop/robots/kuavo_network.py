@@ -206,7 +206,16 @@ def _cleanup_partial(config: KuavoNetworkConfig, runner: CommandRunner) -> None:
         runner.run(["ip", "link", "del", config.macvlan_interface], check=False)
 
 
-def _test(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
+def _check_port(value: int | None) -> int | None:
+    if value is not None and (type(value) is not int or not 1 <= value <= 65535):
+        raise ValueError("check port must be an integer from 1 to 65535")
+    return value
+
+
+def _test(config: KuavoNetworkConfig, runner: CommandRunner,
+          *, check_port: int | None = None) -> int:
+    _check_port(check_port)
+    port = config.ssh_port if check_port is None else check_port
     if not runner.dry_run:
         _require_root()
         if not _namespace_exists(config, runner):
@@ -230,10 +239,10 @@ def _test(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
         ),
         check=False,
     )
-    ssh = runner.run(
+    tcp = runner.run(
         _inside(
             config, "nc", "-zv", "-w", "3",
-            config.robot_ip, str(config.ssh_port),
+            config.robot_ip, str(port),
         ),
         check=False,
     )
@@ -245,25 +254,30 @@ def _test(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
             file=sys.stderr,
         )
         return 2
-    if ssh.returncode != 0:
+    if tcp.returncode != 0:
         print(
-            "Kuavo Ethernet is reachable, but SSH is not ready on port 22.",
+            (f"Kuavo Ethernet is reachable, but SSH is not ready on port {port}."
+             if check_port is None else
+             f"Kuavo Ethernet is reachable, but the TCP service is not ready on port {port}."),
             file=sys.stderr,
         )
         return 3
+    port_status = "ssh=true" if check_port is None else f"tcp_port={port} tcp=true"
     print(
         "KUAVO_NETWORK_READY arp=true "
-        f"ping={'true' if ping.returncode == 0 else 'blocked'} ssh=true "
+        f"ping={'true' if ping.returncode == 0 else 'blocked'} {port_status} "
         "host_routes_changed=false robot_commands_sent=false"
     )
     return 0
 
 
-def _up(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
+def _up(config: KuavoNetworkConfig, runner: CommandRunner,
+        *, check_port: int | None = None) -> int:
+    _check_port(check_port)
     if runner.dry_run:
         for command in build_up_commands(config):
             runner.run(command)
-        return _test(config, runner)
+        return _test(config, runner, check_port=check_port)
 
     _require_root()
     parent = runner.run(
@@ -289,7 +303,7 @@ def _up(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
             _inside(config, "ip", "link", "set", config.macvlan_interface, "up")
         )
         print("KUAVO_NETWORK_REUSED owned=true")
-        return _test(config, runner)
+        return _test(config, runner, check_port=check_port)
     if _root_link_exists(config.macvlan_interface, runner):
         raise RuntimeError(
             f"Root interface {config.macvlan_interface!r} already exists; refusing to overwrite it."
@@ -309,7 +323,7 @@ def _up(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
         "KUAVO_NETWORK_CONFIGURED host_routes_changed=false "
         "wifi_vpn_unchanged=true robot_commands_sent=false"
     )
-    return _test(config, runner)
+    return _test(config, runner, check_port=check_port)
 
 
 def _down(config: KuavoNetworkConfig, runner: CommandRunner) -> int:
@@ -378,9 +392,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--dry-run", action="store_true")
     subparsers = parser.add_subparsers(dest="action", required=True)
-    subparsers.add_parser("up", help="create/reuse kuavons and test connectivity")
+    up_parser = subparsers.add_parser("up", help="create/reuse kuavons and test connectivity")
+    up_parser.add_argument("--check-port", type=int,
+                          help="check this TCP port instead of the default SSH port")
     subparsers.add_parser("status", help="show the isolated network")
-    subparsers.add_parser("test", help="check ARP, ping and SSH")
+    test_parser = subparsers.add_parser("test", help="check ARP, ping and a TCP port (default SSH)")
+    test_parser.add_argument("--check-port", type=int,
+                            help="check this TCP port instead of the default SSH port")
     run_parser = subparsers.add_parser("run", help="run a command inside kuavons")
     run_parser.add_argument("--user")
     run_parser.add_argument("command", nargs=argparse.REMAINDER)
@@ -394,13 +412,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         config = KuavoNetworkConfig.from_environment()
         if args.action == "up":
-            return _up(config, runner)
+            return _up(config, runner, check_port=args.check_port)
         if args.action == "status":
             if not args.dry_run:
                 _require_root()
             return _show_status(config, runner)
         if args.action == "test":
-            return _test(config, runner)
+            return _test(config, runner, check_port=args.check_port)
         if args.action == "down":
             return _down(config, runner)
         if args.action == "run":

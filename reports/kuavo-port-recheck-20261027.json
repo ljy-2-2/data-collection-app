@@ -1,0 +1,72 @@
+{
+  "elapsed_s": 20.000160405004863,
+  "transport": "network",
+  "cameras": {
+    "left": {
+      "frames": 326,
+      "fps": 16.299869270969516,
+      "status": {
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 1920,
+        "height": 1080,
+        "age_s": 0.02350575699529145,
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30.0,
+          "brightness": 0.0,
+          "encoding": "camera_native_jpeg"
+        }
+      }
+    },
+    "right": {
+      "frames": 398,
+      "fps": 19.899840398300206,
+      "status": {
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 1920,
+        "height": 1080,
+        "age_s": 0.041328794992296025,
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30.0,
+          "brightness": 0.0,
+          "encoding": "camera_native_jpeg"
+        }
+      }
+    },
+    "head": {
+      "frames": 600,
+      "fps": 29.999759394422423,
+      "status": {
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 1280,
+        "height": 800,
+        "age_s": 0.005536607000976801,
+        "settings": {
+          "width": 1280,
+          "height": 800,
+          "fps": 30.0,
+          "brightness": 0.0
+        }
+      }
+    }
+  },
+  "native_jpeg_decoded_by_qt": true,
+  "camera_module_sha256": "3f66ce6dfa3d62c80cb841a6e9066ee0a807b5f96f97449fd43a8e7c86ff3cb4",
+  "network": {
+    "robot_interface": "enp3s0",
+    "robot_link_mbps": 100,
+    "robot_address": "192.168.26.22",
+    "pc_interface": "eno1",
+    "pc_link_mbps": 100,
+    "pc_address": "192.168.26.250"
+  }
+}

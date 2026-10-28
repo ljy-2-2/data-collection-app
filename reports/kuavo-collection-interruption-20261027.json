@@ -1,0 +1,35 @@
+{
+  "episode": "20261027_163817_d743135a",
+  "duration_s": 555.838357373,
+  "recording_error": "实测关节流中断",
+  "joint_samples": 55542,
+  "actual_joint_hz": 99.92473284819505,
+  "source_joint_hz": 100,
+  "largest_recorded_joint_receive_gap_ms": 35.434964,
+  "recorded_joint_source_interval_ms": 10,
+  "missing_collection_batch_sequence": 10058,
+  "missing_batch_also_absent_in_session_log": true,
+  "subsequent_session_error": "base execution fault: odometry stale, invalid or reordered",
+  "base_refusal_pc_monotonic_ns": 95694095914010,
+  "last_recorded_joint_pc_monotonic_ns": 95652400691314,
+  "cause_of_receive_pause": "not established: historical logs do not distinguish network/producer scheduling from local queue backlog",
+  "local_fix": "Watchdog uses newest successfully queued original joint receive timestamp instead of only writer-consumed timestamp; threshold stays 250 ms; loss checks retained; new failure context records queue and timestamps.",
+  "robot_code_changed": false,
+  "robot_control_executed": false,
+  "active_backend_reloaded": false,
+  "old_episode_modified": false,
+  "offline_tests_passed": 59,
+  "typescript_check_passed": true,
+  "guide": {
+    "path": "public/kuavo-usage-guide.png",
+    "editable_source": "public/kuavo-usage-guide.svg",
+    "method": "Hand-authored native SVG rendered with Qt; built-in image generation returned HTTP 429 twice; no API/CLI fallback used",
+    "attempted_imagegen_prompt": "Use case: infographic-diagram. Create a new 乐聚遥操作使用说明 image based on the supplied Tianji guide as visual reference. Retain its clean black line-art VR controllers, white background, bold readable simplified Chinese, simple accurate arrows. Landscape 16:9, high resolution. Three controller drawings: left front showing X/Y, right front showing A/B, and side view showing trigger and grip. Clear uncluttered composition and generous margins. Title: “乐聚遥操作使用说明”. Exact labels with arrows to correct controls: “A：开始采集” pointing to right A; “B：保存本轮／取消回位” pointing to right B; “Y：双臂及夹爪回位／取消回位” pointing to left Y; “Grip：按住接管所选手臂” pointing to side grip; “Trigger：夹爪开合” pointing to upper trigger. Bottom two concise notes: “摇杆：底盘移动与转向（仅双臂＋底盘模式）” and “X：暂不使用”. Label drawings “左手柄” and “右手柄”. All labels legible and exact. Avoid adding buttons/functions, gradients, colors, watermarks. This is a new project asset, do not overwrite the input. Save output locally and return path metadata."
+  },
+  "ui_changes": [
+    "Removed reconnect-video button",
+    "Camera settings label renamed 相机参数",
+    "Removed pose-online badge",
+    "Added Kuavo usage guide in web and Qt"
+  ]
+}

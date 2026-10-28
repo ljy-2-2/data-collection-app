@@ -94,10 +94,17 @@ class OwnerLedger:
         os.fsync(self.fd)
         self.state = value
 
-    def reserve(self, session):
+    def reserve(self, session, settings_snapshot=None):
         if self.blocked:
             raise RuntimeError('previous session cleanup is unconfirmed')
-        self._write(dict(active=True, session_id=session, supervisor_pid=os.getpid()))
+        marker = dict(active=True, session_id=session, supervisor_pid=os.getpid())
+        if settings_snapshot is not None:
+            marker['session_settings'] = json.loads(json.dumps(settings_snapshot, allow_nan=False))
+        self._write(marker)
+
+    def reserve_manual(self, session, settings_snapshot):
+        self.reserve(session, settings_snapshot)
+        self._write(dict(self.state, operation="manual"))
 
     def release(self, session):
         if self.state.get('session_id') != session or self.state.get('active') is not True:
@@ -131,7 +138,8 @@ class SessionSupervisor:
     def __init__(self, bundle_sha256, *, worker_factory=None, backend='none',
                  ledger=None, clock=time.monotonic, controller_admin=None, profile=None,
                  installation_sha256=None, session_contract=None, start_in_maintenance=False,
-                 preparation_admin=None):
+                 preparation_admin=None, settings_store=None, settings_bundle=None,
+                 settings_lock_factory=None):
         if backend not in ('none', 'fake', 'robot'):
             raise ValueError('unknown session backend')
         if type(start_in_maintenance) is not bool:
@@ -162,15 +170,56 @@ class SessionSupervisor:
             preparation_admin.bind_ledger(ledger)
         self.last_session = None
         self.maintenance = start_in_maintenance
+        self._request_lock = threading.RLock()
+        self.settings_store = settings_store
+        self.settings_bundle = settings_bundle
+        self.settings_snapshot = None
+        self.settings_last_request_id = None
+        self.settings_error = None
+        self.settings_lock_factory = settings_lock_factory
+        if settings_store is not None:
+            if (settings_bundle is None or settings_bundle.get('sha256') != bundle_sha256
+                    or installation_sha256 is None):
+                raise ValueError('runtime settings require the exact installed base bundle')
+            if settings_lock_factory is None:
+                from .kuavo5_execution_lock import ExecutionLock
+                self.settings_lock_factory = lambda: ExecutionLock(route='ssh')
+            self._refresh_settings()
+        elif settings_bundle is not None or settings_lock_factory is not None:
+            raise ValueError('settings bundle/lock require a settings store')
 
     @property
     def owner(self):
         return None if self.active is None else self.active['owner']
 
+    def _cleanup_diagnostics(self):
+        """Optional status detail, separate from the unchanged release predicate."""
+        state = self.active
+        if state is None or not self.blocked_reason:
+            return None
+        result = dict(version=1, session_id=state['id'],
+                      worker_startup_failed=state['startup_error'] is not None)
+        worker = state['worker']
+        if worker is None or not callable(getattr(worker, 'cleanup_diagnostics', None)):
+            result['failed_checks'] = ['worker_diagnostics_unavailable']
+            return result
+        try:
+            result.update(worker.cleanup_diagnostics())
+        except Exception:
+            # Diagnosing a failure cannot break status or leak exception text.
+            result['failed_checks'] = ['cleanup_diagnostics_unavailable']
+        return result
+
     def status(self):
-        blocked = (self.blocked_reason or
+        ledger_state = getattr(self.ledger, 'state', None) or {}
+        if self.settings_store is not None and self.active is None:
+            try:
+                self._refresh_settings()
+            except Exception as exc:
+                self.settings_error = type(exc).__name__+': '+str(exc)
+        blocked = (self.blocked_reason or self.settings_error or
                    (self.preparation_admin.blocked_reason if self.preparation_admin else None) or
-                   (('previous_preparation_unconfirmed' if self.ledger.state.get('operation') == 'preparation'
+                   (('previous_preparation_unconfirmed' if ledger_state.get('operation') == 'preparation'
                      else 'previous_cleanup_unconfirmed')
                     if self.ledger and self.ledger.blocked and self.active is None else None))
         result = dict(event='service_status', scope=SCOPE, backend=self.backend,
@@ -194,10 +243,132 @@ class SessionSupervisor:
             result.update(robot_preparation_protocol=PREPARATION_PROTOCOL,
                           robot_preparation_actions=list(PREPARATION_ACTIONS),
                           robot_preparation_busy=self.preparation_admin.busy)
-        if self.ledger and self.ledger.state.get('active') and self.ledger.state.get('operation') == 'preparation':
-            result['unconfirmed_preparation'] = {name: self.ledger.state[name]
+        if ledger_state.get('active') and ledger_state.get('operation') == 'preparation':
+            result['unconfirmed_preparation'] = {name: ledger_state[name]
                 for name in ('request_id', 'action', 'installation_sha256')}
+        if self.settings_store is not None:
+            result['session_settings_protocol'] = self.settings_snapshot['protocol']
+        diagnostics = self._cleanup_diagnostics()
+        if diagnostics is not None:
+            result['cleanup_diagnostics'] = diagnostics
+        if getattr(self, 'manual_factory', None) is not None:
+            result['manual_protocol'] = 'kuavo_manual_v1'
+        result['session_kind'] = (self.active or {}).get('kind','teleop')
         return result
+
+    def _refresh_settings(self):
+        """Read current data and publish one coherent profile/contract identity."""
+        from .kuavo5_session_settings import apply_settings, validate_snapshot
+        from .kuavo5_service_contract import prepare_service_contract
+        description = self.settings_store.describe()
+        snapshot = validate_snapshot(self.settings_bundle, self.installation_sha256,
+                                     description['snapshot'])
+        effective = apply_settings(self.settings_bundle, snapshot['values'])
+        template = prepare_service_contract(effective, session_settings=snapshot)
+        contract = bind_service_contract(template, service_instance_id=self.service_instance_id,
+            installation_sha256=self.installation_sha256, bundle_sha256=self.bundle_sha256)
+        self.profile = validate_profile(contract['profile'])
+        self.session_contract = contract
+        self.settings_snapshot = snapshot
+        self.settings_last_request_id = description['last_request_id']
+        self.settings_error = None
+        return snapshot
+
+    def _settings_locked_reason(self):
+        if self.settings_store is None:
+            return 'session_settings_not_installed'
+        if self.settings_error:
+            return 'session_settings_unreadable'
+        if self.shutting_down:
+            return 'service_shutting_down'
+        if self.maintenance:
+            return 'service_in_maintenance'
+        if self.active is not None:
+            return 'session_active_or_cleanup_pending'
+        if self.blocked_reason:
+            return self.blocked_reason
+        if self.ledger is None or self.ledger.blocked:
+            return 'previous_operation_cleanup_unconfirmed'
+        if self.controller_admin and self.controller_admin.busy:
+            return 'controller_operation_in_progress'
+        if self.preparation_admin and (self.preparation_admin.busy or self.preparation_admin.blocked_reason):
+            return self.preparation_admin.blocked_reason or 'robot_preparation_in_progress'
+        return None
+
+    def _settings_request(self, packet):
+        """Pure-data management requests; no helper, worker or motor is started."""
+        from .kuavo5_session_settings import settings_defaults, settings_schema
+        action = packet['event']
+        request_id = packet.get('request_id') if action in ('settings_apply', 'settings_reset') else None
+        if not isinstance(request_id, str) or re.fullmatch('[a-f0-9]{32}', request_id) is None:
+            request_id = None
+        reply = dict(event='session_settings_result', action=action, ok=False, error=None,
+            outcome_unknown=False,
+            request_id=request_id, service_instance_id=self.service_instance_id,
+            installation_sha256=self.installation_sha256, editable=False, locked_reason=None,
+            snapshot=None, defaults={}, schema={}, last_request_id=None)
+        write_attempted = False
+
+        def describe():
+            if self.settings_store is not None:
+                if self.active is None:
+                    self._refresh_settings()
+                reply.update(snapshot=json.loads(json.dumps(self.settings_snapshot)),
+                    defaults=settings_defaults(self.settings_bundle), schema=settings_schema(self.settings_bundle),
+                    last_request_id=self.settings_last_request_id)
+            reason = self._settings_locked_reason()
+            reply.update(editable=reason is None, locked_reason=reason)
+
+        try:
+            if self.settings_store is None:
+                raise ValueError('session_settings_not_installed')
+            describe()
+            fields = {'event'}
+            if action != 'settings_get':
+                fields.update(('expected_service_instance_id', 'expected_installation_sha256', 'expected_revision'))
+            if action in ('settings_preview', 'settings_apply'):
+                fields.add('changes')
+            if action in ('settings_apply', 'settings_reset'):
+                fields.update(('request_id', 'confirm'))
+            if set(packet) != fields:
+                raise ValueError('invalid_session_settings_fields')
+            if action == 'settings_get':
+                reply['ok'] = True
+                return reply
+            if (packet['expected_service_instance_id'] != self.service_instance_id
+                    or packet['expected_installation_sha256'] != self.installation_sha256):
+                raise ValueError('session_settings_service_identity_mismatch')
+            if action == 'settings_preview':
+                reply['snapshot'] = self.settings_store.preview(packet['changes'], packet['expected_revision'])
+                reply['ok'] = True
+                return reply
+            if packet['confirm'] is not True or request_id is None:
+                raise ValueError('explicit_session_settings_confirmation_and_request_id_required')
+            reason = self._settings_locked_reason()
+            if reason:
+                raise ValueError(reason)
+            # Serial event dispatch prevents a network start between these tests;
+            # the shared execution gate also excludes legacy SSH execution.
+            with self.settings_lock_factory():
+                reason = self._settings_locked_reason()
+                if reason:
+                    raise ValueError(reason)
+                write_attempted = True
+                if action == 'settings_reset':
+                    self.settings_store.reset(packet['expected_revision'], request_id)
+                else:
+                    self.settings_store.apply(packet['changes'], packet['expected_revision'], request_id)
+                describe()
+            reply['ok'] = True
+        except Exception as exc:
+            reply['error'] = type(exc).__name__+': '+str(exc)
+            try:
+                describe()  # A failed reply/write may still have committed: expose its receipt.
+            except Exception as read_error:
+                self.settings_error = type(read_error).__name__+': '+str(read_error)
+                reply.update(snapshot=None, editable=False, locked_reason='session_settings_unreadable',
+                             outcome_unknown=write_attempted)
+        return reply
 
     def _record_cleanup(self, state):
         """Call only after the durable owner release has succeeded."""
@@ -294,11 +465,32 @@ class SessionSupervisor:
         self._begin_close('service_closed')
 
     def handle(self, owner, packet):
+        with self._request_lock:
+            return self._handle(owner, packet)
+
+    def _handle(self, owner, packet):
         if self.preparation_admin is not None:
             self.preparation_admin.settle()
         event = packet.get('event')
+        if event == 'start_manual_session':
+            return self._start_manual(owner, packet)
+        if event == 'manual_input':
+            state = self.active
+            if (state is None or state.get('kind') != 'manual' or state['owner'] != owner
+                    or packet.get('session_id') != state['id']):
+                return dict(event='refused',reason='not_manual_session_owner')
+            if set(packet) != {'event','session_id','packet'} or state['phase'] != 'running':
+                return dict(event='refused',reason='manual_session_not_ready')
+            try:
+                state['worker'].send_input(packet['packet'],absolute_deadline=self.clock()+.05)
+            except Exception as exc:
+                self._begin_close('manual_input_forward_failed')
+                return dict(event='refused',reason=str(exc))
+            return None
         if event == 'status' and set(packet) == {'event'}:
             return self.status()
+        if event in ('settings_get', 'settings_preview', 'settings_apply', 'settings_reset'):
+            return self._settings_request(packet)
         if event == 'stop_session':
             return self._stop_session(packet)
         if event in ('enter_maintenance', 'leave_maintenance'):
@@ -306,6 +498,16 @@ class SessionSupervisor:
         if event in ('preparation_request', 'preparation_job'):
             if self.preparation_admin is None:
                 return dict(event='refused', reason='robot_preparation_not_installed_or_disabled')
+            if 'expected_contract_sha256' in packet:
+                if self.settings_store is not None and self.active is None:
+                    try:
+                        self._refresh_settings()
+                    except Exception:
+                        return dict(event='refused', reason='session_settings_unreadable')
+                if (self.session_contract is None
+                        or packet['expected_contract_sha256'] != self.session_contract['contract_sha256']):
+                    return dict(event='refused', reason='preparation_contract_identity_mismatch')
+                packet = {key: value for key, value in packet.items() if key != 'expected_contract_sha256'}
             return self.preparation_admin.handle(owner, packet,
                 session_available=self.active is None and not self.shutting_down and not self.maintenance
                 and not self.blocked_reason and not (self.ledger and self.ledger.blocked),
@@ -317,6 +519,16 @@ class SessionSupervisor:
                 session_available=self.active is None and not self.shutting_down and not self.maintenance
                 and not self.blocked_reason and not (self.ledger and self.ledger.blocked))
         negotiated = event == 'start_session_contract'
+        negotiated_contract_sha256 = packet.get('contract_sha256') if negotiated else None
+        if event in ('start_session', 'start_session_contract') and self.settings_store is not None:
+            if not negotiated:
+                return dict(event='refused', reason='versioned_session_settings_contract_required')
+            if self.active is None:
+                try:
+                    self._refresh_settings()
+                except Exception as exc:
+                    self.settings_error = type(exc).__name__+': '+str(exc)
+                    return dict(event='refused', reason='session_settings_unreadable')
         if negotiated:
             extra = {'expected_service_instance_id', 'expected_installation_sha256',
                      'session_protocol', 'contract_sha256'}
@@ -324,7 +536,7 @@ class SessionSupervisor:
                 return dict(event='refused', reason='session_contract_unavailable')
             if (packet['expected_service_instance_id'] != self.service_instance_id
                     or packet['expected_installation_sha256'] != self.installation_sha256
-                    or packet['session_protocol'] != SESSION_PROTOCOL
+                    or packet['session_protocol'] != self.session_contract['protocol']
                     or packet['contract_sha256'] != self.session_contract['contract_sha256']):
                 return dict(event='refused', reason='session_contract_identity_mismatch')
             packet = {k: v for k, v in packet.items() if k not in extra}
@@ -335,10 +547,16 @@ class SessionSupervisor:
                 fields.add('allow_gripper_control')
                 if packet.get('allow_gripper_control') is not True:
                     return dict(event='refused', reason='explicit_gripper_permission_required')
+            if self.profile.get('base_mode') == 'vendor_vr_x':
+                fields.add('allow_base_control')
+                if packet.get('allow_base_control') is not True:
+                    return dict(event='refused', reason='explicit_base_permission_required')
             if set(packet) != fields:
                 return dict(event='refused', reason='invalid_start_fields')
             if not self.status()['ready_to_start']:
                 return dict(event='refused', reason=self.status()['blocked_reason'] or 'session_busy_or_disabled')
+            if negotiated and negotiated_contract_sha256 != self.session_contract['contract_sha256']:
+                return dict(event='refused', reason='session_contract_identity_mismatch')
             duration = packet['duration_s']
             if (packet['motion_enabled'] is not True or packet['configure_vendor_profile'] is not True
                 or packet['expected_backend'] != self.backend or packet['profile'] != self.profile
@@ -346,14 +564,21 @@ class SessionSupervisor:
                 or type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0):
                 return dict(event='refused', reason='installation_profile_or_permission_mismatch')
             sid = secrets.token_hex(16)
-            self.ledger.reserve(sid)  # durable reservation precedes any worker action
+            frozen = (None if self.settings_store is None else
+                      json.loads(json.dumps(self.settings_snapshot, allow_nan=False)))
+            if frozen is None:
+                self.ledger.reserve(sid)
+            else:
+                self.ledger.reserve(sid, settings_snapshot=frozen)
             state = dict(id=sid, owner=owner, phase='starting', started=threading.Event(),
                          worker=None, startup_error=None, close_reason=None, close_requested=False,
-                         deadline=self.clock()+90., duration=duration, closed=None, terminal_sent=False)
+                         deadline=self.clock()+90., duration=duration, closed=None, terminal_sent=False,
+                         session_settings=frozen)
             self.active = state
             def start():
                 try:
-                    state['worker'] = self.factory()
+                    state['worker'] = (self.factory() if frozen is None else
+                                      self.factory(json.loads(json.dumps(frozen))))
                     if state['close_reason'] is not None:
                         state['close_requested'] = True
                         state['worker'].request_close()
@@ -404,6 +629,43 @@ class SessionSupervisor:
             self._begin_close('input_forward_failed')
             return dict(event='refused', reason='input_forward_failed: '+type(exc).__name__+': '+str(exc))
         return None
+
+    def _start_manual(self, owner, packet):
+        fields = {'event','protocol','expected_service_instance_id','expected_installation_sha256','confirm_motion'}
+        if (set(packet) != fields or packet.get('protocol') != 'kuavo_manual_v1'
+                or packet.get('confirm_motion') is not True):
+            return dict(event='refused',reason='invalid_manual_start')
+        if (packet['expected_service_instance_id'] != self.service_instance_id
+                or packet['expected_installation_sha256'] != self.installation_sha256):
+            return dict(event='refused',reason='manual_installation_identity_changed')
+        factory = getattr(self,'manual_factory',None)
+        if factory is None:
+            return dict(event='refused',reason='manual_service_update_required')
+        if not self.status()['ready_to_start'] or self.settings_snapshot is None:
+            return dict(event='refused',reason='manual_control_busy_or_unavailable')
+        sid = secrets.token_hex(16)
+        frozen = json.loads(json.dumps(self.settings_snapshot))
+        self.ledger.reserve_manual(sid,frozen)
+        state = dict(id=sid,owner=owner,kind='manual',phase='starting',started=threading.Event(),
+            worker=None,startup_error=None,close_reason=None,close_requested=False,
+            deadline=self.clock()+30.,duration=0,closed=None,terminal_sent=False,session_settings=frozen)
+        self.active = state
+        def start():
+            try:
+                state['worker'] = factory(frozen)
+                if state['close_reason'] is not None:
+                    state['close_requested'] = True
+                    state['worker'].request_close()
+                state['worker'].start()
+            except Exception as exc: state['startup_error'] = str(exc)
+            finally: state['started'].set()
+        thread = threading.Thread(target=start,name='kuavo-manual-start',daemon=False)
+        state['thread'] = thread
+        try: thread.start()
+        except Exception as exc:
+            state['startup_error'] = str(exc); state['started'].set()
+        return dict(event='manual_session_started',session_id=sid,protocol='kuavo_manual_v1',
+                    service_instance_id=self.service_instance_id,installation_sha256=self.installation_sha256)
 
     def tick(self):
         if self.preparation_admin is not None:
@@ -475,7 +737,8 @@ class SessionSupervisor:
                 self._begin_close(self.blocked_reason)
         if self.blocked_reason and not state['terminal_sent']:
             state['terminal_sent'] = True
-            outgoing.append((state['owner'], dict(event='refused', reason=self.blocked_reason)))
+            outgoing.append((state['owner'], dict(event='refused', reason=self.blocked_reason,
+                cleanup_diagnostics=self._cleanup_diagnostics())))
         return outgoing
 
 

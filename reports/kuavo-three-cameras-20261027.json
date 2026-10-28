@@ -1,0 +1,82 @@
+{
+  "measurement": [
+    {
+      "role": "left",
+      "seconds": 30.04652645198803,
+      "fps": 29.82,
+      "stale_samples": 0,
+      "samples": 300,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 640,
+      "height": 480,
+      "age_s": 0.029366058006417006
+    },
+    {
+      "role": "right",
+      "seconds": 30.04652645198803,
+      "fps": 29.82,
+      "stale_samples": 0,
+      "samples": 300,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 640,
+      "height": 480,
+      "age_s": 0.03608617800637148
+    },
+    {
+      "role": "head",
+      "seconds": 30.04652645198803,
+      "fps": 29.99,
+      "stale_samples": 0,
+      "samples": 300,
+      "connected": true,
+      "state": "streaming",
+      "error": "",
+      "width": 640,
+      "height": 480,
+      "age_s": 0.0060067890008213
+    }
+  ],
+  "reconnect": {
+    "stream_changed": true,
+    "cameras": [
+      {
+        "id": "head",
+        "label": "头部主相机",
+        "source": "ros:/camera/color/image_raw",
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 640,
+        "height": 480,
+        "age_s": 0.005947418991127051
+      },
+      {
+        "id": "left",
+        "label": "左相机",
+        "source": "usb:/dev/v4l/by-path/pci-0000:00:14.0-usb-0:2:1.0-video-index0",
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 640,
+        "height": 480,
+        "age_s": 0.008357915008673444
+      },
+      {
+        "id": "right",
+        "label": "右相机",
+        "source": "usb:/dev/v4l/by-path/pci-0000:00:14.0-usb-0:4:1.0-video-index0",
+        "connected": true,
+        "state": "streaming",
+        "error": "",
+        "width": 640,
+        "height": 480,
+        "age_s": 0.024045315993134864
+      }
+    ],
+    "error": ""
+  }
+}

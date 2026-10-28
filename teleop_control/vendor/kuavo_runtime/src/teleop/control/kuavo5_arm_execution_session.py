@@ -90,7 +90,8 @@ class ArmExecutionSession:
                  max_offset_rad=math.radians(10), period_s=.02,
                  max_tracking_error_rad=.2, max_state_age_ms=250,
                  max_input_age_ms=100, recover_unreachable=False,
-                 tracking_governor=None, reference_sync="all_joints"):
+                 tracking_governor=None, reference_sync="all_joints",
+                 joint_velocity_limits=None, joint_acceleration_limits=None):
         if tuple(schema.names) != ARM_NAMES:
             raise ValueError('fixed left7/right7 schema required')
         if type(max_input_age_ms) is not int or max_input_age_ms <= 0:
@@ -112,15 +113,19 @@ class ArmExecutionSession:
                              max_state_age_ms=max_state_age_ms,
                              synchronization_groups=((ARM_NAMES[:7], ARM_NAMES[7:])
                                  if reference_sync == "per_arm" else None))
-        JointMotionGate(schema, **self._options)  # Validate all configuration now.
+        if joint_velocity_limits is not None:
+            self._options['joint_velocity_limits'] = dict(joint_velocity_limits)
+        if joint_acceleration_limits is not None:
+            self._options['joint_acceleration_limits'] = dict(joint_acceleration_limits)
+        checked_gate = JointMotionGate(schema, **self._options)  # Validate now.
         if tracking_governor is not None:
             if not isinstance(tracking_governor, KuavoTrackingGovernor):
                 raise ValueError('KuavoTrackingGovernor required')
-            tracking_governor.validate_profile(
-                velocity=max_velocity_rad_s,
-                acceleration=max_acceleration_rad_s2,
-                period=period_s,
-                hard_tracking=max_tracking_error_rad)
+            for name in schema.names:
+                tracking_governor.validate_profile(
+                    velocity=checked_gate.joint_velocity_limits[name],
+                    acceleration=checked_gate.joint_acceleration_limits[name],
+                    period=period_s, hard_tracking=max_tracking_error_rad)
         self.schema = schema
         self._publish, self._hold = publish, hold
         self._input_age_ns = max_input_age_ms * 1_000_000
@@ -358,11 +363,16 @@ class ArmExecutionSession:
             max_acceleration_rad_s2=min(
                 self._options['max_acceleration_rad_s2'] or max_acceleration_rad_s2,
                 max_acceleration_rad_s2), synchronization_groups=None)
-        JointMotionGate(self.schema, **options)
+        for key, limit in (('joint_velocity_limits', options['max_velocity_rad_s']),
+                           ('joint_acceleration_limits', options['max_acceleration_rad_s2'])):
+            if key in options:
+                options[key] = {n: min(v, limit) for n, v in options[key].items()}
+        return_gate = JointMotionGate(self.schema, **options)
         governor = KuavoTrackingGovernor(lead_rad=.06)
-        governor.validate_profile(velocity=options['max_velocity_rad_s'],
-            acceleration=options['max_acceleration_rad_s2'],
-            period=options['period_s'], hard_tracking=options['max_tracking_error_rad'])
+        for name in self.schema.names:
+            governor.validate_profile(velocity=return_gate.joint_velocity_limits[name],
+                acceleration=return_gate.joint_acceleration_limits[name],
+                period=options['period_s'], hard_tracking=options['max_tracking_error_rad'])
         self._invalidate('explicit fixed joint return started')
         self._return_profile = (self._options, self._tracking_governor)
         self._options, self._tracking_governor = options, governor
@@ -465,8 +475,8 @@ class ArmExecutionSession:
             # A degree/radian wire round trip can change the final binary bits.
             if abs(position-self._last_published[joint.name]) > 1e-12:
                 raise ValueError('reference position belongs to another publication')
-            limit = min(self._options['max_velocity_rad_s'],
-                        joint.max_velocity or self._options['max_velocity_rad_s'])
+            limit = min(self._gate.joint_velocity_limits[joint.name],
+                        joint.max_velocity or self._gate.joint_velocity_limits[joint.name])
             if abs(velocity) > limit+1e-12:
                 raise ValueError('reference velocity exceeds configured speed')
             normalized[joint.name] = max(-limit, min(limit, velocity))
@@ -836,7 +846,7 @@ class ArmExecutionSession:
                     for name in active:
                         previous_velocity = trial._previous_velocity[name]
                         velocity = math.copysign(
-                            max(0., abs(previous_velocity)-acceleration*elapsed),
+                            max(0., abs(previous_velocity)-trial.joint_acceleration_limits[name]*elapsed),
                             previous_velocity)
                         velocities[name] = velocity
                         positions[name] += velocity*elapsed

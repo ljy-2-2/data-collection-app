@@ -27,6 +27,7 @@ from teleop.robots.kuavo5_live_protocol import make_input_packet
 from teleop.robots.kuavo5_host_channel import SSHSessionChannel, write_packet
 from teleop.robots.kuavo5_host_journal import AsyncJournal, AsyncConsole
 from teleop.robots.kuavo5_live_agent import PriorityPacketQueue
+from teleop.robots.kuavo5_return_config import RETURN_BUTTONS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,20 +73,24 @@ def validate_return_home_ready(packet, bundle):
         if packet.get('return_home_enabled', False) is not False or packet.get('return_home_config_sha256') is not None:
             raise ValueError('unexpected return-home capability in robot handshake')
         return
+    from teleop.robots.kuavo5_return_config import RETURN_BUTTONS
     if (packet.get('return_home_enabled') is not True
             or not bundle.get('return_home_config_sha256')
             or packet.get('return_home_config_sha256') != bundle['return_home_config_sha256']
-            or packet.get('return_home_buttons') != {'request': 'left_y', 'cancel': 'right_b'}):
+            or packet.get('return_home_buttons') != bundle.get('return_home_buttons', RETURN_BUTTONS)):
         raise ValueError('return-home configuration/button handshake mismatch')
 
 
-def return_home_status_hint(report):
+def return_home_status_hint(report, buttons=None):
     if not isinstance(report, dict):
         return None
     text = '回初始姿态：'+str(report.get('state', 'unknown'))
     if report.get('reason'):
         text += ' | '+str(report['reason'])
-    return text+' | 左 Y 请求；右 B 取消'
+    from teleop.robots.kuavo5_return_config import RETURN_BUTTONS
+    buttons = buttons or RETURN_BUTTONS
+    return text+(' | 左 Y 回位；再按 Y 取消' if buttons.get('cancel') == 'left_y'
+                else ' | 左 Y 请求；右 B 取消')
 
 
 def run_host(command, bundle, *, duration, journal,
@@ -129,6 +134,7 @@ def run_host(command, bundle, *, duration, journal,
     closed = None
     return_code = 1
     def record(packet):
+        control.observe(packet)
         if async_journal is not None:
             async_journal.record(packet)
         else:
@@ -254,7 +260,9 @@ def run_host(command, bundle, *, duration, journal,
                     elif bundle.get('gripper_mode') == 'damiao':
                         console.write('夹爪已加入同一遥操会话：先松开食指扳机，再按下接管；0=张开，1=闭合，与握把键独立。')
                     if bundle.get('return_home_config') is not None:
-                        console.write('回初始姿态已启用：松开两侧 Grip 和扳机，再按左 Y 请求双臂回厂家初始姿态、夹爪回本次会话初始开度；右 B 取消。')
+                        console.write('回初始姿态已启用：松开两侧 Grip 和扳机，'+
+                            return_home_status_hint(dict(state='就绪'), bundle.get('return_home_buttons'))+
+                            '；双臂回厂家初始姿态、夹爪回本次会话初始开度。')
             elif kind == 'compute_preparing':
                 if ready or not candidate:
                     raise ValueError('unexpected private compute preflight')
@@ -297,13 +305,17 @@ def run_host(command, bundle, *, duration, journal,
                 if bundle.get('return_home_config') is not None:
                     hint = ('独立回位：'+str(packet.get('return_home', {}).get('state', 'unknown'))+
                             ' | Ctrl+C 取消；到位后自动退出' if standalone else
-                            return_home_status_hint(packet.get('return_home')))
+                            return_home_status_hint(packet.get('return_home'), bundle.get('return_home_buttons')))
                     if hint is not None:
                         console.write(hint)
                 if not standalone and bundle.get('gripper_mode') in ('preview', 'damiao'):
                     hint = gripper_status_hint(packet.get('grippers'))
                     if hint is not None:
                         console.write(hint)
+                if bundle.get('base_mode') == 'vendor_vr_x':
+                    base = packet.get('base') or {}
+                    console.write('底盘 '+str(base.get('state', 'unknown'))+' | '+str(base.get('reason', ''))+
+                                  ' | X 切换锁定；Y 回位时先停车')
                 # Full evidence is in the journal; avoid rendering thousands
                 # of JSON characters in the input response thread every second.
                 if candidate:
@@ -319,9 +331,12 @@ def run_host(command, bundle, *, duration, journal,
                       ('底座运动检查触发：已暂停双臂，会话保持连接；等待底座稳定。'
                        if kind == 'guard_pause' else
                        '底座已稳定：松开两侧 Grip，再握住需要控制的手柄恢复。'))
-            elif kind in ('return_started', 'return_refused', 'return_cancelled', 'return_completed', 'return_trace'):
+            elif kind in ('return_waiting_base_stop', 'return_started', 'return_refused',
+                          'return_cancelled', 'return_completed', 'return_trace'):
                 if not ready or bundle.get('return_home_config') is None:
                     raise ValueError('unexpected return-home event before capability handshake')
+                if kind == 'return_waiting_base_stop' and bundle.get('base_mode') != 'vendor_vr_x':
+                    raise ValueError('unexpected base-return event without integrated base capability')
                 # These are robot reports, persisted above, never host-generated
                 # movement commands or a reason to replay a previous Y press.
                 if standalone and kind == 'return_completed':
@@ -331,7 +346,8 @@ def run_host(command, bundle, *, duration, journal,
                 if standalone and kind in ('return_refused', 'return_cancelled'):
                     raise ValueError('independent return failed: '+str(packet.get('reason', '')))
                 if kind != 'return_trace':
-                    labels = {'return_started': '回位已开始', 'return_refused': '回位请求被拒绝',
+                    labels = {'return_waiting_base_stop': '回位准备：底盘已锁定，等待停车反馈',
+                              'return_started': '回位已开始', 'return_refused': '回位请求被拒绝',
                               'return_cancelled': '回位已取消', 'return_completed': '回位已完成'}
                     console.write(labels[kind]+'：'+str(packet.get('reason', '')))
             elif kind in ('ik_failure', 'guard_failure', 'ik_trace', 'control_trace',
@@ -372,8 +388,11 @@ def run_host(command, bundle, *, duration, journal,
             # master, manufacturer controller, or a pending late-mode fallback.
             try:
                 channel.close_input()
-            except (OSError, ValueError):
-                pass
+            except (EOFError, OSError, ValueError) as exc:
+                # A failed/closed network connection cannot accept the close
+                # request. Still wait for any queued report and release local
+                # resources; never let EOF skip SDK cleanup or host_closed.
+                errors.append('close request failed: '+str(exc))
             deadline = time.monotonic()+3.
             while closed is None and time.monotonic() < deadline:
                 try:
@@ -593,7 +612,7 @@ def main(argv=None, *, session_control=None):
                 candidate_ttl_ms=200, robot_runtime='Python 3.8 / vendor ROS Noetic',
                 **({'return_home_enabled': True,
                     'return_home_config_sha256': bundle['return_home_config_sha256'],
-                    'return_home_buttons': {'request': 'left_y', 'cancel': 'right_b'}}
+                    'return_home_buttons': dict(RETURN_BUTTONS)}
                    if args.return_home_config is not None else {}),
                 **target_progress_profile(args.target_recovery),
                 **posture_profile(args.arm_posture, args.target_recovery))))

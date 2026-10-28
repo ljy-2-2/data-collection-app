@@ -69,3 +69,27 @@ def measured_feedback(packet):
     if type(stamp) is not int or stamp<=0:return None
     if any(type(v) not in (int,float) or not math.isfinite(v) for v in values):return None
     return dict(joints={n:float(v) for n,v in zip(names,values) if n in ARM_NAMES}, timestamp_ns=stamp)
+
+
+def measured_grippers(packet):
+    """Read canonical motor feedback, never trigger/target or raw CAN coordinates."""
+    if not isinstance(packet, dict) or packet.get('event') != 'status':return {}
+    grippers = packet.get('grippers')
+    if not isinstance(grippers, dict) or grippers.get('mode') != 'injected_driver':return {}
+    motors = grippers.get('motors')
+    if not isinstance(motors, dict):return {}
+    result = {}
+    for side in ('left', 'right'):
+        motor = motors.get(side)
+        if not isinstance(motor, dict):continue
+        feedback = motor.get('feedback')
+        if not isinstance(feedback, dict):continue
+        stamp = feedback.get('received_ns')
+        position, opened, closed, age = (feedback.get('position_rad'), motor.get('open_rad'),
+                                        motor.get('closed_rad'), motor.get('feedback_age_ms'))
+        if type(stamp) is not int or stamp <= 0:continue
+        if any(type(v) not in (int, float) or not math.isfinite(v) for v in (position, opened, closed, age)):continue
+        if opened == closed or not 0 <= age < 1000:continue
+        result[side] = dict(closure_fraction=max(0., min(1., (position-opened)/(closed-opened))),
+                            position_rad=position, timestamp_ns=stamp, age_s=age/1000.)
+    return result

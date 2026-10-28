@@ -1,8 +1,9 @@
 """XRFrame -> planar base intent; pure math/state, with no hardware imports.
 
 Wheel VR stick directions follow the vendor WheelQuest3IkIncrementalTools.
-X+A toggles only this mapper's local unlock; it NEVER calls vendor reset/mode
-services. Faults request zero immediately; ordinary centering slews to zero.
+X+A (default) or explicitly selected X toggles only this mapper's local unlock;
+it NEVER calls vendor reset/mode services. Faults request zero immediately;
+ordinary centering slews to zero.
 These are reference semantics, not verified physical stopping guarantees.
 """
 from dataclasses import dataclass
@@ -24,9 +25,14 @@ class BaseInputConfig:
     max_tick_s: float = .04
     vendor_mapping: bool = False
     recover_with_neutral: bool = False
+    toggle_mode: str = 'x_a'
 
     def __post_init__(self):
         for name, value in vars(self).items():
+            if name == 'toggle_mode':
+                if type(value) is not str or value not in ('x_a', 'x'):
+                    raise ValueError("toggle_mode must be 'x_a' or 'x'")
+                continue
             if name in ('vendor_mapping', 'recover_with_neutral'):
                 if type(value) is not bool:
                     raise ValueError(name+' must be bool')
@@ -51,7 +57,7 @@ def base_speed_limits(profile):
     raise ValueError('unknown base speed profile: '+str(profile))
 
 
-def vendor_base_config(profile='vendor_vr'):
+def vendor_base_config(profile='vendor_vr', *, toggle_mode='x_a'):
     """Audited VR or handheld axes; factory MPC supplies reference smoothing.
 
     Both profiles clip axes separately. VR suppresses all components <= 0.01;
@@ -60,7 +66,8 @@ def vendor_base_config(profile='vendor_vr'):
     limits=base_speed_limits(profile)
     return BaseInputConfig(max_translation_m_s=limits[0], max_yaw_rad_s=limits[2],
                            deadzone=.05 if profile=='vendor_handheld' else 0.,
-                           input_timeout_s=.1, vendor_mapping=True, recover_with_neutral=True)
+                           input_timeout_s=.1, vendor_mapping=True, recover_with_neutral=True,
+                           toggle_mode=toggle_mode)
 
 
 @dataclass(frozen=True)
@@ -90,7 +97,16 @@ class MobileBaseMapper:
         self._resume_pending = False
         self._neutral_since = None
         self._pause_count = 0
-        self._lock_reason = 'initial lock; release X/A and center sticks before unlock'
+        self._lock_reason = ('initial lock; release '+self._release_buttons+
+                             ' and center sticks before unlock')
+
+    @property
+    def _release_buttons(self):
+        return 'X' if self.config.toggle_mode == 'x' else 'X/A'
+
+    @property
+    def _toggle_buttons(self):
+        return 'X' if self.config.toggle_mode == 'x' else 'X+A'
 
     @property
     def diagnostics(self):
@@ -107,14 +123,15 @@ class MobileBaseMapper:
             reason = self._lock_reason
         return BaseMappingResult(intent, self._target, status, reason)
 
-    def _lock(self, reason='authority revoked; explicit X+A required'):
+    def _lock(self, reason=None):
         self._enabled = False
         self._ready = False
         self._combo = False
         self._target = self._velocity = (0., 0., 0.)
         self._resume_pending = False
         self._neutral_since = None
-        self._lock_reason = reason
+        self._lock_reason = (reason if reason is not None else
+                             'authority revoked; explicit '+self._toggle_buttons+' required')
 
     def _expire_input(self):
         # Never continue an expired velocity. Only a new, sustained neutral
@@ -122,7 +139,7 @@ class MobileBaseMapper:
         resumable = self.config.recover_with_neutral and (self._enabled or self._resume_pending)
         if resumable and not self._resume_pending:
             self._pause_count += 1
-        self._lock('input timeout; center sticks and release X/A for 100 ms to continue'
+        self._lock('input timeout; center sticks and release '+self._release_buttons+' for 100 ms to continue'
                    if resumable else 'input timeout; release buttons and neutralize sticks before unlock')
         self._resume_pending = resumable
 
@@ -209,13 +226,14 @@ class MobileBaseMapper:
                 self._last_fresh = frame.received_monotonic_ns
                 left = frame.left_controller.buttons.primary
                 right = frame.right_controller.buttons.primary
-                combo = left and right
+                combo = left if self.config.toggle_mode == 'x' else left and right
+                buttons_released = not left and (self.config.toggle_mode == 'x' or not right)
                 target = self._map_axes(frame)
                 neutral = not any(target)
                 if self._resume_pending:
                     if combo and not self._combo:
                         self._lock('operator locked base channel')
-                    elif neutral and not left and not right:
+                    elif neutral and buttons_released:
                         if self._neutral_since is None:
                             self._neutral_since = frame.received_monotonic_ns
                         if frame.received_monotonic_ns-self._neutral_since >= 100_000_000:
@@ -227,7 +245,7 @@ class MobileBaseMapper:
                         self._neutral_since = None
                     self._combo = combo
                     return self._result(now_ns, reason)
-                if not left and not right and neutral:
+                if buttons_released and neutral:
                     self._ready = True
                 if combo and not self._combo:
                     if self._enabled:
@@ -238,7 +256,8 @@ class MobileBaseMapper:
                         self._ready = False
                         reason = 'operator unlocked base channel'
                     else:
-                        reason = 'unlock blocked: release X/A and center sticks first'
+                        reason = ('unlock blocked: release '+self._release_buttons+
+                                  ' and center sticks first')
                         self._lock_reason = reason
                 else:
                     reason = 'stick centered' if neutral else 'latest stick target'

@@ -1,0 +1,138 @@
+{
+  "date": "2026-10-27",
+  "daily_transport": "HTTPS without SSH fallback in default camera/pose path",
+  "deployment": {
+    "192.168.26.12": {
+      "installed": true,
+      "service": "kuavo-app-network.service",
+      "enabled": true,
+      "https_status_verified": true,
+      "camera_inventory_verified": "Orbbec Gemini 335L color",
+      "live_stream_verified": true
+    },
+    "192.168.26.22": {
+      "installed": true,
+      "service": "kuavo-app-network.service",
+      "enabled": true,
+      "https_status_verified": true,
+      "camera_inventory_verified": "left USB port 2, right USB port 4",
+      "live_stream_verified": true
+    },
+    "192.168.26.1": {
+      "installed": true,
+      "service": "kuavo-app-network.service",
+      "enabled": true,
+      "https_status_verified": true,
+      "joint_stream_verified": true,
+      "model_sha256_matches_app": true
+    }
+  },
+  "robot_controls_executed": false,
+  "existing_controller_or_cleanup_lock_changed": false,
+  "app_restarted": false,
+  "joint_recording": {
+    "target_hz": 100,
+    "minimum_saved_hz": 98,
+    "live_measured": true,
+    "action_source": "original diagnostics up to 10 Hz",
+    "full_rate_dataset": false,
+    "measurement": {
+      "duration_s": 12,
+      "frames": 1201,
+      "receive_hz": 100.01555056784193,
+      "source_hz": 100.0,
+      "sequence_gaps": 0,
+      "source_joint_count": 20
+    },
+    "app_monitor_measurement": {
+      "samples": 551,
+      "receive_hz": 99.99693503939726,
+      "arm_joint_count": 14,
+      "pose_status": "fresh",
+      "exit_code": 0
+    }
+  },
+  "validation": {
+    "new_and_related_tests": 55,
+    "other_regression_tests_passed": 140,
+    "socket_permission_retest_passed": 5,
+    "latest_readiness_readonly_tests_passed": 17,
+    "typescript": "passed",
+    "web_build": "passed"
+  },
+  "packages_sha256": {
+    "kuavo-network-192.168.26.12.tar.gz": "d20fccc5130072a49016657d11ebba2b282a7990e0f29f55f0abdea2acbed08f",
+    "kuavo-network-192.168.26.22.tar.gz": "7d8499c05e4ac9f27c9067a05aad28e796309020bc151d89257ee6198b221606",
+    "kuavo-network-192.168.26.1.tar.gz": "40e53c6e423656cedb076f2ab1f03d35693d5b466091b3e608825ee032de82e1"
+  },
+  "robot_session_status": {
+    "phase": "closing",
+    "blocked_reason": "worker_exit_without_confirmed_cleanup",
+    "failed_checks": [
+      "arm_hold_unconfirmed"
+    ],
+    "underlying_hold_failure_cause": "not established; available logs expose sanitized cleanup summary only",
+    "unchanged_after_install": true
+  },
+  "camera_measurement": {
+    "elapsed_s": 15.000154523004312,
+    "transport": "network",
+    "cameras": {
+      "left": {
+        "frames": 242,
+        "fps": 16.13316713696966,
+        "status": {
+          "connected": true,
+          "state": "streaming",
+          "error": "",
+          "width": 1920,
+          "height": 1080,
+          "age_s": 0.016032140993047506,
+          "settings": {
+            "width": 1920,
+            "height": 1080,
+            "fps": 30.0,
+            "brightness": 0.0
+          }
+        }
+      },
+      "right": {
+        "frames": 234,
+        "fps": 15.599839297730995,
+        "status": {
+          "connected": true,
+          "state": "streaming",
+          "error": "",
+          "width": 1920,
+          "height": 1080,
+          "age_s": 0.008776001996011473,
+          "settings": {
+            "width": 1920,
+            "height": 1080,
+            "fps": 30.0,
+            "brightness": 0.0
+          }
+        }
+      },
+      "head": {
+        "frames": 450,
+        "fps": 29.99969095717499,
+        "status": {
+          "connected": true,
+          "state": "streaming",
+          "error": "",
+          "width": 1280,
+          "height": 800,
+          "age_s": 0.010876360000111163,
+          "settings": {
+            "width": 1280,
+            "height": 800,
+            "fps": 30.0,
+            "brightness": 0.0
+          }
+        }
+      }
+    }
+  },
+  "app_running_at_verification": false
+}

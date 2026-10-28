@@ -136,11 +136,19 @@ class DualArmRetargetingResult:
 class DualArmRetargeter:
     """Map independently clutched PICO controllers to robot-base EE targets."""
 
-    def __init__(self, scale: float = 1.0) -> None:
+    def __init__(self, scale: float = 1.0, *, scales=None) -> None:
         scale = float(scale)
         if not math.isfinite(scale) or scale <= 0.0:
             raise ValueError("scale must be finite and positive")
         self._scale = scale
+        self._scales = dict.fromkeys(("left", "right"), scale)
+        if scales is not None:
+            if not isinstance(scales, dict) or set(scales) != {"left", "right"}:
+                raise ValueError("exact left/right position scales required")
+            if any(type(v) not in (int, float) or not math.isfinite(v) or v <= 0
+                   for v in scales.values()):
+                raise ValueError("position scales must be finite and positive")
+            self._scales = {side: float(v) for side, v in scales.items()}
         self._states = {
             side: {"engaged": False, "controller_position": None,
                    "controller_rotation": None, "anchor": None,
@@ -266,7 +274,7 @@ class DualArmRetargeter:
         anchor_rotation = _quaternion_to_matrix(anchor.orientation_xyzw)
         target_rotation = _matmul(rotation_delta, anchor_rotation)
         target_position = tuple(
-            anchor.position_m[index] + self._scale * translation_delta[index]
+            anchor.position_m[index] + self._scales[side] * translation_delta[index]
             for index in range(3)
         )
         return CartesianPose(

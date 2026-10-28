@@ -22,7 +22,11 @@ MODULES = (
 )
 
 
-def build_bundle(src_root, *, mode='validate', target_recovery='baseline', speed_profile='steady', gripper_mode='off', arm_posture='baseline', gripper_config=None, return_home_config=None, standalone_return=False):
+def build_bundle(src_root, *, mode='validate', target_recovery='baseline', speed_profile='steady', gripper_mode='off', arm_posture='baseline', gripper_config=None, return_home_config=None, standalone_return=False, base_mode='disabled'):
+    if base_mode not in ('disabled', 'vendor_vr_x'):
+        raise ValueError('unsupported base mode')
+    if base_mode == 'vendor_vr_x' and (gripper_mode != 'damiao' or return_home_config is None or standalone_return):
+        raise ValueError('integrated base requires the combined teleoperation and return profile')
     from teleop.robots.kuavo5_posture import posture_profile
     posture_profile(arm_posture, target_recovery)
     from teleop.control.kuavo5_gripper_teleop import validate_gripper_mode
@@ -55,10 +59,16 @@ def build_bundle(src_root, *, mode='validate', target_recovery='baseline', speed
              'retargeting.kuavo_workspace_bound') if target_recovery == 'bounded_candidate' else ()
     if gripper_mode == 'damiao':
         extra += ('control.kuavo5_gripper_calibration', 'robots.kuavo5_gripper_live',
-                  'robots.kuavo5_gripper_owner')
+                  'robots.kuavo5_gripper_owner', 'robots.kuavo5_gripper_reference',
+                  'robots.kuavo5_gripper_coordinates')
     if return_document is not None:
         extra += ('robots.kuavo5_return_config', 'control.kuavo5_arm_return',
                   'control.kuavo5_return_coordinator')
+    if base_mode == 'vendor_vr_x':
+        extra += ('contracts.base_motion', 'retargeting.mobile_base',
+                  'control.kuavo5_base_session', 'control.kuavo5_mobile_return',
+                  'robots.kuavo5_base_ros', 'robots.kuavo5_mobile_session',
+                  'robots.kuavo5_base_lock')
     for suffix in MODULES + extra:
         source = (src_root/'teleop'/suffix.replace('.', '/')).with_suffix('.py').read_text()
         if suffix == 'retargeting.dual_arm':
@@ -82,6 +92,8 @@ def build_bundle(src_root, *, mode='validate', target_recovery='baseline', speed
             return_document, sort_keys=True, allow_nan=False).encode()).hexdigest()
     if standalone_return:
         bundle["standalone_return"] = True
+    if base_mode != 'disabled':
+        bundle['base_mode'] = base_mode
     return bundle
 
 
@@ -117,6 +129,9 @@ sys.meta_path.insert(0, MemoryModules())
 from teleop.robots.kuavo5_live_agent import run_robot, motion_profile
 from teleop.control.kuavo5_gripper_teleop import validate_gripper_mode
 gripper_mode = validate_gripper_mode(bundle.get("gripper_mode", "off"))
+base_mode = bundle.get("base_mode", "disabled")
+if base_mode not in ("disabled", "vendor_vr_x"):
+    raise ValueError("unsupported base mode")
 gripper_config = bundle.get("gripper_config")
 if gripper_mode == "damiao":
     from teleop.control.kuavo5_gripper_calibration import load_runtime_config
@@ -141,6 +156,10 @@ if type(standalone_return) is not bool or (standalone_return and not return_opti
     raise ValueError("invalid standalone return capability")
 if standalone_return:
     return_options["standalone_return"] = True
+if base_mode == "vendor_vr_x":
+    if gripper_mode != "damiao" or not return_options or standalone_return:
+        raise ValueError("integrated base requires combined teleoperation and return")
+    return_options["base_mode"] = base_mode
 speed_profile = bundle.get("speed_profile", "steady")
 motion_profile(target_recovery, speed_profile)
 from teleop.robots.kuavo5_posture import posture_profile

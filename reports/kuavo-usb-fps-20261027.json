@@ -1,0 +1,38 @@
+[
+  {
+    "port": "2",
+    "measurement_s": 60.033,
+    "received_frames": 1792,
+    "received_fps": 29.85,
+    "preview_frames": 1792,
+    "preview_fps": 29.85,
+    "preview_mbps": 6.87,
+    "max_preview_gap_s": 0.051,
+    "stale_samples": 0,
+    "samples": 593,
+    "connected": true,
+    "state": "streaming",
+    "error": "",
+    "width": 640,
+    "height": 480,
+    "age_s": 0.0038381640042643994
+  },
+  {
+    "port": "4",
+    "measurement_s": 60.033,
+    "received_frames": 1791,
+    "received_fps": 29.83,
+    "preview_frames": 1790,
+    "preview_fps": 29.82,
+    "preview_mbps": 9.1,
+    "max_preview_gap_s": 0.051,
+    "stale_samples": 0,
+    "samples": 593,
+    "connected": true,
+    "state": "streaming",
+    "error": "",
+    "width": 640,
+    "height": 480,
+    "age_s": 0.016279588991892524
+  }
+]

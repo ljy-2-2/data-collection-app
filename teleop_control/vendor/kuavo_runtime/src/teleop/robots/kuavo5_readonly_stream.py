@@ -12,10 +12,12 @@ class KuavoReadonlyFeed:
     """Validate remote identity before delivering joint feedback to Receiver."""
 
     def __init__(self, receiver: Kuavo5StateReceiver, *, version: str,
-                 names: tuple[str, ...], urdf_sha256: str):
+                 names: tuple[str, ...], urdf_sha256: str, maximum_source_age_ms=250):
         self.receiver = receiver
         self.version, self.names, self.sha256 = version, tuple(names), urdf_sha256
         self.ready = False
+        self.maximum_source_age_ms = maximum_source_age_ms
+        self.last_source_age_ms = 0.
 
     def transport_error(self, reason: str) -> None:
         self.receiver.invalidate_input(reason)
@@ -52,8 +54,11 @@ class KuavoReadonlyFeed:
             return True
         age = data.get("source_age_ms")
         if (isinstance(age, bool) or not isinstance(age, Real)
-                or not math.isfinite(age) or not 0 <= age <= 250):
-            raise ValueError("remote observation is invalid or older than 250 ms")
+                or not math.isfinite(age) or age < 0):
+            raise ValueError("remote observation age is invalid")
+        if self.maximum_source_age_ms is not None and age > self.maximum_source_age_ms:
+            raise ValueError("remote observation exceeds maximum source age")
+        self.last_source_age_ms = age
         return self.receiver.on_message(SimpleNamespace(
             joint_data=SimpleNamespace(joint_q=data["joint_q"]),
             sensor_time=SimpleNamespace(secs=data["sensor_secs"], nsecs=data["sensor_nsecs"])))

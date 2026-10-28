@@ -1,0 +1,142 @@
+[
+  {
+    "name": "zarm_l1_joint",
+    "label": "肩部俯仰",
+    "group": "left",
+    "min_deg": -180.0,
+    "max_deg": 90.0
+  },
+  {
+    "name": "zarm_l2_joint",
+    "label": "肩部外展",
+    "group": "left",
+    "min_deg": -20.0,
+    "max_deg": 200.0
+  },
+  {
+    "name": "zarm_l3_joint",
+    "label": "肩部旋转",
+    "group": "left",
+    "min_deg": -85.0,
+    "max_deg": 85.0
+  },
+  {
+    "name": "zarm_l4_joint",
+    "label": "肘部屈伸",
+    "group": "left",
+    "min_deg": -150.0,
+    "max_deg": 0.0
+  },
+  {
+    "name": "zarm_l5_joint",
+    "label": "腕部旋转",
+    "group": "left",
+    "min_deg": -90.0,
+    "max_deg": 90.0
+  },
+  {
+    "name": "zarm_l6_joint",
+    "label": "腕部俯仰",
+    "group": "left",
+    "min_deg": -75.0,
+    "max_deg": 40.0
+  },
+  {
+    "name": "zarm_l7_joint",
+    "label": "腕部偏转",
+    "group": "left",
+    "min_deg": -40.0,
+    "max_deg": 40.0
+  },
+  {
+    "name": "zarm_r1_joint",
+    "label": "肩部俯仰",
+    "group": "right",
+    "min_deg": -180.0,
+    "max_deg": 90.0
+  },
+  {
+    "name": "zarm_r2_joint",
+    "label": "肩部外展",
+    "group": "right",
+    "min_deg": -200.0,
+    "max_deg": 20.0
+  },
+  {
+    "name": "zarm_r3_joint",
+    "label": "肩部旋转",
+    "group": "right",
+    "min_deg": -85.0,
+    "max_deg": 85.0
+  },
+  {
+    "name": "zarm_r4_joint",
+    "label": "肘部屈伸",
+    "group": "right",
+    "min_deg": -150.0,
+    "max_deg": 0.0
+  },
+  {
+    "name": "zarm_r5_joint",
+    "label": "腕部旋转",
+    "group": "right",
+    "min_deg": -90.0,
+    "max_deg": 90.0
+  },
+  {
+    "name": "zarm_r6_joint",
+    "label": "腕部俯仰",
+    "group": "right",
+    "min_deg": -40.0,
+    "max_deg": 75.0
+  },
+  {
+    "name": "zarm_r7_joint",
+    "label": "腕部偏转",
+    "group": "right",
+    "min_deg": -40.0,
+    "max_deg": 40.0
+  },
+  {
+    "name": "knee_joint",
+    "label": "下躯干关节",
+    "group": "body",
+    "min_deg": 0.0,
+    "max_deg": 83.0
+  },
+  {
+    "name": "leg_joint",
+    "label": "上躯干关节",
+    "group": "body",
+    "min_deg": -161.0,
+    "max_deg": 0.0
+  },
+  {
+    "name": "waist_pitch_joint",
+    "label": "腰部俯仰",
+    "group": "body",
+    "min_deg": -9.0,
+    "max_deg": 171.0
+  },
+  {
+    "name": "waist_yaw_joint",
+    "label": "腰部旋转",
+    "group": "body",
+    "min_deg": -180.0,
+    "max_deg": 180.0
+  },
+  {
+    "name": "zhead_1_joint",
+    "label": "头部旋转",
+    "group": "head",
+    "min_deg": -88,
+    "max_deg": 88
+  },
+  {
+    "name": "zhead_2_joint",
+    "label": "头部俯仰",
+    "group": "head",
+    "min_deg": -25,
+    "max_deg": 25
+  }
+]

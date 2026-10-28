@@ -43,8 +43,9 @@ def execute(module, config, options, emit):
     from teleop.robots.kuavo5_pc_session import SessionControl
     from teleop.robots.kuavo5_service_contract import host_bundle
     from teleop.xr import XRoboToolkitInputAdapter
-    from .kuavo_input import InputAdapter, Observation, ObservedChannel
+    from .kuavo_input import InputAdapter, Observation, ObservedChannel, ActivationGate
     observation = Observation()
+    activation = ActivationGate(options.get('standby',False))
     control = SessionControl()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: control.request_stop())
@@ -52,24 +53,43 @@ def execute(module, config, options, emit):
         for line in sys.stdin:
             if line.strip() == 'stop':
                 control.request_stop()
+            elif line.strip() == 'activate' and not control.stop_event.is_set():
+                activation.activate()
+            elif not control.stop_event.is_set():
+                try:command=json.loads(line)
+                except ValueError:continue
+                if isinstance(command,dict) and command.get('action')=='activate':
+                    try:activation.activate(command.get('arm_mode'))
+                    except ValueError:continue
         control.request_stop()  # Backend exit requests the original orderly cleanup.
     threading.Thread(target=listen, daemon=True).start()
     done = threading.Event()
     def publish():
-        while not done.wait(.25):
-            emit({'session': control.status(), **observation.snapshot()})
+        next_status=0.
+        while not done.wait(.05):
+            rows=observation.drain_collection()
+            if time.monotonic()>=next_status:
+                next_status=time.monotonic()+.25
+                rows.update({'session':control.status(),**observation.snapshot(),
+                             'input_enabled':activation.enabled,'input_neutral':activation.input_neutral})
+            if rows.get('collection_events') or rows.get('collection_overflow') or 'session' in rows:emit(rows)
     threading.Thread(target=publish, daemon=True).start()
     try:
         contract = module.select_session(config, options['network_namespace'])
-        require_gripper_config(contract, options)
+        from .kuavo_session_settings import require_selected_contract, has_base
+        require_selected_contract(contract, options)
+        if not options.get('expected_settings'):
+            require_gripper_config(contract, options)
         if not contract['shared_bus_compatibility_verified'] and not options.get('accept_unverified_gripper_bus'):
             raise ValueError('需确认原项目的夹爪共享总线使用条件')
+        verify_hardware(module, config, options['network_namespace'], emit)
         if control.stop_event.is_set():
             return 0
         output = Path(options['output'])
         output.mkdir(parents=True, exist_ok=False)
         metadata = dict(task=options['task'], started_at=time.time(), complete=False,
                         arm_mode=options.get('arm_mode','dual'), position_scale=options.get('position_scale',1.),
+                        session_settings=contract.get('session_settings'),
                         kind='kuavo_session_journal', image_dataset=False, platform_upload=False)
         (output / 'meta.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
         emit({'log_directory': str(output)})
@@ -79,8 +99,9 @@ def execute(module, config, options, emit):
                 journal.write(json.dumps({'event': 'selected_service_contract', 'service_contract': contract})+'\n')
                 code = module.host_module().run_host(None, host_bundle(contract), duration=0., journal=journal,
                     xr_factory=lambda: InputAdapter(XRoboToolkitInputAdapter(stale_after_s=.1),
-                        options.get('arm_mode','dual'),options.get('position_scale',1.),observation),
-                    channel_factory=lambda: ObservedChannel(module.channel_factory(config, options['network_namespace'], 0.),observation),
+                        options.get('arm_mode','dual'),options.get('position_scale',1.),observation,activation),
+                    channel_factory=lambda: ObservedChannel(module.channel_factory(config, options['network_namespace'], 0.,
+                        allow_base_control=has_base(contract)),observation),
                     service_contract=contract, session_control=control)
             control.finish(code)
         except Exception as exc:
@@ -95,7 +116,19 @@ def execute(module, config, options, emit):
         return 1
     finally:
         done.set()
-        emit({'session': control.status()})
+        emit({'session': control.status(), **observation.snapshot(),
+              'input_enabled':activation.enabled,'input_neutral':activation.input_neutral,**observation.drain_collection()})
+
+
+def verify_hardware(module, config, namespace, emit):
+    """Read status only, before creating XR or opening an execution session."""
+    from teleop.robots.kuavo5_service_client import KuavoServiceClient
+    from .kuavo_readiness import require_hardware_ready
+    client = KuavoServiceClient(config)
+    client._channel = lambda: module.channel_factory(config, namespace)
+    report = client.preparation('status')
+    emit({'preparation':report})
+    require_hardware_ready(report)
 
 
 def require_gripper_config(contract, options):
@@ -104,7 +137,7 @@ def require_gripper_config(contract, options):
         raise ValueError('本机夹爪参数尚未应用到机器人服务；请先更新机器人服务配置并检查设备')
 
 
-def inspect_service(client, emit):
+def inspect_service(client, emit, *, preparation_status=True):
     """Preserve authenticated diagnostics and make an incompatible check fail."""
     status = client.get_status()
     emit(dict(service=status, preparation=None))
@@ -115,12 +148,24 @@ def inspect_service(client, emit):
                          f'请更新 App 的乐聚客户端；无需因该错误修改网卡地址。详情：{error}')
     if not status.get('management_ready'):
         raise ValueError('机器人服务已响应，但服务身份或管理协议未通过核验；未启动遥操作')
-    emit(dict(preparation=client.preparation('status')))
+    from .kuavo_readiness import service_block_detail
+    blocked=service_block_detail(status.get('service'))
+    protocol = (status.get('service', {}).get('session_contract') or {}).get('protocol')
+    if protocol in ('kuavo_robot_session_v2', 'kuavo_robot_session_v3'):
+        from .kuavo_session_settings import read_settings
+        try:emit(dict(session_settings=read_settings(client, status)))
+        except Exception:
+            # Keep the true admission failure when the independent read fails.
+            if blocked:raise ValueError(blocked)
+            raise
+    if blocked:raise ValueError(blocked)
+    if preparation_status:
+        emit(dict(preparation=client.preparation('status')))
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['check','execute','prepare','validate-grippers'])
+    parser.add_argument('action', choices=['check','execute','prepare','validate-grippers','settings','monitor'])
     args = parser.parse_args()
     output = sys.stdout
     sys.stdout = sys.stderr  # Original client messages remain diagnostics, never protocol.
@@ -141,6 +186,9 @@ def main():
         namespace = options.get('network_namespace', 'current')
         if namespace not in ('current','kuavons'):
             raise ValueError('无效网络方式')
+        if args.action == 'monitor':
+            from .kuavo_readonly import monitor
+            return monitor(config, options, emit)
         if args.action == 'execute':
             if options.get('confirm_motion') is not True:
                 raise ValueError('需要操作者明确启动')
@@ -150,7 +198,19 @@ def main():
         from teleop.robots.kuavo5_service_client import KuavoServiceClient
         client = KuavoServiceClient(config)
         client._channel = lambda: module.channel_factory(config, namespace)
+        if args.action == 'settings':
+            from .kuavo_session_settings import settings_operation
+            emit(settings_operation(client, options['settings_request']))
+            return 0
         if args.action == 'check':
+            cancelled = threading.Event()
+            if options.get('prepare_controller'):
+                def observe_parent():
+                    # The backend retains this pipe throughout the check. EOF
+                    # prevents subsequent stages if the app/backend exits.
+                    for _ in sys.stdin:pass
+                    cancelled.set()
+                threading.Thread(target=observe_parent, daemon=True).start()
             from .kuavo_network_diagnostics import inspect_route, tls_failure
             from .kuavo_vr import probe_subprocess
             emit(probe_subprocess())
@@ -158,7 +218,13 @@ def main():
             emit({'network':route})
             if route['blocked']: raise ValueError(route['detail'])
             try:
-                inspect_service(client, emit)
+                inspect_service(client, emit, preparation_status=not options.get('prepare_controller'))
+                if options.get('prepare_controller'):
+                    from .kuavo_preparation import prepare_controller
+                    prepare_controller(client, options, emit, cancelled=cancelled.is_set)
+                    # Refresh settings/admission after preparation, without
+                    # opening a teleoperation session or sending XR inputs.
+                    inspect_service(client, emit)
             except ssl.SSLEOFError as exc:
                 raise RuntimeError(tls_failure(exc,config,namespace,route)) from None
         else:

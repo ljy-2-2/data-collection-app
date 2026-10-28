@@ -1161,7 +1161,7 @@ export default function Home() {
             {active === 'umi' || (active === 'teleop' && teleopStep === 2) ? (
               <div className="page-tools">
                 {active === 'teleop'
-                  ? <UsageGuide key={teleopRobotModel} image={teleopRobotModel === 'kuavo-5w' ? '' : teleopRobotModel === 'tianji' ? '/tianji-usage-guide.png' : '/teleop-usage-guide.png'} alt={teleopRobotModel === 'kuavo-5w' ? '乐聚使用说明' : '遥操作手柄按键使用说明'} />
+                  ? <UsageGuide key={teleopRobotModel} image={teleopRobotModel === 'kuavo-5w' ? '/kuavo-usage-guide.png' : teleopRobotModel === 'tianji' ? '/tianji-usage-guide.png' : '/teleop-usage-guide.png'} alt={teleopRobotModel === 'kuavo-5w' ? '乐聚使用说明' : '遥操作手柄按键使用说明'} />
                   : <UsageGuide image="/umi-usage-guide.png" alt="UMI 手柄、脚踏板和键盘按键使用说明" />}
               </div>
             ) : null}

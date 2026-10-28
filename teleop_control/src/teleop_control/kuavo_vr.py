@@ -9,9 +9,21 @@ import time
 from .galaxis import GalaxisHeadsetSetup
 
 
-def headset_status(headset=None, *, wake=False):
-    headset = headset or GalaxisHeadsetSetup()
-    if not headset.probe_ready():
+class KuavoHeadsetSetup(GalaxisHeadsetSetup):
+    verified_serial = None
+
+    def _device(self, result):
+        serial = super()._device(result)
+        if self.verified_serial and serial != self.verified_serial:
+            self.last_error = 'PICO 设备已变化，请重新检查'
+            return None
+        return serial
+
+
+def headset_status(headset=None, *, wake=False, prepare=False):
+    headset = headset or KuavoHeadsetSetup()
+    ready = headset._device(headset._run('devices',timeout=2)) if prepare else headset.probe_ready()
+    if not ready:
         return dict(pico_ready=False,pico_detail=headset.last_error)
     serial = headset._serial
     maker = headset._run('-s',serial,'shell','getprop','ro.product.manufacturer',timeout=2)
@@ -19,6 +31,10 @@ def headset_status(headset=None, *, wake=False):
     if (maker is None or model is None or maker.returncode or model.returncode or
             ('pico' not in (maker.stdout+model.stdout).lower() and model.stdout.strip()!='A9210')):
         return dict(pico_ready=False,pico_detail='已发现 ADB 设备，但无法核验为 PICO 头显')
+    if prepare:
+        headset.verified_serial = serial
+        if not headset.ensure_started(quick=True, force_relaunch=False):
+            return dict(pico_ready=False,pico_detail=headset.last_error)
     if wake and not headset.wake():
         return dict(pico_ready=False,pico_detail=headset.last_error or 'PICO 唤醒失败')
     mapping = headset._run('-s',serial,'reverse','--list',timeout=2)
@@ -92,8 +108,8 @@ def check_with_recovery(input_factory, service):
 def probe_subprocess():
     """A native SDK failure cannot take down the robot status check."""
     try:
-        result=subprocess.run([sys.executable,'-u','-m','teleop_control.kuavo_vr','--wake','--recover'],
-                              capture_output=True,text=True,timeout=45)
+        result=subprocess.run([sys.executable,'-u','-m','teleop_control.kuavo_vr','--wake','--recover','--prepare'],
+                              capture_output=True,text=True,timeout=200)
         for line in reversed(result.stdout.splitlines()):
             if line.startswith('KUAVO_VR:'):
                 value=json.loads(line[9:])
@@ -108,9 +124,10 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--wake',action='store_true',help='Wake the authorized PICO only')
     parser.add_argument('--recover',action='store_true',help='Recover the local XR receiver if idle input check fails')
+    parser.add_argument('--prepare',action='store_true',help='Prepare the verified PICO app and USB tunnel')
     args=parser.parse_args()
-    headset=GalaxisHeadsetSetup()
-    result=headset_status(headset,wake=args.wake)
+    headset=KuavoHeadsetSetup()
+    result=headset_status(headset,wake=args.wake,prepare=args.prepare)
     result.update(vr_checked=True,pico_sdk_available=importlib.util.find_spec('xrobotoolkit_sdk') is not None)
     if result['pico_sdk_available']:
         sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'teleop_control/vendor/kuavo_runtime/src'))

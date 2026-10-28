@@ -1,0 +1,83 @@
+[
+  {
+    "host": "192.168.26.1",
+    "date_offset_min_s": 499.2162685394287,
+    "date_offset_max_s": 500.23890948295593,
+    "rtt_ms": 22.64094352722168,
+    "status": {
+      "version": 1,
+      "capabilities": [
+        "usb_camera",
+        "joint_feedback_100hz"
+      ],
+      "motion_control": false
+    }
+  },
+  {
+    "host": "192.168.26.1",
+    "date_offset_min_s": 499.20035576820374,
+    "date_offset_max_s": 500.216112613678,
+    "rtt_ms": 15.756845474243164,
+    "status": {
+      "version": 1,
+      "capabilities": [
+        "usb_camera",
+        "joint_feedback_100hz"
+      ],
+      "motion_control": false
+    }
+  },
+  {
+    "host": "192.168.26.1",
+    "date_offset_min_s": 499.1832311153412,
+    "date_offset_max_s": 500.2002031803131,
+    "rtt_ms": 16.972064971923828,
+    "status": {
+      "version": 1,
+      "capabilities": [
+        "usb_camera",
+        "joint_feedback_100hz"
+      ],
+      "motion_control": false
+    }
+  },
+  {
+    "host": "192.168.26.22",
+    "date_offset_min_s": 497.15120553970337,
+    "date_offset_max_s": 498.1830337047577,
+    "rtt_ms": 31.82816505432129,
+    "status": {
+      "version": 1,
+      "capabilities": [
+        "usb_camera"
+      ],
+      "motion_control": false
+    }
+  },
+  {
+    "host": "192.168.26.22",
+    "date_offset_min_s": 497.1154866218567,
+    "date_offset_max_s": 498.15093421936035,
+    "rtt_ms": 35.44759750366211,
+    "status": {
+      "version": 1,
+      "capabilities": [
+        "usb_camera"
+      ],
+      "motion_control": false
+    }
+  },
+  {
+    "host": "192.168.26.22",
+    "date_offset_min_s": 497.06938338279724,
+    "date_offset_max_s": 498.1152460575104,
+    "rtt_ms": 45.862674713134766,
+    "status": {
+      "version": 1,
+      "capabilities": [
+        "usb_camera"
+      ],
+      "motion_control": false
+    }
+  }
+]

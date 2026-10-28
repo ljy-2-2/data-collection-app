@@ -1,0 +1,108 @@
+{
+  "left_arm_acceleration_rad_s2": {
+    "default": 5.0,
+    "label": "左臂关节参考规划加速度上限",
+    "max": 10.0,
+    "min": 0.0,
+    "min_exclusive": true,
+    "unit": "rad/s^2"
+  },
+  "left_arm_scale": {
+    "default": 1.0,
+    "label": "左臂位置移动比例",
+    "max": 2.0,
+    "min": 0.1,
+    "unit": "x"
+  },
+  "left_arm_speed_rad_s": {
+    "default": 0.7,
+    "label": "左臂关节速度上限",
+    "max": 1.0,
+    "min": 0.0,
+    "min_exclusive": true,
+    "unit": "rad/s"
+  },
+  "left_gripper_acceleration_rad_s2": {
+    "default": 200.0,
+    "label": "左夹爪开合参考规划加速度上限",
+    "max": 200.0,
+    "min": 0.0,
+    "min_exclusive": true,
+    "unit": "rad/s^2"
+  },
+  "left_gripper_closed_target_rad": {
+    "default": -1.19,
+    "label": "左夹爪闭合基准目标角（上电偏移自动换算）",
+    "max": -1.18,
+    "min": -2.64,
+    "unit": "rad"
+  },
+  "left_gripper_open_target_rad": {
+    "default": -2.62,
+    "label": "左夹爪张开基准目标角（上电偏移自动换算）",
+    "max": -1.18,
+    "min": -2.64,
+    "unit": "rad"
+  },
+  "left_gripper_speed_rad_s": {
+    "default": 15.0,
+    "label": "左夹爪开合速度上限",
+    "max": 15.0,
+    "min": 0.01,
+    "step": 0.01,
+    "unit": "rad/s"
+  },
+  "right_arm_acceleration_rad_s2": {
+    "default": 5.0,
+    "label": "右臂关节参考规划加速度上限",
+    "max": 10.0,
+    "min": 0.0,
+    "min_exclusive": true,
+    "unit": "rad/s^2"
+  },
+  "right_arm_scale": {
+    "default": 1.0,
+    "label": "右臂位置移动比例",
+    "max": 2.0,
+    "min": 0.1,
+    "unit": "x"
+  },
+  "right_arm_speed_rad_s": {
+    "default": 0.7,
+    "label": "右臂关节速度上限",
+    "max": 1.0,
+    "min": 0.0,
+    "min_exclusive": true,
+    "unit": "rad/s"
+  },
+  "right_gripper_acceleration_rad_s2": {
+    "default": 200.0,
+    "label": "右夹爪开合参考规划加速度上限",
+    "max": 200.0,
+    "min": 0.0,
+    "min_exclusive": true,
+    "unit": "rad/s^2"
+  },
+  "right_gripper_closed_target_rad": {
+    "default": -0.79,
+    "label": "右夹爪闭合基准目标角（上电偏移自动换算）",
+    "max": -0.78,
+    "min": -2.24,
+    "unit": "rad"
+  },
+  "right_gripper_open_target_rad": {
+    "default": -2.22,
+    "label": "右夹爪张开基准目标角（上电偏移自动换算）",
+    "max": -0.78,
+    "min": -2.24,
+    "unit": "rad"
+  },
+  "right_gripper_speed_rad_s": {
+    "default": 15.0,
+    "label": "右夹爪开合速度上限",
+    "max": 15.0,
+    "min": 0.01,
+    "step": 0.01,
+    "unit": "rad/s"
+  }
+}

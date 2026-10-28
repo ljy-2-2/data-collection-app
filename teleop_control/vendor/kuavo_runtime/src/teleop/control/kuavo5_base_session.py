@@ -3,8 +3,9 @@
     A zero request and observed quiet odometry are separate facts. Neither
     certifies a physical stop or substitutes for the manufacturer's emergency stop.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
+import time
 
 from teleop.retargeting.mobile_base import MobileBaseMapper, vendor_base_config
 
@@ -41,13 +42,24 @@ class BaseHealth:
     mpc_enabled: bool
     error: str = ''
     downstream_quiet: bool = False
+    downstream_observed_ns: int = None
 
 
 class BaseSession:
     """50 Hz owner loop; zero on expired input/fault/exit, no mode services."""
-    def __init__(self, *, publish, speed_profile='vendor_vr'):
+    def __init__(self, *, publish, speed_profile='vendor_vr', toggle_mode='x_a',
+                 recover_with_neutral=None, clock=time.monotonic_ns):
         self.publish=publish
-        self.mapper=MobileBaseMapper(vendor_base_config(speed_profile))
+        config=vendor_base_config(speed_profile, toggle_mode=toggle_mode)
+        if recover_with_neutral is not None:
+            if type(recover_with_neutral) is not bool:
+                raise ValueError('recover_with_neutral must be bool')
+            config=replace(config,recover_with_neutral=recover_with_neutral)
+        self.mapper=MobileBaseMapper(config)
+        self.clock=clock
+        self._hold_since=None
+        self._hold_reason=''
+        self.report=dict(stop_observed=False,observed_ns=0,status='starting',error=None)
         # Observation grace only; does not change vendor braking or input TTL.
         self.stop_timeout_ns=3_000_000_000 if speed_profile=='vendor_handheld' else 2_000_000_000
         self.error=None
@@ -73,7 +85,18 @@ class BaseSession:
         self.close_reason=str(reason)
         self.mapper.revoke()
 
-    def tick(self, frame, *, now_ns, health, feedback):
+    def request_hold(self, reason):
+        """Revoke sticks and start a NEW stop-observation window; no I/O here."""
+        self.mapper.revoke()
+        self._hold_since=self.clock()
+        self._stop_since=self._hold_since
+        self._hold_reason=str(reason)
+        self._quiet_since=None
+        self.report=dict(self.report,stop_observed=False,hold_requested_ns=self._hold_since)
+
+    def tick(self, frame, *, now_ns, health, feedback, inhibit=False):
+        if type(inhibit) is not bool:
+            raise ValueError('inhibit must be bool')
         if type(now_ns) is not int or now_ns < 0:
             self.fail('invalid local time')
             raise ValueError('invalid local time')
@@ -99,8 +122,11 @@ class BaseSession:
                    and isinstance(health,BaseHealth) and health.downstream_quiet is True)
             # A delayed sample from before the stop request cannot start the
             # subsequent quiet window, even if its receive time is recent.
-            stop_boundary=max(v for v in (0,self._stop_since,self._close_since) if v is not None)
-            if quiet and feedback.observed_ns>=stop_boundary:
+            stop_boundary=max(v for v in (0,self._stop_since,self._close_since,self._hold_since) if v is not None)
+            downstream_after_hold=(self._hold_since is None or
+                (isinstance(health,BaseHealth) and type(health.downstream_observed_ns) is int
+                 and health.downstream_observed_ns>=stop_boundary))
+            if quiet and feedback.observed_ns>=stop_boundary and downstream_after_hold:
                 if self._quiet_since is None: self._quiet_since=feedback.observed_ns
             else:
                 self._quiet_since=None
@@ -109,16 +135,17 @@ class BaseSession:
             self.started=True
         if self.closed:
             output=(0.,0.,0.); status='closed'; reason=self.close_reason
-        elif self.error or self.closing or not self.started:
+        elif self.error or self.closing or not self.started or inhibit:
             self.mapper.revoke()
             output=(0.,0.,0.)
-            status='fault' if self.error else ('closing' if self.closing else 'starting')
-            reason=self.error or self.close_reason or 'waiting for 0.5 s quiet odometry'
+            status='fault' if self.error else ('closing' if self.closing else ('locked' if inhibit else 'starting'))
+            reason=self.error or self.close_reason or (self._hold_reason if inhibit else 'waiting for 0.5 s quiet odometry')
         else:
             result=self.mapper.step(frame,now_ns=now_ns)
             output=result.intent.velocity; status=result.status; reason=result.reason
         if any(output):
             self._stop_since=None
+            self._hold_since=None
         elif any(self._last_output):
             self._stop_since=now_ns
             self._quiet_since=None
@@ -162,9 +189,11 @@ class BaseSession:
         if self.closing and (stop_observed or now_ns-self._close_since >= self.stop_timeout_ns):
             self.closed=True
             status='closed'
-        return dict(event='base_status',status=status,reason=reason,
+        self.report=dict(event='base_status',status=status,state=status.upper(),reason=reason,
+            observed_ns=now_ns,hold_requested_ns=self._hold_since,
             enabled=status=='unlocked',velocity=list(output),
             stop_observed=bool(stop_observed),physical_stop_verified=False,
             downstream_quiet=isinstance(health,BaseHealth) and health.downstream_quiet is True,
             publish_attempts=self.publish_attempts,publish_enqueued=self.publish_enqueued,
             error=self.error,input_recovery=self.mapper.diagnostics)
+        return self.report

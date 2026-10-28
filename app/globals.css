@@ -1186,8 +1186,6 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .kuavo-workspace .teleop-visual-stage { min-height: 260px; background: var(--robot-stage); }
 .kuavo-workspace .teleop-visual-stage > strong { font-size: 1.2rem; }
 .kuavo-workspace .teleop-visual-stage > span { color: var(--ink-muted); }
-.kuavo-workspace .kuavo-camera-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 145px 106px; gap: 8px; margin: 10px; }
-.kuavo-workspace .kuavo-head-camera { grid-column: 1 / -1; }
 .kuavo-workspace .kuavo-preparation { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); }
 .kuavo-workspace .kuavo-preparation p { margin: 0; }
 .kuavo-workspace .kuavo-info { padding: 12px; }
@@ -1274,3 +1272,33 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
   .kuavo-primary-settings > select,
   .kuavo-primary-settings > .action-button { align-self:center; transform:translateY(2px); }
 }
+
+.kuavo-camera-grid { display: grid; min-width: 0; overflow: hidden; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; height: 270px; padding: 10px; }
+.kuavo-camera-tile { position: relative; background: #000; border-radius: 8px; overflow: hidden; min-width: 0; min-height: 0; }
+.kuavo-camera-tile:first-child { grid-row: span 2; }
+.kuavo-camera-tile img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; }
+.kuavo-camera-offline { position: absolute; inset: 0; display: grid; place-items: center; color: #8793a5; font-size: 12px; }
+
+/* KUAVO reuses Tianji joint cards, typography and steppers. */
+.kuavo-manual-panel { overflow: hidden; }
+.kuavo-manual-heading { gap: 10px; flex-wrap: wrap; }
+.kuavo-manual-heading h3 { margin: 0; }
+.kuavo-manual-toolbar { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+.kuavo-manual-toolbar label { font-size: .78rem; }
+.kuavo-manual-toolbar select { height: 34px; margin-left: 5px; padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface); font-size: .74rem; }
+.kuavo-manual-columns { padding: 16px; align-items: start; }
+.kuavo-manual-panel .teleop-joint-stepper output.is-stale { color: var(--ink-soft); }
+.kuavo-manual-gripper-actions { display: flex; gap: 6px; }
+.kuavo-manual-gripper-actions .action-button { height: 30px; min-height: 30px; padding: 0 10px; }
+.kuavo-manual-panel .teleop-joint-column > .kuavo-base-stage { display: flex; justify-content: center; padding: 12px 8px; }
+.kuavo-base-disc { display: block; width: 220px; max-width: 100%; height: auto; aspect-ratio: 1; touch-action: none; user-select: none; }
+.kuavo-base-rim { fill: var(--surface-muted); stroke: var(--line); }
+.kuavo-base-direction { cursor: pointer; outline: none; touch-action: none; }
+.kuavo-base-sector { fill: var(--surface); stroke: var(--line); stroke-width: 1; transition: fill .12s, stroke .12s; }
+.kuavo-base-symbol { color: var(--ink); pointer-events: none; }
+.kuavo-base-direction[aria-disabled="true"] { opacity: .45; cursor: default; }
+.kuavo-base-direction:not([aria-disabled="true"]):hover .kuavo-base-sector { fill: var(--surface-raised); }
+.kuavo-base-direction.is-held .kuavo-base-sector { fill: var(--accent-soft); stroke: var(--accent-strong); }
+.kuavo-base-direction:focus-visible .kuavo-base-sector { stroke: var(--accent-strong); stroke-width: 2; }
+.kuavo-manual-message { margin: 0; padding: 10px 18px; font-size: .75rem; color: var(--amber); border-top: 1px solid var(--line); }
+@media(max-width:780px) { .kuavo-manual-columns { grid-template-columns: 1fr; }.kuavo-manual-toolbar { flex-wrap: wrap; } }

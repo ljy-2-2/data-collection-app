@@ -68,6 +68,9 @@ def load_runtime_config(path_or_dict, *, require_commissioned=True):
             raise ValueError(side + ': invalid motor profile: ' + str(exc)) from exc
         if (profile.bus, profile.motor_id, profile.master_id) != ROUTES[side]:
             raise ValueError(side + ': route differs from left8/right1, Master0 configuration')
+        if 'position_reference_policy' in motor:
+            from teleop.robots.kuavo5_gripper_coordinates import validate_policy
+            validate_policy(motor)
         # Match the independent native DMC1 commissioning ceilings. Protocol
         # ranges in MotorProfile are intentionally broader for offline codec
         # use; unsupported owner profiles must fail here, before SSH/ROS/CAN.

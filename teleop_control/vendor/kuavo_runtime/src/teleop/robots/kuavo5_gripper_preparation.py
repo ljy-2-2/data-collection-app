@@ -11,6 +11,8 @@ import struct
 import time
 
 from teleop.control.kuavo5_gripper_calibration import load_runtime_config
+from .kuavo5_gripper_reference import require_reference, ReferenceMismatch
+from .kuavo5_gripper_coordinates import resolve_coordinates
 from .kuavo5_gripper_live import (
     OwnerClient, OwnerBusy, OwnerExpired, REGISTERS, inspect_motor,
     capture_calibration_sample, prepare_watchdog)
@@ -102,7 +104,7 @@ def _verify_values(profile, motor, values, *, allow_mode1):
         raise ValueError('invalid watchdog readback')
 
 
-def _sample_summary(profile, measured):
+def _sample_summary(profile, measured, motor):
     feedback = measured['feedback']
     position = measured['position_rad']
     if feedback.state != 0:
@@ -121,11 +123,16 @@ def _sample_summary(profile, measured):
         raise ValueError('motor temperature exceeds preparation limit')
     if abs(position-feedback.position_rad) > max(.002, 3*2*profile.pmax/65535):
         raise ValueError('motor moved while position was read')
+    coordinates = resolve_coordinates(motor, measured, now_ns=now)
+    reference = coordinates.report
+    canonical = coordinates.to_canonical(position)
+    canonical_feedback = coordinates.to_canonical(feedback.position_rad)
     inside = all(profile.bounds[0] <= p <= profile.bounds[1]
-                 for p in (position, feedback.position_rad))
+                 for p in (canonical, canonical_feedback))
     if not inside:
         raise ValueError('position outside installed soft bounds; no automatic movement')
-    return dict(position_rad=position, state=feedback.state, received_ns=stamp,
+    return dict(position_rad=canonical, raw_position_rad=position, xout_rad=measured['xout_rad'],
+                position_reference=reference, state=feedback.state, received_ns=stamp,
                 inside_soft_bounds=inside, soft_bounds_rad=list(profile.bounds))
 
 
@@ -158,6 +165,9 @@ def prepare_grippers(document, *, allow_volatile_writes=False,
         record['status'] = 'failed'
         record['ready'] = False
         record['error'] = type(exc).__name__ + ': ' + str(exc)
+        if isinstance(exc, ReferenceMismatch):
+            record['position_reference'] = copy.deepcopy(exc.report)
+            log('gripper_reference_rejected', side=side, report=exc.report)
 
     def stage(side, value):
         sides[side]['stage'] = value
@@ -200,7 +210,7 @@ def prepare_grippers(document, *, allow_volatile_writes=False,
                 record['readback'] = copy.deepcopy(values)
                 _verify_values(profile, config.document['motors'][side], values, allow_mode1=True)
                 stage(side, 'preflight_disabled_position')
-                record.update(_sample_summary(profile, sample(client, values)))
+                record.update(_sample_summary(profile, sample(client, values), config.document['motors'][side]))
                 record['status'] = 'preflight_passed'
             except Exception as exc:
                 failure(side, exc)
@@ -220,7 +230,7 @@ def prepare_grippers(document, *, allow_volatile_writes=False,
                 values = inspect(client)
                 record['readback'] = copy.deepcopy(values)
                 _verify_values(profile, motor, values, allow_mode1=True)
-                record.update(_sample_summary(profile, sample(client, values)))
+                record.update(_sample_summary(profile, sample(client, values), motor))
                 if allow_volatile_writes:
                     if values['mode'] != 4:
                         stage(side, 'mode4_write')
@@ -236,7 +246,7 @@ def prepare_grippers(document, *, allow_volatile_writes=False,
                         record['readback'] = copy.deepcopy(values)
                         _verify_values(profile, motor, values, allow_mode1=False)
                         measured = sample(client, values)
-                        record.update(_sample_summary(profile, measured))
+                        record.update(_sample_summary(profile, measured, motor))
                         if abs(measured['position_rad']-origin) > max(.002, 3*2*profile.pmax/65535):
                             raise ValueError('disabled position changed across mode write')
                     stage(side, 'watchdog_prepare')
@@ -247,7 +257,7 @@ def prepare_grippers(document, *, allow_volatile_writes=False,
                 values = inspect(client)  # Independent read; never trust prepare's return.
                 record['readback'] = copy.deepcopy(values)
                 _verify_values(profile, motor, values, allow_mode1=True)
-                record.update(_sample_summary(profile, sample(client, values)))
+                record.update(_sample_summary(profile, sample(client, values), motor))
                 if values['watchdog_ticks'] == 4000 and 'watchdog4000' in record['writes_attempted']:
                     record['writes_confirmed'].append('watchdog4000')
                 record['ready'] = values['mode'] == 4 and values['watchdog_ticks'] == 4000

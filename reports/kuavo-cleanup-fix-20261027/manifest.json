@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-27",
+  "state": "offline_patch_not_deployed",
+  "baseline_release": "20261026T033124Z-9c54dd5b1c6b",
+  "baseline_worker_sha256": "e79a0ef357129a6c920300aa2f511b69c1350c745297bbf68e0b1fefeae7e693",
+  "patched_worker_sha256": "0f6afbb6ce7dc66691c2188235f9d3a7708ef1889131dadc4ae6bf6b933f3171",
+  "live_service_instance_id": "0f35141352dbc147925663c3511bde07",
+  "live_session_id": "a5abefd150d16f1c1dd3274b5a516693",
+  "live_phase": "closing",
+  "live_ready_to_start": false,
+  "live_failed_checks": [
+    "arm_hold_unconfirmed"
+  ],
+  "live_worker_exit_code": 0,
+  "physical_robot_state_verified": false,
+  "historical_session_root_cause_confirmed": false,
+  "offline_bug_reproduced": "base-only publication incorrectly requires untouched arms to acknowledge hold",
+  "validation": {
+    "fake_ros_tests": 9,
+    "app_regression_tests": 50,
+    "upstream_cleanup_tests": 13,
+    "upstream_subtests": 9
+  },
+  "remaining": [
+    "onsite physical safety verification",
+    "review and maintenance deployment of robot service",
+    "supported recovery of unresolved historical session; no validated recovery endpoint found",
+    "operator-controlled teleoperation acceptance"
+  ]
+}

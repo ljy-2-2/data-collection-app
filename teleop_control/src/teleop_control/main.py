@@ -386,6 +386,9 @@ def main() -> None:
     tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.output, args.api_url, targets=targets)
     app.state.tianji_manager.collection.uploader = tianji_uploader
     uploaders.append(tianji_uploader)
+    kuavo_uploader=CollectionUploader(app.state.kuavo_manager.collection.output,args.api_url,targets=targets)
+    app.state.kuavo_manager.collection.uploader=kuavo_uploader
+    uploaders.append(kuavo_uploader)
     output_root = Path(args.output).expanduser().resolve()
     right_arm_root = Path(args.right_arm_import_root).expanduser().resolve()
     if right_arm_root != output_root:

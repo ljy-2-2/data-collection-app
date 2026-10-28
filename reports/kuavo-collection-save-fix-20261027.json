@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-27",
+  "observed_collection_failure": "尚未收到新鲜动作记录，请稍后按采集键",
+  "last_episode_created": false,
+  "robot_after_stop": {
+    "phase": "idle",
+    "owner_present": false,
+    "blocked_reason": null,
+    "last_session_exit_code": 0,
+    "software_cleanup_confirmed": true
+  },
+  "fix": "A may begin before arm commands; normal command gaps do not stop observation; B without a recording reports feedback; dataset completeness unchanged",
+  "validation_passed": 42,
+  "local_backend_reloaded": true,
+  "robot_services_restarted": false,
+  "motion_commands_sent": false,
+  "verification": {
+    "state": "idle",
+    "active": false,
+    "collection_error": "",
+    "cameras": {
+      "head": true,
+      "left": true,
+      "right": true
+    },
+    "parameter_count": 14
+  }
+}

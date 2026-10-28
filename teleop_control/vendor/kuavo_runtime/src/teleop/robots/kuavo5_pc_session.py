@@ -9,6 +9,7 @@ import importlib.util
 import math
 from pathlib import Path
 import threading
+import time
 import uuid
 
 
@@ -17,7 +18,34 @@ class SessionControl:
         self.stop_event = threading.Event()
         self._lock = threading.Lock()
         self._status = dict(session_id=uuid.uuid4().hex, phase='starting', exit_code=None,
-                            error=None, report=None, physical_stop_verified=False)
+                            error=None, report=None, physical_stop_verified=False,
+                            arm_state='unknown', return_state='unknown', left_gripper='unknown',
+                            right_gripper='unknown', base_state='not_integrated')
+
+    def observe(self, packet):
+        """Copy bounded robot-reported display fields; never alter input authority."""
+        if not isinstance(packet, dict):
+            return
+        kind = packet.get('event')
+        if kind not in ('ready', 'status', 'guard_pause', 'guard_ready',
+                         'return_waiting_base_stop', 'return_started', 'return_refused',
+                         'return_cancelled', 'return_completed'):
+            return
+        with self._lock:
+            self._status['robot_report_monotonic_ns'] = time.monotonic_ns()
+            if kind == 'guard_pause':
+                self._status['arm_state'] = 'paused'
+            elif kind == 'status':
+                self._status['arm_state'] = str(packet.get('status', 'unknown'))[:80]
+                motors = (packet.get('grippers') or {}).get('motors', {})
+                for side in ('left', 'right'):
+                    self._status[side+'_gripper'] = str(motors.get(side, {}).get('state', 'unknown'))[:80]
+            if isinstance(packet.get('return_home'), dict):
+                self._status['return_state'] = str(packet['return_home'].get('state', 'unknown'))[:80]
+            if packet.get('base_mode') == 'vendor_vr_x':
+                self._status['base_state'] = 'unknown'
+            if isinstance(packet.get('base'), dict):
+                self._status['base_state'] = str(packet['base'].get('state', 'unknown'))[:80]
 
     def request_stop(self):
         with self._lock:

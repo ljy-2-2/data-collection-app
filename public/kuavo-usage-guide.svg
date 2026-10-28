@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1080" viewBox="0 0 1800 1080">
+  <rect width="1800" height="1080" fill="white"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#111"/></marker>
+    <g id="front" fill="white" stroke="#111" stroke-width="4.5" stroke-linejoin="round">
+      <path d="M-155 0 C-170-110-110-190 0-190 C115-190 178-108 170-5 C166 87 110 125 45 143 C25 153 35 185 44 220 L20 424 C14 480-38 507-74 468 C-106 428-115 300-125 210Z"/>
+      <path d="M45 143 C25 149 15 173 21 200 Q35 209 44 200 L38 164"/>
+      <circle cx="-24" cy="-91" r="46"/>
+      <circle cx="-24" cy="-98" r="35"/>
+      <path d="M-65-88 Q-61-38-18-41 Q21-46 21-88" fill="none" stroke-width="2"/>
+    </g>
+  </defs>
+  <g fill="#111" font-family="Noto Sans CJK SC, sans-serif">
+    <text x="900" y="80" text-anchor="middle" font-size="44" font-weight="700">乐聚遥操作使用说明</text>
+    <text x="330" y="150" text-anchor="middle" font-size="28">左手柄</text>
+    <text x="900" y="150" text-anchor="middle" font-size="28">右手柄</text>
+    <text x="1480" y="150" text-anchor="middle" font-size="28">手柄侧面</text>
+  </g>
+  <use href="#front" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#front" transform="translate(330 380)"/>
+  <use href="#front" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#front" transform="translate(900 380) scale(-1 1)"/>
+  <g stroke="#111" stroke-width="4" fill="white">
+    <circle cx="407" cy="349" r="30"/><circle cx="355" cy="410" r="30"/>
+    <circle cx="218" cy="337" r="22"/><circle cx="252" cy="402" r="19"/>
+    <circle cx="804" cy="351" r="30"/><circle cx="860" cy="410" r="30"/>
+    <circle cx="1005" cy="337" r="22"/><circle cx="958" cy="402" r="19"/>
+    <path d="M208 329h20m-20 8h20m-20 8h20" stroke-width="3"/>
+    <circle cx="252" cy="402" r="7"/><circle cx="958" cy="402" r="7"/>
+    <rect x="993" y="331" width="23" height="15" rx="2" stroke-width="2"/><circle cx="1005" cy="338" r="4" stroke-width="2"/>
+  </g>
+  <g fill="#111" font-family="Noto Sans CJK SC, sans-serif" font-size="35" text-anchor="middle">
+    <text x="407" y="362">Y</text><text x="355" y="423">X</text>
+    <text x="804" y="364">B</text><text x="860" y="423">A</text>
+  </g>
+  <g fill="white" stroke="#111" stroke-width="4.5" stroke-linejoin="round">
+    <path d="M1460 290 C1505 208 1580 177 1620 242 C1664 315 1630 457 1589 533 L1427 808 C1398 858 1344 874 1327 833 C1309 795 1345 718 1379 656 L1435 549 C1459 509 1443 465 1416 425 C1392 390 1417 339 1460 290Z"/>
+    <path d="M1608 226 C1549 234 1509 339 1505 421 C1503 488 1451 577 1416 636 L1345 783 Q1317 843 1356 852" fill="none" stroke-width="2.5"/>
+    <path d="M1460 290 L1396 326 Q1374 345 1391 379 L1433 365Z"/>
+    <path d="M1438 516 C1406 495 1377 533 1371 569 C1371 601 1402 620 1421 595 Q1451 557 1438 516Z"/>
+    <ellipse cx="1617" cy="350" rx="16" ry="34"/><ellipse cx="1631" cy="352" rx="13" ry="30"/>
+    <ellipse cx="1562" cy="428" rx="12" ry="23"/><ellipse cx="1536" cy="477" rx="12" ry="23"/>
+  </g>
+  <g stroke="#111" stroke-width="3.5" fill="none" marker-end="url(#arrow)">
+    <path d="M553 251 Q497 281 439 331"/>
+    <path d="M704 331 Q734 332 765 344"/>
+    <path d="M632 461 Q733 461 821 422"/>
+    <path d="M1250 239 Q1295 262 1382 335"/>
+    <path d="M1235 649 Q1325 634 1382 598"/>
+    <path d="M594 682 Q516 622 387 568"/>
+    <path d="M728 682 Q795 626 858 568"/>
+  </g>
+  <g fill="#111">
+    <path d="M439 331 450 310 461 323Z M765 344 742 351 748 331Z M821 422 808 440 800 420Z"/>
+    <path d="M1382 335 1356 329 1366 313Z M1382 598 1370 619 1359 604Z"/>
+    <path d="M387 568 411 572 402 590Z M858 568 850 592 834 580Z"/>
+  </g>
+  <g fill="#111" font-family="Noto Sans CJK SC, sans-serif" font-size="29" font-weight="600">
+    <text x="520" y="204">Y：双臂及夹爪回位</text>
+    <text x="562" y="244">／取消回位</text>
+    <text x="540" y="294">B：保存本轮</text>
+    <text x="540" y="334" font-size="25">／取消回位</text>
+    <text x="535" y="448">A：开始采集</text>
+    <text x="1155" y="209">Trigger：夹爪开合</text>
+    <text x="1090" y="685">Grip</text>
+    <text x="445" y="736">Grip：按住接管所选手臂</text>
+  </g>
+  <path d="M115 938H1685" stroke="#d4d4d4" stroke-width="2"/>
+  <g fill="#111" font-family="Noto Sans CJK SC, sans-serif" font-size="30">
+    <text x="900" y="989" text-anchor="middle">摇杆：底盘移动与转向（仅双臂＋底盘模式）</text>
+    <text x="900" y="1039" text-anchor="middle">X：暂不使用</text>
+  </g>
+</svg>

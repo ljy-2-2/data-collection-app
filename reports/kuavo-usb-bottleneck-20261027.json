@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-27",
+  "host": "192.168.26.22",
+  "scope": "camera-only local timing; no image network transfer; existing 1920x1080 brightness 0; owned readers closed",
+  "network": {
+    "interface": "enp3s0",
+    "negotiated_mbps": 100,
+    "physical_cause_of_100mbps": "not determined"
+  },
+  "native_mjpeg_local": [
+    {
+      "port": 2,
+      "fps": 28.6948,
+      "payload_mbps": 54.4164
+    },
+    {
+      "port": 4,
+      "fps": 28.9844,
+      "payload_mbps": 54.5938
+    }
+  ],
+  "decoded_and_jpeg80_local": [
+    {
+      "port": 2,
+      "fps": 15.817,
+      "read_ms": 34.2395,
+      "encode_ms": 28.9641,
+      "payload_mbps": 22.1332
+    },
+    {
+      "port": 4,
+      "fps": 15.8551,
+      "read_ms": 35.0631,
+      "encode_ms": 27.994,
+      "payload_mbps": 22.8996
+    }
+  ],
+  "conclusion": "Current ~16fps reproduced without image network traffic; serial capture/decode then JPEG encode is the immediate rate limit. Native forwarding would remove encode cost but two native 1080p streams total ~109 Mbps, exceeding the current 100 Mbps uplink."
+}

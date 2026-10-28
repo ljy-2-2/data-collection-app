@@ -45,7 +45,9 @@ def test_check_only_queries_metadata_and_uses_relocated_worker(manager,monkeypat
     run=Mock(return_value=SimpleNamespace(returncode=0,stdout='KUAVO:'+json.dumps({
         'service':{'management_ready':True},'preparation':{'phase':'ready'},'pico_sdk_available':True})+'\n',stderr=''))
     monkeypatch.setattr('subprocess.run',run)
+    monkeypatch.setattr(manager,'_start_monitor',Mock())
     manager.inspect(Options().model_dump())
+    manager._start_monitor.assert_called_once()
     args,kw=run.call_args
     assert args[0][-1]=='check'
     assert args[0][-2]=='teleop_control.kuavo_worker'
@@ -119,7 +121,7 @@ def test_api_unknown_fields_and_actions_rejected():
     with pytest.raises(ValidationError):Options(preparation_action='reset-all')
     with pytest.raises(ValidationError):Options(robot_ip='anything')
     with pytest.raises(ValidationError):Options(network_namespace='auto-discover')
-    assert {r.path for r in kuavo_router(Mock()).routes}=={'/kuavo/status','/kuavo/check','/kuavo/start','/kuavo/stop','/kuavo/prepare','/kuavo/grippers','/kuavo/connection','/kuavo/motion'}
+    assert {r.path for r in kuavo_router(Mock()).routes}=={'/kuavo/manual/start','/kuavo/manual/input','/kuavo/manual/stop','/kuavo/status','/kuavo/check','/kuavo/start','/kuavo/stop','/kuavo/prepare','/kuavo/grippers','/kuavo/connection','/kuavo/motion','/kuavo/session-settings','/kuavo/cancel-preparation','/kuavo/cameras/status','/kuavo/cameras/discover','/kuavo/cameras/connect','/kuavo/cameras/disconnect','/kuavo/cameras/reconnect','/kuavo/cameras/{role}/stream','/kuavo/cameras/settings','/kuavo/collection/settings'}
 
 
 def test_vendor_source_integrity_and_no_external_source_links():
@@ -184,3 +186,64 @@ def test_previous_process_cannot_overwrite_new_session(manager):
     manager._read(old)
     assert manager.snapshot()['state']=='running'
     assert manager.snapshot()['error']==''
+
+
+def test_check_requests_camera_reconnect_without_status_or_motion_coupling(manager,monkeypatch):
+    manager.cameras.request_reconnect=Mock()
+    monkeypatch.setattr(manager,'_launch_options',lambda _: (['fake'],{},{}))
+    monkeypatch.setattr('subprocess.run',Mock(return_value=SimpleNamespace(returncode=0,stdout='KUAVO:{}\n',stderr='')))
+    monkeypatch.setattr(manager,'_start_monitor',Mock())
+    manager.snapshot();manager.cameras.request_reconnect.assert_not_called()
+    manager.inspect({},connect_cameras=True)
+    manager.cameras.request_reconnect.assert_called_once()
+    manager.inspect({},connect_cameras=True)
+    assert manager.cameras.request_reconnect.call_count==2
+    endpoint=next(r.endpoint for r in kuavo_router(manager).routes if r.path=='/kuavo/check')
+    manager.inspect=Mock(return_value={})
+    endpoint(Options())
+    assert manager.inspect.call_args.kwargs['connect_cameras'] is True
+
+
+@pytest.mark.parametrize('mock_mode',[False,True])
+def test_camera_check_supports_real_controller_without_hardware_enabled(manager,monkeypatch,mock_mode):
+    from teleop_control.controller import TeleopController
+    controller=TeleopController(detector=Mock(),teleop_command=['fake'],move_command=['fake'])
+    assert not hasattr(controller,'hardware_enabled')
+    if mock_mode:controller.hardware_enabled=False
+    manager.controller=controller
+    manager.cameras.request_reconnect=Mock()
+    monkeypatch.setattr(manager,'_launch_options',lambda _: (['fake'],{},{}))
+    run=Mock(return_value=SimpleNamespace(returncode=0,stdout='KUAVO:{}\n',stderr=''))
+    monkeypatch.setattr('subprocess.run',run)
+    monkeypatch.setattr(manager,'_start_monitor',Mock())
+    endpoint=next(r.endpoint for r in kuavo_router(manager).routes if r.path=='/kuavo/check')
+    result=endpoint(Options())
+    assert result['state']=='idle' and result['error']==''
+    assert manager.cameras.request_reconnect.call_count==(0 if mock_mode else 1)
+    run.assert_called_once()
+
+
+def test_stop_preserves_cameras_monitor_and_does_not_reprepare(manager,monkeypatch):
+    process=SimpleNamespace(stdin=io.StringIO(),stdout=io.StringIO(),poll=lambda:0,wait=lambda:0)
+    manager.process=process;manager.session_id='sample';manager.activation_requested=True
+    manager.preparation_options={'prepare_controller':True,'prepare_session':True}
+    manager.value['session_settings']={'editable':False,'locked_reason':'session_active_or_cleanup_pending'}
+    camera=Mock();manager.cameras.close=camera
+    monitor=Mock();manager._stop_monitor=monitor
+    refresh=Mock();monkeypatch.setattr(manager,'_refresh_idle_parameters',refresh)
+    # Execute readback inline using a stub, avoiding background-test races.
+    monkeypatch.setattr('teleop_control.kuavo.threading.Thread',lambda target,args=(),**kw:SimpleNamespace(start=lambda:target(*args)))
+    manager._read(process)
+    assert not manager.active() and manager.snapshot()['state']=='idle'
+    assert manager.preparation_options is None and not manager.activation_requested
+    assert manager.value['session_settings'] is None
+    camera.assert_not_called();monitor.assert_not_called();refresh.assert_called_once_with(process)
+
+
+def test_service_lock_translated_and_standby_editable(manager):
+    manager.value['session_settings']={'editable':False,'locked_reason':'session_active_or_cleanup_pending'}
+    form=manager.snapshot()['session_settings']
+    assert '退出清理' in form['locked_reason'] and form['locked_reason_code']=='session_active_or_cleanup_pending'
+    manager.standby=True
+    form=manager.snapshot()['session_settings']
+    assert form['editable'] and form['locked_reason']==''

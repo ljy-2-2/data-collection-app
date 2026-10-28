@@ -41,6 +41,35 @@ class PreparationOutcomeUnknown(RuntimeError):
         super().__init__(message)
 
 
+class SettingsOutcomeUnknown(RuntimeError):
+    """An idle settings update may have arrived; read back, never overwrite."""
+    def __init__(self, request_id):
+        self.request_id = request_id
+        super().__init__('session settings outcome unknown; read settings and last_request_id, do not retry')
+
+
+def _preparation_progress(callback, reply, started_at):
+    """Notify an optional UI without exporting helper output or credentials.
+
+    A result receipt is not a claim of hardware readiness. Display failures
+    must not discard a valid response or change the operation's retry policy.
+    KeyboardInterrupt is deliberately handled by the dispatching method.
+    """
+    if callback is None:
+        return
+    progress = {key: reply[key] for key in (
+        'action', 'request_id', 'service_instance_id', 'installation_sha256')}
+    progress.update(event='preparation_progress',
+        phase='pending' if reply['event'] == 'preparation_pending' else 'result_received',
+        elapsed_s=max(0., time.monotonic()-started_at))
+    try:
+        callback(progress)
+    except Exception:
+        # Progress is observational: a broken terminal must not replace the
+        # authoritative result with an ambiguous presentation exception.
+        pass
+
+
 def session_manifest(bundle):
     profile = bundle_profile(bundle)
     digest = bundle.get('sha256')
@@ -53,7 +82,10 @@ def session_manifest(bundle):
 
 class DirectSessionChannel:
     def __init__(self, address, key, *, duration_s=60., cert_sha256=None,
-                 expected_backend='robot', connect_timeout_s=3., socket_factory=None):
+                 expected_backend='robot', connect_timeout_s=3., socket_factory=None, allow_base_control=False):
+        if type(allow_base_control) is not bool:
+            raise ValueError('base permission must be an explicit boolean')
+        self.allow_base_control = allow_base_control
         self.host, self.port, self.cert_sha256 = validate_endpoint(*address, cert_sha256)
         AuthenticatedCodec(key, '0'*32, 'client')
         if type(duration_s) not in (int, float) or not math.isfinite(duration_s) or duration_s < 0:
@@ -130,7 +162,8 @@ class DirectSessionChannel:
             self._abort()
 
     def request_stop_session(self, session_id, *, expected_installation_sha256,
-                             expected_bundle_sha256, expected_profile, confirm_stop=False):
+                             expected_bundle_sha256, expected_profile, confirm_stop=False,
+                             allow_validated_runtime_settings=False):
         """Request cleanup of one identified session; never retry or take ownership.
 
         Acceptance is not cleanup completion. Query last_session later to observe
@@ -139,6 +172,8 @@ class DirectSessionChannel:
         from teleop.robots.kuavo5_session_profile import validate_profile, valid_digest
         if confirm_stop is not True:
             raise ValueError('explicit stop confirmation required')
+        if type(allow_validated_runtime_settings) is not bool:
+            raise ValueError('explicit runtime settings compatibility flag required')
         if not isinstance(session_id, str) or re.fullmatch('[0-9a-f]{32}', session_id) is None:
             raise ValueError('robot session ID must be 32 lowercase hexadecimal characters')
         if not valid_digest(expected_installation_sha256) or not valid_digest(expected_bundle_sha256):
@@ -146,6 +181,13 @@ class DirectSessionChannel:
         profile = validate_profile(expected_profile)
         try:
             status = self._connect_status()
+            from .kuavo5_service_contract import CONFIGURABLE_SESSION_PROTOCOLS, validate_pinned_settings_contract
+            if (allow_validated_runtime_settings and
+                    (status.get('session_contract') or {}).get('protocol') in CONFIGURABLE_SESSION_PROTOCOLS):
+                contract = validate_pinned_settings_contract(status,
+                    expected_installation_sha256=expected_installation_sha256,
+                    expected_bundle_sha256=expected_bundle_sha256, expected_profile=profile)
+                profile = contract['profile']
             if (status.get('backend') != self.expected_backend
                     or status.get('management_protocol') != 'kuavo_service_requests_v1'
                     or status.get('installation_sha256') != expected_installation_sha256
@@ -185,7 +227,7 @@ class DirectSessionChannel:
         instance/installation and exact session remain mandatory request pins.
         """
         from teleop.robots.kuavo5_service_contract import (validate_requirements,
-                                                        validate_service_contract)
+            validate_service_contract, compatible_requirements)
         if confirm_stop is not True:
             raise ValueError('explicit stop confirmation required')
         if not isinstance(session_id, str) or re.fullmatch('[0-9a-f]{32}', session_id) is None:
@@ -193,7 +235,7 @@ class DirectSessionChannel:
         requirements = validate_requirements(required_contract)
         try:
             status = self._connect_status()
-            contract = validate_service_contract(status, requirements)
+            contract = validate_service_contract(status, compatible_requirements(status, requirements))
             if (status.get('backend') != self.expected_backend
                     or status.get('management_protocol') != 'kuavo_service_requests_v1'):
                 raise ValueError('service management protocol/backend mismatch; no stop requested')
@@ -292,11 +334,129 @@ class DirectSessionChannel:
         finally:
             self._abort()
 
+    def settings_request(self, action, *, changes=None, expected_service_instance_id=None,
+                         expected_installation_sha256=None, expected_revision=None,
+                         request_id=None, confirm=False):
+        """One settings request. Updates are idle-only on the authoritative server."""
+        from .kuavo5_service_contract import (CONFIGURABLE_SESSION_PROTOCOLS,
+            SESSION_PROTOCOL, ARM_CAPABILITY, GRIPPER_CAPABILITY,
+            compatible_requirements, validate_service_contract,
+            validate_settings_values, validate_settings_snapshot, validate_settings_schema)
+        if action not in ('settings_get', 'settings_preview', 'settings_apply', 'settings_reset'):
+            raise ValueError('unsupported settings operation')
+        mutate = action in ('settings_apply', 'settings_reset')
+        packet = dict(event=action)
+        if action == 'settings_get':
+            if any(x is not None for x in (changes, expected_service_instance_id,
+                    expected_installation_sha256, expected_revision, request_id)) or confirm is not False:
+                raise ValueError('settings get accepts no mutation fields')
+        else:
+            if (not isinstance(expected_service_instance_id, str)
+                    or re.fullmatch('[a-f0-9]{32}', expected_service_instance_id) is None
+                    or not isinstance(expected_installation_sha256, str)
+                    or re.fullmatch('[a-f0-9]{64}', expected_installation_sha256) is None
+                    or type(expected_revision) is not int or expected_revision < 0):
+                raise ValueError('settings update requires observed identity and nonnegative revision')
+            packet.update(expected_service_instance_id=expected_service_instance_id,
+                expected_installation_sha256=expected_installation_sha256, expected_revision=expected_revision)
+            if action != 'settings_reset':
+                packet['changes'] = validate_settings_values(changes, partial=True)
+            elif changes is not None:
+                raise ValueError('reset accepts no changes')
+            if mutate:
+                if confirm is not True:
+                    raise ValueError('explicit settings update confirmation required')
+                request_id = secrets.token_hex(16) if request_id is None else request_id
+                if not isinstance(request_id, str) or re.fullmatch('[a-f0-9]{32}', request_id) is None:
+                    raise ValueError('valid settings request identity required')
+                packet.update(request_id=request_id, confirm=True)
+            elif confirm is not False or request_id is not None:
+                raise ValueError('settings preview accepts no update confirmation')
+        dispatched = False
+        instance, installation = expected_service_instance_id, expected_installation_sha256
+        try:
+            status = self._connect_status()
+            if (status.get('backend') != self.expected_backend
+                    or (status.get('session_contract') or {}).get('protocol') not in CONFIGURABLE_SESSION_PROTOCOLS):
+                raise ValueError('versioned settings service unavailable')
+            validate_service_contract(status, compatible_requirements(status,
+                dict(protocol=SESSION_PROTOCOL, capabilities=[ARM_CAPABILITY, GRIPPER_CAPABILITY])))
+            if changes is not None:
+                from .kuavo5_service_contract import expand_settings_changes
+                expand_settings_changes(changes, status['session_contract']['session_settings']['values'])
+            observed = (status.get('service_instance_id'), status.get('installation_sha256'))
+            if action != 'settings_get' and observed != (instance, installation):
+                raise ValueError('settings service changed; no update sent')
+            instance, installation = observed
+            dispatched = mutate
+            self._send(packet, timeout_s=.5)
+            reply = self._payload(time.monotonic()+3.)
+            if reply.get('event') == 'refused':
+                dispatched = False
+                raise ValueError('settings request refused: '+str(reply.get('reason')))
+            fields = {'event', 'action', 'ok', 'error', 'request_id', 'service_instance_id',
+                'installation_sha256', 'editable', 'locked_reason', 'snapshot', 'defaults', 'schema', 'last_request_id',
+                'outcome_unknown'}
+            if (set(reply) != fields or reply.get('event') != 'session_settings_result'
+                    or reply.get('action') != action or reply.get('request_id') != request_id
+                    or reply.get('service_instance_id') != instance
+                    or reply.get('installation_sha256') != installation
+                    or type(reply.get('ok')) is not bool or type(reply.get('editable')) is not bool
+                    or type(reply.get('outcome_unknown')) is not bool
+                    or (reply.get('locked_reason') is not None and
+                        (not isinstance(reply['locked_reason'], str) or not reply['locked_reason']))
+                    or reply['editable'] != (reply['locked_reason'] is None)
+                    or (reply.get('last_request_id') is not None and
+                        (not isinstance(reply['last_request_id'], str) or
+                         re.fullmatch('[a-f0-9]{32}', reply['last_request_id']) is None))
+                    or (reply['ok'] and reply.get('error') is not None)
+                    or (not reply['ok'] and (not isinstance(reply.get('error'), str) or not reply['error']))
+                    or not isinstance(reply.get('schema'), dict)):
+                raise ValueError('settings reply identity or fields mismatch')
+            if reply['outcome_unknown']:
+                if not mutate or reply['ok']:
+                    raise ValueError('invalid settings outcome state')
+                raise SettingsOutcomeUnknown(request_id)
+            if reply['snapshot'] is None:
+                if reply['ok'] or reply['editable'] or reply['locked_reason'] is None:
+                    raise ValueError('missing settings readback without explicit refusal')
+                if reply['defaults'] or reply['schema']:
+                    validate_settings_schema(reply['schema'], reply['defaults'])
+                elif reply['defaults'] != {}:
+                    raise ValueError('invalid settings defaults')
+                return reply  # Server explicitly confirms no uncertain write.
+            snapshot = validate_settings_snapshot(reply['snapshot'])
+            if (snapshot['installation_sha256'] != installation
+                    or snapshot['bundle_sha256'] != status.get('bundle_sha256')):
+                raise ValueError('settings snapshot installation mismatch')
+            validate_settings_schema(reply['schema'], reply['defaults'])
+            for name, value in snapshot['values'].items():
+                field = reply['schema'][name]
+                if (not field['min'] <= value <= field['max']
+                        or (field.get('min_exclusive', False) and value == field['min'])):
+                    raise ValueError('settings snapshot exceeds its published bounds')
+            if reply['ok'] is True and mutate and (snapshot['revision'] != expected_revision+1
+                    or reply['last_request_id'] != request_id):
+                raise ValueError('settings update receipt mismatch')
+            return reply
+        except (OSError, EOFError, RuntimeError, ValueError, KeyboardInterrupt) as exc:
+            if dispatched:
+                unknown = SettingsOutcomeUnknown(request_id)
+                unknown.service_instance_id, unknown.installation_sha256 = instance, installation
+                raise unknown from exc
+            raise
+        finally:
+            self._abort()
+
     def preparation_request(self, action, *, expected_service_instance_id,
                             expected_installation_sha256, confirm_motion=False,
                             motor_ids_confirmed=False, accept_unverified_gripper_bus=False,
-                            request_id=None):
-        """Authenticated fixed preparation operation; exactly one dispatch."""
+                            request_id=None, on_progress=None, expected_contract_sha256=None):
+        """Exactly one dispatch, with optional validated receipt notifications.
+
+        on_progress receives only identity, action, phase and elapsed seconds.
+        It must return promptly; it cannot change a request or its result.
+        """
         from .kuavo5_controller_admin import PREPARATION_PROTOCOL, validate_preparation_request
         rid = secrets.token_hex(16) if request_id is None else request_id
         request = validate_preparation_request(dict(action=action, request_id=rid,
@@ -305,6 +465,12 @@ class DirectSessionChannel:
             accept_unverified_gripper_bus=accept_unverified_gripper_bus))
         if not isinstance(expected_service_instance_id, str) or re.fullmatch('[a-f0-9]{32}', expected_service_instance_id) is None:
             raise ValueError('valid expected service instance required')
+        if on_progress is not None and not callable(on_progress):
+            raise ValueError('preparation progress callback must be callable')
+        if expected_contract_sha256 is not None and (not isinstance(expected_contract_sha256, str)
+                or re.fullmatch('[a-f0-9]{64}', expected_contract_sha256) is None):
+            raise ValueError('valid expected contract digest required')
+        started_at = time.monotonic()
         dispatched = False
         pending_seen = False
         try:
@@ -320,6 +486,10 @@ class DirectSessionChannel:
                     or status.get('phase') != 'idle' or status.get('blocked_reason')
                     or status.get('robot_preparation_busy')):
                 raise ValueError('preparation requires clean idle service')
+            if expected_contract_sha256 is not None:
+                if (status.get('session_contract') or {}).get('contract_sha256') != expected_contract_sha256:
+                    raise ValueError('preparation settings changed; no request sent')
+                request['expected_contract_sha256'] = expected_contract_sha256
             dispatched = True  # A partial write also has an uncertain outcome.
             self._send(dict(event='preparation_request',
                 expected_service_instance_id=expected_service_instance_id, **request), timeout_s=.5)
@@ -342,11 +512,13 @@ class DirectSessionChannel:
                             or (reply['result'] is not None and not isinstance(reply['result'], dict))
                             or (reply['error'] is not None and not isinstance(reply['error'], dict))):
                         raise PreparationOutcomeUnknown(rid, 'invalid preparation result; do not retry')
+                    _preparation_progress(on_progress, reply, started_at)
                     return reply
                 if (reply.get('event') != 'preparation_pending' or set(reply) != {'event', *identity}
                         or time.monotonic() >= deadline):
                     raise PreparationOutcomeUnknown(rid)
                 pending_seen = True
+                _preparation_progress(on_progress, reply, started_at)
                 time.sleep(.1)
                 self._send(dict(event='preparation_job', request_id=rid,
                     expected_service_instance_id=expected_service_instance_id,
@@ -355,7 +527,7 @@ class DirectSessionChannel:
             exc.service_instance_id = expected_service_instance_id
             exc.installation_sha256 = expected_installation_sha256
             raise
-        except (OSError, EOFError, TimeoutError, RuntimeError, ValueError) as exc:
+        except (OSError, EOFError, TimeoutError, RuntimeError, ValueError, KeyboardInterrupt) as exc:
             if dispatched:
                 unknown = PreparationOutcomeUnknown(rid)
                 unknown.service_instance_id = expected_service_instance_id
@@ -366,13 +538,16 @@ class DirectSessionChannel:
             self._abort()
 
     def query_preparation_job(self, request_id, *, expected_service_instance_id,
-                              expected_installation_sha256):
+                              expected_installation_sha256, on_progress=None):
         """Observe an existing receipt after reconnect; never creates a job."""
         from .kuavo5_controller_admin import PREPARATION_PROTOCOL, PREPARATION_ACTIONS
         for value, size in ((request_id, 32), (expected_service_instance_id, 32),
                             (expected_installation_sha256, 64)):
             if not isinstance(value, str) or re.fullmatch('[a-f0-9]{%d}' % size, value) is None:
                 raise ValueError('valid preparation receipt identity required')
+        if on_progress is not None and not callable(on_progress):
+            raise ValueError('preparation progress callback must be callable')
+        started_at = time.monotonic()
         try:
             status = self._connect_status()
             if (status.get('backend') != self.expected_backend
@@ -400,12 +575,14 @@ class DirectSessionChannel:
                     raise ValueError('invalid preparation receipt result')
             if set(reply) != expected:
                 raise ValueError('invalid preparation receipt fields')
+            _preparation_progress(on_progress, reply, started_at)
             return reply
         finally:
             self._abort()
 
     def open(self, bundle):
         manifest = session_manifest(bundle)
+        base_options = self._base_permission(manifest['profile'])
         try:
             status = self._connect_status()
             if self.duration_s == 0 and status.get('session_duration_policy') != 'zero_is_unbounded_v1':
@@ -419,6 +596,7 @@ class DirectSessionChannel:
             self._send(dict(event='start_session', duration_s=self.duration_s,
                             motion_enabled=True, configure_vendor_profile=True,
                             expected_backend=self.expected_backend, **manifest,
+                            **base_options,
                             **({'allow_gripper_control': True} if manifest['profile']['gripper_mode'] == 'damiao' else {})), timeout_s=.5)
             started = self._payload(time.monotonic()+3.)
             if started.get('event') == 'refused':
@@ -440,10 +618,12 @@ class DirectSessionChannel:
         a publication between status and start from selecting a different build.
         """
         from teleop.robots.kuavo5_service_contract import (SESSION_PROTOCOL,
-            ARM_CAPABILITY, GRIPPER_CAPABILITY, validate_contract, validate_service_contract)
-        requirements = dict(protocol=SESSION_PROTOCOL,
-                            capabilities=[ARM_CAPABILITY, GRIPPER_CAPABILITY])
+            ARM_CAPABILITY, GRIPPER_CAPABILITY, validate_contract, validate_service_contract,
+            compatible_requirements)
+        requirements = compatible_requirements(contract, dict(protocol=SESSION_PROTOCOL,
+                            capabilities=[ARM_CAPABILITY, GRIPPER_CAPABILITY]))
         contract = validate_contract(contract, requirements)
+        base_options = self._base_permission(contract['profile'])
         try:
             status = self._connect_status()
             current = validate_service_contract(status, requirements)
@@ -459,7 +639,7 @@ class DirectSessionChannel:
                 profile=contract['profile'], session_protocol=contract['protocol'],
                 expected_service_instance_id=contract['service_instance_id'],
                 expected_installation_sha256=contract['installation_sha256'],
-                contract_sha256=contract['contract_sha256']), timeout_s=.5)
+                contract_sha256=contract['contract_sha256'], **base_options), timeout_s=.5)
             started = self._payload(time.monotonic()+3.)
             if started.get('event') == 'refused':
                 raise ValueError('direct start refused: '+str(started.get('reason')))
@@ -477,28 +657,52 @@ class DirectSessionChannel:
             self._abort()
             raise
 
+    def _base_permission(self, profile):
+        enabled = profile.get('base_mode', 'disabled') == 'vendor_vr_x'
+        if enabled != self.allow_base_control:
+            raise ValueError('installed base mode requires matching explicit --with-base permission')
+        return {'allow_base_control': True} if enabled else {}
+
+    def _socket_for_io(self, expected=None):
+        """Called under _io_lock; a concurrent close is an EOF, not a receipt."""
+        if self._finished or self.sock is None or (expected is not None and self.sock is not expected):
+            raise EOFError('direct session connection closed')
+        return self.sock
+
+    def _wait_socket(self, sock, *, reading, timeout_s):
+        # Do not hold the TLS I/O lock while waiting: the opposite direction
+        # must remain able to make progress. finish() can detach/close the fd
+        # meanwhile, so re-check identity before the subsequent actual I/O.
+        try:
+            ready = select.select([sock] if reading else [],
+                                  [] if reading else [sock], [], timeout_s)
+        except (OSError, ValueError):
+            with self._io_lock:
+                self._socket_for_io(sock)
+            raise
+        return bool(ready[0] if reading else ready[1])
+
     def _line(self, deadline):
         want_write = False
         while not self._lines:
-            if self._finished or self.sock is None:
-                raise EOFError('direct session connection closed')
             now = time.monotonic()
             self._frames.check_timeout(now)
             if now >= deadline:
                 raise TimeoutError('direct response deadline expired')
             # SSL may already hold decrypted bytes even without socket readability.
             with self._io_lock:
-                pending = isinstance(self.sock, ssl.SSLSocket) and self.sock.pending() > 0
+                sock = self._socket_for_io()
+                pending = isinstance(sock, ssl.SSLSocket) and sock.pending() > 0
             if not pending or want_write:
-                ready = select.select([] if want_write else [self.sock],
-                                      [self.sock] if want_write else [], [], min(.02, deadline-now))
-                if not (ready[1] if want_write else ready[0]):
+                if not self._wait_socket(sock, reading=not want_write,
+                                         timeout_s=min(.02, deadline-now)):
                     continue
             if time.monotonic() >= deadline:
                 raise TimeoutError('direct response deadline expired')
             try:
                 with self._io_lock:
-                    raw = self.sock.recv(16384)
+                    self._socket_for_io(sock)
+                    raw = sock.recv(16384)
             except ssl.SSLWantWriteError:
                 want_write = True
                 continue
@@ -533,23 +737,25 @@ class DirectSessionChannel:
             if remaining <= 0 or not self._send_lock.acquire(timeout=remaining):
                 raise TimeoutError('direct send deadline expired')
             locked = True
-            if self.sock is None or self.codec is None or self._finished:
-                raise EOFError('direct session connection closed')
+            with self._io_lock:
+                sock = self._socket_for_io()
+                if self.codec is None:
+                    raise EOFError('direct session connection closed')
             data = memoryview(self.codec.pack(packet))
             want_read = False
             while data:
                 remaining = deadline-time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError('direct send deadline expired')
-                ready = select.select([self.sock] if want_read else [],
-                                      [] if want_read else [self.sock], [], remaining)
-                if not (ready[0] if want_read else ready[1]) or time.monotonic() >= deadline:
+                if not self._wait_socket(sock, reading=want_read, timeout_s=remaining) \
+                        or time.monotonic() >= deadline:
                     raise TimeoutError('direct send deadline expired')
                 try:
                     with self._io_lock:
+                        self._socket_for_io(sock)
                         if time.monotonic() >= deadline:
                             raise TimeoutError('direct send deadline expired')
-                        sent = self.sock.send(data)
+                        sent = sock.send(data)
                     if not sent:
                         raise EOFError('direct send closed')
                     data = data[sent:]
@@ -613,15 +819,18 @@ class DirectSessionChannel:
         return self._exit_code
 
     def _abort(self):
-        self._exit_code = 1 if self._exit_code is None else self._exit_code
-        self._finished = True
-        sock, self.sock = self.sock, None
-        if sock is not None:
-            try:
-                sock.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
-            sock.close()
+        # Serialize close with nonblocking TLS read/write as well. In
+        # particular, never replace self.sock while another thread uses it.
+        with self._io_lock:
+            self._exit_code = 1 if self._exit_code is None else self._exit_code
+            self._finished = True
+            sock, self.sock = self.sock, None
+            if sock is not None:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                sock.close()
 
     def finish(self):
         self._abort()
