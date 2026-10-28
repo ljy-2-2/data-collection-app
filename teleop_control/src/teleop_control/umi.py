@@ -187,6 +187,7 @@ class _CameraPreviewWorker:
                     return
             with self._condition:
                 mode, revision = dict(self._mode), self._revision
+            zed_mode = mode.get('backend') == 'zed-uvc'
             capture = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
             self._capture = capture
             if not capture.isOpened():
@@ -196,7 +197,7 @@ class _CameraPreviewWorker:
                     break
                 continue
             capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*mode['fourcc']))
-            capture.set(cv2.CAP_PROP_FRAME_WIDTH, mode['width'])
+            capture.set(cv2.CAP_PROP_FRAME_WIDTH, mode['width']*(2 if zed_mode else 1))
             capture.set(cv2.CAP_PROP_FRAME_HEIGHT, mode['height'])
             capture.set(cv2.CAP_PROP_FPS, mode['fps'])
             capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -206,13 +207,15 @@ class _CameraPreviewWorker:
                 if not ok or frame is None:
                     break
                 actual_fps = capture.get(cv2.CAP_PROP_FPS)
-                if frame.shape[1] != mode['width'] or frame.shape[0] != mode['height']:
+                if frame.shape[1] != mode['width']*(2 if zed_mode else 1) or frame.shape[0] != mode['height']:
                     with self._condition:
                         if revision == self._revision:
                             self.error = (f"相机实际输出 {frame.shape[1]}×{frame.shape[0]} / {actual_fps:g} 帧，"
                                           f"未能应用 {mode['width']}×{mode['height']} / {mode['fps']:g} 帧")
                             self._condition.notify_all()
                     break
+                if zed_mode:
+                    frame = frame[:, :mode['width']]
                 now = time.monotonic()
                 if now < next_frame_at:
                     continue
@@ -672,6 +675,11 @@ class UmiManager:
         roles: dict[str, str] = {}
         used: set[str] = set()
 
+        zed_centers = [item['device'] for item in camera_details if camera_devices.zed.is_zed(item)]
+        if 'center' in camera_sides and len(zed_centers) == 1:
+            roles['center'] = zed_centers[0]
+            used.add(zed_centers[0])
+
         for side in ("left", "right"):
             if side not in camera_sides or not encoder_hubs.get(side):
                 continue
@@ -687,7 +695,7 @@ class UmiManager:
                 roles[side] = match
                 used.add(match)
 
-        if "center" in camera_sides:
+        if "center" in camera_sides and 'center' not in roles:
             hand_hubs = {hub for hub in encoder_hubs.values() if hub}
             center = next(
                 (
@@ -805,6 +813,7 @@ class UmiManager:
                 roles = ({role: d['device'] for role, d in matched.items()} if saved else
                          self._configured_camera_roles(details, active))
                 self._device_check = {**self._device_check,
+                    'camera_warnings': camera_devices.zed.connection_issues(),
                     'camera_candidates': candidates, 'camera_candidate_details': details,
                     'camera_roles': roles, 'suggested_camera_roles': self._suggest_camera_roles(details, active),
                     'hardware_ready': len(candidates) >= len(active)
@@ -1126,6 +1135,7 @@ class UmiManager:
             "encoder_devices": encoder_devices,
             "camera_candidates": camera_candidates,
             "camera_candidate_details": camera_details,
+            "camera_warnings": camera_devices.zed.connection_issues(),
             "suggested_camera_roles": suggested_camera_roles,
             "encoder_candidates": encoder_candidates,
             "encoder_candidate_details": encoder_details,
@@ -1603,6 +1613,13 @@ class UmiManager:
             raise ValueError("左、右、中心相机不能选择同一个设备")
         if not all(path in candidates for path in roles.values()):
             raise ValueError("相机选择已失效，请重新检查设备")
+        details = {item['device']: item for item in check['camera_candidate_details']}
+        for role, device in roles.items():
+            if camera_devices.zed.is_zed(details[device]):
+                if role != 'center':
+                    raise ValueError('ZED Mini 请分配为中心相机')
+                camera_devices.zed.ensure_calibration(details[device]['serial'],
+                    self._camera_selection_file.parent/'zed-calibrations')
         if len(check.get("encoder_candidates", [])) < len(expected_roles - {"center"}):
             raise ValueError("编码器数量不足")
 
@@ -1622,6 +1639,10 @@ class UmiManager:
                     # Preserve the confirmed readback even if closing preview
                     # makes a camera driver reset its controls during handoff.
                     camera_brightness[role] = self._camera_brightness_values[key]
+                elif camera_devices.zed.is_zed(details[device]):
+                    current_control = read_brightness(device)
+                    if current_control['supported']:
+                        camera_brightness[role] = current_control['value']
         payload_path = self.runtime_dir / "device-selection.json"
         payload_path.write_text(
             json.dumps(
@@ -1630,6 +1651,8 @@ class UmiManager:
                     "camera_roles": roles,
                     "camera_brightness": camera_brightness,
                     "camera_modes": {role: ros_parameters(mode) for role, mode in camera_modes.items()},
+                    "camera_sources": {'center': 'zed_mini' if camera_devices.zed.is_zed(
+                        details[roles['center']]) else 'usb'},
                     "encoder_minima": request.encoder_minima,
                     "device_properties": {
                         path: self._udev_properties(path)

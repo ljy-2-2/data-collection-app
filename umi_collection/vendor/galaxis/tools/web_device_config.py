@@ -80,7 +80,8 @@ def encoder_samples() -> dict[str, tuple[str, float]]:
     return found
 
 
-def build_collection_profile(profile: str, roles: tuple[str, ...], modes: dict | None) -> dict:
+def build_collection_profile(profile: str, roles: tuple[str, ...], modes: dict | None,
+                             sources: dict | None = None) -> dict:
     defaults = dict(image_width=640, image_height=480, framerate=30.0, pixel_format='mjpeg2rgb')
     modes = {role: dict(defaults) for role in roles} if modes is None else modes
     if not isinstance(modes, dict) or set(modes) != set(roles):
@@ -95,9 +96,17 @@ def build_collection_profile(profile: str, roles: tuple[str, ...], modes: dict |
                 or mode['pixel_format'] not in ('mjpeg2rgb','yuyv2rgb')):
             raise ValueError(f'{role} 相机需要支持约 30 帧/秒的原生分辨率')
         cameras[role] = dict(mode)
+    sources = {'center':'usb'} if sources is None else sources
+    if sources not in ({'center':'usb'}, {'center':'zed_mini'}):
+        raise ValueError('unsupported center camera source')
+    if sources['center'] == 'zed_mini' and (
+            cameras['center']['pixel_format'] != 'yuyv2rgb' or
+            (cameras['center']['image_width'],cameras['center']['image_height']) not in
+            {(672,376),(1280,720),(1920,1080)}):
+        raise ValueError('Invalid native ZED Mini mono resolution')
     return dict(collection_profile=profile, active_cameras=list(roles),
                 active_arms=[role for role in ('left','right') if role in roles],
-                camera_sources={'center':'usb'}, cameras=cameras,
+                camera_sources=sources, cameras=cameras,
                 camera_quality=dict(version=2, min_rate_hz=27.0, rate_window_sec=5.0,
                                     warn_frame_gap_sec=0.5, stop_min_rate_hz=20.0,
                                     stop_low_rate_sec=10.0, max_frame_gap_sec=3.0, warmup_sec=1.0))
@@ -137,7 +146,8 @@ def main() -> int:
     camera_settings = build_camera_settings(
         expected, payload.get("camera_brightness"), existing_camera_settings
     )
-    collection_settings = build_collection_profile(profile, expected, payload.get('camera_modes'))
+    collection_settings = build_collection_profile(profile, expected, payload.get('camera_modes'),
+                                                    payload.get('camera_sources'))
 
     encoders = encoder_samples()
     active_arms = tuple(role for role in ("left", "right") if role in expected)

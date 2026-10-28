@@ -50,6 +50,9 @@ def discover(sys_class=Path('/sys/class/video4linux'), dev_root=Path('/dev'), pr
             found.append(dict(device=str(device), name=name, **identity,
                               hub=usb.name.rsplit('.', 1)[0] if '.' in usb.name else usb.name,
                               generation=f'{entry.resolve()}:{stat.st_ino}:{stat.st_rdev}'))
+            if identity['vendor'] == '2b03' and identity['product'] in ('f680','f682'):
+                found[-1]['name'] = 'ZED Mini · 中心相机（左目）'
+                found[-1]['backend'] = 'zed-uvc'
         except (OSError, StopIteration):
             continue
     for item in found:

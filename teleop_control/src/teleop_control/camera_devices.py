@@ -11,3 +11,8 @@ identity = _module.identity
 match = _module.match
 read_selection = _module.read_selection
 resolve_roles = _module.resolve_roles
+
+_zed_path = _path.with_name('zed_camera.py')
+_zed_spec = importlib.util.spec_from_file_location('_umi_zed_camera', _zed_path)
+zed = importlib.util.module_from_spec(_zed_spec)
+_zed_spec.loader.exec_module(zed)

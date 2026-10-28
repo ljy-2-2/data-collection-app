@@ -41,7 +41,9 @@ def read_modes(device: str) -> list[dict]:
         raise RuntimeError("无法读取相机分辨率，请检查相机连接和 v4l2-ctl") from exc
     if result.returncode:
         raise RuntimeError("无法读取相机分辨率：" + (result.stderr or result.stdout).strip())
-    return parse_modes(result.stdout)
+    modes = parse_modes(result.stdout)
+    from .camera_devices import zed
+    return zed.mono_modes(modes) if zed.is_zed_device(device) else modes
 
 
 def parse_modes(output: str) -> list[dict]:
@@ -82,6 +84,12 @@ def choose_mode(modes: list[dict], saved: dict | None = None) -> dict:
         for mode in modes:
             if mode['id'] == saved.get('id'):
                 return dict(mode)
+    if any(m.get('backend') == 'zed-uvc' for m in modes):
+        # Stereo YUYV is uncompressed on USB. HD720 keeps bandwidth and CPU
+        # available for the two wrist cameras and the 100 Hz sensors.
+        hd = next((m for m in modes if (m['width'], m['height']) == (1280,720)), None)
+        if hd:
+            return dict(hd)
     # Prefer native Full HD at 30 Hz. A camera without this mode keeps its
     # highest supported size below Full HD; never upscale or silently use 15 Hz.
     full_hd = next((m for m in modes if (m['width'], m['height']) == (1920, 1080)), None)

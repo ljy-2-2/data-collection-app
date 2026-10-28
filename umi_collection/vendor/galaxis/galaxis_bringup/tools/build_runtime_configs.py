@@ -65,7 +65,7 @@ def load_collection_profile(path: Path | None) -> dict[str, Any]:
     if not isinstance(sources, dict):
         raise ValueError("collection profile camera_sources must be a mapping")
     center_source = sources.get("center", "usb")
-    if center_source not in {"usb", "g2_head_color"}:
+    if center_source not in {"usb", "g2_head_color", "zed_mini"}:
         raise ValueError(f"unsupported center camera source: {center_source!r}")
     profile["camera_sources"] = {"center": center_source}
     quality = profile.get('camera_quality')
@@ -139,6 +139,11 @@ def apply_camera_overrides(
         if not isinstance(params, dict):
             raise ValueError(f"camera node {side} has no ros__parameters mapping")
         params.update(settings)
+        flip = data.get('center_camera_flip_node', {}).get('ros__parameters', {})
+        if side == 'center' and flip.get('stereo_left_only'):
+            # V4L2 negotiates both eyes; public topics and quality checks use
+            # the single-eye size saved by Setup.
+            params['image_width'] = settings['image_width']*2
     return data
 
 
@@ -178,7 +183,9 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
             result.pop("center_camera/g2_bridge", None)
         flip = result.get("center_camera_flip_node", {}).get("ros__parameters")
         if isinstance(flip, dict):
-            flip['input_transport'] = ('raw' if profile['camera_sources']['center'] == 'g2_head_color' else 'compressed')
+            source = profile['camera_sources']['center']
+            flip['stereo_left_only'] = source == 'zed_mini'
+            flip['input_transport'] = 'raw' if source in ('g2_head_color','zed_mini') else 'compressed'
         encoder = result.get("encoder_node", {}).get("ros__parameters", {})
         encoder["active_sides"] = list(profile["active_arms"])
         encoder["collection_profile"] = profile["collection_profile"]

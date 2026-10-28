@@ -1,6 +1,10 @@
 """Vertically flip the portable center-camera stream in software."""
 
-from copy import deepcopy
+from copy import copy, deepcopy
+from pathlib import Path
+
+from .camera_devices import read_selection
+from .zed_camera import calibration, left_image_layout, serial_number
 
 import cv2
 import numpy as np
@@ -17,6 +21,8 @@ class CenterCameraFlipNode(Node):
     def __init__(self) -> None:
         super().__init__("center_camera_flip")
         self.declare_parameter("vertical_flip", False)
+        self.declare_parameter('stereo_left_only', False)
+        self.declare_parameter('zed_calibration_dir', '/opt/camera-selection/zed-calibrations')
         self.declare_parameter("input_image_topic", "/center_camera/image_raw_unflipped")
         self.declare_parameter("input_transport", "raw")
         self.declare_parameter("input_compressed_topic", "/center_camera/image_raw_unflipped/compressed")
@@ -31,6 +37,13 @@ class CenterCameraFlipNode(Node):
         self.declare_parameter("jpeg_quality", 100)
 
         self._vertical_flip = bool(self.get_parameter("vertical_flip").value)
+        self._stereo_left_only = bool(self.get_parameter('stereo_left_only').value)
+        self._zed_calibration = None
+        self._zed_calibration_key = None
+        if self._stereo_left_only and self.get_parameter('input_transport').value != 'raw':
+            raise ValueError('ZED stereo crop requires the raw UVC image topic')
+        if self._stereo_left_only:
+            cv2.setNumThreads(1)
         self._jpeg_quality = max(
             1, min(100, int(self.get_parameter("jpeg_quality").value))
         )
@@ -135,13 +148,23 @@ class CenterCameraFlipNode(Node):
 
         rows = np.frombuffer(message.data, dtype=np.uint8, count=expected_size)
         rows = rows.reshape(message.height, message.step)
+        if self._stereo_left_only:
+            try:
+                width,step = left_image_layout(message.width,message.height,message.encoding,message.step)
+            except ValueError as exc:
+                self.get_logger().error(str(exc))
+                return
+            # Keep the original capture timestamp and copy no right-eye pixels.
+            message = copy(message)
+            message.width,message.step = width,step
+            rows = rows[:, :step]
         if self._vertical_flip:
             rows = np.flip(rows, axis=0).copy()
 
         # Recording and the web monitor consume the compressed topic. Avoid a
         # multi-megabyte deepcopy unless a real raw-image subscriber exists.
         if self._image_pub.get_subscription_count() > 0:
-            output = deepcopy(message)
+            output = copy(message)
             output.data = rows.tobytes()
             self._image_pub.publish(output)
         self._publish_compressed(message, rows)
@@ -180,6 +203,28 @@ class CenterCameraFlipNode(Node):
 
     def _on_camera_info(self, message: CameraInfo) -> None:
         output = deepcopy(message)
+        if self._stereo_left_only:
+            if output.width % 2:
+                self.get_logger().error('Invalid ZED stereo CameraInfo width')
+                return
+            output.width //= 2
+            try:
+                role = read_selection('/opt/camera-selection/roles.json').get('center',{})
+                serial = serial_number(role.get('serial',''))
+                key = (serial,output.width,output.height)
+                if self._zed_calibration_key != key:
+                    p = Path(str(self.get_parameter('zed_calibration_dir').value))/f'SN{serial}.conf'
+                    self._zed_calibration = calibration(p.read_text(),output.width,output.height)
+                    self._zed_calibration_key = key
+                c = self._zed_calibration
+            except (OSError,ValueError,KeyError) as exc:
+                self.get_logger().error(f'ZED factory calibration unavailable: {exc}')
+                return
+            output.distortion_model = 'plumb_bob'
+            output.d = [c[k] for k in ('k1','k2','p1','p2','k3')]
+            output.k = [c['fx'],0.,c['cx'],0.,c['fy'],c['cy'],0.,0.,1.]
+            output.r = [1.,0.,0.,0.,1.,0.,0.,0.,1.]
+            output.p = [c['fx'],0.,c['cx'],0.,0.,c['fy'],c['cy'],0.,0.,0.,1.,0.]
         if self._vertical_flip and output.height:
             output.k[5] = output.height - 1 - output.k[5]
             output.p[6] = output.height - 1 - output.p[6]

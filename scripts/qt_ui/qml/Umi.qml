@@ -90,6 +90,7 @@ Column {
                 }
             }
             Txt {visible: !!root.check.stack_occupied;width: parent.width;text: "其他 Galaxis 服务正在占用相机和编码器。请先结束该服务，再重新检测。";font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
+            Txt {visible: (root.check.camera_warnings||[]).length>0;width: parent.width;text: (root.check.camera_warnings||[]).join("\n");font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
             Txt {visible: !!root.check.pico_detail && !root.check.pico_ready;width: parent.width;text: root.check.pico_detail||"";font.pixelSize: 12;color: Theme.red;wrapMode: Text.Wrap;elide: Text.ElideNone}
             RowLayout {width: parent.width;spacing: 8
                 Btn {text: "返回配置";ghost: true;enabled: !s.busy;onClicked: backend.umiBack()}

@@ -93,7 +93,8 @@ def configure_umi_runtime(project: Path, manifest: dict):
                                 if ':/root/ros2_ws/install/usb_cam/lib/libusb_cam.so:' not in v]
             device_volumes.append(camera_binding)
     for name in ('encoder_protocol.py', 'encoder_node.py', 'camera_devices.py',
-                 'camera_supervisor.py', 'camera_control_node.py'):
+                 'camera_supervisor.py', 'camera_control_node.py',
+                 'zed_camera.py', 'center_camera_flip_node.py'):
         services["galaxis"].setdefault("volumes", []).append(
             f"./galaxis_bringup/galaxis_bringup/{name}:"
             f"/root/ros2_ws/src/galaxis_bringup/galaxis_bringup/{name}:ro")

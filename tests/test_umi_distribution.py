@@ -52,9 +52,11 @@ def test_distribution_has_no_capture_time_downloads_or_compilation(tmp_path):
             './galaxis_bringup/galaxis_bringup/camera_devices.py',
             './galaxis_bringup/galaxis_bringup/camera_supervisor.py',
             './galaxis_bringup/galaxis_bringup/camera_control_node.py',
+            './galaxis_bringup/galaxis_bringup/zed_camera.py',
+            './galaxis_bringup/galaxis_bringup/center_camera_flip_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/pico_bridge_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/transport/galaxis_tcp.py'} for v in bindings)
-    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 7
+    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 9
     assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 1
     assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
     assert services["config-init"]["entrypoint"] == ["python3"]
