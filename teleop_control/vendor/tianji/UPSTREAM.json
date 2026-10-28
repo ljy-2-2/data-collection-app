@@ -36,16 +36,16 @@
     "teleop/gripper/sampling.py": "8ca65fbd733408d0ab0906c4d348f1c01538f7c2cfb1bff7e17f070adda642e1",
     "teleop/marvin_teleop/__init__.py": "86678d9ec65792351cbdb5074c0d76502800b65cf161e0de81ff1beb5f1a2232",
     "teleop/marvin_teleop/config.json": "b9c3b46c566ced3378f9dd6e381ea3af51a8ac05b7744bd6dc2bf90922e93c2c",
-    "teleop/marvin_teleop/constrained_ik.py": "fd4978962baa5c335a9c99fcc056cd8f83da36453adf16825ec9e18449fe6237",
-    "teleop/marvin_teleop/control.py": "a14d252865547a040c5d90281f2c4742b92f7c6346660727c17f5f290509f7d2",
+    "teleop/marvin_teleop/constrained_ik.py": "42aaf4273abdae7fb687b8a39d18409dedcc0341c673219f610b8fe1312d18d2",
+    "teleop/marvin_teleop/control.py": "b887bbd0762424511146da4b2dabbf69637c0a53a217844d8e5fa7a375f8e1b9",
     "teleop/marvin_teleop/differential.py": "210803e946a60c53f0c4e8e783852bfc9102eba4aad80e4c789377f29a85465e",
     "teleop/marvin_teleop/geometry.py": "643a8ee72033ed65436eabca5ff41d865585ece5b1107ef0d74d345dc46ff7cd",
     "teleop/marvin_teleop/installation.py": "b146c130dc7c4e8157f58684949a754d4b85b709a702c52cff59963db0b8825e",
     "teleop/marvin_teleop/launcher.py": "711d68aae58af3c4462327bad345c6a13f6ddf1fe2fa74da4fe2b1d3601d4247",
     "teleop/marvin_teleop/mapping.py": "70cb95ac3812bd2b7fcc63622178deecdb9cf4f3be8b33fc30fd74375443027a",
     "teleop/marvin_teleop/mirror.py": "c7aa566e661a5e3306a7d44da4a877c5ec5a488fb7f20482f27fc4973c997376",
-    "teleop/marvin_teleop/model.py": "7d1a520bd0c2ab5ff25c3036453df694e6c27e24e3c4da82ced4665ed243c958",
-    "teleop/marvin_teleop/motion.py": "f3d5957f089c9deeb65eb05d8c648b2b958a10e06fdf7485f2c78aafd5eded45",
+    "teleop/marvin_teleop/model.py": "f8bbb37bcc3883025600ec01fafa3ddf0cc14857462dcebe6d589418590f7563",
+    "teleop/marvin_teleop/motion.py": "185080f90ee47d33bdbb00962853c5832b87a104161430cc2338f0bf3d2b3676",
     "teleop/marvin_teleop/preparation.py": "c996701530d81013467e6db64ba8007aa35573dfffbdd4b58686a526361d5847",
     "teleop/marvin_teleop/protocol.py": "6f5d7eb6e7c89a708c6d584fbe8e1b88e1a64e6a9f90071453b4d0cc0ef82781",
     "teleop/marvin_teleop/robot.py": "27ad80c14a9be659ced552d01229b1bc579faf1d45ef75c58c0a63acf8238cb0",
@@ -56,7 +56,7 @@
     "双臂底座支架图纸260811/固定件/固定件urdf/Dual_arm_mount-m6/urdf/Dual_arm_mount-m6.urdf": "789c02c70d88a97b201f4f5f16d0f85b71ee116b38b802685f697853329bf11e",
     "双臂底座支架图纸260811/底座支架/底座支架urdf/base_m6/meshes/base_link.STL": "29f13fe1103a20a5849fcac0199a79c56ea2b9736acd6783547a396b7a52792d",
     "双臂底座支架图纸260811/底座支架/底座支架urdf/base_m6/urdf/base_m6.urdf": "ab3cb047c0460fcd5ad68666f4d50ebce309d9ff1183c8ad324052e03169088e",
-    "teleop/marvin_teleop/pose_tracking.py": "5658ac45be87109e7a5d18fac1b3e6e0714d83e145f84afbc4c9ec81b077926c",
+    "teleop/marvin_teleop/pose_tracking.py": "d57af3f0c1d20f459991881467665f1ca31a954fb216ceb1c4bf1073a05d9922",
     "Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf": "15fba6e22edd8537974002d9fc4b695a23dfd943dfb764e598e6fcad83d942c9",
     "Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf": "aa5ab707a2d0c9360f3408c5fd9f7b091ec8a47a154d1e7c7158f4487f42cc23"
   },
@@ -82,7 +82,7 @@
   "collection_adaptations": "App camera handoff; actual connected-camera subset frozen per episode; native JPEG passthrough at selected resolution; hardware brightness readback and current runtime retarget metadata; selected gripper validation and accepted SDK command log; complete-only account-bound platform queue. No native duplicates.",
   "local_adaptations": {
     "teleop/gripper/runtime.py": "Feedback timeout reports age, limit and phase. After sequential preflight, require fresh disabled feedback from all selected motors before starting the worker; existing 150 ms watchdog remains unchanged, with no enabling/position commands during refresh.",
-    "responsive_ik": "Reference accepted-command differential tracking in ordinary configurations, continuously blended with the previous finite local continuation near task singularities. One to four local damped corrections per tick. Independent verified left/right mapping and common physical velocity, acceleration and stopping limits remain; no J4-specific transition or Cartesian speed cap.",
+    "responsive_ik": "v11: retain original XR sample-clock feedforward and negative-elbow preference. Strengthen finite nearest accepted-joint displacement cost for ordinary tracking, fade it within 16 iterations for final pose accuracy, and bound wrist singular seed lookahead to 2 degrees. Controller supplies a teleoperation-only J4 upper face of -5 degrees, including constrained IK and stopping-envelope checks; when clutching above -5 degrees (including the legal +60-degree hardware stop), ratchet the upper face inward from each accepted J4 command until the normal domain is reached; no forced return and no disengagement on the IK boundary. Physical, manual, preparation and recovery domains are unchanged. Requested acceleration up to 900 is clipped per axis to native PNVA limits (J1/J2 450, J3-J7 900 deg/s^2); common path timing and braking respect each axis. API, Qt defaults/range/hints, and per-axis status diagnostics agree. Offline regressions include recorded idle joint postures, local XOZ wrist rotation, boundary braking, manual positive-J4 access and all existing motion/stop protections.",
     "zero_recovery": "Explicit clear-error/idle/measured-hold and sequential seven-joint zero recovery. Separated self housings inside the existing reserve may retreat with a ratcheted positive separation floor; all other margins and hardware protections remain. Preflight and feedback keep separate clearance histories. Prioritize the selected arm needing clearance recovery, then use vendor channel order.",
     "reference_retarget": {
       "source": "test-teleop/retarget.py and ik.py",
@@ -113,5 +113,10 @@
       "upstream_sha256": "ab9d3de956f27024550f4843b759276ef414d12e9d74facd0d79b7096040274c",
       "reason": "Unused branch-locking solver replaced by pose_tracking.py; removed with its uncalled ArmModel.tracking_ik entry point."
     }
+  },
+  "selective_integration": {
+    "source_commit": "c626ead0af17df4209b16f3777736dab33c85652",
+    "retained_local": "PICO lifecycle and collection telemetry",
+    "excluded": "MotionTrace diagnostic persistence"
   }
 }

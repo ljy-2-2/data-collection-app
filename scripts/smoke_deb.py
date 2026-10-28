@@ -35,6 +35,14 @@ def main():
         )
         package = root / "package/opt/xiaokai-lab-data-collection"
         python = package / "runtime/python/bin/python3.12"
+        metadata = json.loads((package / "package-build.json").read_text())
+        if metadata["architecture"] == "arm64":
+            # Test the packaged capability metadata and actual selector together.
+            # Demo mode intercepts every action; no hardware service is contacted.
+            subprocess.run([str(python), str(package / "app/scripts/smoke_orangepi_ui.py")],
+                env={**os.environ, "APP_COLLECTION_MODE": metadata["collection_mode"],
+                     "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software"},
+                check=True, timeout=45)
         subprocess.run(
             [
                 str(python),
@@ -133,6 +141,8 @@ def main():
                 assert exc.code == 502, exc.code
             with urlopen(f"http://127.0.0.1:{control_port}/umi/status", timeout=5) as response:
                 assert json.load(response)["record_format"] == "rosbag"
+            with urlopen(f"http://127.0.0.1:{control_port}/kuavo/status", timeout=5) as response:
+                assert json.load(response)["active"] is False
             startup = (package / "app/scripts/qt_ui/qml/Startup.qml").read_text()
             assert "欢迎使用小凯数据采集平台" in startup and "正在进入登录界面" in startup
             assert "NumberAnimation on x" in startup

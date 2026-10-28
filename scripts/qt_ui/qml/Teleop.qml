@@ -47,6 +47,7 @@ Column {
                         }
                         Btn {visible: root.tianji;Layout.row: 0;Layout.column: app.width<780 ? 1 : 2;objectName: "otherParameters";Layout.alignment:Qt.AlignVCenter;Layout.topMargin:app.width>=780?8:0;text: "其它参数";glyph: "Settings2";textSize: 12;enabled: !root.locked;onClicked: parameterDialog.open()}
                     }
+                    Txt {visible: root.tianji;width: parent.width;wrapMode: Text.Wrap;font.pixelSize: 11;color: Theme.inkMuted;text: "仅遥操：J4 ≤ −5°；当前高于 −5° 时仅可减小。实际加速度上限 J1/J2 " + Math.min(Number(s.parameters.max_joint_accel_deg_s2||900),450) + "、J3～J7 " + Math.min(Number(s.parameters.max_joint_accel_deg_s2||900),900) + " °/s²"}
                 }
             }
             Item {Layout.fillWidth: true;Layout.preferredWidth: 375;Layout.preferredHeight: 102

@@ -7,7 +7,7 @@ ApplicationWindow {
     objectName: "mainWindow"
     width: 1280;height: 800;minimumWidth: 360;minimumHeight: 300
     visible: true
-    title: "小凯实验室数采平台"
+    title: backend.rawOnly?"小凯实验室数据采集 · 本地保存":"小凯实验室数采平台"
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint
     color: Theme.bg
     font.family: Theme.font;font.pixelSize: 13
@@ -76,7 +76,7 @@ ApplicationWindow {
                 }
             }
             Rectangle {visible: !app.narrow;x: 8;y: 118;width: parent.width-16;height: 1;color: Theme.line}
-            Button {objectName: "platformLink";visible: !app.narrow;x: 6;y: 125;width: parent.width-12;height: 53;hoverEnabled: true
+            Button {objectName: "platformLink";visible: !app.narrow && !backend.rawOnly;x: 6;y: 125;width: parent.width-12;height: 53;hoverEnabled: true
                 background: Rectangle {radius: 7;color: parent.hovered?Theme.muted:"transparent"}
                 contentItem: Item {
                     Image {objectName: "platformLinkIcon";x: 9;anchors.verticalCenter: parent.verticalCenter;width: 16;height: 16;source: Theme.icon("Database")}
@@ -96,7 +96,7 @@ ApplicationWindow {
                     Txt {width: parent.width;text: s.username;font.pixelSize: 12;font.weight: Font.Bold;height: 17}
                     Txt {text: "v2.0.0";font.pixelSize: 11;color: Theme.inkSoft;height: 16}
                 }
-                Btn {anchors.right: parent.right;anchors.rightMargin: 5;y: 11;width: 28;height: 28;glyph: "LogOut";ghost: true;enabled: !s.busy;onClicked: backend.logout()}
+                Btn {anchors.right: parent.right;anchors.rightMargin: 5;y: 11;width: 28;height: 28;glyph: "LogOut";visible: !backend.rawOnly;ghost: true;enabled: !s.busy;onClicked: backend.logout()}
             }
         }
         WheelScroll {
@@ -124,9 +124,9 @@ ApplicationWindow {
                 Setup {width: parent.width;visible: s.page==="teleop"&&s.teleopStep===1}
                 Teleop {id: teleop;objectName: "teleopWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2&&s.robot!=="kuavo-5w"}
                 Kuavo {id: kuavoTeleop;objectName: "kuavoWorkspace";width: parent.width;visible: s.page==="teleop"&&s.teleopStep===2&&s.robot==="kuavo-5w"}
-                Umi {id: umiPanel;width: parent.width;visible: s.page==="umi"}
+                Umi {id: umiPanel;objectName: "umiWorkspace";width: parent.width;visible: s.page==="umi"}
                 Card {visible: s.page==="ego";width: parent.width;height: 580}
-                Btn {visible: app.narrow;text: "退出登录";glyph: "LogOut";ghost: true;enabled: !s.busy;onClicked: backend.logout()}
+                Btn {visible: app.narrow && !backend.rawOnly;text: "退出登录";glyph: "LogOut";ghost: true;enabled: !s.busy;onClicked: backend.logout()}
             }
         }
         Connections {target: backend;property string lastPage: "teleop";function onChanged(){if(lastPage!==backend.state.page){scroll.contentY=0;lastPage=backend.state.page}}}

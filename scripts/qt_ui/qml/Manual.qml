@@ -12,7 +12,12 @@ Card {
     width: parent.width
     height: body.height+heading.height+24
     Heading {id: heading;width: parent.width;height: 47;title: "手动控制"}
-    Rectangle {anchors.right: parent.right;anchors.rightMargin: 14;y: 12;width: 62;height: 22;radius: 11;color: Theme.amberSoft
+    Row {visible:root.tianji;anchors.right:parent.right;anchors.rightMargin:14;y:7;spacing:8
+        Txt {text:"步长";height:34;font.pixelSize:12}
+        Select {objectName:"tianjiManualStep";width:76;model:["1°","5°","10°"];currentIndex:[1,5,10].indexOf(s.tianjiJogStep)
+            onActivated:backend.setValue("tianjiJogStep",[1,5,10][currentIndex])}
+    }
+    Rectangle {anchors.right: parent.right;anchors.rightMargin: root.tianji?145:14;y: 12;width: 62;height: 22;radius: 11;color: Theme.amberSoft
         Txt {anchors.centerIn: parent;text: "真实运动";font.pixelSize: 11;color: Theme.amber;font.weight: Font.DemiBold}
     }
     Column {id: body;x: 12;y: heading.height+12;width: parent.width-24;spacing: 10
@@ -65,7 +70,7 @@ Card {
                                 }
                                 Column {anchors.right: parent.right;anchors.rightMargin: 7;y: 7
                                     Repeater {model: 2
-                                        Button {required property int index;property int direction: index===0?1:-1;property real delta: root.tianji ? backend.jogDelta(arm.side,jointRow.index+1,direction) : direction*(spec.name.includes("gripper")?.005:.01);objectName: "jog-"+spec.name+"-"+direction;width: 28;height: 20;enabled: root.canMove && raw!==undefined && raw+delta>=spec.minimum && raw+delta<=spec.maximum
+                                        Button {required property int index;property int direction: index===0?1:-1;property real delta: root.tianji ? (s.tianjiJogStep>0?backend.jogDelta(arm.side,jointRow.index+1,direction):0) : direction*(spec.name.includes("gripper")?.005:.01);objectName: "jog-"+spec.name+"-"+direction;width: 28;height: 20;enabled: root.canMove && raw!==undefined && raw+delta>=spec.minimum && raw+delta<=spec.maximum
                                             background: Rectangle {color: parent.hovered ? Theme.accentSoft : Theme.surface;border.color: Theme.line;radius: 3}
                                             contentItem: Txt {selectable: false;text: index===0?"▲":"▼";font.pixelSize: 9;horizontalAlignment: Text.AlignHCenter;color: parent.enabled ? Theme.inkMuted : Theme.inkSoft;opacity: parent.enabled?1:.4}
                                             onClicked: {if(root.tianji)backend.jog(arm.side,jointRow.index+1,direction);else backend.jogG2(spec.name,direction)}

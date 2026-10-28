@@ -1,0 +1,45 @@
+{
+  "scope": "kuavo manual saved measured poses and smaller base pad",
+  "date": "2026-10-28",
+  "base_pad_px": 180,
+  "qt_preview": "reports/kuavo-manual-poses-20261028.png",
+  "pose_values": "20 measured joint radians and 2 gripper closure fractions; no base location",
+  "default_pose": "manufacturer /robot_init_state_param (same source as teleoperation return); grippers use session initial feedback",
+  "tests": {
+    "targeted": 20,
+    "regression_passed": 112,
+    "regression_note": "111 passed on initial run; new route inventory expectation updated, formerly failing test rerun passed",
+    "typescript": "passed",
+    "web_build": "passed",
+    "initial_pose_regression_passed": 41,
+    "initial_pose_verified": "arm targets equal resolve_vendor_return output; reject malformed, missing, out-of-range and non-manufacturer targets",
+    "step_and_handoff_regression": {
+      "passed": 121,
+      "subtests_passed": 28,
+      "scope": "manual managers, Qt controls, standby, parameters, preparation, Tianji jog bounds and move acknowledgements",
+      "broader_mixed_run": "interrupted after stalled output; no full Tianji suite completion claimed"
+    }
+  },
+  "release": {
+    "release_id": "20261028T024722Z-75406f6f05b1",
+    "package_sha256": "0ecf124aa079795ee42812ccbb79059ff884e342ab35f8bea67011a6a6879870",
+    "bundle_sha256": "350c9d5ba76e39f7dc37bd31170ebacd4dfd83d48e9b53079b83ea54ea0efd0c",
+    "installation_sha256": "df5f2a5d091801b4a2cb6d2a935884c9bc889d754d47db4b103c521bbc639cc8"
+  },
+  "robot_connected": false,
+  "installed": false,
+  "activated": false,
+  "physical_execution_verified": false,
+  "default_pose_fallback": false,
+  "release_path": "teleop_control/runtime/kuavo/manual-update-20261028-r7/release",
+  "step_options_deg": [
+    1,
+    5,
+    10
+  ],
+  "kuavo_default_step_deg": 1,
+  "tianji_default_step_deg": 10,
+  "manual_admission": "explicit device Check prepares manual, waits for fresh feedback; no Enter button",
+  "xr_handoff": "manual confirmed cleanup before preparing XR; cancellation blocks activation",
+  "parameter_edit": "idle checked manual releases before edits; successful edits reprepare"
+}

@@ -63,6 +63,8 @@ def clear_previous_app_login(values: dict[str, str]) -> None:
     The login screen reauthenticates automatically only when explicitly enabled.
     Explicit logout, unlike closing the App, also deletes saved credentials.
     """
+    if values.get('DATA_COLLECTION_STORAGE_MODE') == 'raw-only':
+        return
     configured = values.get("PLATFORM_TOKEN_FILE", "").strip()
     store = PlatformTokenStore(configured or None)
     store.clear()

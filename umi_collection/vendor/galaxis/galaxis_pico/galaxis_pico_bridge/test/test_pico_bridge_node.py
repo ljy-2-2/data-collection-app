@@ -502,3 +502,20 @@ def test_delayed_publication_preserves_receive_timestamp(node_module):
         assert msg.header.stamp.nanosec == 123_456_789
         assert msg.device_time_ns == frame.device_time_ns
         assert msg.pc_monotonic_ns == frame.pc_monotonic_ns
+
+
+def test_recorded_pose_topics_request_reliable_bounded_history(node_module, monkeypatch):
+    from types import SimpleNamespace
+    captured = {}
+    original = node_module.Node.create_publisher
+    def create(self, message, topic, qos):
+        captured[topic] = qos
+        return original(self, message, topic, qos)
+    monkeypatch.setattr(node_module, 'QoSProfile', lambda **kw: SimpleNamespace(**kw))
+    monkeypatch.setattr(node_module.Node, 'create_publisher', create)
+    node = node_module.PicoBridgeNode()
+    for parameter in ('hmd_topic', 'left_controller_topic', 'right_controller_topic'):
+        qos = captured[node.get_parameter(parameter).value]
+        assert qos.reliability == node_module.ReliabilityPolicy.RELIABLE
+        assert qos.history == node_module.HistoryPolicy.KEEP_LAST
+        assert qos.depth == 256

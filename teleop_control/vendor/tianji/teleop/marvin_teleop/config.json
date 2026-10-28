@@ -16,7 +16,7 @@
   "vr_timeout_s": 0.2,
   "robot_timeout_s": 0.15,
   "max_joint_speed_deg_s": 180,
-  "max_joint_accel_deg_s2": 450,
+  "max_joint_accel_deg_s2": 900,
   "ik_rotation_weight_m": 0.35,
   "ik_shoulder_motion_weight": 1.0,
   "ik_singular_rotation_weight_m": 0.05,

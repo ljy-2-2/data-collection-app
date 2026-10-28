@@ -66,7 +66,7 @@ def configuration(path):
         # All Marvin M6 joints are rated at 180 deg/s in PNVA. Controller
         # construction below still checks the loaded limits for both arms.
         "max_joint_speed_deg_s": (0.1, 180),
-        "max_joint_accel_deg_s2": (1, 450),
+        "max_joint_accel_deg_s2": (1, 900),
         "ik_rotation_weight_m": (0.05, 1.0),
         "ik_shoulder_motion_weight": (1.0, 10.0),
         "ik_singular_rotation_weight_m": (0.05, 1.0),

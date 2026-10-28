@@ -404,6 +404,27 @@ class RosStateCollector:
             self._state['camera_info'][role] = dict(width=int(msg.width), height=int(msg.height))
 
     def _on_camera_quality(self, msg):
+        gate_entries = [s for s in msg.status if s.name.startswith('recording_gate/')]
+        if gate_entries:
+            issues = []
+            for status in gate_entries:
+                level = status.level
+                if isinstance(level, (bytes, bytearray, memoryview)):
+                    level = int.from_bytes(level, 'little')
+                if not level or status.name.startswith(('recording_gate/camera_quality/',
+                                                        'recording_gate/pico_timing/')):
+                    continue
+                name = status.name.rsplit('/', 1)[-1]
+                label = name
+                if 'gripper_joint_state' in name:
+                    label = '左磁编码器' if name.startswith('left_') else '右磁编码器'
+                elif '_source_samples' in name:
+                    label = {'hmd':'头显','left':'左手柄','right':'右手柄'}.get(name.split('_')[0],name)
+                issue = f'{label}：{status.message}'
+                if issue not in issues:
+                    issues.append(issue)
+            with self._lock:
+                self._state['recording_gate_issues'] = issues
         for status in msg.status:
             if status.name == 'pico_bridge':
                 with self._lock:
@@ -640,7 +661,9 @@ class RosStateCollector:
                 "online": rate_hz > 0,
                 "device_id": state.get(f"encoder_{side}_id", ""),
                 "name": data.get("name", ""),
-                "position": data.get("position", 0.0),
+                "position": data.get("position", 0.0),  # single-finger radians
+                "opening_angle": 2.0 * data.get("position", 0.0),
+                "opening_angle_units": "radians",
                 "velocity": data.get("velocity", 0.0),
                 "rate_hz": rate_hz,
             }

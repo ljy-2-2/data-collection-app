@@ -162,7 +162,7 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
     const preparing=name==='check'||restarting;
     const body = name === 'stop' ? {session_id:status.session_id} : {
       task, network_namespace:'current', arm_mode:armMode, position_scale:serviceParameters?1:motion.position_scale, confirm_motion:name==='check'||name==='start'||(name==='prepare'&&preparation!=='grippers_inspect'),
-      prepare_controller:preparing,prepare_grippers:preparing,prepare_session:preparing,require_prepared:name==='start',restart_after_stop:restarting,
+      prepare_controller:preparing,prepare_grippers:preparing,prepare_session:preparing,prepare_manual:name==='check',require_prepared:name==='start',restart_after_stop:restarting,
       accept_unverified_gripper_bus:true, motor_ids_confirmed:preparing||motorIds,
       ...(preparation ? {preparation_action:preparation} : {}),
     };

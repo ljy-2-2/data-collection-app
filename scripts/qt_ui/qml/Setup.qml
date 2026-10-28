@@ -4,7 +4,7 @@ import QtQuick.Layouts
 Card {
     id: root
     property bool umi: false
-    readonly property var robotKeys: ["tianji", "kuavo-5w", "agibot-g2"]
+    readonly property var robotKeys: backend.robotKeys
     enabled: !backend.state.busy && !backend.state.closing
     height: content.height+heading.height+24
     Heading {id: heading;width: parent.width;eyebrow: "STEP 01";title: root.umi ? "选择采集配置" : "选择遥操作配置"}
@@ -19,7 +19,7 @@ Card {
             }
             ColumnLayout {Layout.preferredWidth: parent.columns===1 ? parent.width : 180;Layout.maximumWidth: parent.columns===1 ? parent.width : 180;Layout.minimumWidth: parent.columns===1 ? 0 : 180;spacing: 4
                 Txt {text: root.umi ? "采集配置" : "机器人型号";font.pixelSize: 12;color: Theme.inkMuted;font.weight: Font.DemiBold;Layout.preferredHeight: 18}
-                Select {id: type;objectName: root.umi ? "umiProfile" : "robotType";Layout.fillWidth: true;model: root.umi ? ["双臂","仅左臂","仅右臂"] : ["天机 Marvin M6","乐聚 KUAVO 5-W","智元 G2"];currentIndex: root.umi ? ["dual","single-left","single-right"].indexOf(backend.state.profile) : root.robotKeys.indexOf(backend.state.robot);onActivated: index => {if(root.umi) backend.setValue("profile",["dual","single-left","single-right"][index]);else backend.setValue("robot",root.robotKeys[index])}}
+                Select {id: type;objectName: root.umi ? "umiProfile" : "robotType";Layout.fillWidth: true;model: root.umi ? ["双臂","仅左臂","仅右臂"] : backend.robotNames;currentIndex: root.umi ? ["dual","single-left","single-right"].indexOf(backend.state.profile) : root.robotKeys.indexOf(backend.state.robot);onActivated: index => {if(root.umi) backend.setValue("profile",["dual","single-left","single-right"][index]);else backend.setValue("robot",root.robotKeys[index])}}
             }
         }
         RowLayout {

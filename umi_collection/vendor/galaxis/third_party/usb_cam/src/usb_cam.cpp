@@ -60,7 +60,10 @@ using utils::io_method_t;
 
 UsbCam::UsbCam()
 : m_device_name(), m_io(io_method_t::IO_METHOD_MMAP), m_fd(-1),
-  m_number_of_buffers(4), m_buffers(new usb_cam::utils::buffer[m_number_of_buffers]), m_image(),
+  // Keep capturing through short DDS/scheduler stalls without exhausting the
+  // kernel capture ring (8 buffers cover ~267 ms at 30 fps). This is capacity,
+  // not an intentional display delay: frames are still dequeued immediately.
+  m_number_of_buffers(8), m_buffers(new usb_cam::utils::buffer[m_number_of_buffers]), m_image(),
   m_avframe(NULL), m_avcodec(NULL), m_avoptions(NULL),
   m_avcodec_context(NULL), m_is_capturing(false), m_framerate(0),
   m_epoch_time_shift_us(usb_cam::utils::get_epoch_time_shift_us()), m_supported_formats()
@@ -313,8 +316,15 @@ void UsbCam::init_mmap()
     }
   }
 
-  if (req.count < m_number_of_buffers) {
+  if (req.count < 2) {
     throw std::overflow_error("Insufficient buffer memory on device");
+  }
+
+  // Drivers may grant fewer OR more buffers than requested. Allocate exactly
+  // the returned count; assuming the requested count can overrun m_buffers.
+  if (req.count != m_number_of_buffers) {
+    m_number_of_buffers = req.count;
+    m_buffers.reset(new usb_cam::utils::buffer[m_number_of_buffers]);
   }
 
   if (!m_buffers) {
@@ -366,6 +376,14 @@ void UsbCam::init_userp()
     } else {
       throw std::invalid_argument("Unable to initialize memory mapping");
     }
+  }
+
+  if (req.count < 2) {
+    throw std::overflow_error("Insufficient user pointer buffers on device");
+  }
+  if (req.count != m_number_of_buffers) {
+    m_number_of_buffers = req.count;
+    m_buffers.reset(new usb_cam::utils::buffer[m_number_of_buffers]);
   }
 
   if (!m_buffers) {

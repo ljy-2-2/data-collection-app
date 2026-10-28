@@ -59,7 +59,7 @@ def test_recording_contract_validates_actual_frames_and_keeps_audit_in_manifest(
     root=tmp_path/'round';source=recording(root)
     selected=contract(root)
     manifest=bundle.convert_bundle(root)
-    assert manifest['crf']==14
+    assert manifest['crf']==18
     assert manifest['encoder'] == dict(codec='libx264', preset='veryfast', pixel_format='yuv420p')
     assert manifest['camera_contract']==selected
     for camera in manifest['cameras']:

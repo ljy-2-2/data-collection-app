@@ -61,7 +61,7 @@ class McapReadiness:
         return sorted(self.required - self.seen) if self.required else sorted(self.requested)
 
     def scan(self):
-        for path in sorted(self.directory.glob("*.mcap")):
+        for path in sorted([*self.directory.glob("*.mcap"), *self.directory.glob('*.mcap.partial')]):
             offset, channels = self._files.get(path, (0, {}))
             with path.open("rb") as source:
                 size = path.stat().st_size

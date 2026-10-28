@@ -299,3 +299,49 @@ def test_invalid_pose_is_not_marked_tracked():
     assert raw["leftTracked"] is False
     assert raw["leftValid"] is False
     assert "leftControllerPosition" not in raw
+
+
+def test_slow_liveness_send_does_not_block_inbound_tracking():
+    import socket
+    import threading
+    import time
+    frames = []
+    entered, release = threading.Event(), threading.Event()
+    transport = GalaxisTcpServerTransport(host='127.0.0.1', port=0,
+        on_frame=frames.append, liveness_interval_sec=.5)
+    def slow_probe(_):
+        entered.set()
+        assert release.wait(3)
+    transport._send_liveness_probe = slow_probe
+    transport.start_listener()
+    client = socket.create_connection(transport._listener.getsockname())
+    try:
+        assert entered.wait(2)
+        client.sendall(_packet(0x6D, _tracking_envelope()))
+        end = time.monotonic() + 1
+        while not frames and time.monotonic() < end:
+            time.sleep(.005)
+        # The heartbeat is still blocked, yet tracking has been delivered.
+        assert len(frames) == 1
+        assert not release.is_set()
+    finally:
+        release.set()
+        client.close()
+        transport.stop()
+
+
+def test_liveness_failure_does_not_disconnect_healthy_inbound_stream():
+    import socket
+    import threading
+    transport = GalaxisTcpServerTransport(host='127.0.0.1', port=0, on_frame=lambda _: None)
+    transport._running = transport._connected = True
+    transport._connection_generation = 1
+    client = object()
+    transport._client = client
+    def fail(_):
+        raise socket.timeout('send timed out')
+    transport._send_liveness_probe = fail
+    transport._liveness_interval_sec = .001
+    transport._probe_loop(client, 1, threading.Event())
+    assert transport.connected
+    assert 'timed out' in transport.metrics()['liveness_send_error']

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import fcntl
 import hashlib
 import logging
 import os
@@ -39,9 +40,14 @@ def _episode_times(meta: dict) -> tuple[str | None, str | None, float | None]:
     )
 
 
-def _chunks(path: Path, size: int = 1024 * 1024) -> Iterator[bytes]:
+def _chunks(path: Path, size: int = 1024 * 1024, *, before_read=None) -> Iterator[bytes]:
     with path.open("rb") as source:
-        while chunk := source.read(size):
+        while True:
+            if before_read is not None:
+                before_read()
+            chunk = source.read(size)
+            if not chunk:
+                return
             yield chunk
 
 
@@ -107,12 +113,18 @@ class UmiRosbagUploader:
                     failure.unlink(missing_ok=True)
             except (OSError, ValueError):
                 pass
+        for failure in self.root.glob("*/*/recording-failure.json"):
+            try:
+                if json.loads(failure.read_text()).get("stage") == "recovery":
+                    failure.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass
         self._wake.set()
 
     @staticmethod
     def _processing(episode_dir: Path) -> bool:
         return any((episode_dir / name).exists() for name in
-                   (".mp4-pending.json", ".mp4-converting", "recording-failure.json"))
+                   (".mp4-pending.json", ".mp4-converting", ".recovery-pending", ".discarded", "recording-failure.json"))
 
     def scan_once(self) -> None:
         if not self._scan_lock.acquire(blocking=False):
@@ -122,13 +134,36 @@ class UmiRosbagUploader:
         finally:
             self._scan_lock.release()
 
+    def _capture_active(self) -> bool:
+        path = self.root / '.capture-intent.lock'
+        try:
+            with path.open('rb') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    return False
+                except BlockingIOError:
+                    return True
+        except FileNotFoundError:
+            return False
+
+    def _wait_for_capture(self):
+        # Yield between bounded disk reads, including an upload already in
+        # progress. Socket timeouts are retried after capture releases intent.
+        while self._capture_active():
+            if self._stop.wait(.2):
+                raise RuntimeError('上传已停止，原始数据保留')
+        if self._stop.is_set():
+            raise RuntimeError('上传已停止，原始数据保留')
+
     def _scan(self) -> None:
+        if self._capture_active():
+            return
         if self.targets is None and self._owns_client and (not collection_available() or not platform_session_available()):
             return
         if not self.root.is_dir():
             return
         for meta_path in sorted(self.root.glob("*/*/meta.json")):
-            if self._stop.is_set():
+            if self._stop.is_set() or self._capture_active():
                 break
             episode_dir = meta_path.parent
             if self._processing(episode_dir) or (episode_dir / UPLOADED_MARKER).is_file():
@@ -196,6 +231,7 @@ class UmiRosbagUploader:
     def _upload(self, episode_dir: Path, meta: dict) -> None:
         if self._processing(episode_dir):
             return
+        self._wait_for_capture()
         upload_started = time.monotonic()
         episode_id = uuid.uuid5(UPLOAD_NAMESPACE, str(episode_dir.resolve()))
         batch_id = f"umi-{episode_id}"
@@ -241,9 +277,11 @@ class UmiRosbagUploader:
                 path = payload_dir / name
                 if path.is_symlink() or not path.is_file():
                     raise ValueError("MP4 recording artifact is missing")
-                with path.open("rb") as stream:
-                    if hashlib.file_digest(stream, "sha256").hexdigest() != entry["sha256"]:
-                        raise ValueError(f"MP4 recording checksum mismatch: {name}")
+                digest = hashlib.sha256()
+                for chunk in _chunks(path, before_read=self._wait_for_capture):
+                    digest.update(chunk)
+                if digest.hexdigest() != entry["sha256"]:
+                    raise ValueError(f"MP4 recording checksum mismatch: {name}")
                 if entry is not manifest["signals"]:
                     if path.suffix != ".mp4" or not entry.get("frames") or len(entry["frames"]) != entry["frame_count"]:
                         raise ValueError("MP4 frame timestamps are incomplete")
@@ -268,10 +306,30 @@ class UmiRosbagUploader:
                 return
         presign.raise_for_status()
         targets = {item["filename"]: item for item in presign.json()["urls"]}
+        signed_at = {name: time.monotonic() for name in targets}
         transfer_started = time.monotonic()
         for path in files:
-            target = targets[path.name]
-            self._put_file(path, target["put_url"])
+            def upload_url(force=False):
+                target = targets[path.name]
+                # A large earlier file can outlive the URLs for later files.
+                # Refresh only this unregistered object's URL; acknowledged
+                # files stay uploaded and existing episodes remain immutable.
+                expires_in = float(target.get("expires_in", 3600))
+                if force or time.monotonic() - signed_at[path.name] >= max(0, expires_in - 60):
+                    fresh = self.client.post(
+                        f"{self.api_url}/uploads/presign",
+                        json={"episode_id": str(episode_id), "filenames": [path.name]},
+                        extensions=self._auth_extensions(),
+                    )
+                    fresh.raise_for_status()
+                    replacement = next(item for item in fresh.json()["urls"] if item["filename"] == path.name)
+                    if replacement["key"] != target["key"]:
+                        raise ValueError("续期上传地址与原文件不一致，保留本地数据")
+                    targets[path.name] = target = replacement
+                    signed_at[path.name] = time.monotonic()
+                return target["put_url"]
+
+            self._put_file(path, upload_url(), refresh_url=upload_url)
         transfer_seconds = time.monotonic() - transfer_started
         started_at, ended_at, duration_s = _episode_times(meta)
         storage = {
@@ -292,11 +350,14 @@ class UmiRosbagUploader:
             "extra": {"import_task_id": batch_id, "import_folder": episode_dir.name,
                       "source_files": [path.name for path in files],
                       "collection_source": "umi",
-                      "recording_format": "umi-mp4-v1" if compact else "rosbag2-mcap",
+                      "recording_format": "umi-mp4-v1" if compact else meta.get('recording_format', 'rosbag2-mcap'),
+                      "gripper_angle_contract": meta.get("gripper_angle_contract"),
                       "episode_metadata": meta.get("episode", {}),
+                      "interruption": meta.get("interruption"),
                       "segments": meta.get("segments", [])},
             "author": meta.get("author") or self._owner or current_platform_username(),
         }
+        self._wait_for_capture()
         registered = self.client.post(f"{self.api_url}/episodes", json=payload, extensions=self._auth_extensions())
         registered.raise_for_status()
         self._batch(batch_id, episode_dir.name, "ready")
@@ -314,14 +375,17 @@ class UmiRosbagUploader:
         except OSError:
             logger.warning('Upload completed but could not save timing metrics for %s', episode_id)
 
-    def _put_file(self, path: Path, url: str) -> None:
+    def _put_file(self, path: Path, url: str, *, refresh_url=None) -> None:
         # A signed PUT is idempotent for this reserved episode/object. Retry
         # only this file after a transient disconnect, reopening it at byte 0;
         # do not resend earlier acknowledged videos or register a partial bag.
         for attempt in range(3):
+            self._wait_for_capture()
             try:
+                if refresh_url is not None:
+                    url = refresh_url()
                 response = self.client.put(
-                    url, content=_chunks(path),
+                    url, content=_chunks(path, before_read=self._wait_for_capture),
                     # The observed cloud storage takes 40–70 s to acknowledge
                     # videos. JSON APIs retain their shorter inactivity limit.
                     timeout=httpx.Timeout(180.0, connect=5.0, write=30.0, pool=5.0),
@@ -333,7 +397,12 @@ class UmiRosbagUploader:
                 response.raise_for_status()
                 return
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code not in {408, 429, 500, 502, 503, 504} or attempt == 2:
+                expired = exc.response.status_code == 403 and any(
+                    marker in exc.response.text for marker in
+                    ("RequestExpired", "ExpiredToken", "Request has expired"))
+                if expired and refresh_url is not None and attempt < 2:
+                    url = refresh_url(force=True)
+                elif exc.response.status_code not in {408, 429, 500, 502, 503, 504} or attempt == 2:
                     raise
             except httpx.TransportError:
                 if attempt == 2:

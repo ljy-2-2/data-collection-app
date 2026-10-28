@@ -226,13 +226,13 @@ class _MjpegPreviewParser:
         return latest
 
 
-def decode_preview_image(data, target):
+def decode_preview_image(data, target, *, crop=False):
     """Decode a display copy off the GUI thread; recorded bytes never enter here."""
     encoded=QBuffer();encoded.setData(QByteArray(data));encoded.open(QIODevice.ReadOnly)
     reader=QImageReader(encoded,b'JPEG')
     size=reader.size()
     if target.isValid() and size.isValid():
-        fitted=size.scaled(target,Qt.KeepAspectRatio)
+        fitted=size.scaled(target,Qt.KeepAspectRatioByExpanding if crop else Qt.KeepAspectRatio)
         if fitted.width()<size.width():reader.setScaledSize(fitted)
     return reader.read()
 
@@ -242,23 +242,29 @@ class _PreviewDecodeSignals(QObject):
 
 
 class _PreviewDecodeJob(QRunnable):
-    def __init__(self,sequence,data,target):
-        super().__init__();self.sequence=sequence;self.data=data;self.target=target
+    def __init__(self,sequence,data,target,crop=False):
+        super().__init__();self.sequence=sequence;self.data=data;self.target=target;self.crop=crop
         self.signals=_PreviewDecodeSignals()
     def run(self):
-        try:image=decode_preview_image(self.data,self.target)
+        try:image=decode_preview_image(self.data,self.target,crop=self.crop)
         except Exception:image=QImage()
         self.signals.ready.emit(self.sequence,image)
 
 
 class CameraItem(QQuickPaintedItem):
-    sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal();staleIntervalChanged=Signal()
+    sourceChanged=Signal();onlineChanged=Signal();frameChanged=Signal();staleIntervalChanged=Signal();cropToFillChanged=Signal()
     def __init__(self,parent=None):
         super().__init__(parent);self._source='';self._online=False;self.frame=QImage();self.buffer=b'';self.reply=None;self.sequence=0
-        self._decode_job=None;self._decode_pending=None
+        self._decode_job=None;self._decode_pending=None;self._crop_to_fill=False
         self.network=QNetworkAccessManager(self);self.retry=QTimer(self);self.retry.setSingleShot(True);self.retry.timeout.connect(self.connect_stream)
         self.stale=QTimer(self);self.stale.setInterval(2500);self.stale.setSingleShot(True);self.stale.timeout.connect(self.stream_stalled)
         self.setAntialiasing(True)
+    @Property(bool,notify=cropToFillChanged)
+    def cropToFill(self):return self._crop_to_fill
+    @cropToFill.setter
+    def cropToFill(self,value):
+        if self._crop_to_fill!=value:
+            self._crop_to_fill=value;self.cropToFillChanged.emit();self.update()
     @Property(int,notify=staleIntervalChanged)
     def staleInterval(self):return self.stale.interval()
     @staleInterval.setter
@@ -301,7 +307,7 @@ class CameraItem(QQuickPaintedItem):
             target=QSize(max(1,round(self.width()*ratio)),max(1,round(self.height()*ratio))) if self.width()>0 and self.height()>0 else QSize()
             # At most one running decode and one newest pending frame per tile.
             # Reading the network never waits for JPEG decode or old frames.
-            self._decode_pending=(sequence,data,target)
+            self._decode_pending=(sequence,data,target,self._crop_to_fill)
             self._decode_next()
         def read():
             if sequence!=self.sequence:return
@@ -334,8 +340,8 @@ class CameraItem(QQuickPaintedItem):
         reply.readyRead.connect(read);reply.finished.connect(finished)
     def _decode_next(self):
         if self._decode_job is not None or self._decode_pending is None:return
-        sequence,data,target=self._decode_pending;self._decode_pending=None
-        job=_PreviewDecodeJob(sequence,data,target)
+        sequence,data,target,crop=self._decode_pending;self._decode_pending=None
+        job=_PreviewDecodeJob(sequence,data,target,crop)
         self._decode_job=job
         job.signals.ready.connect(self._decoded,Qt.QueuedConnection)
         QThreadPool.globalInstance().start(job)
@@ -348,8 +354,17 @@ class CameraItem(QQuickPaintedItem):
             if not self._online:self._online=True;self.onlineChanged.emit()
         self._decode_next()
     def paint(self,painter):
-        if self.frame.isNull():return
+        if self.frame.isNull() or self.width()<=0 or self.height()<=0:return
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        if self._crop_to_fill:
+            # Crop only the display source rectangle, preserving geometry.
+            # The native camera JPEG and recorded field of view are unchanged.
+            aspect=self.width()/self.height()
+            width=min(self.frame.width(),self.frame.height()*aspect)
+            height=min(self.frame.height(),self.frame.width()/aspect)
+            source=QRectF((self.frame.width()-width)/2,(self.frame.height()-height)/2,width,height)
+            painter.drawImage(self.boundingRect(),self.frame,source)
+            return
         size=self.frame.size();size.scale(int(self.width()),int(self.height()),Qt.KeepAspectRatio)
         painter.drawImage(QRectF((self.width()-size.width())/2,(self.height()-size.height())/2,size.width(),size.height()),self.frame)
 

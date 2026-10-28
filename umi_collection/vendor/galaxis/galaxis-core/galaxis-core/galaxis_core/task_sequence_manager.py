@@ -121,6 +121,7 @@ class TaskSequenceManager(Node):
 
     def __setup_variables(self):
         self.is_recording = None
+        self._recorder_stopped_at = None
         self.start_time = None
         self.end_time = None
         self.task_start_time = None
@@ -134,6 +135,7 @@ class TaskSequenceManager(Node):
         self._segment_count = 0
         # 会话内回合序号偏移:录制 ID 的回合数 = 任务 round_index + 偏移,每次开始录制 +1
         self._round_offset = 0
+        self._reserved_round_offset = None
         self.rosparam_txt = ""  # TODO: global param dump not directly available in ROS2. Need workaround.
         self.subtask_execution_id = None  # Track current execution for status reporting
         self.current_episode_subtask_id = None  # episode_sub_task natural ID for API paths
@@ -222,6 +224,9 @@ class TaskSequenceManager(Node):
         )
         self.stop_recording_client = self.create_client(
             Trigger, "/record_manager/stop_recording", callback_group=self.reent_cg
+        )
+        self.interrupt_recording_client = self.create_client(
+            StringTrigger, "/record_manager/interrupt_recording", callback_group=self.reent_cg
         )
         self.cancel_recording_client = self.create_client(
             Trigger, "/record_manager/cancel_recording", callback_group=self.reent_cg
@@ -440,6 +445,14 @@ class TaskSequenceManager(Node):
         self.new_tasks = json_data
 
     def rosbag_status_callback(self, msg: Bool):
+        active = self.status in (
+            TaskSequenceState.RECORD_SUBTASK, TaskSequenceState.WAIT_SUBTASK,
+            TaskSequenceState.COMPLETE_TASK, TaskSequenceState.REWIND_SUBTASK,
+        )
+        if self.is_recording and not msg.data and active:
+            self._recorder_stopped_at = time.monotonic()
+        if msg.data or not active:
+            self._recorder_stopped_at = None
         self.is_recording = msg.data
 
     def _gate_level_callback(self, msg: UInt8):
@@ -447,20 +460,41 @@ class TaskSequenceManager(Node):
         self._gate_level = msg.data
         if prev < EscalationLevel.HARD_STOP and msg.data >= EscalationLevel.HARD_STOP:
             reason = "Recording gate hard-stop (level 2)"
-            self.get_logger().warning(f"{reason} — cancelling episode")
+            self.get_logger().warning(f"{reason} — preserving interrupted episode")
             self._publish_recording_block(reason)
             if self.status in (
                 TaskSequenceState.RECORD_SUBTASK,
                 TaskSequenceState.WAIT_SUBTASK,
                 TaskSequenceState.COMPLETE_TASK,
+                TaskSequenceState.REWIND_SUBTASK,
             ):
-                self.transit_state(ActionCommand.CANCEL, reason=reason)
+                self._save_interrupted_round(reason)
         elif prev == EscalationLevel.OK and msg.data >= EscalationLevel.BLOCK_START:
             reason = f"Recording gate blocked (level {msg.data})"
             self.get_logger().warning(f"{reason} — new starts disallowed")
             self._publish_recording_block(reason, level=DiagnosticStatus.WARN)
         elif prev >= EscalationLevel.BLOCK_START and msg.data == EscalationLevel.OK:
             self.get_logger().info("Recording gate opened — subtask starts allowed")
+
+    def _save_interrupted_round(self, reason):
+        # Stop/flush first. Metadata/backend failures must not delete capture.
+        request = StringTrigger.Request()
+        request.message = reason
+        future = self.interrupt_recording_client.call_async(request)
+        if not self.wait_for_trigger_future_done(future, timeout=40.0, error_situation="Save interrupted recording failed"):
+            return False
+        episode_id = self.tasks.get('episodeId')
+        if episode_id:
+            self._completed_episode_ids.add(episode_id)
+            try:
+                self.backend.finish_episode(episode_id)
+            except Exception as exc:
+                self.get_logger().warning(f'Interrupted round retained; backend update failed: {exc}')
+        self.tasks = {}
+        self.new_tasks = {}
+        self.status = TaskSequenceState.COMFIRM_TASK
+        self._recorder_stopped_at = None
+        return True
 
     def _publish_recording_block(self, reason: str, level: int = DiagnosticStatus.ERROR):
         """Publish diagnostic + reason topic when recording is blocked or stopped."""
@@ -533,6 +567,9 @@ class TaskSequenceManager(Node):
         # 回合编号从 1 开始:任务未携带 round_index 时首回合为 001
         round_seq = (base_round if base_round > 0 else 1) + self._round_offset
         self._round_offset += 1
+        # Keep an uncertain start reserved. Only a confirmed, fully removed
+        # discard can release it; saved/interrupted rounds keep their numbers.
+        self._reserved_round_offset = self._round_offset
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         recording_id = f"{task_name}/{task_name}_{round_seq:03d}_{timestamp}"
         req = StringTrigger.Request()
@@ -557,7 +594,12 @@ class TaskSequenceManager(Node):
     def cancel_recording(self) -> bool:
         req = Trigger.Request()
         future = self.cancel_recording_client.call_async(req)
-        return self.wait_for_trigger_future_done(future, error_situation="Cancel recording service call failed")
+        success = self.wait_for_trigger_future_done(
+            future, timeout=45.0, error_situation="Cancel recording service call failed")
+        if success and self._reserved_round_offset == self._round_offset:
+            self._round_offset = max(0, self._round_offset - 1)
+            self._reserved_round_offset = None
+        return success
 
     def delete_recording(self) -> bool:
         req = Trigger.Request()
@@ -701,6 +743,10 @@ class TaskSequenceManager(Node):
         ok, reason = self.start_recording()
         if not ok:
             return False, f"Cannot start recording: {reason}"
+        # ACCEPT calls process_step inside the same mutually-exclusive callback
+        # as start_recording. The new recording=True subscription cannot run yet.
+        # Never carry the previous episode's stopped timestamp into this round.
+        self._recorder_stopped_at = None
         self.record_runner()
         self._set_episode_uuid(self.tasks["episodeId"])
         self.backend.start_episode(self.tasks["episodeId"])
@@ -836,7 +882,8 @@ class TaskSequenceManager(Node):
 
         if save:
             if self._segment_count == 0:
-                return False, "Cannot save recording: no segments recorded"
+                ok = self._save_interrupted_round('Stopped before first completed segment')
+                return ok, "Interrupted round retained" if ok else "Save interrupted recording failed"
             success_all = all(s for s in self.has_subtasks_successed if s is not None)
 
             # set episode
@@ -852,18 +899,19 @@ class TaskSequenceManager(Node):
             if not self.wait_for_trigger_future_done(future, error_situation="Set episode service call failed"):
                 detail = getattr(self, "_last_service_error", "") or "Set episode metadata failed"
                 self._publish_recording_block(detail)
-                return False, detail
+                return self._save_interrupted_round(detail), detail
             if not self.stop_recording():
                 detail = getattr(self, "_last_service_error", "") or "Stop recording service call failed"
                 self._publish_recording_block(detail)
-                return False, detail
+                return self._save_interrupted_round(detail), detail
             # Do not report a completed episode until the recorder confirms
             # that the bag and metadata have actually been saved.
             self.backend.finish_episode(self.tasks["episodeId"])
         else:
             self.get_logger().warning(f"Cancelling episode: {reason}")
+            if not self.cancel_recording():
+                return False, "Discard failed; recording retained"
             self.backend.cancel_episode(self.tasks["episodeId"], reason=reason)
-            self.cancel_recording()
 
         # Mark episode as done so it won't be picked again
         episode_id = self.tasks.get("episodeId")
@@ -872,6 +920,7 @@ class TaskSequenceManager(Node):
         self.tasks = {}
         self.new_tasks = {}
         self.status = TaskSequenceState.COMFIRM_TASK
+        self._recorder_stopped_at = None
         label = "saved" if save else "discarded"
         return True, f"Recording {label}, transitioned to CONFIRM_TASK"
 
@@ -1188,6 +1237,12 @@ class TaskSequenceManager(Node):
     _ps_count = 0
 
     def process_step(self):
+        stopped_at = getattr(self, '_recorder_stopped_at', None)
+        if (not self.is_recording and stopped_at is not None and time.monotonic() - stopped_at > 2 and
+                self.status in (TaskSequenceState.RECORD_SUBTASK, TaskSequenceState.WAIT_SUBTASK,
+                                TaskSequenceState.COMPLETE_TASK, TaskSequenceState.REWIND_SUBTASK)):
+            if self._save_interrupted_round('recorder_stopped_unexpectedly'):
+                self._recorder_stopped_at = None
         if not self._recovery_done:
             if self.offline_mode:
                 self._recovery_done = True  # No stale episodes to recover in offline mode

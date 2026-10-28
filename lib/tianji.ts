@@ -17,7 +17,7 @@ export interface TianjiParameters {
 export const TIANJI_DEFAULTS: TianjiParameters = {
   scale: 1,
   max_joint_speed_deg_s: 180,
-  max_joint_accel_deg_s2: 450,
+  max_joint_accel_deg_s2: 900,
   left_gripper_speed: 10,
   right_gripper_speed: 10,
   left_gripper_accel: 200,
@@ -49,7 +49,7 @@ export const TIANJI_FIELDS: {
     label: '关节加速度上限',
     unit: '°/s²',
     min: 1,
-    max: 450,
+    max: 900,
     step: 1,
   },
   {

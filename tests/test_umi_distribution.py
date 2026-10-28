@@ -1,5 +1,6 @@
 import hashlib
 import json
+import platform
 import shutil
 from pathlib import Path
 import sys
@@ -22,6 +23,7 @@ def resources(tmp_path):
     raw = b"fixture image archive"
     (result / "umi-runtime.tar").write_bytes(raw)
     (result / "manifest.json").write_text(json.dumps({
+        "architecture": {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine()],
         "image": "xiaokai-umi-runtime:test", "image_id": "sha256:fixture",
         "archive": "umi-runtime.tar", "sha256": hashlib.sha256(raw).hexdigest(),
     }))
@@ -44,16 +46,23 @@ def test_distribution_has_no_capture_time_downloads_or_compilation(tmp_path):
         assert "colcon build" not in str(service)
         bindings = [v for v in service.get("volumes", []) if ":/root/ros2_ws/src/" in v]
         assert all(v.endswith(':ro') and v.split(':')[0] in {
-            './galaxis-core/galaxis-core/galaxis_core/recording_gate_node.py',
-            './galaxis-core/galaxis-core/galaxis_core/pico_timing.py',
+            './galaxis-core/galaxis-core/galaxis_core',
+            './galaxis_bringup/galaxis_bringup/encoder_protocol.py',
+            './galaxis_bringup/galaxis_bringup/encoder_node.py',
+            './galaxis_bringup/galaxis_bringup/camera_devices.py',
+            './galaxis_bringup/galaxis_bringup/camera_supervisor.py',
+            './galaxis_bringup/galaxis_bringup/camera_control_node.py',
+            './galaxis_bringup/galaxis_bringup/center_camera_flip_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/pico_bridge_node.py',
             './galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/transport/galaxis_tcp.py'} for v in bindings)
-    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 2
-    assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 2
+    assert len([v for v in services['galaxis']['volumes'] if ':/root/ros2_ws/src/' in v]) == 8
+    assert len([v for v in services['galaxis_core']['volumes'] if ':/root/ros2_ws/src/' in v]) == 1
     assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
     assert services["config-init"]["entrypoint"] == ["python3"]
     assert "galaxis_studio_bridge" in services["galaxis_monitor"]["command"]
     assert any("runtime_galaxis_devices.yaml" in v for v in services["galaxis"]["volumes"])
+    assert ("./galaxis_description/urdf:"
+            "/root/ros2_ws/install/galaxis_description/share/galaxis_description/urdf:ro") in services["galaxis"]["volumes"]
     assert (project / ".env").is_file()
 
 
@@ -74,6 +83,9 @@ def test_incremental_release_reapplies_runtime_after_source_copy(tmp_path):
         assert service["pull_policy"] == "never"
         assert "build" not in service
     assert "/etc/galaxis:/etc/galaxis:ro" in services["galaxis_core"]["volumes"]
+    assert services['galaxis']['volumes'].count(
+        './galaxis_description/urdf:'
+        '/root/ros2_ws/install/galaxis_description/share/galaxis_description/urdf:ro') == 1
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Compose CLI integration check")
@@ -175,3 +187,19 @@ def test_failed_permission_refresh_cannot_loop(tmp_path, monkeypatch):
     monkeypatch.setenv("XIAOKAI_GROUP_REFRESHED", "1")
     with pytest.raises(RuntimeError, match="注销"):
         launcher.ensure_collection_permissions(tmp_path)
+
+
+@pytest.mark.parametrize('arch,machine',[('amd64',62),('arm64',183)])
+def test_camera_overlay_selects_architecture_and_rejects_corruption(tmp_path,arch,machine):
+    project=tmp_path/'project';project.mkdir()
+    (project/'docker-compose.yml').write_bytes((ROOT/'umi_collection/vendor/galaxis/docker-compose.yml').read_bytes())
+    lib=project/f'third_party/usb_cam/native/{arch}/libusb_cam.so';lib.parent.mkdir(parents=True)
+    raw=bytearray(64);raw[:6]=b'\x7fELF\x02\x01';raw[18:20]=machine.to_bytes(2,'little');lib.write_bytes(raw)
+    (lib.parent/'build.json').write_text(json.dumps(dict(architecture=arch,sha256=hashlib.sha256(raw).hexdigest())))
+    manifest=dict(image='native-test',architecture=arch)
+    configure_umi_runtime(project,manifest);configure_umi_runtime(project,manifest)
+    bindings=yaml.safe_load((project/'docker-compose.yml').read_text())['services']['galaxis']['volumes']
+    camera=[b for b in bindings if 'install/usb_cam/lib/libusb_cam.so:' in b]
+    assert camera==[f'./third_party/usb_cam/native/{arch}/libusb_cam.so:/root/ros2_ws/install/usb_cam/lib/libusb_cam.so:ro']
+    lib.write_bytes(b'corrupt')
+    with pytest.raises(ValueError,match='架构或校验'):configure_umi_runtime(project,manifest)

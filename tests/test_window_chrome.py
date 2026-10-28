@@ -140,14 +140,22 @@ class WindowChromeTests(unittest.TestCase):
                         cameras = find_item('teleopCameraCard')
                         stage = find_item('teleopRobotStage')
                         images = find_item('teleopCameraImages')
-                        assert abs(model.width()-cameras.width()) < 1, (robot, width, model.width(), cameras.width())
-                        assert abs(model.height()-cameras.height()) < 1
-                        assert abs(stage.width()-images.width()) < 1
-                        assert abs(stage.height()-images.height()) < 1
+                        # Imported teleop layout gives the camera panel more width
+                        # for its fixed main/left/right slots. Narrow windows stack.
+                        grid = find_item('teleopVisualGrid')
+                        assert model.width() > 0 and cameras.width() > 0
+                        assert stage.width() == model.width()-20
+                        assert images.width() == cameras.width()-20
+                        assert stage.height() > 0 and images.height() > 0
                         assert stage.y() == images.y()
-                        if width > 1180:
+                        if grid.property('columns') == 2:
+                            assert cameras.width() >= model.width()
+                            assert abs(model.height()-cameras.height()) < 1
                             assert abs(model.y()-cameras.y()) < 1
+                            assert cameras.x() >= model.x()+model.width()
                         else:
+                            assert abs(model.width()-cameras.width()) < 1
+                            assert abs(model.height()-340) < 1
                             assert abs(model.x()-cameras.x()) < 1
                             assert cameras.y() >= model.y()+model.height()
                         screenshot_dir = os.environ.get('TELEOP_LAYOUT_SCREENSHOT_DIR')
@@ -182,13 +190,14 @@ class WindowChromeTests(unittest.TestCase):
                     for authenticated, page, step, name in ((False, 'teleop', 1, 'loginUploadTarget'), (True, 'teleop', 1, 'teleopUploadTarget'), (True, 'umi', 2, 'umiUploadTarget')):
                         backend.update(authenticated=authenticated, page=page, teleopStep=step, umiStep=step)
                         QTest.qWait(30)
-                        selector = find_item(name, visible=True)
+                        selector = find_item(name+"Label" if name=="teleopUploadTarget" else name, visible=True)
                         assert selector is not None, (name, width)
                         assert selector.isVisible(), (name, width, backend.state['page'], backend.state['teleopStep'], backend.state['umiStep'])
                         content = selector.parentItem()
                         assert abs(selector.y() + selector.height()/2 - content.height()/2) < 1
                         assert selector.x() + selector.width() <= content.width() + 1
-                        assert selector.height() == 32
+                        if name != "teleopUploadTarget": assert selector.height() == 32
+                        else: assert selector.property("text") == "本机平台"
                         screenshot_dir = os.environ.get('NOTICE_LAYOUT_SCREENSHOT_DIR')
                         if screenshot_dir:
                             def disable_target_shadow(item):

@@ -13,8 +13,8 @@ ApplicationWindow {
     Timer { interval: 50; running: true; repeat: true; onTriggered: root.projectionTick++ }
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 22; spacing: 12
-        Label { text: "P 点 · 遥操作中心"; color: "#edf5ff"; font.pixelSize: 27; font.bold: true }
-        Label { text: "独立几何仿真 · 使用当前 URDF / CAD · 不连接机器人"; color: "#9baec2"; font.pixelSize: 15 }
+        Label { text: "P 点 · 当前末端控制中心（TCP）"; color: "#edf5ff"; font.pixelSize: 27; font.bold: true }
+        Label { text: "已核对控制配置与 URDF · 平移和姿态旋转以 P 点为基准 · 独立几何仿真"; color: "#9baec2"; font.pixelSize: 15 }
         RowLayout {
             spacing: 10
             Button { text: "左夹爪近看"; highlighted: tcpViewer.selected === "left"; onClicked: tcpViewer.select("left") }
@@ -74,6 +74,15 @@ ApplicationWindow {
                 onWheel: wheel => tcpViewer.changeZoom(wheel.angleDelta.y > 0 ? 1.12 : .88)
             }
             Repeater {
+                model: tcpViewer.axisLabels
+                delegate: Label {
+                    required property var modelData
+                    property vector3d screenPoint: { tcpViewer.revision; root.projectionTick; view.width; view.height; return view.mapFrom3DScene(modelData.position) }
+                    x: screenPoint.x - width/2; y: screenPoint.y - height/2
+                    text: modelData.label; color: modelData.color; font.bold: true; font.pixelSize: 18
+                }
+            }
+            Repeater {
                 model: tcpViewer.markers
                 delegate: Item {
                     required property var modelData
@@ -95,7 +104,8 @@ ApplicationWindow {
             Slider { id: opening; Layout.preferredWidth: 300; from: 0; to: 1; value: .65; onMoved: tcpViewer.setOpening(value) }
             Label { text: "P 固定在夹爪根部，不随开合移动"; color: "#94adc4"; font.pixelSize: 15 }
         }
-        Label { text: "蓝色：P 点    金色：电机轴线    绿色：两侧夹指固定转轴"; color: "#d9e7f5"; font.pixelSize: 16 }
-        Label { text: "P 距机械臂侧连接面约 142.23 mm；距电机侧连接面约 89.53 mm。尺寸来自当前 CAD。"; color: "#94adc4"; font.pixelSize: 15 }
+        Label { text: "蓝色圆环：P 点    金色：电机轴线    绿色长线：夹指固定转轴    TCP 坐标轴：X 红 / Y 绿 / Z 蓝"; color: "#d9e7f5"; font.pixelSize: 15 }
+        Label { text: tcpViewer.controlDescription; color: "#d9e7f5"; font.pixelSize: 14; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+        Label { text: "P 位于电机轴线与两侧夹指固定转轴所在平面的交点；位置来自当前 URDF / CAD，尚非实测标定值。"; color: "#94adc4"; font.pixelSize: 14 }
     }
 }

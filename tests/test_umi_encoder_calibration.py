@@ -83,7 +83,7 @@ def encoder_factory(monkeypatch):
             to_msg=lambda: SimpleNamespace(sec=123, nanosec=456)))
         logger = SimpleNamespace(info=lambda *_: None, warning=lambda *_: None, debug=lambda *_: None)
         node.get_logger = lambda: logger
-        for name in ("pub", "left_pub", "right_pub", "id_pub", "left_id_pub", "right_id_pub"):
+        for name in ("pub", "opening_pub", "left_pub", "right_pub", "id_pub", "left_id_pub", "right_id_pub"):
             setattr(node, name, Publisher())
         return node
 
@@ -98,7 +98,7 @@ def read_and_publish(node, side, absolute_degrees):
         node._stop.set()  # Finish the production reader loop after this sample.
         return f"{side[0].upper()}001,{math.radians(absolute_degrees):.17g}\n".encode()
 
-    state.ser = SimpleNamespace(readline=readline, close=lambda: None)
+    state.ser = SimpleNamespace(read=lambda _n: readline(), in_waiting=100, close=lambda: None)
     state.connected = True
     node._reader_loop(side, state)
     node.on_timer()
@@ -292,3 +292,67 @@ def test_mcap_packaging_preserves_actual_published_relative_angles(
     assert [f"{math.degrees(value):.2f}" for value in saved_positions] == [
         f"{math.degrees(value):.2f}" for value in monitor_positions
     ] == ["0.00", "0.00", "0.00", "0.01", "0.02", "15.00", "0.00", "0.00"]
+
+
+def test_wrong_side_encoder_never_publishes_as_selected_hand(encoder_factory):
+    node=encoder_factory('left',0)
+    state=node._states['left']
+    def readline():
+        node._stop.set()
+        return b'R003,0.2\n'
+    state.ser=SimpleNamespace(read=lambda _n: readline(),in_waiting=100,close=lambda:None)
+    state.connected=True
+    node._reader_loop('left',state)
+    node.on_timer()
+    assert not node.left_pub.messages and not node.pub.messages
+    assert not state.connected
+
+
+def test_stale_encoder_not_republished_with_fresh_timestamp(encoder_factory,monkeypatch):
+    node=encoder_factory('left',0)
+    read_and_publish(node,'left',2)
+    node.data_timeout_sec=.05
+    state=node._states['left']
+    import time
+    monkeypatch.setattr(time,'monotonic',lambda:state.last_update_time+.06)
+    before=len(node.pub.messages)
+    node.on_timer()
+    assert len(node.pub.messages)==before
+
+
+@pytest.mark.parametrize("side,closed,opened", [("left", 237, 222), ("right", 237, 252)])
+def test_total_opening_is_twice_joint_angle_with_same_timestamp(encoder_factory, side, closed, opened):
+    node = encoder_factory(side, closed)
+    for value in (closed, opened, closed):
+        joint = read_and_publish(node, side, value)
+        opening = node.opening_pub.messages[-1]
+        assert opening.name == [f"{side}_opening_angle"]
+        assert opening.header.stamp == joint.header.stamp
+        assert opening.position == pytest.approx([2 * joint.position[0]])
+    assert node.opening_pub.messages[1].position == pytest.approx([math.pi / 6])
+    # No fake samples are emitted when the physical encoder is unavailable.
+    count = len(node.opening_pub.messages)
+    node._states[side].last_update_time = None
+    node.on_timer()
+    assert len(node.opening_pub.messages) == count
+
+
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_opening_channel_mcap_roundtrip(encoder_factory, tmp_path, side):
+    writer_module = pytest.importorskip("mcap.writer")
+    reader_module = pytest.importorskip("mcap.reader")
+    node = encoder_factory(side, 0)
+    read_and_publish(node, side, -15 if side == "left" else 15)
+    opening = node.opening_pub.messages[-1]
+    target = tmp_path / 'opening.mcap'
+    with target.open('wb') as stream:
+        writer = writer_module.Writer(stream)
+        writer.start(profile='ros2')
+        schema = writer.register_schema('sensor_msgs/msg/JointState', 'ros2msg', b'JointState')
+        channel = writer.register_channel('/galaxis/gripper/opening_state', 'cdr', schema)
+        writer.add_message(channel, 123, joint_cdr(opening), 123)
+        writer.finish()
+    with target.open('rb') as stream:
+        _, channel, message = next(reader_module.make_reader(stream).iter_messages())
+    assert channel.topic == '/galaxis/gripper/opening_state'
+    assert decode_joint_position(message.data) == pytest.approx(math.pi / 6)

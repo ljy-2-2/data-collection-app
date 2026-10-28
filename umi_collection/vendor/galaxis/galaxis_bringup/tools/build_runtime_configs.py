@@ -139,6 +139,11 @@ def apply_camera_overrides(
         if not isinstance(params, dict):
             raise ValueError(f"camera node {side} has no ros__parameters mapping")
         params.update(settings)
+        flip = data.get('center_camera_flip_node', {}).get('ros__parameters', {})
+        if side == 'center' and flip.get('stereo_left_only'):
+            # V4L2 negotiates both eyes; public topics and quality checks use
+            # the single-eye size saved by Setup.
+            params['image_width'] = settings['image_width']*2
     return data
 
 
@@ -182,6 +187,7 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
         encoder = result.get("encoder_node", {}).get("ros__parameters", {})
         encoder["active_sides"] = list(profile["active_arms"])
         encoder["collection_profile"] = profile["collection_profile"]
+        encoder["data_timeout_sec"] = 0.05
         return result
 
     if filename == "robot_config.yaml":
@@ -199,17 +205,49 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
         return data
 
     if filename == "recording_gate.yaml":
-        # A round ends on the operator's request, not on elapsed time. Apply
-        # this to older saved unified configurations as well as the default.
+        # Older installed unified configs contain a 90 s warning / 120 s
+        # hard stop. Remove that legacy policy on every generation as well,
+        # so upgrades retaining saved settings do not restore the time cap.
         data.setdefault("groups", {}).pop("duration_limits", None)
+        # Platform UMI screening rejects source timestamp gaps > 100 ms.
+        # Warn at 200 ms; end only after 1 s without delivery. Offline validation
+        # isolates real gaps > 100 ms before preparing training data.
+        # Legacy debounce only delays recovery; it does not delay failure.
+        # Do not terminate a round for one transient invalid tracking sample.
+        tracking = data['groups'].get('vr_tracking', {}).get('conditions', {})
+        for side in profile['active_arms']:
+            for state in ('tracked', 'valid'):
+                rule = tracking.get(f'{side}_{state}_stop')
+                if isinstance(rule, dict):
+                    rule.update(failure_hold_sec=1.0, debounce_sec=0.5)
+        health = data['groups'].setdefault('health', {}).setdefault('conditions', {})
+        for side in profile['active_arms']:
+            for suffix, timeout, level in [('warn', 0.2, 1), ('stop', 1.0, 2)]:
+                rule = dict(topic=f'/galaxis/gripper/{side}/joint_state',
+                    expected_type='sensor_msgs/msg/JointState', qos_depth=100,
+                    timeout_sec=timeout, escalation=level, debounce_sec=0.0)
+                if suffix == 'stop':
+                    rule['source_max_gap_sec'] = 0.2
+                    rule['source_gap_escalation'] = 1
+                health[f'{side}_gripper_joint_state_timeout_{suffix}'] = rule
         data.setdefault("groups", {})["pico_timing"] = dict(
             default_type="topic_condition", default_escalation=1,
             settle_sec=0.0, recovery_sec=0.5,
             conditions={f"{side}_source_clock": dict(
                 topic=f"/pico/controller/{side}/state",
                 expected_type="galaxis_pico_msgs/msg/PicoController",
-                best_effort=True, pico_timing=True, timeout_sec=1.0, escalation=1,
+                best_effort=True, qos_depth=100, pico_timing=True, timeout_sec=1.0, escalation=1,
                 debounce_sec=0.0) for side in profile["active_arms"]})
+        data['groups']['sample_continuity'] = dict(
+            default_type='topic_condition', recovery_sec=0.5,
+            conditions={f'{side}_source_samples_{kind}': dict(
+                topic=f'/pico/{"hmd" if side == "hmd" else "controller/"+side}/state',
+                expected_type='galaxis_pico_msgs/msg/'+('PicoHmd' if side == 'hmd' else 'PicoController'),
+                best_effort=True, qos_depth=100, timeout_sec=timeout,
+                source_max_gap_sec=0.2, source_gap_escalation=1,
+                require_tracked_pose=side != "hmd", escalation=level, debounce_sec=0.0)
+                for side in ['hmd', *profile['active_arms']]
+                for kind, timeout, level in [('warn', 0.2, 1), ('stop', 1.0, 2)]})
         quality = profile.get('camera_quality')
         if quality and quality.get('version', 1) < 2:
             quality = dict(version=2, min_rate_hz=27.0, rate_window_sec=5.0,
@@ -222,15 +260,15 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
                 conditions[f'{side}_image_30fps'] = dict(
                     topic=f'/{side}_camera/image_raw/compressed',
                     expected_type='sensor_msgs/msg/CompressedImage',
-                    best_effort=True,
-                    timeout_sec=quality['warn_frame_gap_sec'], escalation=0, diagnostic_only=True,
+                    best_effort=True, qos_depth=30,
+                    timeout_sec=0.2, escalation=1,
                     min_rate_hz=quality['min_rate_hz'], rate_escalation=0,
                     rate_window_sec=quality['rate_window_sec'],
                     max_frame_gap_sec=quality['warn_frame_gap_sec'], debounce_sec=0.0)
                 conditions[f'{side}_image_sustained_failure'] = dict(
                     topic=f'/{side}_camera/image_raw/compressed',
-                    expected_type='sensor_msgs/msg/CompressedImage', best_effort=True,
-                    timeout_sec=quality['max_frame_gap_sec'], escalation=2,
+                    expected_type='sensor_msgs/msg/CompressedImage', best_effort=True, qos_depth=30,
+                    timeout_sec=1.0, source_max_gap_sec=0.2, source_gap_escalation=1, escalation=2,
                     min_rate_hz=quality['stop_min_rate_hz'], rate_escalation=2,
                     rate_window_sec=quality['rate_window_sec'],
                     low_rate_hold_sec=quality['stop_low_rate_sec'],
@@ -276,7 +314,7 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
                 # Keep timing observations visible without blocking/ending a
                 # recording. Content faults (tracking invalid, wrong image
                 # size, etc.) still use their original escalation.
-                if group_name in ("health", "camera_quality", "pico_timing") and not condition.get("condition"):
+                if group_name in ("health", "camera_quality", "pico_timing", "sample_continuity") and not condition.get("condition"):
                     condition.update(diagnostic_only=True, escalation=0, rate_escalation=0, debounce_sec=0.0)
                 elif group_name in ("camera_quality", "vr_tracking"):
                     condition["single_shot"] = True

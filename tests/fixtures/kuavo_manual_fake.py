@@ -37,7 +37,7 @@ def refused(fn):
 
 count=0
 for value in [None,{},dict(action='exec',code='x'),dict(action='joint',joint=ARMS[0],delta_deg=float('nan')),
-    dict(action='joint',joint=ARMS[0],delta_deg=True),dict(action='joint',joint=ARMS[0],delta_deg=2),
+    dict(action='joint',joint=ARMS[0],delta_deg=True),dict(action='joint',joint=ARMS[0],delta_deg=11),
     dict(action='gripper',side='left',closed=1),dict(action='base',direction='unknown'),
     dict(action='heartbeat',ignored=True)]:
     refused(lambda:validate_command(value));count+=1
@@ -108,6 +108,7 @@ from teleop.robots import kuavo5_manual_runtime as runtime
 class RuntimeIO(IO):
     def __init__(self,bundle):super().__init__();self.started=False
     def start(self):self.started=True
+    def initial_pose(self):return dict(joints=dict(self.q),grippers={"left":.5,"right":.5})
     def joints(self,names,target):
         super().joints(names,target)
         self.q.update({n:math.radians(v) for n,v in target.items()})
@@ -186,3 +187,78 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ledger.blocked and service.active is not None and not service.status()['ready_to_start']
     ledger.close()
 print('manual unconfirmed cleanup preserves owner: passed')
+
+# Saved poses follow measured one-degree steps; stopping/disconnect cancels them.
+from teleop.robots.kuavo5_manual_control import validate_pose
+class PoseIO(IO):
+    def __init__(self):
+        super().__init__();self.grip=True
+    def joints(self,names,target):
+        assert max(abs(target[n]-math.degrees(self.q[n])) for n in names)<=1.000001
+        super().joints(names,target)
+        self.q.update({n:math.radians(v) for n,v in target.items()})
+    def head_delta(self,n,d):
+        assert abs(d)<=1
+        super().head_delta(n,d);self.q[n]+=math.radians(d)
+    def gripper_fraction(self,side,fraction):self.calls.append(('fraction',side,fraction))
+
+clock=[0.];io=PoseIO();control=ManualController(io,clock=lambda:clock[0])
+pose=dict(joints=dict(io.q),grippers={'left':.3,'right':.8})
+for n in (ARMS[0],ARMS[7],BODY[0],HEAD[0]):pose['joints'][n]+=math.radians(2.2)
+control.command(dict(action='restore',pose=pose))
+refused(lambda:control.command(dict(action='base',direction='forward')))
+for _ in range(200):
+    clock[0]+=.05;control.command(dict(action='heartbeat'));control.tick()
+    if control.restoring is None and control.pending is None:break
+else:raise AssertionError('pose never completed')
+assert all(abs(io.q[n]-v)<math.radians(.1) for n,v in pose['joints'].items())
+assert ('fraction','left',.3) in io.calls and ('fraction','right',.8) in io.calls
+assert not any(c[0]=='base' for c in io.calls)
+# Invalid full target is rejected before any operation.
+for bad in [dict(joints={},grippers=pose['grippers']),dict(joints=pose['joints'],grippers={'left':True,'right':0}),
+            dict(joints={**pose['joints'],ARMS[0]:float('nan')},grippers=pose['grippers'])]:
+    before=list(io.calls);refused(lambda:control.command(dict(action='restore',pose=bad)))
+    assert before==io.calls
+pose['joints'][ARMS[0]]+=math.radians(4)
+control.command(dict(action='restore',pose=pose));control.tick()
+control.command(dict(action='stop'));assert control.restoring is None and control.pending is None
+before=list(io.calls);clock[0]+=.3;control.command(dict(action='heartbeat'));control.tick();assert io.calls==before
+control.command(dict(action='restore',pose=pose));clock[0]+=1
+before=list(io.calls);refused(control.tick);assert io.calls==before
+io.fresh=False;refused(control.tick);assert io.calls==before
+print('manual measured pose restore/save targets/stop/stale checks: passed')
+
+# Startup default uses manufacturer initialization, not the measured entry pose.
+from teleop.robots.kuavo5_manual_control import vendor_initial_pose,SENSOR_NAMES
+from teleop.robots.kuavo5_return_config import resolve_vendor_return,DEFAULT_RETURN_CONFIG
+measured=IO().q
+initial=[0.,0.,0.,0.,0.,0.,1.]+[measured[n] for n in SENSOR_NAMES]
+initial[11]+=math.radians(10)
+pose=vendor_initial_pose(initial,{'left':.2,'right':.7})
+assert pose['joints'][ARMS[0]]!=measured[ARMS[0]]
+assert set(pose['joints'])==set(SENSOR_NAMES) and len(pose['joints'])==20
+schema=SimpleNamespace(names=ARMS,joints=[SimpleNamespace(name=n,position_min=math.radians(j['min_deg']),position_max=math.radians(j['max_deg'])) for n in ARMS for j in JOINTS if j['name']==n])
+xr=resolve_vendor_return(DEFAULT_RETURN_CONFIG,initial,schema)
+assert {n:pose['joints'][n] for n in ARMS}==xr['targets']
+for bad in [initial[:-1], [float('nan')]+initial[1:],initial[:7]+[100.]+initial[8:]]:
+    refused(lambda:vendor_initial_pose(bad,{'left':.2,'right':.7}))
+# Real binding only reads the pinned shared config, parameter and gripper feedback.
+robot_io=runtime.RosManualIO({'return_home_config':DEFAULT_RETURN_CONFIG})
+robot_io.ros=SimpleNamespace(get_param=lambda name:initial if name=='/robot_init_state_param' else None)
+robot_io.gripper_feedback=lambda side:(SimpleNamespace(open_rad=-2.,closed_rad=-1.),SimpleNamespace(position_rad=-1.5))
+assert robot_io.initial_pose()==vendor_initial_pose(initial,{'left':.5,'right':.5})
+print('manual default shares XR manufacturer initialization targets: passed')
+
+# 1/5/10 degree jogs reach the requested target via bounded measured steps.
+for amount in (1,5,10):
+    clock=[0.];io=PoseIO();control=ManualController(io,clock=lambda:clock[0])
+    before=dict(io.q);target=ARMS[0]
+    control.command(dict(action='joint',joint=target,delta_deg=amount))
+    for _ in range(300):
+        clock[0]+=.05;control.command(dict(action='heartbeat'));control.tick()
+        if control.pending is None and control.restoring is None:break
+    else:raise AssertionError('jog never completed')
+    assert abs(math.degrees(io.q[target]-before[target])-amount)<.1
+    assert all(io.q[n]==q for n,q in before.items() if n!=target)
+    assert not any(c[0] in ('base','gripper','fraction') for c in io.calls)
+print('manual 1/5/10 degree measured jogs: passed')

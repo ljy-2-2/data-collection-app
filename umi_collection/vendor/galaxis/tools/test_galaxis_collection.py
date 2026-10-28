@@ -9,6 +9,17 @@ from unittest.mock import patch
 import galaxis_collection as gc
 
 
+def test_missing_removable_storage_never_creates_a_system_disk_directory():
+    with patch.object(gc, 'DATA_DIR', Path('/media/test-disconnected-disk/galaxis_data')):
+        with patch.object(Path, 'is_mount', return_value=False), patch.object(Path, 'mkdir') as mkdir:
+            import pytest
+            with pytest.raises(gc.CollectionError, match='未挂载'):
+                gc.ensure_recording_base_dir('rosbag')
+            with pytest.raises(gc.CollectionError, match='未挂载'):
+                gc.ensure_background_finalizer()
+            mkdir.assert_not_called()
+
+
 class LocalTaskStoreTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -492,7 +503,7 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             project = Path(td) / 'portable-app'; data = Path(td) / 'other-user-data'
             source = project / 'galaxis-core/galaxis-core/galaxis_core'; source.mkdir(parents=True)
-            for name in ('mp4_worker.py', 'video_bundle.py', 'recording_priority.py', 'camera_quality.py'):
+            for name in ('mp4_worker.py', 'video_bundle.py', 'recording_priority.py', 'camera_quality.py', 'capture_recovery.py', 'capture_guard.py', 'mcap_video.py', 'compressed_recorder.py', 'deferred_raw.py', 'live_encoder.py'):
                 (source / name).write_text('# fixture')
             (project / 'umi-runtime.json').write_text(json.dumps({'image': 'offline-test:1'}))
             with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', data), \
@@ -514,7 +525,7 @@ class BackgroundWorkerLauncherTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             project = Path(td); source = project / 'galaxis-core/galaxis-core/galaxis_core'
             source.mkdir(parents=True)
-            for name in ('mp4_worker.py', 'video_bundle.py', 'recording_priority.py', 'camera_quality.py'):
+            for name in ('mp4_worker.py', 'video_bundle.py', 'recording_priority.py', 'camera_quality.py', 'capture_recovery.py', 'capture_guard.py', 'mcap_video.py', 'compressed_recorder.py', 'deferred_raw.py', 'live_encoder.py'):
                 (source / name).write_text('# fixture')
             old = SimpleNamespace(returncode=0, stdout=json.dumps([{'Config': {'Labels': {}}}]))
             with patch.object(gc, 'PROJECT_DIR', project), patch.object(gc, 'DATA_DIR', project / 'data'), \

@@ -7,8 +7,9 @@ Rectangle {
     property string held: ""
     signal directionPressed(string direction)
     signal directionReleased()
-    width: 220;height: 220;radius: width/2
+    width: 180;height: 180;radius: width/2
     color: Theme.muted;border.color: Theme.line
+    Item {width:220;height:220;scale:pad.width/220;transformOrigin:Item.TopLeft
     Repeater {
         model: [
             {key:"forward",label:"前进",angle:-90,icon:"ArrowRight",rotation:-90,x:110,y:28},
@@ -66,5 +67,6 @@ Rectangle {
             onCanceled:pad.directionReleased()
             onActiveFocusChanged:if(!activeFocus && selected)pad.directionReleased()
         }
+    }
     }
 }

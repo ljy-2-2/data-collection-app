@@ -121,7 +121,7 @@ def test_api_unknown_fields_and_actions_rejected():
     with pytest.raises(ValidationError):Options(preparation_action='reset-all')
     with pytest.raises(ValidationError):Options(robot_ip='anything')
     with pytest.raises(ValidationError):Options(network_namespace='auto-discover')
-    assert {r.path for r in kuavo_router(Mock()).routes}=={'/kuavo/manual/start','/kuavo/manual/input','/kuavo/manual/stop','/kuavo/status','/kuavo/check','/kuavo/start','/kuavo/stop','/kuavo/prepare','/kuavo/grippers','/kuavo/connection','/kuavo/motion','/kuavo/session-settings','/kuavo/cancel-preparation','/kuavo/cameras/status','/kuavo/cameras/discover','/kuavo/cameras/connect','/kuavo/cameras/disconnect','/kuavo/cameras/reconnect','/kuavo/cameras/{role}/stream','/kuavo/cameras/settings','/kuavo/collection/settings'}
+    assert {r.path for r in kuavo_router(Mock()).routes}=={'/kuavo/manual/start','/kuavo/manual/input','/kuavo/manual/stop','/kuavo/manual/poses','/kuavo/status','/kuavo/check','/kuavo/start','/kuavo/stop','/kuavo/prepare','/kuavo/grippers','/kuavo/connection','/kuavo/motion','/kuavo/session-settings','/kuavo/cancel-preparation','/kuavo/cameras/status','/kuavo/cameras/discover','/kuavo/cameras/connect','/kuavo/cameras/disconnect','/kuavo/cameras/reconnect','/kuavo/cameras/{role}/stream','/kuavo/cameras/settings','/kuavo/collection/settings'}
 
 
 def test_vendor_source_integrity_and_no_external_source_links():

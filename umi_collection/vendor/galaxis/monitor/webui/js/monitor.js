@@ -165,7 +165,7 @@
       setClass(hzBadge, `enc-${side}-hz-cls`, "hz-badge" + (online && info.rate_hz > 0 ? " live" : ""));
 
       if (online) {
-        const deg = ((info.position || 0) * 180) / Math.PI;
+        const deg = ((info.opening_angle ?? 2 * (info.position || 0)) * 180) / Math.PI;
         // 数字按监看预算节流,录制数据不受影响
         const now = performance.now();
         if (now - encoderLastValue[side] >= encoderValueIntervalMs) {

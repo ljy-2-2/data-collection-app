@@ -8,7 +8,7 @@ Rectangle {
     property var s: backend.state
     property var reading: monitoring ? (backend.umiTelemetry.encoders||{})[side] || {} : s.encoders[side] || {}
     property bool online: active && !!reading.online && (!monitoring || backend.umiTelemetry.monitor_connected && reading.rate_hz>0)
-    property var number: online ? (monitoring?reading.position:reading.value) : null
+    property var number: online ? (monitoring?(typeof reading.opening_angle === "number" ? reading.opening_angle : 2 * reading.position):reading.value) : null
     function degreesText(value) {
         if (typeof value !== "number" || !isFinite(value)) return "—"
         var rounded = (value * 180 / Math.PI).toFixed(2)
@@ -26,7 +26,7 @@ Rectangle {
         Txt {anchors.centerIn: parent;visible: !root.online;text: root.active?"等待实时数据":"未启用";font.pixelSize: 11;color: Theme.inkMuted}
     }
     Rectangle {y: root.monitoring?129:175;width: parent.width;height: 1;color: Theme.line}
-    Txt {x: 9;y: root.monitoring?137:183;text: root.monitoring ? "相对角度" : "原始角度";font.pixelSize: 11;color: Theme.inkSoft}
+    Txt {x: 9;y: root.monitoring?137:183;text: root.monitoring ? "总开合角" : "原始角度";font.pixelSize: 11;color: Theme.inkSoft}
     Txt {anchors.right: parent.right;anchors.rightMargin: 9;y: root.monitoring?135:181;text: root.degreesText(root.number);font.pixelSize: 14;font.weight: Font.DemiBold}
     Tick {x: 9;y: 202;visible: !root.monitoring;text: "已闭合到最小值" + (root.s.minima[root.side]!==undefined ? "（原始零点 " + root.degreesText(root.s.minima[root.side]) + "）" : "");font.pixelSize: 11;enabled: root.active && root.online && !root.s.busy;checked: root.s.minima[root.side]!==undefined;onClicked: backend.encoderMinimum(root.side,checked)}
 }

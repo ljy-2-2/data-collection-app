@@ -31,6 +31,9 @@ def run(options, emit):
                         state.update(base=command['direction'],base_at=time.monotonic())
                     elif command['action'] != 'heartbeat':
                         state.update(base='stop',base_at=0.)
+                        if command['action']=='stop':
+                            try: commands.get_nowait()
+                            except queue.Empty: pass
                         try: commands.put_nowait(command)
                         except queue.Full: emit(dict(event='manual_ack',ok=False,error='上一指令尚未发送，请稍后再操作'))
         except Exception as exc: emit(dict(error=str(exc)))

@@ -80,6 +80,7 @@ export function TianjiTeleopWorkspace({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const parameterDialog = useRef<HTMLDialogElement>(null);
+  const [jogStep,setJogStep] = useState(TIANJI_JOG_STEP_DEG);
   const [parametersOpen, setParametersOpen] = useState(false);
   useEffect(() => {
     if (parametersOpen) parameterDialog.current?.showModal();
@@ -695,6 +696,7 @@ export function TianjiTeleopWorkspace({
             <h3>手动控制</h3>
           </div>
           <span className="badge badge-amber">真实运动</span>
+          <div className="kuavo-manual-toolbar"><label>步长 <select aria-label="天机手动关节步长" value={jogStep} onChange={e=>setJogStep(Number(e.target.value))}>{[1,5,10].map(n=><option key={n} value={n}>{n}°</option>)}</select></label></div>
         </div>
         <div className="teleop-manual-body">
           <div className="teleop-preset-toolbar">
@@ -778,7 +780,7 @@ export function TianjiTeleopWorkspace({
                                 disabled={
                                   !canMove ||
                                   value === undefined ||
-                                  value + TIANJI_JOG_STEP_DEG > max
+                                  value + jogStep > max
                                 }
                                 onClick={() =>
                                   act('move', {
@@ -786,7 +788,7 @@ export function TianjiTeleopWorkspace({
                                     mode: 'dual',
                                     side: side.id,
                                     joint: i + 1,
-                                    delta: TIANJI_JOG_STEP_DEG,
+                                    delta: jogStep,
                                   })
                                 }
                               >
@@ -798,7 +800,7 @@ export function TianjiTeleopWorkspace({
                                 disabled={
                                   !canMove ||
                                   value === undefined ||
-                                  value - TIANJI_JOG_STEP_DEG < min
+                                  value - jogStep < min
                                 }
                                 onClick={() =>
                                   act('move', {
@@ -806,7 +808,7 @@ export function TianjiTeleopWorkspace({
                                     mode: 'dual',
                                     side: side.id,
                                     joint: i + 1,
-                                    delta: -TIANJI_JOG_STEP_DEG,
+                                    delta: -jogStep,
                                   })
                                 }
                               >

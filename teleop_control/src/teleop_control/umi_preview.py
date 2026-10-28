@@ -105,7 +105,7 @@ def multipart(jpeg):
             + str(len(jpeg)).encode() + b'\r\n\r\n' + jpeg + b'\r\n')
 
 
-async def preview_stream(upstream_url, *, clock=None, sleep=asyncio.sleep):
+async def preview_stream(upstream_url, *, native=False, clock=None, sleep=asyncio.sleep):
     # Keep consuming the source while encoding/sending one frame. A slow UI
     # replaces the pending frame, never queues seconds of old camera images.
     frames = asyncio.Queue(maxsize=1)
@@ -147,7 +147,11 @@ async def preview_stream(upstream_url, *, clock=None, sleep=asyncio.sleep):
             if jpeg is None:
                 await receiver
                 break
-            remaining = next_frame_at - clock()
+            # Qt already performs a scaled JPEG decode in a worker per tile.
+            # Forward that JPEG without a second decode/resize/encode here.
+            # Pacing a native 30 Hz source with another 30 Hz clock can also
+            # discard individual frames whenever the two clocks drift.
+            remaining = 0.0 if native else next_frame_at - clock()
             if remaining > 0:
                 await sleep(remaining)
             finished = False
@@ -163,7 +167,7 @@ async def preview_stream(upstream_url, *, clock=None, sleep=asyncio.sleep):
             # A slow conversion or client never builds a catch-up backlog.
             next_frame_at = clock() + 1.0 / PREVIEW_FPS
             try:
-                reduced = await asyncio.to_thread(preview_jpeg, jpeg)
+                reduced = jpeg if native else await asyncio.to_thread(preview_jpeg, jpeg)
             except (OSError, ValueError):
                 if finished:
                     await receiver

@@ -41,13 +41,26 @@ def atomic_json(path, value):
 
 
 def finalize_episode(folder):
-    from .video_bundle import convert_bundle, cleanup_source, cleanup_interrupted_encodes
+    from .video_bundle import DEFAULT_VIDEO_CRF, convert_bundle, cleanup_source, cleanup_interrupted_encodes
     from .ownership import normalize_tree_access, resolve_record_owner
     folder = Path(folder)
     pending = folder / '.mp4-pending.json'
     meta = json.loads(pending.read_text())
-    crf = meta.pop('_video_crf', 14)
+    if meta.pop('_deferred_raw', False):
+        from .deferred_raw import finalize_raw
+        finalize_raw(folder, meta)
+        normalize_tree_access(str(folder), *resolve_record_owner(str(folder)))
+        pending.unlink()
+        return
+    crf = meta.pop('_video_crf', DEFAULT_VIDEO_CRF)
+    from .capture_recovery import validate_recorded_continuity
+    validate_recorded_continuity(folder)
     cleanup_interrupted_encodes(folder)
+    # Compress every successful MP4 recording before upload, including large
+    # recordings targeting a same-machine platform. Raw handoff would retain
+    # JPEG bags locally and duplicate them in object storage indefinitely.
+    # The supervisor still preempts encoding for live capture and tracks CPU
+    # progress, so long conversions have no fixed wall-clock deadline.
     started = time.monotonic()
     manifest = convert_bundle(folder, crf=crf)
     converted = time.monotonic()
@@ -72,12 +85,17 @@ class BackgroundFinalizer:
         self.command_factory = command_factory or (
             lambda folder: [sys.executable, '-m', 'galaxis_core.mp4_worker', '--episode', str(folder)])
         self.process = None
+        self.recovery_journal = None
         self.folder = None
         self.log = None
         self.resources = None
+        self._next_scan = 0.
         self.started = 0.
         self.deadline = 0.
         self.paused_at = None
+        self.pause_requested_at = None
+        self._activity_signature = None
+        self._activity_sample_at = 0.0
         self._allowed_cpus = set(os.sched_getaffinity(0))
         self._efficiency_cpus = efficiency_cpus(self._allowed_cpus)
         self._applied_cpus = self._allowed_cpus
@@ -101,7 +119,46 @@ class BackgroundFinalizer:
                         os.sched_setaffinity(int(thread.name), wanted)
                 except (ProcessLookupError, FileNotFoundError):
                     pass
+                except PermissionError:
+                    # Some native encoders change credentials. Do not kill the
+                    # queue supervisor: capture-intent still preempts their
+                    # entire process group before recording starts.
+                    print(f'CPU affinity unavailable for child {entry.name}; capture preemption remains active',
+                          file=sys.stderr, flush=True)
         self._applied_cpus = wanted
+
+    def _processing_activity(self):
+        """CPU and I/O counters of this conversion and its encoders only."""
+        result = []
+        for entry in Path('/proc').glob('[0-9]*'):
+            try:
+                fields = (entry / 'stat').read_text().rsplit(')', 1)[1].split()
+                if int(fields[2]) != self.process.pid:
+                    continue
+                # Some board kernels omit CONFIG_TASK_IO_ACCOUNTING entirely.
+                # Missing /proc/PID/io must not discard valid CPU counters: that
+                # would turn this watchdog back into a fixed 15-minute limit.
+                try:
+                    io = (entry / 'io').read_text()
+                except OSError:
+                    io = None
+                result.append((int(entry.name), fields[11], fields[12], io))
+            except (OSError, ValueError, IndexError):
+                continue
+        return tuple(sorted(result))
+
+    def _refresh_processing_deadline(self):
+        now = time.monotonic()
+        if now < self._activity_sample_at:
+            return
+        self._activity_sample_at = now + 1.0
+        signature = self._processing_activity()
+        if not signature or signature != self._activity_signature:
+            # This is an inactivity watchdog, never a total-duration limit.
+            # Long recordings can keep processing for as long as they advance.
+            # Unavailable telemetry is not evidence that a process is stalled.
+            self.deadline = now + 900
+        self._activity_signature = signature
 
     @staticmethod
     def _can_keep_encoder_memory():
@@ -122,6 +179,20 @@ class BackgroundFinalizer:
         if not self._can_keep_encoder_memory():
             self._stop_conversion()
             return
+        if self.folder and (self.folder / '.deferred-raw.json').is_file():
+            request = self.folder / '.finalizer-pause.request'
+            if self.pause_requested_at is None:
+                request.touch()
+                self.pause_requested_at = time.monotonic()
+            if request.with_suffix('.ack').exists():
+                if self.paused_at is None:
+                    self.paused_at = time.monotonic()
+                self._release_resources()
+            elif time.monotonic() - self.pause_requested_at > 2:
+                # A stuck encoder must not block the next capture. Terminate
+                # this disposable conversion; retry the complete source later.
+                self._stop_conversion()
+            return
         if self.paused_at is None:
             try:
                 os.killpg(self.process.pid, signal.SIGSTOP)
@@ -140,7 +211,7 @@ class BackgroundFinalizer:
         if process is not None and process.poll() is None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
-                if self.paused_at is not None:
+                if self.paused_at is not None and self.pause_requested_at is None:
                     os.killpg(process.pid, signal.SIGCONT)
             except ProcessLookupError:
                 pass
@@ -159,24 +230,52 @@ class BackgroundFinalizer:
             self.log.close()
             self.log = None
         if self.folder:
-            (self.folder / '.mp4-converting').unlink(missing_ok=True)
+            for name in ('.mp4-converting', '.finalizer-pause.request', '.finalizer-pause.ack'):
+                (self.folder / name).unlink(missing_ok=True)
         self.process = None
+        self.recovery_journal = None
         self.folder = None
         self.paused_at = None
+        self.pause_requested_at = None
         self._release_resources()
 
     def _fail(self, reason):
         folder = self.folder
+        recovery = self.recovery_journal
         self._stop_conversion()
         if folder and folder.is_dir():
-            atomic_json(folder / 'recording-failure.json', {'reason': reason, 'stage': 'mp4'})
+            # An encoder crash/timeout also preserves the round for upload.
+            # Persist recovery intent before changing the old queue marker.
+            retry_after = time.time() + 60
+            if not recovery and (folder / '.deferred-raw.json').is_file():
+                atomic_json(folder / 'recording-failure.json', dict(reason=reason,
+                            stage='raw-finalization', retry_after=retry_after))
+                atomic_json(folder / 'raw-data-status.json', dict(state='pending',
+                            message='压缩暂时失败，完整原始数据已保留，等待自动重试', reason=reason))
+                return
+            if not recovery and (folder / '.mp4-pending.json').exists():
+                from .capture_recovery import begin_capture, interrupt_capture, episode_folder, TERMINAL
+                for path in (self.root / '.capture-journals').glob('*.json'):
+                    value = json.loads(path.read_text())
+                    if value['state'] not in TERMINAL and episode_folder(path, value) == folder.resolve():
+                        recovery = path
+                        break
+                if recovery is None:
+                    meta = json.loads((folder / '.mp4-pending.json').read_text())
+                    meta.pop('_video_crf', None)
+                    recovery = begin_capture(self.root, folder, meta, [])
+                interrupt_capture(recovery, reason)
+                (folder / '.recovery-pending').touch()
+                retry_after = time.time()
+            atomic_json(folder / 'recording-failure.json', {'reason': reason,
+                        'stage': 'recovery' if recovery else 'mp4', 'retry_after': retry_after})
 
     def tick(self):
         self._schedule_processing()
         with open_lock(self.root, '.capture-intent.lock') as intent:
             if not try_lock(intent):
                 # Stop all encoder CPU/I/O, retaining progress when RAM allows.
-                # Completed bundles can still upload in the independent uploader.
+                # The independent uploader also yields while capture holds intent.
                 self._pause_conversion()
                 return
             if self.process is not None:
@@ -187,10 +286,17 @@ class BackgroundFinalizer:
                         return
                     self.deadline += time.monotonic() - self.paused_at
                     self.paused_at = None
-                    try:
-                        os.killpg(self.process.pid, signal.SIGCONT)
-                    except ProcessLookupError:
-                        pass
+                    if self.pause_requested_at is not None:
+                        (self.folder / '.finalizer-pause.request').unlink(missing_ok=True)
+                        self.pause_requested_at = None
+                    else:
+                        try:
+                            os.killpg(self.process.pid, signal.SIGCONT)
+                        except ProcessLookupError:
+                            pass
+                if self.pause_requested_at is not None and self.paused_at is None:
+                    (self.folder / '.finalizer-pause.request').unlink(missing_ok=True)
+                    self.pause_requested_at = None
                 code = self.process.poll()
                 if code is not None:
                     if code:
@@ -198,28 +304,54 @@ class BackgroundFinalizer:
                         self._fail(f'MP4 后台保存失败（退出码 {code}），原始数据保留：{detail}')
                     else:
                         self._clear_process()
-                elif time.monotonic() > self.deadline:
-                    self._fail('MP4 后台保存超时，原始数据保留，可重试处理')
+                else:
+                    self._refresh_processing_deadline()
+                    if time.monotonic() > self.deadline:
+                        self._fail('MP4 后台保存连续 15 分钟无 CPU/读写进展，原始数据保留，可重试处理')
                 return
+            if time.monotonic() < self._next_scan:
+                return
+            self._next_scan = time.monotonic() + 1.0
+            for failure in self.root.glob('*/*/recording-failure.json'):
+                try:
+                    saved = json.loads(failure.read_text())
+                    if (saved.get('stage') == 'raw-finalization' and
+                            saved.get('retry_after', float('inf')) <= time.time() and
+                            (failure.parent / '.mp4-pending.json').is_file()):
+                        failure.unlink()
+                except (OSError, ValueError, TypeError):
+                    continue
+            from .capture_recovery import pending_recoveries
+            recovery = next(pending_recoveries(self.root), None)
             pending = next((p for p in sorted(self.root.glob('*/*/.mp4-pending.json'))
                             if not (p.parent / 'recording-failure.json').exists()), None)
-            if pending is None:
+            if pending is None and recovery is None:
                 return
             self.resources = open_lock(self.root, '.video-processing.lock')
             if not try_lock(self.resources):
                 self._release_resources()
                 return
-            from .video_bundle import conversion_timeout
-            self.folder = pending.parent
-            self.deadline = time.monotonic() + max(900, 4 * conversion_timeout(self.folder))
+            self.recovery_journal = recovery[0] if recovery else None
+            self.folder = recovery[1] if recovery else pending.parent
+            self.deadline = time.monotonic() + 900
+            self._activity_signature = None
+            self._activity_sample_at = 0.0
             # A retry should report its own failure, not the traceback from a
             # previous intentional interruption. Bound repeated retry storage.
-            self.log = (self.folder / '.mp4-finalize.log').open('w')
+            log_path = self.folder / '.mp4-finalize.log'
+            if log_path.is_file() and log_path.stat().st_size:
+                os.replace(log_path, self.folder / '.mp4-finalize.previous.log')
+            self.log = log_path.open('w')
+            for name in ('.finalizer-pause.request', '.finalizer-pause.ack'):
+                (self.folder / name).unlink(missing_ok=True)
             (self.folder / '.mp4-converting').touch()
             try:
-                self.process = subprocess.Popen(self.command_factory(self.folder),
+                command = ([sys.executable, '-m', 'galaxis_core.mp4_worker', '--recover', str(self.recovery_journal)]
+                           if self.recovery_journal else self.command_factory(self.folder))
+                self.process = subprocess.Popen(command,
                     stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True,
-                    env={**os.environ, 'GALAXIS_MANAGED_FINALIZER': '1'})
+                    env={**os.environ, 'GALAXIS_MANAGED_FINALIZER': '1',
+                         'GALAXIS_FINALIZER_PAUSE_FILE': str(self.folder / '.finalizer-pause.request')})
             except Exception:
                 self._clear_process()
                 raise
@@ -240,12 +372,35 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path)
     parser.add_argument('--episode', type=Path)
+    parser.add_argument('--recover', type=Path)
     args = parser.parse_args()
+    if args.recover:
+        from .capture_recovery import recover_episode
+        recover_episode(args.recover)
+        return
     if args.episode:
         def interrupt(*_):
             raise KeyboardInterrupt()
         signal.signal(signal.SIGTERM, interrupt)
-        finalize_episode(args.episode)
+        try:
+            finalize_episode(args.episode)
+        except Exception as exc:
+            from .deferred_raw import RawCaptureIntegrityError
+            if ((args.episode / '.deferred-raw.json').is_file() and
+                    not isinstance(exc, RawCaptureIntegrityError)):
+                # Codec failure is not capture loss. Let the supervisor retry
+                # the full source, without cropping or changing success flags.
+                raise
+            # Encoding/quality failure is not an operator discard. Upload the
+            # recoverable raw data with an interruption report instead.
+            from .capture_recovery import begin_capture, interrupt_capture, recover_episode
+            pending = args.episode / '.mp4-pending.json'
+            meta = json.loads(pending.read_text())
+            meta.pop('_video_crf', None)
+            journal = begin_capture(args.episode.parent.parent, args.episode, meta, [])
+            interrupt_capture(journal, f'video_finalization_failed: {exc}')
+            recover_episode(journal)
+            pending.unlink(missing_ok=True)
         return
     if not args.root:
         parser.error('--root or --episode is required')

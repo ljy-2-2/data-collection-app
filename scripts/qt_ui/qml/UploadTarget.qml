@@ -9,7 +9,7 @@ Rectangle {
     property bool compact: false
     property bool readOnly: false
     property string controlName: "umiUploadTarget"
-    visible: options.length>0
+    visible: !backend.rawOnly && options.length>0
     implicitHeight: visible ? content.implicitHeight+20 : 0
     height: implicitHeight
     radius: 9;color: Theme.muted;border.color: Theme.line

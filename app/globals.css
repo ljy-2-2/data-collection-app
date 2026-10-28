@@ -368,7 +368,8 @@ input[type='range']::-webkit-slider-thumb { appearance: none; width: 15px; heigh
 .badge-amber { color: var(--amber); background: var(--amber-soft); }
 .usage-guide { min-height: 34px; position: relative; padding: 0; border: 0; border-radius: 0; color: var(--ink-muted); background: transparent; box-shadow: none; }
 .usage-guide:hover { border: 0; background: transparent; box-shadow: none; }
-.usage-guide-label { min-height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 2px; font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: default; }
+.usage-guide-label { min-height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 2px; border: 0; border-radius: 0; color: inherit; background: transparent; box-shadow: none; font-family: inherit; font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: default; }
+.usage-guide .usage-guide-label:hover { border: 0; background: transparent; box-shadow: none; }
 .usage-guide-label > svg { width: 19px; height: 19px; flex: none; color: var(--ink-soft); }
 .usage-guide-popover { width: 480px; max-width: calc(100vw - 40px); max-height: min(66vh, calc(100vh - 160px)); box-sizing: border-box; position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; visibility: hidden; opacity: 0; pointer-events: none; transform: translateY(-4px); margin: 0; padding: 0 12px 12px; border: 1px solid var(--line-strong); border-bottom-width: 3px; border-radius: 12px; background: var(--surface); box-shadow: 0 8px 24px rgba(0,0,0,.14); transition: opacity .14s ease, transform .14s ease, visibility .14s; }
 .usage-guide-popover figcaption { margin-bottom: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--ink-muted); font-size: .75rem; font-weight: 600; }
@@ -1287,11 +1288,12 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .kuavo-manual-toolbar label { font-size: .78rem; }
 .kuavo-manual-toolbar select { height: 34px; margin-left: 5px; padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface); font-size: .74rem; }
 .kuavo-manual-columns { padding: 16px; align-items: start; }
+.kuavo-preset-toolbar { margin: 16px 16px 0; }
 .kuavo-manual-panel .teleop-joint-stepper output.is-stale { color: var(--ink-soft); }
 .kuavo-manual-gripper-actions { display: flex; gap: 6px; }
 .kuavo-manual-gripper-actions .action-button { height: 30px; min-height: 30px; padding: 0 10px; }
 .kuavo-manual-panel .teleop-joint-column > .kuavo-base-stage { display: flex; justify-content: center; padding: 12px 8px; }
-.kuavo-base-disc { display: block; width: 220px; max-width: 100%; height: auto; aspect-ratio: 1; touch-action: none; user-select: none; }
+.kuavo-base-disc { display: block; width: 180px; max-width: 100%; height: auto; aspect-ratio: 1; touch-action: none; user-select: none; }
 .kuavo-base-rim { fill: var(--surface-muted); stroke: var(--line); }
 .kuavo-base-direction { cursor: pointer; outline: none; touch-action: none; }
 .kuavo-base-sector { fill: var(--surface); stroke: var(--line); stroke-width: 1; transition: fill .12s, stroke .12s; }

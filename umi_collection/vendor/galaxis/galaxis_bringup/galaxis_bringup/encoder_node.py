@@ -14,7 +14,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
-from .encoder_protocol import ENCODER_BAUD, open_encoder_serial, parse_encoder_line
+from .encoder_protocol import ENCODER_BAUD, open_encoder_serial, parse_encoder_line, read_encoder_line
 
 
 RECONNECT_INTERVAL_SEC = 1.0
@@ -43,7 +43,7 @@ def parse_line(ser: serial.Serial, logger=None) -> Tuple[Optional[str], Optional
       "1.57079632"       -> (None, 1.5707...)   # backward compat
       "# ..."            -> (None, None)         # comment/header
     """
-    return parse_encoder_line(ser.readline(), logger)
+    return parse_encoder_line(read_encoder_line(ser), logger)
 
 
 class DualEncoderJointStateNode(Node):
@@ -70,7 +70,7 @@ class DualEncoderJointStateNode(Node):
         self.declare_parameter("left_encoder_offset_topic", "/galaxis/gripper/left/encoder_offset")
         self.declare_parameter("right_encoder_offset_topic", "/galaxis/gripper/right/encoder_offset")
         self.declare_parameter("publish_rate_hz", 100.0)
-        self.declare_parameter("data_timeout_sec", 0.5)
+        self.declare_parameter("data_timeout_sec", 0.05)
         
         # Raw minimum values for offset
         self.declare_parameter("left_min_raw", 0.0)
@@ -146,9 +146,13 @@ class DualEncoderJointStateNode(Node):
             thread.start()
 
         # --- Publisher/timer ---
-        self.pub = self.create_publisher(JointState, topic, 10)
-        self.left_pub = self.create_publisher(JointState, left_joint_state_topic, 10)
-        self.right_pub = self.create_publisher(JointState, right_joint_state_topic, 10)
+        # Physical /joint_states stays single-finger radians for URDF/TF.
+        # This separate measured channel is the full two-finger opening angle.
+        self.opening_pub = self.create_publisher(
+            JointState, "/galaxis/gripper/opening_state", 100)
+        self.pub = self.create_publisher(JointState, topic, 100)
+        self.left_pub = self.create_publisher(JointState, left_joint_state_topic, 100)
+        self.right_pub = self.create_publisher(JointState, right_joint_state_topic, 100)
         self.timer = self.create_timer(1.0 / rate, self.on_timer)
 
         # --- Device ID publisher (transient_local so rosbag captures it) ---
@@ -261,6 +265,11 @@ class DualEncoderJointStateNode(Node):
 
             if v is None:
                 continue
+            if device_id and device_id[:1].upper() in ('L', 'R') and device_id[:1].lower() != side[:1]:
+                self._mark_disconnected(side, st, f'wrong encoder identity: {device_id}')
+                if self._stop.wait(RECONNECT_INTERVAL_SEC):
+                    return
+                continue
 
             v_wrapped = self._apply_offset_invert(side, v)
 
@@ -343,6 +352,12 @@ class DualEncoderJointStateNode(Node):
             msg.name = [joint_names[side] for side in self.active_sides]
             msg.position = [float(values[side]) for side in self.active_sides]
             self.pub.publish(msg)
+            opening = JointState()
+            opening.header.stamp = stamp
+            opening.header.frame_id = self.frame_id
+            opening.name = [f"{side}_opening_angle" for side in self.active_sides]
+            opening.position = [2.0 * float(values[side]) for side in self.active_sides]
+            self.opening_pub.publish(opening)
 
         # Publish device IDs only when they change
         with self.left_state.lock:

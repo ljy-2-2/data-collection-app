@@ -61,3 +61,6 @@ galaxis_bringup/config/_runtime/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# Verified small native camera overlays for packaged amd64/arm64 runtimes.
+!third_party/usb_cam/native/**/libusb_cam.so
+!third_party/usb_cam/native/**/build.json

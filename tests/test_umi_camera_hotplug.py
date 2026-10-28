@@ -78,6 +78,41 @@ def test_discovery_filters_metadata_even_when_capture_node_is_odd_number(tmp_pat
     assert result[0]['stable_id']=='serial:1234:5678:unique'
 
 
+def test_duplicate_serial_disconnect_keeps_other_role_without_swapping():
+    left = camera('/dev/video0', serial='generic', port='1-1')
+    right = camera('/dev/video2', serial='generic', port='1-2')
+    saved = dict(left=left, right=right)
+    assert camera_devices.resolve_roles(saved, [right]) == {'right': right}
+    assert camera_devices.resolve_roles(saved, [left]) == {'left': left}
+    moved = {**left, 'usb_path': '1-3'}
+    assert camera_devices.resolve_roles(saved, [moved, right]) == {'right': right}
+
+
+def test_controller_port_survives_usb_bus_renumbering():
+    old = {**camera(serial='', port='4-1'), 'port_path': '/sys/devices/platform/fc880000.usb:1'}
+    new = {**old, 'device': '/dev/video2', 'usb_path': '3-1'}
+    wrong = {**old, 'device': '/dev/video4', 'port_path': '/sys/devices/platform/fc840000.usb:1'}
+    assert camera_devices.resolve_roles({'left': old}, [new, wrong]) == {'left': new}
+    assert camera_devices.match(old, [wrong]) is None
+    assert camera_devices.identity(new)['port_path'] == old['port_path']
+
+
+@pytest.mark.parametrize('controller_name,stable_name', [
+    ('fc880000.usb','fc880000.usb'),
+    ('fc400000.usb/xhci-hcd.12.auto','fc400000.usb/xhci-hcd'),
+])
+def test_discover_uses_controller_and_port_not_bus_number(tmp_path,controller_name,stable_name):
+    sys_class=tmp_path/'class';sys_class.mkdir();dev=tmp_path/'dev';dev.mkdir()
+    controller=tmp_path/'platform'/controller_name
+    usb=controller/'usb4/4-1';usb.mkdir(parents=True)
+    for key,value in dict(idVendor='1234',idProduct='5678').items():
+        (usb/key).write_text(value)
+    entry=usb/'video0';entry.mkdir();(entry/'name').write_text('USB Camera')
+    (sys_class/'video0').symlink_to(entry);(dev/'video0').touch()
+    result=camera_devices.discover(sys_class,dev,lambda _:True)
+    assert result[0]['port_path']==str(tmp_path/'platform'/stable_name)+':1'
+
+
 def test_refresh_removes_stale_worker_without_resetting_encoders_or_other_cameras(tmp_path,monkeypatch):
     manager=umi.UmiManager(tmp_path,tmp_path/'data',python=sys.executable,runtime_dir=tmp_path/'runtime')
     old=camera();new=camera('/dev/video2',port='1-3.1',generation='second')

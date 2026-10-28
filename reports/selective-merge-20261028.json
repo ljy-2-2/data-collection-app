@@ -1,0 +1,736 @@
+{
+  "date": "2026-10-28",
+  "basis": "current local App including existing uncommitted changes",
+  "source_repository": "https://github.com/ljy-2-2/data-collection-app",
+  "source_commit": "c626ead0af17df4209b16f3777736dab33c85652",
+  "snapshot_commit": "7246e5c0e102ee79d28588df37c9242569c6142d",
+  "excluded": [
+    "Tianji MotionTrace fault diagnostic persistence",
+    "UMI ZED Mini integration",
+    "PICO lifecycle changes"
+  ],
+  "retained": [
+    "Current KUAVO dedicated code byte-for-byte",
+    "Current PICO lifecycle",
+    "Current recording policy: time gaps are diagnostic only"
+  ],
+  "fixes": [
+    "Shared Qt camera crop property without rolling back KUAVO measured gripper pose",
+    "FFmpeg 4.4 passthrough compatibility with frame/timestamp tests",
+    "ARM robot selection without removing KUAVO manual controls"
+  ],
+  "tests": [
+    {
+      "suite": "Tianji algorithms, APIs, packaging, existing lifecycle",
+      "passed": 347
+    },
+    {
+      "suite": "Qt and KUAVO initial regression",
+      "passed": 171,
+      "skipped": 1,
+      "subtests_passed": 28,
+      "note": "One initial main-window failure fixed and covered by final UI suite."
+    },
+    {
+      "suite": "UMI, raw-only and upload suite",
+      "passed": 395,
+      "skipped": 1,
+      "note": "22 initial failures resolved: FFmpeg compatibility and removed ZED volume count."
+    },
+    {
+      "suite": "Video persistence, recovery and distribution after fixes",
+      "passed": 62
+    },
+    {
+      "suite": "Final shared UI, previews, portability, Tianji gripper defaults",
+      "passed": 100,
+      "skipped": 1
+    },
+    {
+      "suite": "UMI configuration, encoder, transport, monitor and worker launcher",
+      "passed": 150,
+      "subtests_passed": 19
+    },
+    {
+      "suite": "Recorder/gate/task manager before policy reconciliation",
+      "passed": 286,
+      "note": "Three upstream time-gap expectations replaced with current App policy; final gate suite passed."
+    },
+    {
+      "suite": "Final recording gate policy",
+      "passed": 122
+    },
+    {
+      "suite": "Web node tests",
+      "passed": 6
+    },
+    {
+      "suite": "TypeScript check and vinext production build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "No robot connection, deployment, real motion or real camera acceptance",
+    "ROS camera integration test skipped without live ROS environment; ARM64 hardware codec not exercised on x86_64"
+  ],
+  "backup": "/home/yeap/桌面/data collection app/.build-cache/merge-backups/selective-20261028/before.tar.gz",
+  "git_commit_created": false,
+  "git_push_performed": false,
+  "changed_files": [
+    {
+      "path": ".env.example",
+      "before_sha256": "959d45e55d7077d88d43d3ffa799fbb31ea91a09acf381b42580fcbcc536407c",
+      "after_sha256": "293c2b0ca0d9fe062283ed5f6aaeb4a5eed043bf19024d7d4bcf05916a1ec9f0"
+    },
+    {
+      "path": ".gitignore",
+      "before_sha256": "74723338e6a349a839ee5b067528d199aca29261bb95ffbe9061c98a185a22d5",
+      "after_sha256": "21aff84351905418796d6e96005a5223bfeb661ced20295041395ef89ddf4426"
+    },
+    {
+      "path": "README.md",
+      "before_sha256": "828c8db595a86f0c8fc06edb61fb8caf7962374f49d8b51a47595f6104f21249",
+      "after_sha256": "ed301e5d2882126674265928007a130b1662460e325f45d444e6c795fa106592"
+    },
+    {
+      "path": "app/globals.css",
+      "before_sha256": "6b145aa12c04116d8af85726f226e557d83b64665b05ae50105f8584bd20bb46",
+      "after_sha256": "2b2ccd205b692db2966296e66118144dd7c3e6bbfc65416e999676c7b052ef3d"
+    },
+    {
+      "path": "app/page.tsx",
+      "before_sha256": "e3ff4d0e62879623dee62c4256dd974359832fe057932c6c4c1eff7487267d94",
+      "after_sha256": "1aabb8088161c584c45da6d2fd59a412387f06297e7d951f485fc41ccc782680"
+    },
+    {
+      "path": "lib/tianji.ts",
+      "before_sha256": "8b0fc2b6ec108e7c9a01ba87a03fa2eba5a9d78e7fc41f423bb96afdfc68532a",
+      "after_sha256": "c3b44be924915db2ba5112b28e4b65c884c100f632caf0ab38af46da2e03070e"
+    },
+    {
+      "path": "scripts/build_deb.py",
+      "before_sha256": "a814cf34ce16ec72ccdc00e2b540c12914aa90ef6e6a4dcafde087921bcbd2b5",
+      "after_sha256": "8c5de8b2f90f9b27ef3cff68cb8af063c7a4ae065ced41e52f164ef7370c1286"
+    },
+    {
+      "path": "scripts/build_umi_camera_runtime.py",
+      "before_sha256": null,
+      "after_sha256": "daa8e6e2fa2693693a4156fafc7f5f9a46259c73b9700306bf969214e8d86f66"
+    },
+    {
+      "path": "scripts/build_umi_mpp_encoder.py",
+      "before_sha256": null,
+      "after_sha256": "b8037ce978a3ecad47ca3a6d42b783ac7a14ee429df1f6d0e6cb7aa0c85a7869"
+    },
+    {
+      "path": "scripts/build_umi_runtime.py",
+      "before_sha256": "20570e8253d9e2fa8b12ee1e8bd84be507393031c3e1cddbc0decbaa04117a54",
+      "after_sha256": "b1e84649f46994c5ca540b880246653c5a6d9d4a7a6aaff6f350f72d9b22445e"
+    },
+    {
+      "path": "scripts/collection_modes.py",
+      "before_sha256": null,
+      "after_sha256": "88a7742c863ae2ac480fc088cbd3bb6e55bb389c90d03f08a1fd1fce38a3ed61"
+    },
+    {
+      "path": "scripts/desktop_app.py",
+      "before_sha256": "f68a810a57237ac3cf315ec7c8963bf002ea51af710abeac0f5b17413a94f418",
+      "after_sha256": "661f67afbf1158e2b7717c634f12e07eb0009f8c54330b36b64f730248d28a4f"
+    },
+    {
+      "path": "scripts/generate_runtime_config.py",
+      "before_sha256": "864c2d755834ad84a1814f1330ab1c4bcffb2a0e69973baa7d8f13c23c892326",
+      "after_sha256": "af0436fca6effcc0f0f7b9e2b8001ddd4b9b1d49749a9aac64a1617cad0287ba"
+    },
+    {
+      "path": "scripts/qt_ui/bridge.py",
+      "before_sha256": "7361c7d8357acaef66be16e977e61332f5d8a8d3c9fd5941b7b0d4e19c8ec3c6",
+      "after_sha256": "a344bf76f0e94828998d686c40d2e67dd1dbcca74d03979fb77f02f7741adf9a"
+    },
+    {
+      "path": "scripts/qt_ui/qml/Main.qml",
+      "before_sha256": "c810fde6cb4515377b6cca89155a033f74be5982808ed7b0950124bb389b13d5",
+      "after_sha256": "47aab78e275cc0a13309b908a16fe810439a01212b45ba0dea934a9705a24e62"
+    },
+    {
+      "path": "scripts/qt_ui/qml/Sensor.qml",
+      "before_sha256": "dcddfa5d2146559afd2ee48808c053a058b18c1230d02d4f8682b368d7b8ce5e",
+      "after_sha256": "03f19d3202c30f0354b4f976d1c61f5c743aebc2026d9491773f9b247370d4ae"
+    },
+    {
+      "path": "scripts/qt_ui/qml/Setup.qml",
+      "before_sha256": "781f512ae762a65a0cafcc81d843e097f1f5c3ddd19c8efc707554882bc6b2f2",
+      "after_sha256": "2630e12e7d53d29853da366671b0cb6a8558e083f48efc1dd5abc06d5e541ba3"
+    },
+    {
+      "path": "scripts/qt_ui/qml/TcpInspector.qml",
+      "before_sha256": "497fc180aafb8b7e61f55dad88c881412f29d3c1770df5dd53e1bffa54bd37f7",
+      "after_sha256": "164530e81b0e765a4ceed20436d5907acd2bc0a3caaa5f8128ea62bfc7ad62dd"
+    },
+    {
+      "path": "scripts/qt_ui/qml/Teleop.qml",
+      "before_sha256": "51705b74f72b257f0df24d041e915addc6eee86c020d8a1d84d691ec3da148dd",
+      "after_sha256": "9af4379306c049254bed374b6ffffaf9e24f8655be763c3a11f2bfd5a7288a1b"
+    },
+    {
+      "path": "scripts/qt_ui/qml/Umi.qml",
+      "before_sha256": "8e275dacd9b870b5beb46b812c9adc4f089fcc7453d7f5f1e03ac158c804c2c3",
+      "after_sha256": "ac8a9262b1331be9acbabc631e4652aef3d8bcd57a1f4bd1b6721b9bd59e4b3d"
+    },
+    {
+      "path": "scripts/qt_ui/qml/UploadTarget.qml",
+      "before_sha256": "9955aaac1e58af1415ba5c3d3bb945e7655af76d17b203f4dde4006846221939",
+      "after_sha256": "2b1a99e648c5ccab8a6aa0e2b9b3f55233ecba54ae2c95f6dc44da9927bbe633"
+    },
+    {
+      "path": "scripts/qt_ui/umi_telemetry.py",
+      "before_sha256": "f92c283a959e7117bbd9befcf295603a33fba65af2a41fecd12e35e60e9af342",
+      "after_sha256": "7f8cc79ac15e767e965a664c5865166a090b93adfe807a2c1e22a9c1cab428c9"
+    },
+    {
+      "path": "scripts/qt_ui/visuals.py",
+      "before_sha256": "d6217eb1f7f5f4e327ef497932ea992d5175ea8b8347029a62606c61a9de19db",
+      "after_sha256": "c579159b54c42cd80ffdb7cff42de46d8ae1929d5ca50049a7fb0e0e2b9eb85e"
+    },
+    {
+      "path": "scripts/run_app.py",
+      "before_sha256": "91a8c62c94f366d10c9a44263a08b417d051df53bada0c81b87f447ba079b1e5",
+      "after_sha256": "f2ce4c7c387ed105d13f529fe72c1d8320029bbc4db82ca310b0b8a9e243b66d"
+    },
+    {
+      "path": "scripts/smoke_deb.py",
+      "before_sha256": "b5e55bb2f7a4cf46dd71e0490af44fdcc97fa6e948f17f4407e12fbed1bff72b",
+      "after_sha256": "d7be32e653d377e717825bc1503796af3bfc61c5999693b1ff8ea2de710ca7d6"
+    },
+    {
+      "path": "scripts/smoke_orangepi_ui.py",
+      "before_sha256": "ce315402c115e2aca01d0a5bfccd201b3d607f83f068942d9d492be664934657",
+      "after_sha256": "76393c1f0f5b2ca646cb061e228a4d9f06856df7c921cd397b17a021844cff6e"
+    },
+    {
+      "path": "scripts/umi_distribution.py",
+      "before_sha256": "3d262884dc0b680e8ccfe33a85b150b18bbe0b47759d1ae5e6e44f15d07c1868",
+      "after_sha256": "ce278d870682c5ee0a3a54127b2be00b961ff10b37cc313b3aad3dd8cd8fb384"
+    },
+    {
+      "path": "scripts/view_tianji_tcp.py",
+      "before_sha256": "ecccfa1e2cc84583f07381fe33e6f9c9af748333406dfb863f4948555d596448",
+      "after_sha256": "27692ce26cbbcb2a838a52feb914d538a321a4b1aee0abd03a2f7e6ad73e2f55"
+    },
+    {
+      "path": "teleop_control/pyproject.toml",
+      "before_sha256": "ef725250307d4d24ae037e06940935ecc21b8a821c48098a74dcfb18bb158e87",
+      "after_sha256": "369e514f2edfbfc60e692b5cf997cb1fa22cc50da987f54c693edd99b28f2a16"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/app.py",
+      "before_sha256": "1aa67430714e46ecacaf6469cb5070fda069445db04c37765ea2e7a25dcd7f39",
+      "after_sha256": "cd089114bd521715f6b025541242442e8de0e8dfcc66687cb0ad0232e6648fe0"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/background_upload.py",
+      "before_sha256": "8ea80b925db46db6d7ae0c251d7c991dd3b6d81909bddc22cb7b4cea0cc2e694",
+      "after_sha256": "357c1c812a559280dd1d1ebaa3b3147fa2b9adddaa53a80b17b0fc461eb54c81"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/main.py",
+      "before_sha256": "459f7b966a12e5ca4101044ffeb9a4b522857b5242d694bcb622ec41cd12fb24",
+      "after_sha256": "0fcc96f59a25ac304abf2d4008c2a93090843d2543d74a340851ed92d7a1f27f"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/raw_storage.py",
+      "before_sha256": null,
+      "after_sha256": "60c7e7b7b060261aff3544ccf1de62b67f7f036c6a20e3f3dd26e79bac7c5199"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/tianji_models.py",
+      "before_sha256": "b6db89136cca8e2bffcbbaafe3a90f44d1561f73f64a2fb368a4bed506f14e61",
+      "after_sha256": "259da05385bcc24d786376ad51b160dfaf002fc2f590d33091fbc4366c35bc2d"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/umi.py",
+      "before_sha256": "df3b9d1449f7e221d7ebb93f876749e50ab780fd8c74df3670cd71fa2b444919",
+      "after_sha256": "91ac32a6ca45d85c21c92753ced2b59381902f0eae4f3c41fce7125aa6102f15"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/umi_preview.py",
+      "before_sha256": "0fd7fa75dee31eaafb5e5f31f07758898c27131273a160fa6f09faa277d9bc54",
+      "after_sha256": "5d94f62d004d676f1b785fb899b2651219fa0a3b1955b84d362127d7afbb0d4a"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/umi_queue.py",
+      "before_sha256": "5675fd214bfedba534d8b0e5d8e5d5facfe64972af3a9813f4e900511f945e30",
+      "after_sha256": "121b9501809c8ff34d8d59a8bebf57021f5e73d6d70b4df9e35968de5e936fdf"
+    },
+    {
+      "path": "teleop_control/src/teleop_control/umi_uploader.py",
+      "before_sha256": "048bf2f4596e97d088112114a25236930e66202d00d0f40a5ba890a6e5669b4d",
+      "after_sha256": "4e2eabb478f44ec384e2d4950f7a641f6a5a6289274f2b8a1105303027b9ec35"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/UPSTREAM.json",
+      "before_sha256": "80928eaf98407bc61dd8f9beec661b5473cf0073b4690ab46239d5a7324a02f3",
+      "after_sha256": "e1ccaf2a655aa7e66184737cbc29e46c5c420290687c6b71a5c55f9d8ccd9b7d"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/config.json",
+      "before_sha256": "b9c3b46c566ced3378f9dd6e381ea3af51a8ac05b7744bd6dc2bf90922e93c2c",
+      "after_sha256": "18bec7e817c3d9465ecb0c033021abb3f3e6a517f281a850a2716079144fb001"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/configuration.py",
+      "before_sha256": "46e7005b3a3b6e12f8740fd8c6bf2208e9158e8b03f271495ce37d99c0b562c6",
+      "after_sha256": "21e2295da291352df44848e58ecaa23cac9d13a0b1a61c0057fa5fa0aa55005d"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/constrained_ik.py",
+      "before_sha256": "fd4978962baa5c335a9c99fcc056cd8f83da36453adf16825ec9e18449fe6237",
+      "after_sha256": "42aaf4273abdae7fb687b8a39d18409dedcc0341c673219f610b8fe1312d18d2"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/control.py",
+      "before_sha256": "a14d252865547a040c5d90281f2c4742b92f7c6346660727c17f5f290509f7d2",
+      "after_sha256": "74180005330f353b74f28cb85abb95a41a20e6c46d147a3e4c8bb64f97aafdda"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/hand_stability.py",
+      "before_sha256": null,
+      "after_sha256": "13632cee01c4c60a000c67d4e359e189b85319c37277084e347f1397e68a8f66"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/model.py",
+      "before_sha256": "7d1a520bd0c2ab5ff25c3036453df694e6c27e24e3c4da82ced4665ed243c958",
+      "after_sha256": "271b3705ff1ecedd516725f642240ebef948f91672aa456305ad610be0351929"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/motion.py",
+      "before_sha256": "f3d5957f089c9deeb65eb05d8c648b2b958a10e06fdf7485f2c78aafd5eded45",
+      "after_sha256": "6fa660f2605e515641df6da76f135cc8f49cd5f88593378dfe3514aca9d1c57e"
+    },
+    {
+      "path": "teleop_control/vendor/tianji/teleop/marvin_teleop/pose_tracking.py",
+      "before_sha256": "5658ac45be87109e7a5d18fac1b3e6e0714d83e145f84afbc4c9ec81b077926c",
+      "after_sha256": "f45e3505e94b341de1b3714afb6c1f6582a9719e176bf45a9ff30f1e4a65d810"
+    },
+    {
+      "path": "tests/mjpeg.test.mjs",
+      "before_sha256": "da92b1dc746b0c67bfdfdfde2ff4fc6d3969feeff1a5494ca0cc323dce59b97f",
+      "after_sha256": "4acea8c7e6680db5002aa17c7939a3e2c00210c9f067975b46d4ac9dd3903d64"
+    },
+    {
+      "path": "tests/test_camera_stream_recovery.py",
+      "before_sha256": "de257bf4b0d44bb458165db1394be9e2a7edae86d54e0282a4e7620d5233523f",
+      "after_sha256": "5a49e343803be37ad6bec0de0c24783f3cdcee872c2a561e511f091310ff22a1"
+    },
+    {
+      "path": "tests/test_collection_modes.py",
+      "before_sha256": null,
+      "after_sha256": "131e41b63a0ae57737cabbc3abfd7c36c975da696895d13bbcb4f8b980e65a65"
+    },
+    {
+      "path": "tests/test_control_app.py",
+      "before_sha256": "4a41e5390a3d8c76b121281e6b39d19018f1ceff60867b1f8dcaea040c22b797",
+      "after_sha256": "d03cf0811d303ce8f63f931bbbf2e6cfc7801397a0ca187137070b2a6da7e8a4"
+    },
+    {
+      "path": "tests/test_desktop_rendering.py",
+      "before_sha256": "7a35036f57da165b4899375b15799f1962a8ab686987b72e5f984f21a44470ee",
+      "after_sha256": "fd8d1ee6ee247d012fdeedd37061f80006ae2a110f01407355aeb20491593df3"
+    },
+    {
+      "path": "tests/test_raw_only_storage.py",
+      "before_sha256": null,
+      "after_sha256": "d7ea8f778e6bd8ae82016d109855fd2b2c91ea2ff34410aad8c5ce8a21aeb3a4"
+    },
+    {
+      "path": "tests/test_run_app_lifecycle.py",
+      "before_sha256": "697c90bb980af40aa54679fa93f001223216ebb4927205e684701eb73166a4ad",
+      "after_sha256": "a15117e22193a97ff81db73c0ff76e8b514e980d8c87e3c6d21841bf85455f87"
+    },
+    {
+      "path": "tests/test_tianji.py",
+      "before_sha256": "f73cdaca90432ae157d09be4ef071fc581946ec8707a2ccfd316461455afd59b",
+      "after_sha256": "b0f979f8ace910758d65869af7ca2a8ec8da89d8fe5cb09812aab5b40bd6d82b"
+    },
+    {
+      "path": "tests/test_tianji_hand_stability.py",
+      "before_sha256": null,
+      "after_sha256": "48ab9c7bd23f0a2264fc108df123c02a9d0e82c2cdb68e7badb8cb6cc98fb556"
+    },
+    {
+      "path": "tests/test_tianji_horizontal_rotation.py",
+      "before_sha256": null,
+      "after_sha256": "990ebddad9c741603582c2c06a8e8979c3b7a6bae0d628419f40bebe5287bda6"
+    },
+    {
+      "path": "tests/test_tianji_joint_acceleration.py",
+      "before_sha256": null,
+      "after_sha256": "b7885b14dba7c02e47f12f8ea0d354c6a20ef0c114d98156f801c3f11e0a14e1"
+    },
+    {
+      "path": "tests/test_tianji_reclutch.py",
+      "before_sha256": "1533a3a79216e623bf62d80df958aafd354d08f8e5032ee68cd7d1aa4f7c154c",
+      "after_sha256": "1e8905ada7cc8061223372832617f3368a5de3be439c0cdc11b5eda8a11b7947"
+    },
+    {
+      "path": "tests/test_tianji_rotation_tracking.py",
+      "before_sha256": null,
+      "after_sha256": "c29c48fea50c10443f065826f60e8df7dfc2b3c8e05abeb97c865d4280a57e74"
+    },
+    {
+      "path": "tests/test_tianji_stationary_joint_hold.py",
+      "before_sha256": null,
+      "after_sha256": "50dc8fc01885e73eea75f6eca07b83c6d8b262e85160c22a2b31849b6257922c"
+    },
+    {
+      "path": "tests/test_tianji_stop_recovery.py",
+      "before_sha256": "67d6af88aa6ecd46d728b1f062bad83771cb6deeeec2e5d02c4a8adbf2a614a1",
+      "after_sha256": "253add8ec920f8aa24d06b4f2f513fef5ef3675018edbef6feb54fd3b54844d9"
+    },
+    {
+      "path": "tests/test_umi_background_finalizer.py",
+      "before_sha256": "700d2b9bd3922e7e9323521c126d47f1a4d52256f6ee48b89c8df63fe940edab",
+      "after_sha256": "5737d9bb0cfe1a3e6e78331af5949cd4e371cb5bb7dba5104ec569a0895e401f"
+    },
+    {
+      "path": "tests/test_umi_camera_hotplug.py",
+      "before_sha256": "44c9638723c301a59c561424526c781a0735308d8c18d910b89bff9f3bb17973",
+      "after_sha256": "f9d530021268ccc797dfd38cba4a0b576ffa1e0a3e0c14e756818293cd955c36"
+    },
+    {
+      "path": "tests/test_umi_capture_recovery.py",
+      "before_sha256": null,
+      "after_sha256": "3fb7c3210a9cb4266165b51f632be5dc5ad630276b36c1d7dcbe5be99fc2bfff"
+    },
+    {
+      "path": "tests/test_umi_compressed_raw.py",
+      "before_sha256": null,
+      "after_sha256": "1f26a7dd2f0a11d6fcb5544717f9347da88e5635f26f57d31944956ad45d65d0"
+    },
+    {
+      "path": "tests/test_umi_continuity.py",
+      "before_sha256": "aef1a554cfa3a8355c2f8e7c4c4c9b71ade1f0e1119440011873b0e3a8e7fe75",
+      "after_sha256": "7de9f51587b36f47bda4c234beef28a6ff05f234257f2b9b016ae327a1fa96d0"
+    },
+    {
+      "path": "tests/test_umi_deferred_raw.py",
+      "before_sha256": null,
+      "after_sha256": "9482b7dda269dec949b97d8362d74c0d93d96ce342bc3f3693fb3f9b8ce5054d"
+    },
+    {
+      "path": "tests/test_umi_distribution.py",
+      "before_sha256": "868de30b2b062b5203f083036b4ce59abd0fc725f61e2feb8e5c3fe5fca883a7",
+      "after_sha256": "7083fd1d6426424055fd2be8e2eb025cf26da5e46f6996a9e119cb381e3c4526"
+    },
+    {
+      "path": "tests/test_umi_encoder_calibration.py",
+      "before_sha256": "da5b0c81e218a535837be80c556ca2cec965bfc6a14e64340bb1abc80a7292cc",
+      "after_sha256": "bf097914f3a8ff38ff936a0748da075404959183c20773df991f724ef62fb1cc"
+    },
+    {
+      "path": "tests/test_umi_finalizer_pause.py",
+      "before_sha256": null,
+      "after_sha256": "3ee1aae8480416c8dd5a1ba8d8781d31b0d7c8f8530e89877359f99b194564dd"
+    },
+    {
+      "path": "tests/test_umi_finalizer_recovery.py",
+      "before_sha256": "4e9802dfa0b3ecd88f7427427d348ef9eb3b68a1c1a77ea76790be149a03ce1a",
+      "after_sha256": "df0d5a91810726f68c12b6277891d3b4604a787618fa6c0850d203442eac4e37"
+    },
+    {
+      "path": "tests/test_umi_monitor_layout.py",
+      "before_sha256": null,
+      "after_sha256": "acac2acaf25ea7d3da7234dfdd1501a8198ac81ce21e38af4b82a0eb8c7b5ca0"
+    },
+    {
+      "path": "tests/test_umi_mp4_bundle.py",
+      "before_sha256": "f4f45fb9c92f578bbe6ba4f64d4276270acae5cfd1bc11cc12798e3f5117b2b6",
+      "after_sha256": "0cff44b23aa96317740b06a6a55e820b752a6ef1be1ae193c11b812a38f0183c"
+    },
+    {
+      "path": "tests/test_umi_preview.py",
+      "before_sha256": "0c110d8a0b95c0032178974c945fdaa515b4901d3e0a6a37af071c48b42f356a",
+      "after_sha256": "c882fd226efa1c20f0fef7f13ec44c7ba23261d6e8bc281e7d74d5e1f3bfa1cc"
+    },
+    {
+      "path": "tests/test_umi_reception_metrics.py",
+      "before_sha256": null,
+      "after_sha256": "ab808da73f4134f22a848c395ac3f073352674754068ef544f5db5ccd7166c70"
+    },
+    {
+      "path": "tests/test_umi_recorder_ros_integration.py",
+      "before_sha256": null,
+      "after_sha256": "9254b81de1ca9c7275e6e4741c5f871276bee779bb139d306c13ed7241bbfb9e"
+    },
+    {
+      "path": "tests/test_umi_recording_queue.py",
+      "before_sha256": null,
+      "after_sha256": "60af886e0396ce2632787f5bda64553f311a9c23f8a24a0dac57d74b5321bcdf"
+    },
+    {
+      "path": "tests/test_umi_ui.py",
+      "before_sha256": "847c36f497dd27094e89f9a0c36764de87211e4cea5808f8a3f7edca1eb3bd91",
+      "after_sha256": "3d3fd4ec126bb97e882727e18412d9bce506a1a6ce933e62b97883a6837b37ad"
+    },
+    {
+      "path": "tests/test_umi_uploader.py",
+      "before_sha256": "aa0b185733ebfbd5f7fc8dc34eb39874cb6bc8a41887f8b09ecac879f7e75e8b",
+      "after_sha256": "9c06719fa588a7cdb0f7977d79664d41df6abc0c6159b8b2e2cc24d2c4719104"
+    },
+    {
+      "path": "tests/test_window_chrome.py",
+      "before_sha256": "711bdfd7c8be681a52b4778be1fef90114cf64fb1053eeae58991541ceaa3142",
+      "after_sha256": "f5af87810942046a5236663321c74c5191af7b2a7fe09a3a8e61370d3f447ee0"
+    },
+    {
+      "path": "tests/tianji-ui.test.mjs",
+      "before_sha256": "5422a30d06954eea3ebcf6ee5fc78b67118ebfcc587a3b44d28fbfbe46cef413",
+      "after_sha256": "09616488d78b6779ebdae11341bba4101777dd63b00f1dba5c4ed7d0f08305ac"
+    },
+    {
+      "path": "tests/umi-brightness-ui.test.mjs",
+      "before_sha256": "baec933b18e3fa1fcf424ce77f9a7197ba4f9b529aebaf0e58d6b457b53309d7",
+      "after_sha256": "ca5b33194e113170e646312727ff414df00cedf8f3ef46e7e210b8416cb5dd54"
+    },
+    {
+      "path": "tests/umi-ui.test.mjs",
+      "before_sha256": "2c6db8dbb7111afc476fbe98082802e8c0a4fda7c8dee801bddf8f92b2e06340",
+      "after_sha256": "07f7737049c1cc82a6a4629df9900da2bd49adc28be5a32a31b5493410457d30"
+    },
+    {
+      "path": "tsconfig.json",
+      "before_sha256": "81aca06cd76be09d9b65c7dff6a031c38664263b506ea792a28f36b17be25f2a",
+      "after_sha256": "af7350dcd979fa20e0953d3719b669c5f91b5d35a089a0ded279da9bab565e40"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/.gitignore",
+      "before_sha256": "0e452b874e7eab20427e6422e7e0f7ab01fd48b9fcd53a9a64972bf9c2c71060",
+      "after_sha256": "214b82d977afc9a26a8cdbddd30c8a8cb8d1c4fbee594c94ab4824f2d9ebccbd"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/capture_guard.py",
+      "before_sha256": null,
+      "after_sha256": "f5ac677570df22b78915e4be771c09f205a159b04c687fdd4ad8ae3c26b1b46e"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/capture_recovery.py",
+      "before_sha256": null,
+      "after_sha256": "c8aa33c417e416b8e1b9b761051f8eafc0f14c0db57c4d9507249361af70bf18"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/compressed_recorder.py",
+      "before_sha256": null,
+      "after_sha256": "0605647a2bd0411025372435de0da870e85d01a63e4d708bf909b82f7fd6fdac"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/deferred_raw.py",
+      "before_sha256": null,
+      "after_sha256": "9892ae9bc25dbaa8ce9322fbf4ae0a82de78e0cb971dff90756d3d2b7112a3c5"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/finalizer_pause.py",
+      "before_sha256": null,
+      "after_sha256": "84e906165ab429c5dcbfdf4998b215192bc74fcaa050fc56633a43c496eb7bb5"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/live_encoder.py",
+      "before_sha256": null,
+      "after_sha256": "103ee14f0d150107f4d0c6c729a503f5a68a33c6c9072f191a6c68e32baccbc2"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/mcap_video.py",
+      "before_sha256": null,
+      "after_sha256": "1708afaaaac7bfb4c75f4e7f8c7ecf132156c23a9ece0495068241c1f86cf8a0"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/metadata_handler.py",
+      "before_sha256": "f7ef6f0abc6adb0090b3c081838af21400d4dabc03dd9eeaf9f56bb66df65d9e",
+      "after_sha256": "d1b59e784af0b9fb18a2c83a33a4de583ad615dd0a0c9d018e6c8fe691194e9f"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/mp4_worker.py",
+      "before_sha256": "c6a5f722b068723100b76e3429994487363a8e92b1d0b291de16c312a9c3a3a5",
+      "after_sha256": "c0fa0be72e01b0957d3f674e791ea9f599243515b28f81c85a0140dedf190237"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/reception_metrics.py",
+      "before_sha256": null,
+      "after_sha256": "0e89427189478a84d475798afcaef94791ba4bbf089702bda1bfd64d0d40d643"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/record_manager.py",
+      "before_sha256": "d6a53ead097fb52c75d07c98283ab299929831c4ebaefefa29a821f95874f167",
+      "after_sha256": "8a3a64bae5d7776782f7d6c4c1d35d270e0f925e517280fab5f55985142f1b55"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/recording_gate_node.py",
+      "before_sha256": "9b4007ba074cca97abc94ed6d2a140fb2cb5e9bfe68dfbf036ac574a3de9ec46",
+      "after_sha256": "937e2302ed7ce438f14a3e4ee883822efa5cf7e1183cb58ad5fad55b11741378"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/recording_queue.py",
+      "before_sha256": null,
+      "after_sha256": "8b862778a51df1984a8b0682e42df063cb4dc6f7e876999f1d048fcc8e5d9d94"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/recording_readiness.py",
+      "before_sha256": "42db17cdc8b32d8b9d87e042275c2a2070430102d2fddad336e4d7f2653a67ec",
+      "after_sha256": "85c7298fbb5f5b908c69f41e0d307e13348f99045fbc5505f5fb7780afb3ed50"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/task_sequence_manager.py",
+      "before_sha256": "f4676ffcd83551207d531ae0441227a2dfa76bf1bc7bbeef58224a78f5c19eac",
+      "after_sha256": "e762e7bc67ba9c6d8766a24a3a016c45ac74282b83f078b4aac26137a7935c26"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core/video_bundle.py",
+      "before_sha256": "cd5af262d351f0b4dcce4a4184d0856a7d5b3752244ad766b86f595c7aa1d485",
+      "after_sha256": "a250e47d9eea843b5324fd5087a8cbdf97198c563afdca633cc6dd64caff9826"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/native/mpp_jpeg_h264.c",
+      "before_sha256": null,
+      "after_sha256": "5f6c54c9282f27c269551fd60df2572514c085d2fbd7e0affdf55a401454ba67"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/setup.py",
+      "before_sha256": "34ee0579f6fb8541abe74ab5bec69685e8f2027b60679f34c8c57d77c68cfa7f",
+      "after_sha256": "03d69893be111c39b086879562a6df333cd93c50a06460d8d8d1b16a79cc9ff7"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/test/test_record_manager_upload_notify.py",
+      "before_sha256": "eca3c3e16f3fb3f599d598373ad1cb36d99d89fb59b8418518395b382fded378",
+      "after_sha256": "8dd757d00656d5335b2b000b8a00db01d6e236a939c90cb096fa802363b5b7b6"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/test/test_recording_gate.py",
+      "before_sha256": "fecd1e36db6d347ac821afe9b60e1a177a162afc5ec36caa7e20c8f04788eb5a",
+      "after_sha256": "a02e38b34e0ff987854a1f3ee019071bb04909ee9d5d710ee79d734906411308"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/test/test_task_sequence_manager.py",
+      "before_sha256": "24bc00d3d32e1386cda0dcede6fde043533c39b529fdec617c7b570e819ded2f",
+      "after_sha256": "3500e3cb89bae6c88e778ed54f0f0d1b25ccc3ad3b5468ed6675d17c505ae7a9"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_bringup/config/galaxis_config.yaml",
+      "before_sha256": "008bfb55c77c3198f4846529fc532a587ac5dfd1f17666f80bc4b3c106e908f6",
+      "after_sha256": "f3261bcc7c96b6b7674df2e522ef2d0f66c48a0a233e01475920132237d067f9"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_bringup/galaxis_bringup/camera_devices.py",
+      "before_sha256": "b1dcf16aaa1575c5312236865e7b705fba63a5ff21450e93c48c4e6065cd5f43",
+      "after_sha256": "fa6c0e2b2f4621b4d425aba079d58c152585b3e46ca671224437240215cef2bd"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_bringup/galaxis_bringup/encoder_node.py",
+      "before_sha256": "f23c24bdc3c58211cba13b2d67a269c2b4fc788a47bc3541a7e60a4c92e254de",
+      "after_sha256": "c3e50cc80e6abd177eb10b9ab3798b01106b9920776882cfeabd555bb393df61"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_bringup/galaxis_bringup/encoder_protocol.py",
+      "before_sha256": "74625d1608625d5ba3557154f3a52d4c8cb0770812ed387f28d26a476091f8e6",
+      "after_sha256": "27476a36dcd1110345779ee8b4dd1875ed55372e1f11d4ec3f066e2fba280f3a"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_bringup/test/test_encoder_protocol.py",
+      "before_sha256": "a51619de59d5a8ad6816cfe6c8ae9f8c485c9417aa940a256788dd74abacb228",
+      "after_sha256": "58cf6566edde84f3e948613223fda33da8e77e271c987dff6a5dd3073fef3fea"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_bringup/tools/build_runtime_configs.py",
+      "before_sha256": "584a426b1a8e3088bb81bd965a65c8e15b977fcc5054de7e43ab7885e7d2c7c9",
+      "after_sha256": "0291209115f06d687fa3c4405e62738f2c34e6cf9c3c4fb556575ba4243ffcf1"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_description/urdf/galaxis_hand.urdf.xacro",
+      "before_sha256": "aa7e7e5ee55bd54157ce175576aca011f4ece2893902f4a586a6c7e08f1475a5",
+      "after_sha256": "aadf792e690c88cd047b5576d003ef295af1bbec386b9112fac957d069e9be9f"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/pico_bridge_node.py",
+      "before_sha256": "586ce2696a378c226e76d1e6a495116680e3f7b8f84c4a3f9de64306b98b444f",
+      "after_sha256": "7ba5884d3fa39952a95a62f106f08a2d155a13102fd8a0db63084df87d96a8ad"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_pico/galaxis_pico_bridge/galaxis_pico_bridge/transport/galaxis_tcp.py",
+      "before_sha256": "a3856c5eec63c1fab43c18e220d9417518198eb71ed0fadbbe1451b76293e678",
+      "after_sha256": "2ad741992f41ad65ee45c9ef63af0a7a807c7ca56e5b4872222d447f3e4a674c"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_pico/galaxis_pico_bridge/test/test_pico_bridge_node.py",
+      "before_sha256": "96dfb9e4bdb3e7e7bbf28dc96122aa892bfe941985688af844b33fba41fc94c5",
+      "after_sha256": "f4238944721dee8737567ca5bd9b67b0f30f423d76880df6bd4d3cafba9e0323"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/galaxis_pico/galaxis_pico_bridge/test/test_transport_galaxis_tcp.py",
+      "before_sha256": "f6df8d12515454ddbd04d26193f6f2382ae2cfa7239a8262e0be3ea68e06ace6",
+      "after_sha256": "90e918768b97d9330b93c1c233550d6e7ffbd2b377d053603b70e0379659e60d"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/monitor/bridge/galaxis_studio_bridge/ros_state.py",
+      "before_sha256": "e9f05287407741c2665ed48a50bfe6e97e764da6635353d4cf8ae8dbe825ad85",
+      "after_sha256": "27d67631bcd839c7f2822455d749fd2ebea3cc31d6347e0c64e44ce5f1c06574"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/monitor/bridge/test_ros_state.py",
+      "before_sha256": "d94be263ea08c71ecfc1b7b3ef4e32b6752484202e623d3eb0f151985828374f",
+      "after_sha256": "977a74f9b6edd565330bcb6fee125e1a252373d80d73bbb6ce6e8047d850c396"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/monitor/webui/js/monitor.js",
+      "before_sha256": "f8c55f651ef2c52bc173353ab6bcae9773fb43a0a5ddb81e3d6c8309eb5442f6",
+      "after_sha256": "6dbb9f6153cf14dac4bc86ce9f57d2ca2353cd196ac1aee884933b4976d07ee5"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/GALAXIS_SOURCE.json",
+      "before_sha256": "9d857cdc690fa7083bdc34560ff45a3266253713efb95cb3e521d1ace69d0618",
+      "after_sha256": "dceeb648cb7be234b7590b263ab474c013dbdcba572d77940460b63127265036"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/include/usb_cam/utils.hpp",
+      "before_sha256": "aa758d0dbe8703bb12545dc3c6d114e00d17e436aaa3e8dc37c8a278560b1ae4",
+      "after_sha256": "f033b62fd4325e1fae9500ec1ae450d1f6ec19ebb4955b9a41f7a7520f68fc69"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/native/amd64/build.json",
+      "before_sha256": null,
+      "after_sha256": "d61258d23261286cfa2b4fec4e72f814d866b586f5931530a9ffbe54b4879653"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/native/amd64/libusb_cam.so",
+      "before_sha256": null,
+      "after_sha256": "065d24b0d0efd09d7d22f5aca20834f91b7cb45e5389a508d6165c52cc3371ff"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/native/arm64/build.json",
+      "before_sha256": null,
+      "after_sha256": "3bc5717037c5cb51e2e55407a19ebe193d3d65a6a9f8ea7bdd22c75abfa0143b"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/native/arm64/libusb_cam.so",
+      "before_sha256": null,
+      "after_sha256": "d89db5e9479794e69774f8c4ad5f512b4d1255641f82d76fd71d62ad3945bc38"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/third_party/usb_cam/src/usb_cam.cpp",
+      "before_sha256": "cc31bcfab69c1e9e3b0150b0e13875b221d0d05f551656bf484354f575bc60a7",
+      "after_sha256": "3547b18027577f1acc3977abebfd75191eb9386785f607c62669c30bb1f24c28"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/tools/galaxis_collection.py",
+      "before_sha256": "6d04108d08b27edc75bbced0c6a868bee7e4f387d367af188f22fb1722b137bc",
+      "after_sha256": "7f016c97cec9f47d3cc74acf2d5895a851a243eeadd4a505fe6f37ec418f2e70"
+    },
+    {
+      "path": "umi_collection/vendor/galaxis/tools/test_galaxis_collection.py",
+      "before_sha256": "49427a94e25107032d30313313fb634ef1e802c674cac14366502cd520240d4d",
+      "after_sha256": "042f80c977757519cc2087aa7cdf9e7a9ecf0d9aa6302638a5d1a33e3518acc0"
+    },
+    {
+      "path": "打包与分发.md",
+      "before_sha256": "c8ea8b99faac872d120f3dfc8c779ed9aacca17b7e10bfb2b68ff7e9d98155e9",
+      "after_sha256": "468c00cb7fb413903285cb7d9047b1d548d656ebc7e84bdfea786b01a741185f"
+    }
+  ]
+}

@@ -156,8 +156,8 @@ function secondsText(value?: number) {
 
 function UsageGuide({ image, alt }: { image: string; alt: string }) {
   return (
-    <div className="usage-guide" tabIndex={0}>
-      <span className="usage-guide-label"><CircleHelp size={19} aria-hidden="true" />使用说明</span>
+    <div className="usage-guide">
+      <button type="button" className="usage-guide-label"><CircleHelp size={19} aria-hidden="true" />使用说明</button>
       <figure className="usage-guide-popover" aria-label={alt}>
         <figcaption>使用说明</figcaption>
         <div className="usage-guide-image">{image ? <img src={image} alt={alt} /> : null}</div>
@@ -238,7 +238,8 @@ function UmiSensorCurve({
 }) {
   // Preview/calibration and ROS telemetry stay in radians; only presentation
   // uses degrees, so confirming a minimum never changes the submitted zero.
-  const degreePoints = points.map((point) => ({ ...point, value: point.value * UMI_RADIANS_TO_DEGREES }));
+  const angleScale = onMinimumChange ? 1 : 2; // raw calibration vs total opening
+  const degreePoints = points.map((point) => ({ ...point, value: point.value * angleScale * UMI_RADIANS_TO_DEGREES }));
   const values = degreePoints.map((point) => point.value);
   const rawLow = values.length ? Math.min(...values) : 0;
   const rawHigh = values.length ? Math.max(...values) : 1;
@@ -257,7 +258,7 @@ function UmiSensorCurve({
   }).join(' ');
   const label = side === 'left' ? '左侧传感器' : '右侧传感器';
   const current = typeof reading?.value === 'number' && Number.isFinite(reading.value)
-    ? reading.value * UMI_RADIANS_TO_DEGREES : null;
+    ? reading.value * angleScale * UMI_RADIANS_TO_DEGREES : null;
 
   return (
     <article className={classNames('umi-sensor-curve-card', !enabled && 'is-placeholder')}>
@@ -275,7 +276,7 @@ function UmiSensorCurve({
         </svg>
         {!polyline ? <span>{enabled ? reading?.error || '等待实时数据…' : '未启用'}</span> : null}
       </div>
-      <footer><span>{onMinimumChange ? '原始角度' : '相对角度'}</span><strong>{current === null ? '--' : umiDegreesText(current)}</strong>{onMinimumChange && enabled ? <label className="umi-minimum-confirm"><input type="checkbox" checked={minimum !== undefined} disabled={!reading?.online || current === null} onChange={(event) => onMinimumChange(event.target.checked)} /><span>闭合最小值（原始零点）</span><strong>{minimum === undefined ? '--' : umiDegreesText(minimum * UMI_RADIANS_TO_DEGREES)}</strong></label> : null}</footer>
+      <footer><span>{onMinimumChange ? '原始角度' : '总开合角'}</span><strong>{current === null ? '--' : umiDegreesText(current)}</strong>{onMinimumChange && enabled ? <label className="umi-minimum-confirm"><input type="checkbox" checked={minimum !== undefined} disabled={!reading?.online || current === null} onChange={(event) => onMinimumChange(event.target.checked)} /><span>闭合最小值（原始零点）</span><strong>{minimum === undefined ? '--' : umiDegreesText(minimum * UMI_RADIANS_TO_DEGREES)}</strong></label> : null}</footer>
     </article>
   );
 }
@@ -327,8 +328,9 @@ function UmiPanel({
     vr?: UmiStatus['monitor']['vr'];
     encoders?: UmiStatus['monitor']['encoders'];
   }>({ monitor_connected: false });
+  const stoppingUmi = action === 'stop-umi';
   useEffect(() => {
-    if (!visible || step !== 3 || action === 'stop-umi') return;
+    if (!visible || step !== 3 || stoppingUmi) return;
     let lastSample = performance.now();
     const stream = new EventSource(`${baseUrl}/umi/telemetry`);
     const offline = () => setTelemetry({ monitor_connected: false });
@@ -349,7 +351,7 @@ function UmiPanel({
       stream.close();
       offline();
     };
-  }, [baseUrl, visible, step, action === 'stop-umi']);
+  }, [baseUrl, visible, step, stoppingUmi]);
   const spaceActionPending = useRef(false);
   const sessionActive = Boolean(status?.session_id);
   const recordReady = status?.state === 'ready' && Boolean(status.monitor_connected);

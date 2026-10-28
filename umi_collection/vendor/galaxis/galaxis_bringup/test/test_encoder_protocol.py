@@ -80,3 +80,47 @@ def test_open_encoder_serial_disables_control_lines_before_open(monkeypatch):
         ("open", "/dev/galaxis_left_esp32c6", False, False),
         ("reset_input_buffer",),
     ]
+
+
+def test_encoder_port_exclusive_across_preview_and_capture():
+    import os
+    import pty
+    import serial
+    master, slave = pty.openpty()
+    try:
+        name = os.ttyname(slave)
+        with encoder_protocol.open_encoder_serial(name):
+            with pytest.raises(serial.SerialException, match='exclusiv'):
+                encoder_protocol.open_encoder_serial(name)
+        # Closing the old owner releases the port for the next page/collector.
+        with encoder_protocol.open_encoder_serial(name) as connection:
+            assert connection.is_open
+    finally:
+        os.close(master)
+        os.close(slave)
+
+
+def test_buffered_reader_preserves_timeout_split_number_and_drains_batch():
+    from collections import deque
+    chunks = deque([b'L003,1.', b'', b'25\nR003,2.5\n'])
+    class Wire:
+        in_waiting = 100
+        calls = 0
+        def read(self, _size):
+            self.calls += 1
+            return chunks.popleft()
+    wire=Wire();reader=encoder_protocol.EncoderLineReader(wire)
+    assert reader.readline()==b''
+    assert reader.readline()==b'L003,1.25\n'
+    assert reader.readline()==b'R003,2.5\n'
+    assert wire.calls==3
+
+
+def test_buffered_reader_discards_entire_oversized_line_before_resynchronizing():
+    from collections import deque
+    chunks=deque([b'x'*32,b'2.5\nL003,0.2\n'])
+    class Wire:
+        in_waiting=100
+        def read(self,_size):return chunks.popleft()
+    reader=encoder_protocol.EncoderLineReader(Wire(),max_line_bytes=16)
+    assert reader.readline()==b'L003,0.2\n'

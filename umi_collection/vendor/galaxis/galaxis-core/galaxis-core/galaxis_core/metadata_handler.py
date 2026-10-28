@@ -48,6 +48,7 @@ class MetadataV2Handler(Node):
         self.create_service(StringTrigger, "~/add_segment", self.add_segment_callback)
         self.create_service(Trigger, "~/remove_last_segment", self.remove_last_segment_callback)
         self.create_service(StringTrigger, "~/override_last_segment_success", self.override_last_segment_success)
+        self.create_service(Trigger, "~/get_metadata_snapshot", self.get_metadata_snapshot_callback)
         self.create_service(Trigger, "~/get_verified_metadata", self.get_verified_metadata_callback)
 
         self.metadata = self.__initialize_metadata()
@@ -287,6 +288,11 @@ class MetadataV2Handler(Node):
             response.message = "No segments to update in metadata."
 
         self.metadata_json_pub.publish(String(data=self.metadata.to_json()))
+        return response
+
+    def get_metadata_snapshot_callback(self, request, response):
+        response.success = True
+        response.message = self.metadata.to_json()
         return response
 
     def get_verified_metadata_callback(self, request: Trigger.Request, response: Trigger.Response):

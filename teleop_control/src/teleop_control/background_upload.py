@@ -131,6 +131,9 @@ def wait_for_worker(root, timeout=10):
 
 def ensure_service(data_root, uploaders, *, systemd=True, default_destination=None):
     """Start one persistent queue per data root, independent of the app group."""
+    from .raw_storage import raw_only_enabled
+    if raw_only_enabled() or (Path(data_root).expanduser() / '.uploads-disabled').exists():
+        raise RuntimeError('本设备已禁用平台上传')
     root = Path(data_root).expanduser().resolve() / '.background-upload'
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     root.chmod(0o700)
@@ -202,6 +205,9 @@ def run(config_path):
     from .umi_uploader import UmiRosbagUploader
     from .collection_uploader import CollectionUploader
     root = config_path.parent
+    from .raw_storage import raw_only_enabled
+    if raw_only_enabled() or (root.parent / '.uploads-disabled').exists():
+        return
     config = json.loads(config_path.read_text())
     os.umask(0o077)
     os.environ.pop('DATA_COLLECTION_GATE_FILE', None)
@@ -223,6 +229,9 @@ def run(config_path):
         handler = RotatingFileHandler(root / 'worker.log', maxBytes=2*1024*1024, backupCount=2)
         logging.basicConfig(level=logging.INFO, handlers=[handler],
                             format='%(asctime)s %(levelname)s %(name)s %(message)s')
+        # HTTPX's INFO request logs include signed object-store credentials.
+        # Keep our episode/file diagnostics without persisting signed URLs.
+        logging.getLogger('httpx').setLevel(logging.WARNING)
         config = json.loads(config_path.read_text())
         credentials = UploadCredentials(root)
         uploaders = []
@@ -252,7 +261,7 @@ def run(config_path):
                 for spec, uploader in uploaders:
                     if hasattr(uploader, 'status'):
                         private_json(status_file(root, spec), uploader.status())
-                if not config_path.exists() or json.loads(config_path.read_text()) != config:
+                if (root.parent / '.uploads-disabled').exists() or not config_path.exists() or json.loads(config_path.read_text()) != config:
                     stop()
         finally:
             stop()

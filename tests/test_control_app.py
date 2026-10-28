@@ -53,6 +53,35 @@ def test_umi_camera_prefers_native_stream_without_fps_cap(camera, expected_url):
     assert _umi_camera_upstream(camera, "http://127.0.0.1:8770") == expected_url
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_umi_monitor_native_mode_is_explicit_and_independent_of_raw_transport(monkeypatch, native):
+    import asyncio
+    from teleop_control import app as module
+    calls = []
+
+    async def stream(url, **options):
+        calls.append((url, options))
+        yield b"camera-jpeg"
+
+    monkeypatch.setattr(module, "preview_stream", stream)
+    provider = SimpleNamespace(
+        monitor_url="http://127.0.0.1:8770",
+        status=lambda: SimpleNamespace(monitor={"cameras": [
+            {"key": "left", "direct_url": "http://127.0.0.1:9091/stream?topic=/left"}
+        ]}),
+    )
+    app = create_app(MockController(), cors_origins=[], umi=provider)
+    endpoint = next(route.endpoint for route in app.routes if route.path == "/umi/cameras/{camera_key}")
+
+    async def request():
+        response = await endpoint("left", raw=True, native=native)
+        assert response.media_type == "application/octet-stream"
+        assert b"".join([chunk async for chunk in response.body_iterator]) == b"camera-jpeg"
+
+    asyncio.run(request())
+    assert calls == [("http://127.0.0.1:9091/stream?topic=/left", {"native": native})]
+
+
 @pytest.mark.parametrize("raw", [False, True])
 def test_umi_preview_raw_transport_keeps_video_bytes_and_releases_stream(raw):
     import asyncio
@@ -757,3 +786,22 @@ def test_umi_missing_head_data_reports_reason_without_hiding_other_streams(tmp_p
     assert '头盔' in manager._live_readiness_message(monitor)
     monitor['vr']['hmd']['online']=True
     assert manager._live_readiness_message(monitor)==''
+
+
+def test_umi_exit_accepts_durable_interrupted_round_without_finished_meta(tmp_path, monkeypatch):
+    data_root = tmp_path/'data'
+    manager = UmiManager(tmp_path, data_root, python=sys.executable, runtime_dir=tmp_path/'runtime')
+    state = SimpleNamespace(session_id='session-1', recording=True, monitor_connected=True)
+    monkeypatch.setattr(manager, 'status', lambda: state)
+    events = []
+    def save_round(action):
+        events.append(action)
+        journals=data_root/'rosbags'/'.capture-journals';journals.mkdir(parents=True)
+        (journals/'round.json').write_text(json.dumps({'state':'interrupted', 'folder':'task/round'}))
+        return state
+    monkeypatch.setattr(manager, 'record', save_round)
+    monkeypatch.setattr(manager, '_wait_for_hdf5_finalizations', lambda: None)
+    monkeypatch.setattr(manager, 'stop', lambda _: events.append('collector-stop'))
+    monkeypatch.setattr(manager, '_stop_owned_stack', lambda: events.append('stack-stop'))
+    manager.shutdown_for_app()
+    assert events == ['stop','collector-stop','stack-stop']

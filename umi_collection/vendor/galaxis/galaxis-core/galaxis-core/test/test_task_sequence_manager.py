@@ -83,6 +83,34 @@ def _mock_wait_for_trigger(mgr, return_value=True):
     mgr.wait_for_trigger_future_done = MagicMock(return_value=return_value)
 
 
+def test_discard_reuses_only_its_own_round_number(manager, sample_tasks):
+    sample_tasks['task']['round_index'] = 5
+    manager.new_tasks = sample_tasks
+    _mock_wait_for_trigger(manager)
+    assert manager.start_recording()[0]
+    assert '_005_' in manager.start_recording_client.call_async.call_args.args[0].message
+    assert manager.cancel_recording()
+    assert manager._round_offset == 0
+    # A duplicate acknowledgement cannot rewind another round.
+    assert manager.cancel_recording()
+    assert manager._round_offset == 0
+    assert manager.start_recording()[0]
+    assert '_005_' in manager.start_recording_client.call_async.call_args.args[0].message
+    assert manager.stop_recording()
+    assert manager.start_recording()[0]
+    assert '_006_' in manager.start_recording_client.call_async.call_args.args[0].message
+
+
+def test_discard_failure_keeps_number_reserved(manager, sample_tasks):
+    manager.new_tasks = sample_tasks
+    _mock_wait_for_trigger(manager)
+    assert manager.start_recording()[0]
+    _mock_wait_for_trigger(manager, False)
+    assert not manager.cancel_recording()
+    assert manager._round_offset == 1
+    assert manager._reserved_round_offset == 1
+
+
 # ===================================================================
 # TestTransitConfirmTask
 # ===================================================================
@@ -867,6 +895,7 @@ class TestDoStopRecording:
         manager.wait_for_trigger_future_done = MagicMock(return_value=metadata_ok)
         manager.stop_recording = MagicMock(return_value=recorder_ok)
         manager._last_service_error = "MCAP flush or metadata validation failed"
+        manager._save_interrupted_round = MagicMock(return_value=False)
         ok, message = manager._do_stop_recording(save=True)
         assert not ok
         assert "failed" in message
@@ -905,8 +934,10 @@ class TestDoStopRecording:
 
         ok, msg = manager._do_stop_recording(save=True)
 
-        assert ok is False
-        assert "no segments" in msg
+        assert ok is True
+        assert "retained" in msg
+        manager.interrupt_recording_client.call_async.assert_called_once()
+        manager.cancel_recording_client.call_async.assert_not_called()
 
     def test_discard(self, manager, sample_tasks):
         TSS, _ = _get_states(manager)
@@ -1700,7 +1731,7 @@ def _make_gate_msg(level: int):
 class TestGateLevelCallback:
     """Gate level changes drive cancel / block behaviour."""
 
-    def test_level_0_to_2_during_record_subtask_cancels(self, manager, sample_tasks):
+    def test_level_0_to_2_during_record_subtask_saves(self, manager, sample_tasks):
         TSS, AC = _get_states(manager)
         prepare_state(manager, TSS.RECORD_SUBTASK, sample_tasks, cur_subtask_index=0)
         manager._gate_level = 0
@@ -1708,10 +1739,11 @@ class TestGateLevelCallback:
 
         manager._gate_level_callback(_make_gate_msg(2))
 
-        manager.transit_state.assert_called_once_with(
-            AC.CANCEL,
-            reason="Recording gate hard-stop (level 2)",
-        )
+        manager.transit_state.assert_not_called()
+        manager.interrupt_recording_client.call_async.assert_called_once()
+        request = manager.interrupt_recording_client.call_async.call_args.args[0]
+        assert request.message == "Recording gate hard-stop (level 2)"
+        manager.cancel_recording_client.call_async.assert_not_called()
         assert manager._gate_level == 2
 
     def test_level_0_to_1_during_record_subtask_no_cancel(self, manager, sample_tasks):
@@ -1725,7 +1757,7 @@ class TestGateLevelCallback:
         manager.transit_state.assert_not_called()
         assert manager._gate_level == 1
 
-    def test_level_0_to_2_during_wait_subtask_cancels(self, manager, sample_tasks):
+    def test_level_0_to_2_during_wait_subtask_saves(self, manager, sample_tasks):
         TSS, AC = _get_states(manager)
         prepare_state(manager, TSS.WAIT_SUBTASK, sample_tasks, cur_subtask_index=0)
         manager._gate_level = 0
@@ -1733,10 +1765,11 @@ class TestGateLevelCallback:
 
         manager._gate_level_callback(_make_gate_msg(2))
 
-        manager.transit_state.assert_called_once_with(
-            AC.CANCEL,
-            reason="Recording gate hard-stop (level 2)",
-        )
+        manager.transit_state.assert_not_called()
+        manager.interrupt_recording_client.call_async.assert_called_once()
+        request = manager.interrupt_recording_client.call_async.call_args.args[0]
+        assert request.message == "Recording gate hard-stop (level 2)"
+        manager.cancel_recording_client.call_async.assert_not_called()
 
     def test_level_0_to_2_during_confirm_task_no_cancel(self, manager, sample_tasks):
         TSS, _ = _get_states(manager)
@@ -2276,3 +2309,70 @@ def test_recorder_service_error_reaches_caller(manager, sample_tasks):
     assert not ok
     assert "/pico/hmd/state" in message
     assert manager.wait_for_trigger_future_done.call_args.kwargs["timeout"] >= 20
+
+
+def test_metadata_failure_can_save_interrupted_round(manager, sample_tasks):
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.COMPLETE_TASK, sample_tasks,
+                  meta_data={'segments':[{'start_time':0,'end_time':1}]},
+                  has_subtasks_successed=[True,True,True])
+    manager.wait_for_trigger_future_done = MagicMock(side_effect=[False, True])
+    assert manager._do_stop_recording(save=True)[0]
+    manager.interrupt_recording_client.call_async.assert_called_once()
+    manager.cancel_recording_client.call_async.assert_not_called()
+    assert manager.status == TSS.COMFIRM_TASK
+
+
+@pytest.mark.parametrize('state', ['RECORD_SUBTASK','WAIT_SUBTASK','COMPLETE_TASK','REWIND_SUBTASK'])
+def test_hard_stop_in_every_recording_phase_preserves_round(manager, sample_tasks, state):
+    TSS,_=_get_states(manager)
+    prepare_state(manager,getattr(TSS,state),sample_tasks)
+    manager._gate_level=0
+    manager.wait_for_trigger_future_done=MagicMock(return_value=True)
+    manager._gate_level_callback(_make_gate_msg(2))
+    manager.interrupt_recording_client.call_async.assert_called_once()
+    manager.cancel_recording_client.call_async.assert_not_called()
+    manager._mock_backend.finish_episode.assert_called_once_with('ep-1')
+    assert manager.status==TSS.COMFIRM_TASK
+
+
+def test_accept_after_interruption_does_not_stop_new_recorder(manager, sample_tasks):
+    """ACCEPT runs process_step before queued ROS recording=True can be handled."""
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.COMFIRM_TASK, sample_tasks)
+    manager._recovery_done = True
+    manager.is_recording = False
+    manager._recorder_stopped_at = 1.0  # previous round stopped long ago
+    manager.start_recording = MagicMock(return_value=(True, 'ready'))
+    manager.record_runner = MagicMock()
+    manager._set_episode_uuid = MagicMock()
+    manager._save_interrupted_round = MagicMock(return_value=True)
+    response = MagicMock()
+    manager.accept(MagicMock(), response)
+    assert response.success
+    assert manager.status == TSS.WAIT_SUBTASK
+    manager._save_interrupted_round.assert_not_called()
+    assert manager._recorder_stopped_at is None
+
+
+def test_actual_recorder_death_still_saves_current_round(manager, sample_tasks):
+    from types import SimpleNamespace
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.WAIT_SUBTASK, sample_tasks)
+    manager._recovery_done = True
+    manager.is_recording = True
+    manager._save_interrupted_round = MagicMock(return_value=True)
+    with patch('galaxis_core.task_sequence_manager.time.monotonic', return_value=10.):
+        manager.rosbag_status_callback(SimpleNamespace(data=False))
+    with patch('galaxis_core.task_sequence_manager.time.monotonic', return_value=12.1):
+        manager.process_step()
+    manager._save_interrupted_round.assert_called_once_with('recorder_stopped_unexpectedly')
+
+
+def test_idle_stop_notification_does_not_arm_next_round(manager, sample_tasks):
+    from types import SimpleNamespace
+    TSS, _ = _get_states(manager)
+    prepare_state(manager, TSS.COMFIRM_TASK, sample_tasks)
+    manager.is_recording = True
+    manager.rosbag_status_callback(SimpleNamespace(data=False))
+    assert manager._recorder_stopped_at is None

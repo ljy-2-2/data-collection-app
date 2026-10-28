@@ -14,7 +14,7 @@ import threading
 import time
 
 from .kuavo5_manual_control import (PROTOCOL, ManualController, SENSOR_NAMES,
-                                   ARMS, BODY, HEAD, BASE, BY_NAME)
+                                   ARMS, BODY, HEAD, BASE, BY_NAME, vendor_initial_pose)
 
 URDF_SHA256 = 'fecef6f980806af7d2c4b1abe56d3fe1d0dbfbd69b3475303eb158bcc06c85dc'
 
@@ -276,11 +276,27 @@ class RosManualIO:
         return p,f
 
     def gripper(self, side, closed):
+        self.gripper_fraction(side,1. if closed else 0.)
+
+    def initial_pose(self):
+        from .kuavo5_return_config import load_return_config
+        # The installed return configuration is pinned by the fixed worker.
+        # Read the same manufacturer parameter as XR, never the current pose.
+        load_return_config(self.bundle['return_home_config'])
+        fractions = {}
+        for side in ('left','right'):
+            p,f = self.gripper_feedback(side)
+            fractions[side] = (f.position_rad-p.open_rad)/(p.closed_rad-p.open_rad)
+        return vendor_initial_pose(self.ros.get_param('/robot_init_state_param'),fractions)
+
+    def gripper_fraction(self, side, fraction):
+        if type(fraction) not in (int,float) or not math.isfinite(fraction) or not 0 <= fraction <= 1:
+            raise ValueError('夹爪开合值无效')
         p,f = self.gripper_feedback(side)
         self.attempted = True
         if f.state == 0 and not self.owner.driver.enable(side,f.position_rad,deadline_ns=time.monotonic_ns()+50000000):
             raise ValueError('夹爪使能请求未接受，请检查设备')
-        self.grip_targets[side] = dict(goal=p.closed_rad if closed else p.open_rad,
+        self.grip_targets[side] = dict(goal=p.open_rad+fraction*(p.closed_rad-p.open_rad),
             q=f.position_rad,v=0.,enabling=f.state==0,started=time.monotonic())
 
     def tick_grippers(self):
@@ -383,6 +399,9 @@ def run_manual(bundle):
         threading.Thread(target=read_input,daemon=True).start()
         io.start()
         controller = ManualController(io)
+        initial_pose = None; initial_pose_error = ''
+        try: initial_pose = io.initial_pose()
+        except (ValueError,KeyError) as exc: initial_pose_error = '初始位置不可用：'+str(exc)
         emit(dict(event='ready',manual_protocol=PROTOCOL))
         challenge = None; deadline = 0.; next_challenge = 0.; next_feedback = 0.
         while not ended.is_set():
@@ -412,7 +431,11 @@ def run_manual(bundle):
                 for side in ('left','right'):
                     p,f = io.gripper_feedback(side)
                     grips[side] = dict(position_rad=f.position_rad,closure_fraction=max(0.,min(1.,(f.position_rad-p.open_rad)/(p.closed_rad-p.open_rad))))
-                emit(dict(event='manual_feedback',joints=io.feedback(),grippers=grips,busy=controller.pending is not None))
+                emit(dict(event='manual_feedback',joints=io.feedback(),grippers=grips,
+                    busy=controller.pending is not None or controller.restoring is not None,
+                    restoring=controller.restoring is not None,pose_protocol='kuavo_manual_pose_v1',
+                    initial_pose=initial_pose,initial_pose_source='robot_init_state_param',
+                    initial_pose_error=initial_pose_error))
             time.sleep(.01)
     except Exception as exc:
         error = type(exc).__name__+': '+str(exc)

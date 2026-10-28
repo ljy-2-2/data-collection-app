@@ -123,6 +123,11 @@ class TopicConditionChecker(ConditionChecker):
         self._first_absent: float | None = None
         self._last_stamp: float | None = None
         self._last_msg = None
+        self._condition_failed_since = None
+        self._source_max_gap = self.config.get('source_max_gap_sec')
+        self._source_previous_ns = None
+        self._source_fault_until = -1.0
+        self._source_fault_reason = ''
 
         # Absence
         self._absence_timeout = self.config.get("absence_timeout_sec", 0.0)
@@ -153,6 +158,7 @@ class TopicConditionChecker(ConditionChecker):
         self._condition_expr = ""
         self._condition_ref_codes: list[tuple[str, object]] = []
         self._reason_template = self.config.get("reason", "")
+        self._failure_hold_sec = float(self.config.get("failure_hold_sec", 0.0))
         condition_expr = self.config.get("condition")
         if condition_expr:
             self._condition_code = compile_condition(condition_expr)
@@ -192,6 +198,9 @@ class TopicConditionChecker(ConditionChecker):
         self._subscribed = False
         self._last_stamp = None
         self._last_msg = None
+        self._condition_failed_since = None
+        self._source_previous_ns = None
+        self._source_fault_until = -1.0
         self._msg_times.clear()
         if self._camera_cadence:
             self._camera_cadence.samples.clear()
@@ -222,9 +231,10 @@ class TopicConditionChecker(ConditionChecker):
                         f"for '{self._topic}' — staying fail-closed"
                     )
                     return
-                qos = 10
+                depth = int(self.config.get('qos_depth', 10))
+                qos = depth
                 if self.config.get('best_effort'):
-                    qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+                    qos = QoSProfile(depth=depth, reliability=ReliabilityPolicy.BEST_EFFORT)
                 if self._latch:
                     qos = QoSProfile(
                         depth=1,
@@ -239,6 +249,29 @@ class TopicConditionChecker(ConditionChecker):
 
     def _cb(self, msg) -> None:
         now = time.monotonic()
+        if self._source_max_gap is not None:
+            stamp = msg.header.stamp
+            source_ns = stamp.sec * 1_000_000_000 + stamp.nanosec
+            if self._source_previous_ns is not None:
+                gap = (source_ns - self._source_previous_ns) / 1e9
+                if gap <= 0 or gap > self._source_max_gap:
+                    self._source_fault_until = now + 1.0
+                    self._source_fault_reason = f'源数据时间间隔 {gap*1000:.1f} ms（提醒阈值 {self._source_max_gap*1000:g} ms）'
+            self._source_previous_ns = source_ns
+            if self.config.get('require_tracked_pose') and not (msg.tracked and msg.valid):
+                self._source_fault_until = now + 1.0
+                self._source_fault_reason = '手柄源数据跟踪无效，请恢复跟踪；原始数据继续保留'
+        # Measure continuous invalid source content from callbacks, not from
+        # the slower gate timer. A valid sample resets the failure interval.
+        if self._failure_hold_sec > 0 and self._condition_code is not None:
+            try:
+                valid = bool(eval(self._condition_code, {"__builtins__": {}}, {"msg": msg}))
+            except Exception:
+                valid = False
+            if valid:
+                self._condition_failed_since = None
+            elif self._condition_failed_since is None:
+                self._condition_failed_since = now
         self._last_stamp = now
         self._last_msg = msg
         self._msg_times.append(now)
@@ -264,6 +297,10 @@ class TopicConditionChecker(ConditionChecker):
             if time.monotonic()-getattr(self, '_selection_changed_at', -1e9) < 5.0:
                 return ConditionResult(self.name, False, '正在连接所选相机并验证画面', escalation=1)
         result = self._evaluate()
+        if (self._source_max_gap is not None and time.monotonic() <= self._source_fault_until
+                and (result.passed or result.escalation <= self.config.get('source_gap_escalation', self.escalation))):
+            result = ConditionResult(self.name, False, self._source_fault_reason,
+                                     escalation=self.config.get('source_gap_escalation', self.escalation))
         if self.config.get('diagnostic_only', False):
             result.escalation = 0
             result.settle_exempt = True
@@ -376,12 +413,14 @@ class TopicConditionChecker(ConditionChecker):
                     escalation=self.escalation,
                 )
             if not result:
-                return ConditionResult(
-                    self.name,
-                    False,
-                    self._format_reason(self._last_msg),
-                    escalation=self.escalation,
-                )
+                elapsed = (now - self._condition_failed_since
+                           if self._condition_failed_since is not None else 0.0)
+                level = self.escalation
+                reason = self._format_reason(self._last_msg)
+                if elapsed < self._failure_hold_sec:
+                    level = min(level, EscalationLevel.BLOCK_START)
+                    reason += f" (持续 {elapsed:.2f}s / {self._failure_hold_sec:g}s)"
+                return ConditionResult(self.name, False, reason, escalation=level)
 
         # 5. Rate
         if self._camera_cadence:
@@ -541,7 +580,9 @@ class DebouncedChecker:
                     self.name,
                     False,
                     f"debouncing ({elapsed:.1f}s / {self._debounce_sec}s)",
-                    escalation=self.escalation,
+                    # Waiting for healthy samples to settle may block a new
+                    # start, but cannot terminate a healthy active recorder.
+                    escalation=min(self.escalation, EscalationLevel.BLOCK_START),
                 )
             return result
         self._passing_since = None

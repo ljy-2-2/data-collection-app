@@ -18,11 +18,12 @@ from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from pathlib import Path
 
-from mcap.reader import make_reader
+from mcap.reader import NonSeekingReader
 from mcap.writer import Writer, CompressionType
 
 FORMAT = "umi-mp4-v1"
 MANIFEST = "video-manifest.json"
+DEFAULT_VIDEO_CRF = 18
 CAMERAS = {f"/{side}_camera/image_raw/compressed": side for side in ("left", "right", "center")}
 
 
@@ -100,7 +101,7 @@ def _signal_digest(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     count = 0
     with path.open("rb") as stream:
-        for schema, channel, message in make_reader(stream, validate_crcs=True).iter_messages(log_time_order=False):
+        for schema, channel, message in NonSeekingReader(stream, validate_crcs=True).iter_messages(log_time_order=False):
             if channel.topic in CAMERAS:
                 continue
             for value in (channel.topic.encode(), channel.message_encoding.encode(),
@@ -189,7 +190,7 @@ def conversion_timeout(record_dir: Path) -> float:
         return 300
 
 
-def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
+def convert_bundle(record_dir: Path, *, crf: int = DEFAULT_VIDEO_CRF) -> dict:
     """Publish media/ atomically. Never delete or modify the source bag here."""
     import yaml
     record_dir = Path(record_dir)
@@ -202,12 +203,15 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
     if len(names) != 1:
         raise ValueError("MP4 conversion requires one complete source MCAP")
     source = artifact(record_dir, names[0])
+    from .mcap_video import is_compressed_bag, extract_bundle
+    if is_compressed_bag(source):
+        return extract_bundle(record_dir, metadata, source)
     timestamps = {}
     source_times = {}
     contract_file = record_dir / 'camera-contract.json'
     contract = json.loads(contract_file.read_text()) if contract_file.exists() else None
     with source.open("rb") as stream:
-        for _, channel, message in make_reader(stream, validate_crcs=True).iter_messages(topics=list(CAMERAS), log_time_order=False):
+        for _, channel, message in NonSeekingReader(stream, validate_crcs=True).iter_messages(topics=list(CAMERAS), log_time_order=False):
             timestamps.setdefault(channel.topic, []).append(message.log_time)
             prefix, _ = split_image(message.data)
             sec, ns = struct.unpack_from(('<' if prefix[1] else '>')+'iI', prefix, 4)
@@ -243,7 +247,7 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                 writer.start(profile="ros2")
                 schemas, channels = {}, {}
                 # Physical order preserves the exact ordering of non-image messages.
-                for schema, channel, message in make_reader(stream, validate_crcs=True).iter_messages(log_time_order=False):
+                for schema, channel, message in NonSeekingReader(stream, validate_crcs=True).iter_messages(log_time_order=False):
                     if channel.topic not in CAMERAS:
                         _copy_message(writer, schemas, channels, schema, channel, message)
                         counts[channel.topic] += 1
@@ -285,7 +289,7 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                             "-filter_threads", "1", "-threads", "1",
                             "-f", "image2pipe", "-framerate", str(fps), "-vcodec", "mjpeg", "-i", "pipe:0",
                             "-an", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", str(crf),
-                            "-pix_fmt", "yuv420p", "-fps_mode", "passthrough", "-movflags", "+faststart", str(stage / name),
+                            "-pix_fmt", "yuv420p", "-vsync", "0", "-movflags", "+faststart", str(stage / name),
                         ], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=errors[channel.topic])
                     camera = cameras[channel.topic]
                     frames = camera["frames"]
@@ -336,7 +340,10 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
                     process.kill()
                 process.wait()
                 if process.stdin and not process.stdin.closed:
-                    process.stdin.close()
+                    try:
+                        process.stdin.close()
+                    except BrokenPipeError:
+                        pass  # Preserve the original encoder error during cleanup.
             for handle in errors.values():
                 handle.close()
 
@@ -344,6 +351,8 @@ def convert_bundle(record_dir: Path, *, crf: int = 14) -> dict:
 def cleanup_source(record_dir: Path, manifest: dict) -> None:
     """Only call after complete video validation and publishing episode metadata."""
     record_dir = Path(record_dir)
+    if manifest.get('source_format') == 'umi-mcap-h264-v1':
+        return  # This self-contained MCAP is the canonical original dataset.
     if not (record_dir / "meta.json").is_file():
         raise ValueError("Cannot clean source before episode metadata is saved")
     source = record_dir / manifest["source_file"]
@@ -365,7 +374,7 @@ def restore_for_ingest(root: Path, output: Path) -> dict:
         writer = Writer(dest, compression=CompressionType.ZSTD)
         writer.start(profile="ros2")
         schemas, channels = {}, {}
-        for schema, channel, message in make_reader(src, validate_crcs=True).iter_messages(log_time_order=False):
+        for schema, channel, message in NonSeekingReader(src, validate_crcs=True).iter_messages(log_time_order=False):
             if channel.topic in CAMERAS:
                 raise ValueError("Signals MCAP unexpectedly contains camera images")
             _copy_message(writer, schemas, channels, schema, channel, message)
@@ -375,7 +384,7 @@ def restore_for_ingest(root: Path, output: Path) -> dict:
             # A file avoids buffering a complete decoded camera stream in RAM.
             with tempfile.TemporaryFile() as jpeg_stream:
                 subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", str(root / camera["file"]),
-                                "-threads", "1", "-fps_mode", "passthrough", "-c:v", "mjpeg", "-q:v", "2",
+                                "-threads", "1", "-vsync", "0", "-c:v", "mjpeg", "-q:v", "2",
                                 "-f", "image2pipe", "-"], stdout=jpeg_stream, stderr=subprocess.PIPE,
                                check=True, timeout=300)
                 jpeg_stream.seek(0)

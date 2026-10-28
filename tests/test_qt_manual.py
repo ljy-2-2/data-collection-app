@@ -53,6 +53,17 @@ class ManualControlsTest(unittest.TestCase):
                         self.bridge.jog(side, joint, -direction)
                         self.assertEqual(len(self.calls), 1, "Motion back inside the limit must remain possible")
 
+    def test_selectable_steps_are_sent_and_invalid_values_rejected(self):
+        self.assertEqual(self.bridge.state['tianjiJogStep'],10)
+        for amount in (1,5,10):
+            self.bridge.setValue('tianjiJogStep',amount)
+            for side,sign in [('left',-1),('right',1)]:
+                self.bridge.jog(side,1,1)
+                self.assertEqual(self.calls[-1][2]['delta'],sign*amount)
+        for value in (0,2,11,True,'5'):
+            self.bridge.setValue('tianjiJogStep',value)
+            self.assertEqual(self.bridge.state['tianjiJogStep'],10)
+
     def test_zero_survives_custom_pose_save_delete_and_reload(self):
         self.bridge.savePose("工作姿态")
         pose = self.bridge.state["poses"][0]
@@ -135,6 +146,16 @@ ApplicationWindow {
             QTest.qWait(100)
             self.assertFalse(item("jog-left0-1").property("enabled"))
             self.assertTrue(item("jog-left0--1").property("enabled"))
+            # The boundary guard must react when only the step changes.
+            self.bridge.update(tianji=dict(state='idle',joints=dict(left=[-168,0,0,0,0,0,0],right=[0]*7)))
+            QTest.qWait(30)
+            self.assertEqual(item('tianjiManualStep').property('currentIndex'),2)
+            self.bridge.setValue('tianjiJogStep',1);QTest.qWait(50)
+            self.assertEqual(item('tianjiManualStep').property('currentIndex'),0)
+            self.assertTrue(item('jog-left0-1').property('enabled'))
+            click('jog-left0-1');self.assertEqual(self.calls[-1][2]['delta'],-1)
+            self.bridge.setValue('tianjiJogStep',10);QTest.qWait(50)
+            self.assertFalse(item('jog-left0-1').property('enabled'))
             for width in (480, 800, 1100):
                 window.resize(width, 900)
                 QTest.qWait(100)

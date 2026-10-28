@@ -11,6 +11,8 @@ import uuid
 from urllib.parse import quote
 from .grippers import endpoints, closure, parameter_defaults
 from .umi_telemetry import UmiTelemetry
+from teleop_control import camera_devices
+from collection_modes import ROBOT_NAMES, robot_keys
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSettings
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
@@ -20,7 +22,7 @@ KUAVO_MOTION_KEYS = dict(kuavoPositionScale='position_scale', kuavoVelocity='max
 FIELDS = [
     dict(key='scale',label='比例',unit='×',min=.1,max=2,step=.01,default=1),
     dict(key='max_joint_speed_deg_s',label='关节速度上限',unit='°/s',min=.1,max=180,step=.1,default=180),
-    dict(key='max_joint_accel_deg_s2',label='关节加速度上限',unit='°/s²',min=1,max=450,step=1,default=450),
+    dict(key='max_joint_accel_deg_s2',label='关节加速度上限',unit='°/s²',min=1,max=900,step=1,default=900),
     dict(key='left_gripper_speed',label='左夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
     dict(key='right_gripper_speed',label='右夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
     dict(key='left_gripper_accel',label='左夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
@@ -47,7 +49,7 @@ def initial_state():
         page='teleop',teleopStep=1,umiStep=1,robot='tianji',task='遥操作数据采集',umiTask='UMI 数据采集',profile='dual',
         parameters=parameter_defaults(),paramSaved=False,paramSaving=False,
         uploadMode='dual',g2Scale=.5,g2Speed=.5,extraCameras=[],g2Camera='head_color',tianjiCamera='usb_1',
-        tianjiCameraLayout='left-center-right',g2CameraLayout='left-center-right',
+        tianjiJogStep=10,tianjiCameraLayout='left-center-right',g2CameraLayout='left-center-right',
         tianji=dict(state='idle',devices=devices('天机 Marvin M6'),joints={},cameras=[],collection={}),tianjiStatusFresh=False,
         kuavo=dict(state='idle',active=False,error='',service={},preparation={},session={},logs=[],limitations=[],
             manual=dict(active=False,available=False,state='idle',joints=json.loads((ROOT/'teleop_control/assets/kuavo/manual-joints.json').read_text()))),
@@ -56,7 +58,7 @@ def initial_state():
         preview=dict(available=False,joint_positions={},cameras=[]),
         umi=dict(state='idle',monitor={},log_tail=[],monitor_connected=False,recording=False),
         encoders={},encoderHistory=dict(left=[],right=[]),minima={},cameraRoles={},cameraLive={},
-        checkedProfile='', umiPedalMessage='', preferences={},uploadTarget={},poses=[],selectedPose='zero',theme='system')
+        checkedProfile='', umiPedalMessage='', preferences={},uploadTarget={},storagePath='',poses=[],selectedPose='zero',theme='system')
 
 
 class Bridge(QObject):
@@ -123,6 +125,12 @@ class Bridge(QObject):
     def umiOnly(self): return self.values.get('APP_COLLECTION_MODE') == 'umi'
     @Property(bool,constant=True)
     def tianjiOnly(self): return self.values.get('APP_COLLECTION_MODE') == 'umi-tianji'
+    @Property('QStringList',constant=True)
+    def robotKeys(self): return list(robot_keys(self.values.get('APP_COLLECTION_MODE', 'all')))
+    @Property('QStringList',constant=True)
+    def robotNames(self): return [ROBOT_NAMES[key] for key in self.robotKeys]
+    @Property(bool,constant=True)
+    def rawOnly(self): return self.values.get('DATA_COLLECTION_STORAGE_MODE') == 'raw-only'
     @Property('QVariantMap',notify=umiTelemetryChanged)
     def umiTelemetry(self): return self.telemetry.value
     @Property('QVariantMap',notify=umiTelemetryChanged)
@@ -161,6 +169,9 @@ class Bridge(QObject):
 
     def update(self, **values):
         kuavo = values.get('kuavo', self._state['kuavo'])
+        if ((kuavo.get('manual') or {}).get('session_id') !=
+                (self._state['kuavo'].get('manual') or {}).get('session_id')):
+            values.setdefault('kuavoSelectedPose','initial')
         remote = kuavo.get('parameter_mode')=='service'
         if remote and ('kuavo' in values or 'kuavoArmMode' in values) and not values.get('kuavoMotionPending', self._state['kuavoMotionPending']):
             controls = kuavo.get('motion_controls', {}).get(values.get('kuavoArmMode',self._state['kuavoArmMode']), {})
@@ -256,6 +267,15 @@ class Bridge(QObject):
         self.auth_revision+=1;auth_revision=self.auth_revision
         self.update(ready=True,startupError='',error='',notice='')
         if self.demo:return
+        if self.rawOnly:
+            def local_ready(value):
+                if auth_revision != self.auth_revision or self._state['closing']:return
+                if value.get('storage_mode') != 'raw-only' or not value.get('local_session'):
+                    self.fail('本地保存模式与后台配置不一致');return
+                self.update(authenticated=True, username='本地采集', uploadTarget={}, preferences={},storagePath=value.get('rosbag_path',''))
+                self.poll()
+            self.request('/storage/status', done=local_ready)
+            return
         def current():
             return auth_revision==self.auth_revision and not self._state['closing']
         def preferences(value):
@@ -274,6 +294,7 @@ class Bridge(QObject):
 
     @Slot(str)
     def selectUploadTarget(self,kind):
+        if self.rawOnly:return
         s=self._state
         if s['busy'] or s['closing']:return
         if s['umi'].get('state') not in ('idle','error') or self.teleop_active():
@@ -304,6 +325,7 @@ class Bridge(QObject):
 
     @Slot(str,str,bool,bool,bool)
     def login(self,username,password,remember,auto,saved):
+        if self.rawOnly:return
         if self._state['busy'] or self._state['closing']:return
         self.auth_revision+=1
         username=username.strip()
@@ -317,7 +339,7 @@ class Bridge(QObject):
 
     @Slot(str,'QVariant')
     def setValue(self,key,value):
-        allowed={'robot','task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','theme','kuavoArmMode','kuavoPositionScale','kuavoVelocity','kuavoAcceleration'}
+        allowed={'robot','task','umiTask','profile','uploadMode','g2Scale','g2Speed','extraCameras','tianjiCamera','g2Camera','tianjiCameraLayout','g2CameraLayout','selectedPose','kuavoSelectedPose','tianjiJogStep','theme','kuavoArmMode','kuavoPositionScale','kuavoVelocity','kuavoAcceleration'}
         if key not in allowed or self._state['closing']:return
         kuavo_edit=key in ('kuavoArmMode','kuavoPositionScale','kuavoVelocity','kuavoAcceleration') and self.kuavo_prestart() and self._state['busy']=='check'
         if self._state['busy'] and key not in ('theme','tianjiCameraLayout','g2CameraLayout') and not kuavo_edit:return
@@ -344,11 +366,11 @@ class Bridge(QObject):
                 if key=='kuavoPositionScale' and (type(value) not in (float,int) or not math.isfinite(value) or not .1<=value<=1):return
                 if key in ('kuavoVelocity','kuavoAcceleration') and (type(value) not in (float,int) or not math.isfinite(value) or not .01<=value<=(.7 if key=='kuavoVelocity' else 5.)):return
         if key=='robot':
-            if value not in ('tianji','agibot-g2','kuavo-5w') or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
-            if self.umiOnly or (self.tianjiOnly and value!='tianji'):return
+            if value not in self.robotKeys or self._state['teleopStep']!=1 or self._state['busy'] or self.teleop_active():return
         if key=='profile':
             if value not in ('dual','single-left','single-right') or self._state['umi'].get('state') not in ('idle','error'):return
             self.update(minima={},cameraRoles={},cameraLive={},checkedProfile='',encoders={},encoderHistory=dict(left=[],right=[]))
+        if key=='tianjiJogStep' and (type(value) not in (int,float) or value not in (1,5,10)):return
         if key=='theme':
             if value not in ('system','light','dark'):return
             self.settings.setValue('theme',value)
@@ -471,9 +493,9 @@ class Bridge(QObject):
         if self._state['busy'] or self._state['closing']:return
         if self.umiOnly:
             self.fail('此安装包用于 UMI 采集；机器人遥操需要对应 ARM64 SDK');return
-        if self.tianjiOnly and robot != 'tianji':
-            self.fail('此开发板安装包支持 UMI 和天机 Marvin M6采集');return
-        if not self.valid_task(task) or robot not in ('tianji','agibot-g2','kuavo-5w'):return
+        if robot not in self.robotKeys:
+            self.fail('此安装包支持：'+ '、'.join(self.robotNames));return
+        if not self.valid_task(task):return
         self.revision+=1
         self.reset_teleop_notices()
         self.update(task=task.strip(),robot=robot,teleopStep=2,error='',selectedPose='zero' if robot=='tianji' else '')
@@ -551,7 +573,7 @@ class Bridge(QObject):
             preparing=action=='check' or restarting
             payload = dict(network_namespace='current',task=s['task'],
                            arm_mode=s['kuavoArmMode'],position_scale=1. if s['kuavo'].get('parameter_mode')=='service' else s['kuavoPositionScale'],
-                           confirm_motion=action in ('check','start'),prepare_controller=preparing,prepare_grippers=preparing,prepare_session=preparing,require_prepared=action=='start',restart_after_stop=restarting,
+                           confirm_motion=action in ('check','start'),prepare_controller=preparing,prepare_grippers=preparing,prepare_session=preparing,prepare_manual=action=='check',require_prepared=action=='start',restart_after_stop=restarting,
                            motor_ids_confirmed=preparing,accept_unverified_gripper_bus=True)
             path='/kuavo/'+action
             if action=='stop':
@@ -576,10 +598,22 @@ class Bridge(QObject):
 
     kuavoManualInputFailed=Signal()
 
+    @Slot('QVariantMap')
+    def kuavoManualPose(self, payload):
+        if not self._state['authenticated']: return
+        payload = dict(payload)
+        if payload.get('action')=='save':
+            payload['session_id'] = (self._state['kuavo'].get('manual') or {}).get('session_id')
+        def done(value):
+            selected = (value.get('manual') or {}).get('selected_pose')
+            self.update(kuavo=value,kuavoSelectedPose=selected or 'initial')
+        self.action('kuavo-manual-pose','/kuavo/manual/poses',payload,done=done)
+
     @Slot(str)
     def kuavoManual(self, action):
         if action not in ('start','stop') or not self._state['authenticated']: return
         manual=self._state['kuavo'].get('manual') or {}
+        if action=='start': self.update(kuavoSelectedPose='initial')
         self.update(kuavoManualError='')
         self.action('kuavo-manual-'+action,'/kuavo/manual/'+action,
             {} if action=='start' else dict(session_id=manual.get('session_id') or ''),
@@ -659,7 +693,7 @@ class Bridge(QObject):
     @Slot(str,int,int,result=float)
     def jogDelta(self,side,joint,direction):
         if side not in ('left','right') or not 1<=joint<=7 or direction not in (-1,1):return 0.
-        return direction*10*(-1 if side=='left' and joint in (1,3,5,7) else 1)
+        return direction*self._state['tianjiJogStep']*(-1 if side=='left' and joint in (1,3,5,7) else 1)
 
     @Slot(str,int,int)
     def jog(self,side,joint,direction):
@@ -779,6 +813,7 @@ class Bridge(QObject):
         details=check.get('camera_candidate_details')
         if details is None:return
         roles=dict(self._state['cameraRoles']);live=dict(self._state['cameraLive'])
+        resolved=camera_devices.resolve_roles(self._camera_role_identities, details)
         used=set()
         for role in self.active_roles():
             saved=self._camera_role_identities.get(role)
@@ -786,9 +821,7 @@ class Bridge(QObject):
             if self._state['umiStep']==3:
                 candidate=next((d for d in details if d['device']==check.get('camera_roles',{}).get(role)),None)
             elif saved:
-                matches=[d for d in details if all(d.get(k)==saved.get(k) for k in ('vendor','product','serial'))]
-                if saved.get('serial') and len(matches)==1:candidate=matches[0]
-                else:candidate=next((d for d in matches if d.get('usb_path')==saved.get('usb_path')),None)
+                candidate=resolved.get(role)
             elif roles.get(role):
                 candidate=next((d for d in details if d['device']==roles[role]),None)
             if candidate and candidate['device'] in used:candidate=None
@@ -1076,10 +1109,12 @@ class Bridge(QObject):
         self.action('stop-umi','/umi/sessions/'+quote(sid,safe='')+'/stop',done=lambda value:self.update(umi=value,umiStep=1,checkedProfile='',minima={},cameraLive={}),timeout=250000,priority=True)
 
     @Slot()
-    def retryUploads(self):self.action('upload','/umi/import/scan',done=lambda v:self.update(umi=v))
+    def retryUploads(self):
+        self.action('save' if self.rawOnly else 'upload','/umi/storage/retry' if self.rawOnly else '/umi/import/scan',done=lambda v:self.update(umi=v))
 
     @Slot()
     def logout(self):
+        if self.rawOnly:return
         if self.teleop_active() or self._state['umi'].get('state') not in ('idle','error'):
             self.fail('请先结束采集和控制，再退出登录');return
         def done(_):
@@ -1095,6 +1130,7 @@ class Bridge(QObject):
 
     @Slot()
     def openPlatform(self):
+        if self.rawOnly:return
         from PySide6.QtGui import QDesktopServices
         url=QUrl(self.platformWebUrl)
         if url.scheme() in ('http','https'):QDesktopServices.openUrl(url)

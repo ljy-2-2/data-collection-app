@@ -18,6 +18,7 @@ import tomllib
 
 from generate_runtime_config import platform_urls, read_env
 from runtime_platform import native_target, verify_elf, validate_runtime_architecture, validate_tianji_libraries
+from collection_modes import default_collection_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_ID = "xiaokai-lab-data-collection"
@@ -190,6 +191,13 @@ def main() -> int:
         app.mkdir(parents=True)
         for name in ("scripts", "teleop_control", "umi_collection", "public"):
             shutil.copytree(ROOT / name, app / name, ignore=ignore_private)
+        encoder_core = app / 'umi_collection/vendor/galaxis/galaxis-core/galaxis-core'
+        if target.deb_arch == 'arm64' and not args.desktop_only:
+            run(python_bin, ROOT / 'scripts/build_umi_mpp_encoder.py', '--core', encoder_core)
+            verify_elf(encoder_core / 'galaxis_core/native/mpp-jpeg-h264', target)
+        elif target.deb_arch == 'amd64':
+            # A source checkout copied from an ARM board must not ship its ELF files.
+            shutil.rmtree(encoder_core / 'galaxis_core/native', ignore_errors=True)
         if target.deb_arch == "arm64":
             for library in tianji_libraries:
                 shutil.copy2(library, app / "teleop_control/vendor/tianji/SDK_PYTHON" / library.name)
@@ -267,7 +275,7 @@ def main() -> int:
         (package / "package-build.json").write_text(
             json.dumps({"version": version, "build_id": build_id,
                         "architecture": target.deb_arch, "qt_version": target.qt_version,
-                        "collection_mode": "umi-tianji" if target.deb_arch == "arm64" else "all"}, indent=2)
+                        "collection_mode": default_collection_mode(target.deb_arch)}, indent=2)
         )
         binary = stage / "usr/bin" / APP_ID
         binary.parent.mkdir(parents=True)

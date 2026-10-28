@@ -12,6 +12,47 @@ ENCODER_BAUD = 115200
 SERIAL_TIMEOUT_SEC = 0.2
 
 
+class EncoderLineReader:
+    """Drain available bytes per syscall and retain incomplete serial lines.
+
+    Serial.readline reads one byte at a time; its timeout can also return a
+    truncated number that float() would mistakenly accept as a new angle.
+    No values are synthesized and no complete lines are discarded.
+    """
+
+    def __init__(self, connection, max_line_bytes=4096):
+        self.connection = connection
+        self.pending = bytearray()
+        self.max_line_bytes = max_line_bytes
+        self.discarding = False
+
+    def readline(self):
+        while True:
+            end = self.pending.find(b'\n')
+            if end >= 0:
+                line = bytes(self.pending[:end + 1])
+                del self.pending[:end + 1]
+                if self.discarding or len(line) > self.max_line_bytes:
+                    self.discarding = False
+                    continue
+                return line
+            if len(self.pending) > self.max_line_bytes:
+                self.pending.clear()
+                self.discarding = True
+            chunk = self.connection.read(min(4096, max(1, self.connection.in_waiting)))
+            if not chunk:
+                return b''  # Keep the prefix until its newline arrives.
+            self.pending.extend(chunk)
+
+
+def read_encoder_line(connection):
+    reader = getattr(connection, '_galaxis_line_reader', None)
+    if reader is None:
+        reader = EncoderLineReader(connection)
+        connection._galaxis_line_reader = reader
+    return reader.readline()
+
+
 def parse_encoder_line(
     raw_line: Union[bytes, str], logger=None
 ) -> Tuple[Optional[str], Optional[float]]:
@@ -58,6 +99,7 @@ def open_encoder_serial(
 ) -> serial.Serial:
     """Open one encoder port without pulsing the board's reset/boot lines."""
     connection = serial.Serial(port=None, baudrate=baud, timeout=timeout)
+    connection.exclusive = True
     connection.dtr = False
     connection.rts = False
     connection.port = port

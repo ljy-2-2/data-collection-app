@@ -146,11 +146,11 @@ def test_hd_bursts_reconnect_staleness_and_source_changes():
         import qt_ui.visuals as visuals
         original_decode=visuals.decode_preview_image
         entered=threading.Event();release=threading.Event();decoded=[]
-        def delayed_decode(data,target):
+        def delayed_decode(data,target,*,crop=False):
             decoded.append(data)
             if len(decoded)==1:
                 entered.set();assert release.wait(3)
-            return original_decode(data,target)
+            return original_decode(data,target,crop=crop)
         visuals.decode_preview_image=delayed_decode
         camera.source='http://localhost/umi/cameras/center'
         reply=camera.reply;reply.payload=multipart(jpeg);reply.readyRead.emit()

@@ -566,33 +566,45 @@ class UmiManager:
                     path: path.stat().st_mtime_ns
                     for path in recording_root.glob("*/*/meta.json")
                 }
+                known_journals = {p: p.stat().st_mtime_ns for p in
+                                  (recording_root / '.capture-journals').glob('*.json')}
                 self.record("stop")
+                recovery_queued = False
+                for path in (recording_root / '.capture-journals').glob('*.json'):
+                    try:
+                        value = json.loads(path.read_text())
+                        changed = path not in known_journals or path.stat().st_mtime_ns > known_journals[path]
+                        if changed and value.get('state') in ('interrupted', 'recovered'):
+                            recovery_queued = True
+                    except (OSError, ValueError):
+                        pass
                 saved_meta = [
                     path for path in recording_root.glob("*/*/meta.json")
                     if path not in known_meta
                     or path.stat().st_mtime_ns > known_meta[path]
                 ]
-                if not saved_meta:
+                if not saved_meta and not recovery_queued:
                     raise RuntimeError("录制已停止但未找到本轮元数据，采集服务保持运行")
-                newest_meta = max(saved_meta, key=lambda path: path.stat().st_mtime_ns)
-                manifest = newest_meta.parent / "manifest.json"
-                deadline = time.monotonic() + 120.0
-                while time.monotonic() < deadline:
-                    if self._record_format == "rosbag" and ((newest_meta.parent / "metadata.yaml").is_file()
-                            or (newest_meta.parent / "media/video-manifest.json").is_file()):
-                        break
-                    if manifest.is_file():
-                        try:
-                            manifest_state = json.loads(
-                                manifest.read_text(encoding="utf-8")
-                            ).get("state")
-                            if manifest_state == "complete":
-                                break
-                        except (OSError, ValueError):
-                            pass
-                    time.sleep(0.5)
-                else:
-                    raise RuntimeError("本轮数据尚未完成保存，采集服务保持运行以保护数据")
+                if saved_meta and not recovery_queued:
+                    newest_meta = max(saved_meta, key=lambda path: path.stat().st_mtime_ns)
+                    manifest = newest_meta.parent / "manifest.json"
+                    deadline = time.monotonic() + 120.0
+                    while time.monotonic() < deadline:
+                        if self._record_format == "rosbag" and ((newest_meta.parent / "metadata.yaml").is_file()
+                                or (newest_meta.parent / "media/video-manifest.json").is_file()):
+                            break
+                        if manifest.is_file():
+                            try:
+                                manifest_state = json.loads(
+                                    manifest.read_text(encoding="utf-8")
+                                ).get("state")
+                                if manifest_state == "complete":
+                                    break
+                            except (OSError, ValueError):
+                                pass
+                        time.sleep(0.5)
+                    else:
+                        raise RuntimeError("本轮数据尚未完成保存，采集服务保持运行以保护数据")
             self._wait_for_hdf5_finalizations()
             self.stop(session_id)
             deadline = time.monotonic() + 45.0
@@ -909,6 +921,8 @@ class UmiManager:
 
     def _live_readiness_message(self, monitor: dict) -> str:
         issues = list(monitor.get('camera_quality_issues', []))
+        issues.extend(issue for issue in monitor.get('recording_gate_issues', [])
+                      if issue not in issues)
         # Only diagnose devices once the monitor has published their state.
         # A temporary dropout keeps the other previews and telemetry visible.
         if monitor.get('vr'):
@@ -1308,6 +1322,7 @@ class UmiManager:
             import serial
 
             port = serial.Serial(port=None, baudrate=115200, timeout=0.1)
+            port.exclusive = True
             port.dtr = False
             port.rts = False
             port.port = device
@@ -1859,7 +1874,8 @@ class UmiManager:
     def upload_queue(self):
         from .umi_queue import queue_summary
         targets = getattr(self, 'upload_targets', None)
-        return queue_summary(self.data_root, targets.snapshot() if targets else None)
+        return queue_summary(self.data_root, targets.snapshot() if targets else None,
+                             raw_only=getattr(targets, 'raw_only', False))
 
     def processing_counts(self) -> tuple[int, int]:
         pending = list((self.data_root / "rosbags").glob("*/*/.mp4-pending.json"))

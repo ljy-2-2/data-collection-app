@@ -9,6 +9,7 @@ type Joint = {name:string;label:string;group:string;min_deg:number;max_deg:numbe
 export type KuavoManualStatus = {
   available:boolean;active:boolean;state:string;session_id?:string;reason?:string;error?:string;
   fresh:boolean;busy:boolean;joints:Joint[];
+  poses?:{id:string;name:string}[];poses_available?:boolean;initial_pose_available?:boolean;pose_supported?:boolean;restoring?:boolean;
   telemetry?:{joints?:Record<string,number>;grippers?:Record<string,{position_rad:number;closure_fraction:number}>};
 };
 type Command = {action:string;[key:string]:unknown};
@@ -34,11 +35,13 @@ export function KuavoManualControl({baseUrl,status,teleopBusy,onStatus}:{
   const [pending,setPending] = useState(false);
   const [error,setError] = useState('');
   const [held,setHeld] = useState('');
+  const [selectedPose,setSelectedPose] = useState('initial');
   const sequence = useRef(0);
   const latest = useRef(status); latest.current = status;
   const heldRef = useRef('');
+  useEffect(()=>setSelectedPose('initial'),[status?.session_id]);
   const ready = status?.state==='ready' && status.fresh;
-  const enabled = ready && !status?.busy && !pending;
+  const enabled = ready && !status?.busy && !pending && !teleopBusy;
   const send = useCallback(async (command:Command) => {
     const current = latest.current;
     if (!current?.active || !current.session_id) return;
@@ -71,6 +74,7 @@ export function KuavoManualControl({baseUrl,status,teleopBusy,onStatus}:{
   useEffect(()=>{if(!enabled)release()},[enabled,release]);
   async function lifecycle(action:'start'|'stop') {
     release();setPending(true);setError('');
+    if(action==='start')setSelectedPose('initial');
     try {
       const result=await requestJson(baseUrl,'/kuavo/manual/'+action,{method:'POST',
         body:JSON.stringify(action==='stop'?{session_id:status?.session_id}:{})});
@@ -83,6 +87,29 @@ export function KuavoManualControl({baseUrl,status,teleopBusy,onStatus}:{
     void send({action:'base',direction});
   }
   function act(command:Command){if(!enabled||heldRef.current)return;setError('');void send(command)}
+  const poses=[{id:'initial',name:'初始位置（默认）'},...(status?.poses||[])];
+  const poseAvailable=selectedPose==='initial'?status?.initial_pose_available:poses.some(p=>p.id===selectedPose);
+  async function poseOperation(action:'save'|'delete') {
+    let body:Record<string,unknown>;
+    if(action==='save'){
+      const name=window.prompt('请输入姿态名称')?.trim();if(!name)return;
+      if(name.length>50){setError('姿态名称为 1～50 个字符');return}
+      body={action,name,session_id:status?.session_id};
+    }else{
+      if(!window.confirm('删除当前姿态配置？'))return;
+      body={action,id:selectedPose};
+    }
+    setPending(true);setError('');
+    try{
+      const result=await requestJson<{manual:{selected_pose?:string}}>(baseUrl,'/kuavo/manual/poses',{method:'POST',body:JSON.stringify(body)});
+      setSelectedPose(result.manual.selected_pose||'initial');onStatus(result);
+    }catch(e){setError(String(e))}finally{setPending(false)}
+  }
+  function restorePose(){
+    if(status?.restoring){void send({action:'stop'});return}
+    const name=poses.find(p=>p.id===selectedPose)?.name;
+    if(enabled&&poseAvailable&&window.confirm(`将双臂、夹爪、躯干和头部复位到「${name}」，请确认运动路径无人和障碍物。`))act({action:'restore',pose_id:selectedPose});
+  }
   const rows=status?.joints?.length?status.joints:jointRows;
   function joints(group:string) {
     return rows.filter(j=>j.group===group).map(j=>{
@@ -113,9 +140,19 @@ export function KuavoManualControl({baseUrl,status,teleopBusy,onStatus}:{
 
   return <section className="surface kuavo-manual-panel">
     <div className="preview-head kuavo-manual-heading"><h3>手动控制</h3><span className="badge badge-amber">真实运动</span>
-      <div className="kuavo-manual-toolbar"><label>步长 <select aria-label="手动关节步长" value={step} onChange={e=>setStep(Number(e.target.value))}>{[.1,.5,1].map(n=><option key={n} value={n}>{n}°</option>)}</select></label>
-      {status?.active?<ActionButton kind="secondary" disabled={pending||status.state==='stopping'} onClick={()=>void lifecycle('stop')}>{status.state==='stopping'?'正在退出…':'结束手动控制'}</ActionButton>:
-      <ActionButton kind="secondary" disabled={pending||teleopBusy||!status?.available} onClick={()=>void lifecycle('start')}>进入手动控制</ActionButton>}</div>
+      <div className="kuavo-manual-toolbar"><label>步长 <select aria-label="手动关节步长" value={step} onChange={e=>setStep(Number(e.target.value))}>{[1,5,10].map(n=><option key={n} value={n}>{n}°</option>)}</select></label>
+      {status?.active&&<ActionButton kind="secondary" disabled={pending||status.state==='stopping'} onClick={()=>void lifecycle('stop')}>{status.state==='stopping'?'正在退出…':'结束手动控制'}</ActionButton>}</div>
+    </div>
+    <div className="teleop-preset-toolbar kuavo-preset-toolbar">
+      <div><strong>姿态配置</strong></div>
+      <div className="teleop-preset-controls">
+        <select aria-label="乐聚姿态配置" value={selectedPose} disabled={pending||status?.busy} onChange={e=>setSelectedPose(e.target.value)}>
+          {poses.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <ActionButton danger={status?.restoring} disabled={status?.restoring?!status.active:!enabled||!!held||!poseAvailable||!status?.pose_supported} onClick={restorePose}>{status?.restoring?'停止':'复位'}</ActionButton>
+        <ActionButton kind="secondary" disabled={!enabled||!!held||status?.poses_available===false} onClick={()=>void poseOperation('save')}>保存当前姿态</ActionButton>
+        <ActionButton kind="ghost" danger disabled={pending||status?.busy||selectedPose==='initial'||!poseAvailable} onClick={()=>void poseOperation('delete')}>删除</ActionButton>
+      </div>
     </div>
     <div className="teleop-joint-columns kuavo-manual-columns">
       <div className="teleop-joint-column"><header><h4>左臂</h4></header><div>{joints('left')}{gripper('left')}</div></div>

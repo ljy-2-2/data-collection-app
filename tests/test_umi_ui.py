@@ -37,7 +37,7 @@ class UmiDisplayTests(unittest.TestCase):
                         encoders=dict(left=dict(online=True, rate_hz=100, position=self.position)))
                 @Property('QVariantMap', notify=changed)
                 def umiHistory(self):
-                    return dict(left=[0, self.position])
+                    return dict(left=[0, 2 * self.position])
             backend = Backend()
             qmlRegisterType(CurveItem, 'Collection.Native', 1, 0, 'CurveItem')
             engine = QQmlEngine()
@@ -54,14 +54,14 @@ class UmiDisplayTests(unittest.TestCase):
             assert backend.state['minima']['left'] == math.pi / 2
             sensor.setProperty('monitoring', True)
             assert sensor.findChild(CurveItem).zeroBased
-            assert '相对角度' in texts(), texts()
-            for value, expected in [(math.pi / 6, '30.00°'), (0, '0.00°'), (-0.0, '0.00°'), (-1e-8, '0.00°')]:
+            assert '总开合角' in texts(), texts()
+            for value, expected in [(math.pi / 6, '60.00°'), (0, '0.00°'), (-0.0, '0.00°'), (-1e-8, '0.00°')]:
                 backend.position = value
                 backend.changed.emit()
                 assert expected in texts(), texts()
                 assert '-0.00°' not in texts(), texts()
-                assert sensor.property('number') == value
-                assert sensor.findChild(CurveItem).values[-1] == value
+                assert sensor.property('number') == 2 * value
+                assert sensor.findChild(CurveItem).values[-1] == 2 * value
             sensor.setProperty('monitoring', False)
             assert not sensor.findChild(CurveItem).zeroBased
             backend.raw = -math.pi / 3

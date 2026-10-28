@@ -5,6 +5,7 @@ robot_config:
       devices: '[]'
       record_topics:
       - /joint_states
+      - /galaxis/gripper/opening_state
       - /device_ids
       - /left_camera/camera_info
       - /left_camera/image_raw/compressed
@@ -45,18 +46,19 @@ robot_config:
       - mcap
       record_format: rosbag
       video_mp4_enabled: true
+      compressed_mcap_enabled: true
       record_base_dir: /opt/data/rosbags
       required_free_space: 10
       upload_enabled: false
       upload_targets_file: /root/ros2_ws/install/galaxis_core/share/galaxis_core/config/upload_targets.yaml
       s3_endpoint: localhost:9000
       s3_bucket: data
-      s3_access_key_id: ""
-      s3_secret_access_key: ""
+      s3_access_key_id: ''
+      s3_secret_access_key: ''
       s3_use_ssl: false
       s3_prefix: ''
       base_url: http://localhost:8000/api
-      api_key: ""
+      api_key: ''
       offline_mode: true
       task_file: /opt/data/tasks.yaml
       auto_repeat_episode: true
@@ -102,14 +104,18 @@ recording_gate:
           escalation: 2
         left_gripper_joint_state_timeout_stop:
           topic: /galaxis/gripper/left/joint_state
-          timeout_sec: 0.1
+          timeout_sec: 1.0
+          source_max_gap_sec: 0.2
+          source_gap_escalation: 1
           escalation: 2
-          reason: Left gripper joint_state stalled (> 0.1s)
+          reason: Left gripper joint_state absent (> 1s)
         right_gripper_joint_state_timeout_stop:
           topic: /galaxis/gripper/right/joint_state
-          timeout_sec: 0.1
+          timeout_sec: 1.0
+          source_max_gap_sec: 0.2
+          source_gap_escalation: 1
           escalation: 2
-          reason: Right gripper joint_state stalled (> 0.1s)
+          reason: Right gripper joint_state absent (> 1s)
         left_camera_warn:
           topic: /left_camera/camera_info
           timeout_sec: 3.0
@@ -229,28 +235,32 @@ recording_gate:
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Left hand tracking lost
         right_tracked_stop:
           topic: /pico/controller/right/tracked
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Right hand tracking lost
         left_valid_stop:
           topic: /pico/controller/left/valid
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Left hand pose invalid
         right_valid_stop:
           topic: /pico/controller/right/valid
           condition: msg.data
           timeout_sec: 1.0
           escalation: 2
-          debounce_sec: 1.0
+          debounce_sec: 0.5
+          failure_hold_sec: 1.0
           reason: Right hand pose invalid
 upload_targets:
   state_db: /opt/data/upload_state.db

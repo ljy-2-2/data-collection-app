@@ -177,8 +177,8 @@
     "src/teleop/xr/wire.py": "8c94773b741ff13733dd1c36402a623b7c80ede9f634be94dac78b17d87db4e5",
     "src/teleop/xr/xrobotoolkit.py": "fbb3db929b3e2670e3586b42dcfe17bf96b20d184444c39a01f8b37f795df7e7",
     "apps/kuavo5_session_service.py": "ce4d49a23d98e4ea7e781a1bfff9122a40c9e8bd5ad19dff51de5ecd07262859",
-    "src/teleop/robots/kuavo5_manual_control.py": "fc6814601d61743dff9d8b8eef43f317c3c5fd33fd77ec6e74c27ad2967b5d54",
+    "src/teleop/robots/kuavo5_manual_control.py": "69bca67df1efe4b311ac6a4f6ad8c303086bb0b87615563c358d470083e67f00",
     "src/teleop/robots/kuavo5_manual_worker.py": "6661a3d3220fe7365e60f31be20070e890435b23aeec26debf106fd79227d1d1",
-    "src/teleop/robots/kuavo5_manual_runtime.py": "8f1439530d77f489ac72669d891d45a3182b51e718d71a02717bd74da012e62e"
+    "src/teleop/robots/kuavo5_manual_runtime.py": "7cb3140555408b4d72009ca3c94a399686a1eb829b6fd5b07e1b9fad532ae643"
   }
 }

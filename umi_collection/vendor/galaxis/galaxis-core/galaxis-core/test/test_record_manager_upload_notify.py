@@ -290,15 +290,16 @@ class TestRecordingFormat:
         record_manager.recording_saved_pub.publish.assert_called_once()
         saved_arg = record_manager.recording_saved_pub.publish.call_args[0][0]
         assert saved_arg.data == str(tmp_path / "Galaxis_001")
-        assert json.loads(
-            (tmp_path / "Galaxis_001" / "meta.json").read_text()
-        ) == {"task": "Galaxis"}
+        saved_meta = json.loads((tmp_path / "Galaxis_001" / "meta.json").read_text())
+        assert saved_meta["task"] == "Galaxis"
+        assert saved_meta["gripper_angle_contract"]["opening_from_joint_scale"] == 2.0
+        assert saved_meta["gripper_angle_contract"]["joint_state_semantics"] == "single_finger_angle"
         # Upload readiness remains tied to successful background conversion.
         record_manager.recording_completed_pub.publish.assert_not_called()
         queue_job.assert_called_once_with(
             str(tmp_path / "Galaxis_001"),
             "Galaxis/Galaxis_001",
-            {"task": "Galaxis"},
+            saved_meta,
         )
 
     def test_hdf5_finalize_keeps_staging_until_round_metadata_is_confirmed(
@@ -469,11 +470,18 @@ def test_completed_metadata_atomically_carries_collection_owner(record_manager, 
     assert not (tmp_path / 'meta.json.tmp').exists()
 
 
-def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager, tmp_record_dir):
+@pytest.mark.parametrize('compressed_raw', [False, True, 'deferred'])
+def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager, tmp_record_dir, compressed_raw):
     folder = tmp_record_dir / 'task' / 'first'; folder.mkdir(parents=True)
     source = folder / 'source.mcap'; source.write_bytes(b'original camera and joint data')
     record_manager.is_recording = True
     record_manager.video_mp4_enabled = True
+    record_manager.compressed_mcap_enabled = compressed_raw
+    if compressed_raw == 'deferred':
+        (folder / '.deferred-raw.json').write_text(json.dumps({'continuity_issue': None}))
+    elif compressed_raw:
+        (folder / '.compressed-raw.json').write_text(json.dumps({
+            'format': 'umi-mcap-h264-v1', 'state': 'complete', 'encoder': 'test', 'sha256': 'test-digest'}))
     record_manager.recent_record_dir = str(folder)
     record_manager.collection_author = 'first-author'
     record_manager.collection_destination = {'kind': 'local', 'api_url': 'http://127.0.0.1:8000', 'web_url': 'http://127.0.0.1:5173'}
@@ -489,10 +497,22 @@ def test_mp4_stop_is_durable_queue_only_and_next_round_can_start(record_manager,
     with patch('subprocess.Popen', side_effect=AssertionError('Stop must not start encoder')):
         success, _ = record_manager.stop_recording()
     assert success and not record_manager.is_recording
+    if compressed_raw is True:
+        assert not (folder / '.mp4-pending.json').exists()
+        saved = json.loads((folder / 'meta.json').read_text())
+        assert saved['recording_format'] == 'umi-mcap-h264-v1' and saved['raw_sha256'] == 'test-digest'
+        assert source.exists()
+        record_manager.recording_completed_pub.publish.assert_called_once()
+        return
     pending = json.loads((folder / '.mp4-pending.json').read_text())
-    assert pending['author'] == 'first-author' and pending['_video_crf'] == 14
+    assert pending['author'] == 'first-author'
+    if compressed_raw == 'deferred':
+        assert pending['_deferred_raw'] is True
+    else:
+        assert pending['_video_crf'] == 18
     assert pending['upload_destination'] == record_manager.collection_destination
-    assert (folder / 'meta.json').exists() and source.exists()
+    assert (folder / 'meta.json').exists() is (compressed_raw != 'deferred')
+    assert source.exists()
     record_manager.recording_saved_pub.publish.assert_called_once()
     record_manager.recording_completed_pub.publish.assert_not_called()
     assert record_manager._capture_priority.intent is None
@@ -532,3 +552,74 @@ def test_recording_elapsed_freezes_after_stop_and_resets_for_next_round(record_m
     with patch('galaxis_core.record_manager.time.monotonic', return_value=201.25):
         node.publish_recording_state()
     assert node.recording_elapsed_pub.publish.call_args.args[0].data == 1.25
+
+
+def interrupted_manager(node, tmp_path):
+    from galaxis_core.capture_recovery import begin_capture
+    folder = tmp_path/'task'/'interrupted'
+    folder.mkdir(parents=True)
+    node._capture_journal = begin_capture(tmp_path, folder, {'author':'original'}, ['/camera'])
+    node.is_recording = True
+    node.recent_record_dir = str(folder)
+    node.rosbag_process = MagicMock()
+    node.rosbag_process.poll.return_value = None
+    node.rosbag_process.wait.return_value = 0
+    node.recording_cancelled_pub = MagicMock()
+    return folder, node._capture_journal
+
+
+def test_interrupted_stop_queues_recovery_instead_of_deleting(record_manager, tmp_path):
+    folder, journal = interrupted_manager(record_manager, tmp_path)
+    (folder/'source.mcap').write_bytes(b'original')
+    process=record_manager.rosbag_process
+    ok, _ = record_manager.interrupt_recording('device_lost')
+    assert ok and not record_manager.is_recording
+    process.send_signal.assert_called_once()
+    assert json.loads(journal.read_text())['state']=='interrupted'
+    assert (folder/'source.mcap').read_bytes()==b'original'
+    record_manager.recording_saved_pub.publish.assert_called_once()
+    record_manager.recording_cancelled_pub.publish.assert_not_called()
+
+
+def test_explicit_discard_is_durable_before_writer_is_stopped(record_manager, tmp_path):
+    folder, journal = interrupted_manager(record_manager, tmp_path)
+    def check(_):
+        assert json.loads(journal.read_text())['state']=='discarded'
+        assert (folder/'.discarded').exists()
+    record_manager.rosbag_process.send_signal.side_effect=check
+    ok,_=record_manager.cancel_recording()
+    assert ok
+    assert json.loads(journal.read_text())['state']=='discarded'
+    assert not folder.exists()
+    assert record_manager.recent_record_dir is None
+    record_manager.recording_saved_pub.publish.assert_not_called()
+
+
+def test_discard_cleanup_failure_is_reported_and_never_uploaded(record_manager, tmp_path):
+    folder, journal = interrupted_manager(record_manager, tmp_path)
+    (folder/'source.mcap').write_bytes(b'raw')
+    with patch('galaxis_core.record_manager.shutil.rmtree', side_effect=PermissionError('denied')):
+        ok, detail = record_manager.cancel_recording()
+    assert not ok and '清理失败' in detail
+    assert not record_manager.is_recording
+    assert record_manager.recent_record_dir == str(folder)
+    assert json.loads(journal.read_text())['state'] == 'discarded'
+    record_manager.recording_completed_pub.publish.assert_not_called()
+    record_manager.recording_saved_pub.publish.assert_not_called()
+
+
+def test_discard_missing_folder_does_not_recreate_placeholder(record_manager, tmp_path):
+    folder, _ = interrupted_manager(record_manager, tmp_path)
+    folder.rmdir()
+    assert record_manager.cancel_recording()[0]
+    assert not folder.exists()
+
+
+def test_failed_metadata_on_exit_preserves_durable_capture(record_manager, tmp_path):
+    folder,journal=interrupted_manager(record_manager,tmp_path)
+    future=MagicMock();future.done.return_value=True
+    future.result.return_value=MagicMock(success=False,message='no end_time')
+    record_manager.get_verified_metadata_client.call_async.return_value=future
+    assert record_manager.stop_recording()[0]
+    assert json.loads(journal.read_text())['state']=='interrupted'
+    assert not (folder/'recording-failure.json').exists()

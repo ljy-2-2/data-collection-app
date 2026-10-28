@@ -43,6 +43,7 @@ class Options(BaseModel):
     prepare_controller: bool = False
     prepare_grippers: bool = False
     prepare_session: bool = False
+    prepare_manual: bool = False
     require_prepared: bool = False
     restart_after_stop: bool = False
     arm_mode: Literal['dual','left','right','dual_base'] = 'dual'
@@ -53,7 +54,7 @@ class Options(BaseModel):
     def validate_preparation_permission(self):
         if self.restart_after_stop and not (self.prepare_session and self.require_prepared):
             raise ValueError('再次开始需要完整准备并核验就绪')
-        if self.prepare_session and not (self.prepare_grippers and self.prepare_controller):
+        if (self.prepare_session or self.prepare_manual) and not (self.prepare_grippers and self.prepare_controller):
             raise ValueError('遥操作准备需要先完成主控与夹爪检查')
         if self.prepare_grippers and not (self.prepare_controller and self.accept_unverified_gripper_bus):
             raise ValueError('夹爪准备需要主控准备入口与当前共享总线配置许可')
@@ -140,7 +141,7 @@ class KuavoManager:
             value = copy.deepcopy(self.value)
             if self.process is not None and self.process.poll() is None and time.monotonic()-self.last_status>5:
                 value.update(state='unknown',error='客户端状态未更新；请结束本次会话并检查日志')
-            value.update(session_id=self.session_id, active=self.active(), logs=list(self.logs))
+            value.update(session_id=self.session_id, active=self.active(), logs=list(self.logs),preparation_generation=self.preparation_generation)
             value['camera_preview'] = self.cameras.snapshot()
             value['collection']=self.collection.snapshot()
             form=value.get('session_settings')
@@ -150,7 +151,7 @@ class KuavoManager:
                 if code:
                     form['locked_reason_code']=code
                     form['locked_reason']=lock_message(code)
-                if self.standby and self._prestart_editable():
+                if (self.standby or self.manual.checked_options is not None) and self._prestart_editable():
                     form['editable']=True
                     if code:form['locked_reason']=''
 
@@ -215,7 +216,9 @@ class KuavoManager:
                 and contract.get('owner_present') is False)
             value['manual'] = self.manual.snapshot()
             if value['manual']['active']:
-                value.update(control_ready=False,can_restart=False,prestart_editable=False)
+                checked=self.manual.checked_options is not None
+                manual_ready=checked and value['manual']['state']=='ready' and value['manual']['fresh'] and not value['manual']['busy']
+                value.update(control_ready=manual_ready,can_restart=False,prestart_editable=self._prestart_editable())
                 if value['manual']['fresh']:
                     feedback = value['manual']['telemetry']
                     value.update(telemetry=feedback,pose_live=True,pose_available=True,
@@ -223,7 +226,7 @@ class KuavoManager:
             return value
 
     def _prestart_editable(self):
-        if self.manual.active(): return False
+        if self.manual.active(): return self.manual.checked_options is not None and not self.manual.busy
         live=self.process is not None and self.process.poll() is None
         return not (live and (self.activation_requested or not self.standby))
 
@@ -253,10 +256,12 @@ class KuavoManager:
                 except ProcessLookupError:pass
             if self.standby and self.process is not None and self.process.poll() is None:
                 self.stop(self.session_id)
+            if self.manual.active():self.manual.close()
             return resume
 
     def _finish_preparation_cancel(self):
         # Caller owns operation; never wait for the stdout reader under lock.
+        if not self.manual.closed_event.is_set():self.manual.finish()
         process=self.process
         if process is not None and process.poll() is None:
             process.wait(timeout=45)
@@ -429,6 +434,25 @@ class KuavoManager:
                     self.value['error'] = detail + ('；'+self.value['error'] if self.value['error'] else '')
 
     def inspect(self, options, *, prepare=False, _generation=None, connect_cameras=False):
+        if not prepare and options.get('prepare_manual'):
+            # Manufacturer/gripper checks first; acquire exactly one manual owner.
+            result=self._inspect_devices({**options,'prepare_session':False},
+                _generation=_generation,connect_cameras=connect_cameras)
+            generation=result['preparation_generation']
+            try:
+                self.manual.start(checked_options=options,generation=generation)
+                self.manual.wait_ready(generation)
+                return self.snapshot()
+            except Exception as exc:
+                with self.lock:
+                    if generation==self.preparation_generation:
+                        self.value.update(state='idle' if self.check_cancel.is_set() else 'error',error=str(exc))
+                raise
+        return self._inspect_devices(options,prepare=prepare,_generation=_generation,connect_cameras=connect_cameras)
+
+    def _inspect_devices(self, options, *, prepare=False, _generation=None, connect_cameras=False):
+        if options.get('prepare_manual') and not (options.get('prepare_grippers') is True and options.get('prepare_controller') is True):
+            raise ValueError('手动准备需要先完成主控与夹爪检查')
         if options.get('prepare_session') and not (options.get('prepare_grippers') is True and options.get('prepare_controller') is True):
             raise ValueError('遥操作准备需要先完成主控与夹爪检查')
         if options.get('prepare_grippers') and not (options.get('prepare_controller') is True and options.get('accept_unverified_gripper_bus') is True):
@@ -452,7 +476,7 @@ class KuavoManager:
                     self.value.update(gripper_preparation_required=True,gripper_preparation_ready=False,gripper_preparation={})
                 self.pending_operation = True
                 self.check_cancel.clear()
-                if options.get('prepare_session'):self.preparation_options=copy.deepcopy(options)
+                if options.get('prepare_session') or options.get('prepare_manual'):self.preparation_options=copy.deepcopy(options)
                 claimed = True
                 self.value.update(state='checking',error='')
                 if not prepare:self.value.update(preparation_progress='正在检查连接与头显',settings_preview=None,pico_sdk_available=False,vr_checked=False,vr_ready=False,pico_ready=False)
@@ -548,6 +572,21 @@ class KuavoManager:
     def start(self, options, *, _standby=False):
         if options.get('confirm_motion') is not True:
             raise ValueError('请明确确认启动遥操作')
+        if not _standby and self.manual.active():
+            with self.lock:
+                checked=copy.deepcopy(self.manual.checked_options)
+                if not checked or not self.snapshot()['control_ready']:
+                    raise RuntimeError('请等待手动控制动作完成并检查设备')
+                generation=self.preparation_generation
+            # No XR process can start until the manual worker confirms cleanup.
+            self.manual.finish()
+            if generation!=self.preparation_generation or self.check_cancel.is_set():
+                raise PreparationCancelled('遥操作切换已取消')
+            prepared={**checked,**options,'prepare_manual':False,'prepare_session':True,
+                'prepare_controller':True,'prepare_grippers':True,'motor_ids_confirmed':True,
+                'require_prepared':True,'restart_after_stop':False}
+            self.inspect(prepared,_generation=generation)
+            return self.start(prepared)
         if not _standby and options.get('restart_after_stop'):
             options=Options(**options).model_dump()
             with self.lock:
@@ -777,6 +816,8 @@ def kuavo_router(manager):
     def manual_input(body:dict): return invoke(manager.manual.input,body)
     @router.post('/manual/stop')
     def manual_stop(body:StopRequest): return invoke(manager.manual.stop,body.session_id)
+    @router.post('/manual/poses')
+    def manual_poses(body:dict): return invoke(manager.manual.pose_operation,body)
     @router.post('/check')
     def check(body:Options):return invoke(manager.inspect,body.model_dump(),connect_cameras=True)
     @router.post('/start')

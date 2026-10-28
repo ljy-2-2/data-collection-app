@@ -21,11 +21,41 @@ BASE = {'forward': (.1, 0., 0.), 'backward': (-.1, 0., 0.),
         'stop': (0., 0., 0.)}
 
 
+def validate_pose(value):
+    """Complete measured pose in radians/fractions; never a base location."""
+    if not isinstance(value, dict) or set(value) != {'joints', 'grippers'}:
+        raise ValueError('姿态数据不完整')
+    joints, grips = value['joints'], value['grippers']
+    if not isinstance(joints, dict) or set(joints) != set(NAMES):
+        raise ValueError('姿态必须包含全部 20 个关节')
+    for n, q in joints.items():
+        spec = BY_NAME[n]
+        if type(q) not in (float, int) or not math.isfinite(q) or not spec['min_deg']-1e-5 <= math.degrees(q) <= spec['max_deg']+1e-5:
+            raise ValueError('姿态关节越界：'+n)
+    if not isinstance(grips, dict) or set(grips) != {'left','right'} or any(
+            type(v) not in (float,int) or not math.isfinite(v) or not 0 <= v <= 1 for v in grips.values()):
+        raise ValueError('姿态夹爪开合值无效')
+    return dict(joints=dict(joints), grippers=dict(grips))
+
+
+def vendor_initial_pose(robot_init_state, grippers):
+    """Same v63 initialization source used by teleoperation return-home.
+
+    Floating base7, body4, arms14, head2. Base position is never restored.
+    Grippers follow the shared session_initial_feedback return policy.
+    """
+    if not isinstance(robot_init_state,(list,tuple)) or len(robot_init_state)!=27 or any(
+            type(v) not in (int,float) or not math.isfinite(v) for v in robot_init_state):
+        raise ValueError('/robot_init_state_param 必须包含 27 个有效数值')
+    return validate_pose(dict(joints=dict(zip(SENSOR_NAMES,robot_init_state[7:])),grippers=grippers))
+
+
 def validate_command(value):
     if not isinstance(value, dict):
         raise ValueError('manual command must be an object')
     action = value.get('action')
     fields = {'heartbeat': {'action'}, 'stop': {'action'},
+              'restore': {'action', 'pose'},
               'joint': {'action', 'joint', 'delta_deg'},
               'gripper': {'action', 'side', 'closed'},
               'base': {'action', 'direction'}}
@@ -34,12 +64,13 @@ def validate_command(value):
     if action == 'joint':
         delta = value['delta_deg']
         if (not isinstance(value['joint'],str) or value['joint'] not in BY_NAME or type(delta) not in (int, float)
-                or not math.isfinite(delta) or not 0 < abs(delta) <= 1.):
-            raise ValueError('manual joint step must be finite and within one degree')
+                or not math.isfinite(delta) or not 0 < abs(delta) <= 10.):
+            raise ValueError('manual joint step must be finite and within ten degrees')
     if action == 'gripper' and (value['side'] not in ('left', 'right') or type(value['closed']) is not bool):
         raise ValueError('invalid gripper command')
     if action == 'base' and (not isinstance(value['direction'],str) or value['direction'] not in BASE):
         raise ValueError('invalid base direction')
+    if action == 'restore': validate_pose(value['pose'])
     return dict(value)
 
 
@@ -70,6 +101,10 @@ class ManualController:
         self.base_until = 0.
         self.base_direction = 'stop'
         self.pending = None
+        self.restoring = None
+        self.restore_grippers = []
+        self.next_pose_step = 0.
+        self.trajectory_names = NAMES
         self.last_input = clock()
         self.closed = False
 
@@ -81,6 +116,8 @@ class ManualController:
         if action == 'heartbeat':
             return
         if action == 'stop':
+            self.restoring = None
+            self.restore_grippers = []
             self.io.hold()
             self.pending = None
             self.base_until = 0.
@@ -92,7 +129,7 @@ class ManualController:
             self.base_direction = 'stop'
             return
         positions = self.io.feedback()
-        if self.pending is not None:
+        if self.pending is not None or self.restoring is not None:
             raise ValueError('上一动作尚未完成，请等待实测姿态到位')
         if action == 'base':
             self.base_direction = command['direction']
@@ -101,8 +138,21 @@ class ManualController:
             return
         if self.base_direction != 'stop':
             raise ValueError('请先松开底盘控制')
+        if action == 'restore':
+            self.restoring = validate_pose(command['pose'])
+            self.trajectory_names = NAMES
+            self.restore_grippers = ['left','right']
+            self.next_pose_step = now
+            return
         if action == 'joint':
             names, target = joint_target(command, positions)
+            if abs(command['delta_deg']) > 1.:
+                name = command['joint']
+                self.restoring = dict(joints={name:math.radians(target[name])},grippers={})
+                self.trajectory_names = (name,)
+                self.restore_grippers = []
+                self.next_pose_step = now
+                return
             if names == HEAD:
                 self.io.head_delta(command['joint'], command['delta_deg'])
             else:
@@ -135,6 +185,25 @@ class ManualController:
                 self.pending = None
             elif now - started > 15.:
                 raise TimeoutError('手动动作未到位；停止本次控制，请检查设备')
+        if self.restoring is not None and self.pending is None and now >= self.next_pose_step:
+            # One measured-relative step at a time, <= 1 degree, <= 4 deg/s.
+            # No open-loop sequence and no whole-body zero assumption.
+            for name in self.trajectory_names:
+                delta = math.degrees(self.restoring['joints'][name]-positions[name])
+                if abs(delta) <= .1: continue
+                delta = max(-1., min(1., delta))
+                names, target = joint_target(dict(action='joint',joint=name,delta_deg=delta),positions)
+                if names == HEAD: self.io.head_delta(name,delta)
+                else: self.io.joints(names,target)
+                self.pending = ('joint',target,now,min(.25,abs(delta)/4.))
+                self.next_pose_step = now+max(.1,abs(delta)/4.)
+                return
+            if self.restore_grippers:
+                side = self.restore_grippers.pop(0)
+                self.io.gripper_fraction(side,self.restoring['grippers'][side])
+                self.pending = ('gripper',side,now,.015)
+            else:
+                self.restoring = None
 
     def close(self):
         self.closed = True
