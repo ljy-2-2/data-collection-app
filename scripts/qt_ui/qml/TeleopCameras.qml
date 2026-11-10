@@ -43,6 +43,16 @@ Card {
         return active && entry && entry.connected !== false && (tianji || entry.available)
             ? backend.baseUrl + (tianji ? "/tianji/cameras/"+id+"/stream" : "/cameras/"+id+"/frame") : ""
     }
+    function cameraWaitingText(id) {
+        if (!active) return "等待连接相机"
+        if (status.camera_checking || ["connecting","recovering","reconnecting"].indexOf(status.camera_phase)>=0)
+            return "正在连接相机…"
+        var entry = (status.cameras || []).find(c => c.id === id)
+        var issue = (status.camera_connection_issues || {})[id]
+        if (issue && (!entry || entry.connected === false)) return issue
+        if (!entry || entry.connected === false) return "相机未识别\n请检查 USB 连接"
+        return status.camera_phase === "fault" ? "视频已中断\n请重连相机" : "等待相机画面…"
+    }
     Heading {width: parent.width;title: "相机画面";height: 51}
     Txt {objectName:"cameraApplyStatus";visible:root.tianji && !!backend.state.cameraApplyMessage
         x:120;y:17;width:Math.max(0,root.width-260);horizontalAlignment:Text.AlignRight;font.pixelSize:11
@@ -86,6 +96,14 @@ Card {
                         id: camera;objectName: "teleopCamera-"+tile.role
                         anchors.fill: parent;source: root.cameraSource(tile.modelData)
                         visible: online
+                    }
+                    Text {
+                        objectName: "teleopCameraWaiting-"+tile.role
+                        anchors.centerIn: parent;width: Math.max(0,parent.width-28)
+                        visible: root.tianji && !camera.online
+                        text: root.cameraWaitingText(tile.modelData)
+                        horizontalAlignment: Text.AlignHCenter;wrapMode: Text.WordWrap
+                        color: "#b9c3d1";font.family: Theme.font;font.pixelSize: 12
                     }
                     Txt {anchors.top: parent.top;anchors.right: parent.right;anchors.margins: 7;text: camera.online ? (root.tianji && root.status.camera_preview_mode === "snapshot" ? "快照" : "LIVE") : "--";font.pixelSize: 9;color: camera.online?Theme.green:"#8793a5"}
                     Rectangle {

@@ -19,7 +19,25 @@ PROFILES = {
     'yuyv': dict(format='yuyv', width=640, height=480, fps=30),
     'yuyv-320x240': dict(format='yuyv', width=320, height=240, fps=30),
 }
+ZED_MODES = {(2208, 1242): (15,), (1920, 1080): (15, 30),
+             (1280, 720): (15, 30, 60), (672, 376): (15, 30, 60, 100)}
+for (_width, _height), _rates in ZED_MODES.items():
+    for _fps in _rates:
+        PROFILES['zed-left-%dx%d-%d' % (_width, _height, _fps)] = dict(
+            format='mjpeg', width=_width, height=_height, fps=_fps,
+            camera_model='ZED Mini', eye='left', source_format='yuyv',
+            source_width=_width * 2, source_height=_height,
+            encoding='controller_jpeg', jpeg_quality=90,
+            source_yuv_matrix='bt601', source_yuv_range='limited', limited_range_assumption=True)
 MAX_DESCRIPTOR_BYTES = 1024 * 1024
+
+
+def is_zed(camera):
+    return camera.get('vid') == '2b03' and camera.get('pid') == 'f682'
+
+
+def default_mode(camera):
+    return 'zed-left-1920x1080-30' if is_zed(camera) else 'mjpeg'
 
 
 def descriptors(data):
@@ -73,22 +91,23 @@ def parse_capabilities(data):
                     if len(block) < 26 + count * 4:
                         raise ValueError('Truncated frame intervals')
                     rates = [struct.unpack_from('<I', block, 26 + i * 4)[0] for i in range(count)]
-                    supported = 333333 in rates
                 else:
                     if len(block) < 38:
                         raise ValueError('Truncated continuous frame intervals')
                     low, high, step = struct.unpack_from('<III', block, 26)
-                    supported = low <= 333333 <= high and (not step or (333333 - low) % step == 0)
-                if supported:
-                    for key, profile in PROFILES.items():
-                        if profile['format'] == format_name and (width, height) == (profile['width'], profile['height']):
-                            modes.append(key)
-    return dict(modes=sorted(set(modes), key=lambda key: (PROFILES[key]['width'] * PROFILES[key]['height'], key)),
+                for key, profile in PROFILES.items():
+                    interval = 10000000 // profile['fps']
+                    supported = (interval in rates if count else
+                                 low <= interval <= high and (not step or (interval-low) % step == 0))
+                    source_size = (profile.get('source_width', profile['width']), profile.get('source_height', profile['height']))
+                    if supported and profile.get('source_format', profile['format']) == format_name and (width, height) == source_size:
+                        modes.append(key)
+    return dict(modes=sorted(set(modes), key=lambda key: (PROFILES[key]['width'] * PROFILES[key]['height'], PROFILES[key]['fps'], key)),
                 brightness=brightness)
 
 
 def camera_capabilities(camera):
-    if camera['usb_path'] not in ('1-1', '1-2', '1-4'):
+    if camera['usb_path'] not in ('1-1', '1-2', '1-4', '2-1'):
         raise ValueError('Unsupported camera port')
     base = '/sys/bus/usb/devices/' + camera['usb_path']
     for name, expected in (('idVendor', camera['vid']), ('idProduct', camera['pid'])):
@@ -100,7 +119,12 @@ def camera_capabilities(camera):
     # Raw YUYV at 640x480/30 alone needs 18.4 MB/s, exceeding the
     # deployed camera transport. Do not offer modes that overload recording.
     # Legacy raw decoding and native validation remain available to old data.
-    capabilities['modes'] = [key for key in capabilities['modes'] if PROFILES[key]['format'] == 'mjpeg']
+    capabilities['modes'] = [key for key in capabilities['modes']
+                            if PROFILES[key]['format'] == 'mjpeg' and key.startswith('zed-left-') == is_zed(camera)]
+    if is_zed(camera):
+        with open(base + '/speed') as handle:
+            if float(handle.read()) < 5000:
+                raise RuntimeError('ZED Mini requires a USB 3 SuperSpeed video connection')
     return capabilities
 
 
@@ -207,7 +231,8 @@ def save_settings(service, settings):
 
 
 def profile_for(service, camera_id):
-    selected = load_settings(service).get(camera_id, {}).get('mode_id', 'mjpeg')
+    camera = next(c for c in service.config['cameras'] if c['id'] == camera_id)
+    selected = load_settings(service).get(camera_id, {}).get('mode_id', default_mode(camera))
     if selected not in PROFILES:
         raise ValueError('Unsupported saved camera mode')
     return selected, dict(PROFILES[selected])
@@ -215,8 +240,9 @@ def profile_for(service, camera_id):
 
 def stream_snapshot(camera, info, capabilities, mode_id, actual):
     """Describe the already verified stream; no additional USB requests."""
-    options = [dict(PROFILES[key], id=key, label=u'%d × %d · 30 帧/秒 · %s' % (
-        PROFILES[key]['width'], PROFILES[key]['height'], PROFILES[key]['format'].upper())) for key in capabilities['modes']]
+    options = [dict(PROFILES[key], id=key, label=u'%d × %d · %d 帧/秒 · %s' % (
+        PROFILES[key]['width'], PROFILES[key]['height'], PROFILES[key]['fps'],
+        u'ZED 左眼' if key.startswith('zed-left-') else PROFILES[key]['format'].upper())) for key in capabilities['modes']]
     return dict(camera_id=camera['id'], brightness=dict(actual),
                 device=dict((key, info.get(key)) for key in ('bus', 'address', 'vid', 'pid')),
                 resolution=dict(options=options, selected=next(p for p in options if p['id'] == mode_id), editable=True))
@@ -240,12 +266,12 @@ def control(service, request, api):
     capabilities = camera_capabilities(camera)
     settings = load_settings(service)
     saved = dict(settings.get(camera['id'], {}))
-    mode_id = request.get('mode_id', saved.get('mode_id', 'mjpeg'))
+    mode_id = request.get('mode_id', saved.get('mode_id', default_mode(camera)))
     if mode_id not in capabilities['modes']:
-        raise ValueError('Camera does not advertise this mode at 30 fps')
+        raise ValueError('Camera does not advertise this resolution and frame rate')
     value = request.get('brightness')
     previous_brightness = brightness(camera, info, capabilities['brightness'])
-    rollback = dict(mode_id=saved.get('mode_id', 'mjpeg'))
+    rollback = dict(mode_id=saved.get('mode_id', default_mode(camera)))
     if previous_brightness.get('supported'):
         rollback['brightness'] = previous_brightness['value']
     if 'mode_id' in request or value is not None:

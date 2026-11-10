@@ -1,0 +1,1 @@
+{"root_mount": "/dev/sda1 / ext4 ro,relatime,errors=remount-ro,data=ordered 0 0", "service": "fusion-camera start/running, process 21114", "arm_state": [0, -1, 0, 0, -1, 0], "guarded_manual_usb_recovery_deployed": true, "unsafe_device_reset_removed": true, "manifest_verified": true}

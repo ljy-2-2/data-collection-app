@@ -1,0 +1,262 @@
+[
+  {
+    "episode": "20261109_132127_fusion_2f24a9bf",
+    "cameras": {
+      "head_color": {
+        "count": 98,
+        "span_s": 3.233781419,
+        "actual_hz": 29.995843080202942,
+        "interval_ms": {
+          "p50": 33.340492,
+          "p95": 36.724438,
+          "p99": 38.424318,
+          "max": 39.66892
+        },
+        "sequence_gaps": 0
+      },
+      "right_color": {
+        "count": 97,
+        "span_s": 3.215672759,
+        "actual_hz": 29.85378401185753,
+        "interval_ms": {
+          "p50": 33.088985,
+          "p95": 38.145247,
+          "p99": 38.964461,
+          "max": 39.288617
+        },
+        "sequence_gaps": 0
+      },
+      "left_color": {
+        "count": 97,
+        "span_s": 3.216963969,
+        "actual_hz": 29.841801439212823,
+        "interval_ms": {
+          "p50": 32.750286,
+          "p95": 38.930549,
+          "p99": 39.789219,
+          "max": 39.845499
+        },
+        "sequence_gaps": 0
+      }
+    },
+    "joints": {
+      "count": 324,
+      "span_s": 3.2615672,
+      "actual_hz": 99.03214626391878,
+      "interval_ms": {
+        "p50": 10.070638,
+        "p95": 13.378335,
+        "p99": 16.001494,
+        "max": 40.977373
+      }
+    },
+    "quality_passed": true,
+    "record_count_matches_server": true,
+    "frame_age_ns": {
+      "usb-1": 355190712,
+      "usb-2": 320545966,
+      "usb-4": 338331454
+    },
+    "frame_latency_warning": false,
+    "camera_queue_overflow": {
+      "policy": "drop_incoming",
+      "counter_scope": "whole_stream_including_preview",
+      "stream_totals": {},
+      "possibly_affected_episode_cameras": []
+    }
+  },
+  {
+    "episode": "20261109_132131_fusion_1f6750f3",
+    "cameras": {
+      "head_color": {
+        "count": 96,
+        "span_s": 3.265196203,
+        "actual_hz": 29.094729410966426,
+        "interval_ms": {
+          "p50": 33.205912,
+          "p95": 36.680578,
+          "p99": 61.830702,
+          "max": 104.300033
+        },
+        "sequence_gaps": 3
+      },
+      "right_color": {
+        "count": 97,
+        "span_s": 3.25214695,
+        "actual_hz": 29.518961312618423,
+        "interval_ms": {
+          "p50": 33.057185,
+          "p95": 38.014471,
+          "p99": 38.743349,
+          "max": 64.034043
+        },
+        "sequence_gaps": 1
+      },
+      "left_color": {
+        "count": 97,
+        "span_s": 3.285628886,
+        "actual_hz": 29.218150719654954,
+        "interval_ms": {
+          "p50": 32.942357,
+          "p95": 38.693538,
+          "p99": 39.584272,
+          "max": 101.766526
+        },
+        "sequence_gaps": 2
+      }
+    },
+    "joints": {
+      "count": 325,
+      "span_s": 3.266140691,
+      "actual_hz": 99.19964589792376,
+      "interval_ms": {
+        "p50": 10.168972,
+        "p95": 13.364667,
+        "p99": 16.89095,
+        "max": 37.209734
+      }
+    },
+    "quality_passed": false,
+    "record_count_matches_server": true,
+    "frame_age_ns": {
+      "usb-1": 426140400,
+      "usb-2": 406389616,
+      "usb-4": 387198343
+    },
+    "frame_latency_warning": false,
+    "camera_queue_overflow": {
+      "policy": "drop_incoming",
+      "counter_scope": "whole_stream_including_preview",
+      "stream_totals": {
+        "usb-1": {
+          "last_timestamp_ns": 14937145615202,
+          "first_sequence": 132,
+          "last_sequence": 135,
+          "first_timestamp_ns": 14937045172622,
+          "camera": 0,
+          "dropped": 3,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        },
+        "usb-2": {
+          "last_timestamp_ns": 14937119648779,
+          "first_sequence": 147,
+          "last_sequence": 147,
+          "first_timestamp_ns": 14937119648779,
+          "camera": 1,
+          "dropped": 1,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        },
+        "usb-4": {
+          "last_timestamp_ns": 14937132288797,
+          "first_sequence": 140,
+          "last_sequence": 141,
+          "first_timestamp_ns": 14937100311898,
+          "camera": 2,
+          "dropped": 2,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        }
+      },
+      "possibly_affected_episode_cameras": []
+    }
+  },
+  {
+    "episode": "20261109_132134_fusion_d2b76cf9",
+    "cameras": {
+      "head_color": {
+        "count": 98,
+        "span_s": 3.366692537,
+        "actual_hz": 28.81165979190811,
+        "interval_ms": {
+          "p50": 33.225616,
+          "p95": 37.527032,
+          "p99": 66.861021,
+          "max": 101.870337
+        },
+        "sequence_gaps": 4
+      },
+      "right_color": {
+        "count": 98,
+        "span_s": 3.38685558,
+        "actual_hz": 28.640134693903896,
+        "interval_ms": {
+          "p50": 33.136973,
+          "p95": 39.290812,
+          "p99": 69.469131,
+          "max": 96.742388
+        },
+        "sequence_gaps": 4
+      },
+      "left_color": {
+        "count": 98,
+        "span_s": 3.38367015,
+        "actual_hz": 28.667096879995825,
+        "interval_ms": {
+          "p50": 33.105209,
+          "p95": 37.987651,
+          "p99": 65.310287,
+          "max": 102.779192
+        },
+        "sequence_gaps": 4
+      }
+    },
+    "joints": {
+      "count": 326,
+      "span_s": 3.246429879,
+      "actual_hz": 100.10997067957925,
+      "interval_ms": {
+        "p50": 10.157944,
+        "p95": 13.522874,
+        "p99": 15.038496,
+        "max": 18.282629
+      }
+    },
+    "quality_passed": false,
+    "record_count_matches_server": true,
+    "frame_age_ns": {
+      "usb-1": 417389010,
+      "usb-2": 375323611,
+      "usb-4": 360252902
+    },
+    "frame_latency_warning": false,
+    "camera_queue_overflow": {
+      "policy": "drop_incoming",
+      "counter_scope": "whole_stream_including_preview",
+      "stream_totals": {
+        "usb-1": {
+          "last_timestamp_ns": 14940548356590,
+          "first_sequence": 132,
+          "last_sequence": 237,
+          "first_timestamp_ns": 14937045172622,
+          "camera": 0,
+          "dropped": 7,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        },
+        "usb-2": {
+          "last_timestamp_ns": 14940572356625,
+          "first_sequence": 147,
+          "last_sequence": 250,
+          "first_timestamp_ns": 14937119648779,
+          "camera": 1,
+          "dropped": 5,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        },
+        "usb-4": {
+          "last_timestamp_ns": 14940585278859,
+          "first_sequence": 140,
+          "last_sequence": 244,
+          "first_timestamp_ns": 14937100311898,
+          "camera": 2,
+          "dropped": 6,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        }
+      },
+      "possibly_affected_episode_cameras": []
+    }
+  }
+]

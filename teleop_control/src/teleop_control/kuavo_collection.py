@@ -22,6 +22,7 @@ from .collection_gate import collection_available, collection_context
 from .collection_uploader import READY_MARKER
 from .kuavo_preview import ARM_NAMES
 from .kuavo_recording import decode_events
+from .subtask_annotations import AnnotationCycle
 
 ROLES=('head','left','right')
 RECORDING_POLICY='received_data_v1'
@@ -52,6 +53,9 @@ class KuavoCollection:
         self.completed=0;self.last_episode=None;self.started=None;self.frames=0;self.uploader=None
         self.queue=queue.Queue(maxsize=2048);self.overflow=threading.Event();self.quit=threading.Event()
 
+    def start_button(self):
+        return 'A' if getattr(self,'options',{}).get('subtask_config') else self.settings['start_button']
+
     def active(self):return self.phase in ('recording','finalizing')
 
     def configure(self,body):
@@ -63,7 +67,8 @@ class KuavoCollection:
     def arm(self, options):
         with self.lock:
             if self.job and self.job.is_alive():raise ValueError('上一会话采集仍在保存')
-            self.options=copy.deepcopy(options);self.session=uuid.uuid4().hex;self.armed=True
+            self.options=copy.deepcopy(options)
+            self.session=uuid.uuid4().hex;self.armed=True
             self.recent_packets=deque(maxlen=8)
             self.queue=queue.Queue(maxsize=2048);self.overflow.clear();self.quit.clear()
             self.phase='ready' if self.settings['enabled'] else 'disabled';self.error='';self.started=None
@@ -87,7 +92,7 @@ class KuavoCollection:
     def snapshot(self):
         with self.lock:
             return dict(state=self.phase,armed=self.armed,recording=self.phase=='recording',busy=self.active(),
-                settings=dict(self.settings),error=self.error,completed=self.completed,frames=self.frames,
+                settings={**self.settings,'start_button':self.start_button()},error=self.error,completed=self.completed,frames=self.frames,
                 elapsed_s=round(time.monotonic()-self.started,1) if self.started and self.active() else 0,
                 last_episode=self.last_episode,upload=self.uploader.status() if self.uploader else None)
 
@@ -114,12 +119,15 @@ class KuavoCollection:
                         elif self.phase not in ('saved','incomplete'):
                             # Preserve a failed A preflight instead of silently
                             # accepting B when no recording was ever created.
-                            self.error=self.error or f"尚未开始采集，请先按 {self.settings['start_button']}，看到正在采集后再按 B 保存"
-                    elif self.settings['start_button'] in edges and episode is None and self.settings['enabled'] and not self.quit.is_set():
+                            self.error=self.error or f"尚未开始采集，请先按 {self.start_button()}，看到正在采集后再按 B 保存"
+                    elif self.start_button() in edges and episode is None and self.settings['enabled'] and not self.quit.is_set():
                         try:
                             if not collection_available():raise RuntimeError('请先登录所选采集平台')
                             episode=self._begin(collection_context());self.overflow.clear();self.phase='recording';self.started=time.monotonic();self.error='';self.frames=0
                         except Exception as exc:self.error=str(exc)
+                    if episode and 'stop_ns' not in episode:
+                        for button in ('Y','X'):
+                            if button in edges:episode['annotations'].press(button, stamp)
                 elif row and row.get('kind')=='fault':
                     if episode:
                         self._warn(episode,row.get('error') or '遥操作异常')
@@ -162,7 +170,7 @@ class KuavoCollection:
         (directory/'record').mkdir()
         for role in ROLES:(directory/'camera'/(role+'_color')/'frames').mkdir(parents=True)
         self.last_episode=str(directory)
-        return dict(directory=directory,context=context,started=utc(),start_unix_ns=time.time_ns(),start_ns=time.monotonic_ns(),feeds=feeds,
+        return dict(annotations=AnnotationCycle(self.options.get('subtask_config')),directory=directory,context=context,started=utc(),start_unix_ns=time.time_ns(),start_ns=time.monotonic_ns(),feeds=feeds,
                     sequence={r:None for r in ROLES},cameras={r:[] for r in ROLES},events=list(getattr(self,'recent_packets',[])),joint_samples=[],error='',warnings=[])
 
     def _frames(self,ep):
@@ -280,6 +288,7 @@ class KuavoCollection:
             closure_reason=ep.get('closure_reason','save_button'),
             alignment_windows_ms={'joint_and_gripper':150,'camera':50},
             alignment_windows_scope='preview_only_raw_samples_not_filtered')
+        meta.update(ep['annotations'].export(b['timestamp_ns'] for b in bundles))
         dump(directory/'meta_info.json',meta)
         if complete:
             dump(directory/READY_MARKER,dict(import_task_id='kuavo-'+self.session,import_folder=self.options.get('task','KUAVO 遥操作'),teleop_session_id=self.session,requested_cameras=[r+'_color' for r in ROLES if ep['cameras'][r]],source='teleop',collection_trigger='controller',**ep['context']))

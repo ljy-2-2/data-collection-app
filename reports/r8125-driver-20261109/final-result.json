@@ -1,0 +1,112 @@
+{
+  "captured_at": "2026-11-09 11:23:01 +0800",
+  "kernel": "6.1.99-rockchip-rk3588",
+  "final-feedback.jsonl": {
+    "final": true,
+    "seconds": 360.0003547139995,
+    "counts": {
+      "raw_received": 331964,
+      "raw_bad_serial": 0,
+      "raw_bad_position": 0,
+      "raw_bad_checksum": 0,
+      "udp_received": 331983,
+      "udp_bad_serial": 0,
+      "udp_bad_position": 0,
+      "raw_socket_dropped": 0,
+      "bad_checksum_payloads_delivered": 0
+    },
+    "aux": {
+      "[1]": 331964
+    }
+  },
+  "final-udp.jsonl": {
+    "final": true,
+    "seconds": 310.0351254069992,
+    "counts": {
+      "raw_received": 300000,
+      "raw_bad_checksum": 0,
+      "raw_bad_payload": 0,
+      "udp_received": 300000,
+      "raw_socket_dropped": 0
+    },
+    "valid_sequence_range": [
+      0,
+      299999
+    ],
+    "unique_valid_packets": 300000
+  },
+  "final-tcp.jsonl": {
+    "final": true,
+    "seconds": 179.9998610900002,
+    "blocks": 28800,
+    "bad_payload": 0,
+    "bad_order": 0,
+    "bytes": 1887436800
+  },
+  "final-performance.json": {
+    "seconds": 180.41399523100063,
+    "system_cpu_avg_percent_of_all_cores": 20.028957075126076,
+    "system_cpu_max_2sec_percent": 28.671775223499363,
+    "min_mem_available_kib": 14225596,
+    "max_temperature_c": 33.307
+  },
+  "final-management-download.json": [
+    {
+      "round": 1,
+      "bytes": 258250466,
+      "seconds": 2.2012110209998355,
+      "sha256": "c733dc2ac454cfd19e8918ed059242c094ab587541b10fe2b0067e4e7e168191",
+      "ok": true
+    },
+    {
+      "round": 2,
+      "bytes": 258250466,
+      "seconds": 2.197606349000125,
+      "sha256": "c733dc2ac454cfd19e8918ed059242c094ab587541b10fe2b0067e4e7e168191",
+      "ok": true
+    },
+    {
+      "round": 3,
+      "bytes": 258250466,
+      "seconds": 2.198122884999975,
+      "sha256": "c733dc2ac454cfd19e8918ed059242c094ab587541b10fe2b0067e4e7e168191",
+      "ok": true
+    }
+  ],
+  "final-app-state.json": {
+    "state": "idle",
+    "control_active": false,
+    "robot_ready": null,
+    "camera_phase": "fault",
+    "camera_error": "相机预览不可用：Native helper failed (exit 1): Invalid MJPEG frame or dimensions; stop; Audit changed: dmesg_sha256: ",
+    "collection": {
+      "armed": false,
+      "recording": false,
+      "busy": false
+    },
+    "drivers": {
+      "0004:41:00.0": "r8125safe",
+      "0003:31:00.0": "r8125safe"
+    }
+  },
+  "service": "Result=success\nActiveState=active\nSubState=exited\nUnitFileState=enabled\n",
+  "drivers": {
+    "enP4p65s0": "driver: r8125safe\nversion: 9.014.01-xk-csum1-NAPI\nfirmware-version: \nexpansion-rom-version: \nbus-info: 0004:41:00.0\nsupports-statistics: yes\nsupports-test: no\nsupports-eeprom-access: no\nsupports-register-dump: yes\nsupports-priv-flags: no\n",
+    "enP3p49s0": "driver: r8125safe\nversion: 9.014.01-xk-csum1-NAPI\nfirmware-version: \nexpansion-rom-version: \nbus-info: 0003:31:00.0\nsupports-statistics: yes\nsupports-test: no\nsupports-eeprom-access: no\nsupports-register-dump: yes\nsupports-priv-flags: no\n"
+  },
+  "rx_checksum": {
+    "enP4p65s0": "rx-checksumming: off [fixed]",
+    "enP3p49s0": "rx-checksumming: off [fixed]"
+  },
+  "snmp_delta": {
+    "Udp": {
+      "InErrors": 0,
+      "InCsumErrors": 0
+    },
+    "Tcp": {
+      "InCsumErrors": 15
+    }
+  },
+  "module_sha256": "9e65c634fe1a9bbe82e5e073fdc41a5a62376f7b93ef90e91fcaae46c338f6f6",
+  "original_module_sha256": "ab79f0bd7191738a49c517f523c43a26fc9b316588fc48411e2974677da657a1"
+}

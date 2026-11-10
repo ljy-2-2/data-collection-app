@@ -1,0 +1,65 @@
+开发板网卡驱动修复与验证记录
+日期：2026-11-09
+
+结论
+已部署原厂 r8125 9.014.01 的最小校验修复版 r8125safe，版本 9.014.01-xk-csum1-NAPI。
+两个网口当前均使用该模块。修复关闭硬件 RX 校验卸载，明确将收到的数据标为 CHECKSUM_NONE，由内核校验实际内容；同时对接收描述符的所有权读取使用 READ_ONCE。
+原驱动存在明确问题：接收校验函数无条件信任硬件状态，关闭 RXCSUM 功能后仍可能设置 CHECKSUM_UNNECESSARY。此前已捕获内容损坏但带 checksum-valid 标记的真实机器人反馈。
+最终测试未复现 UDP 坏包；系统仍新增 15 次 TCP 校验错误，来源尚未分离定位，不能宣称整个底层链路已完全根治。TCP 内容哈希通过说明本轮交付给测试程序的数据完整，不能把它解释为链路没有错误。
+
+范围
+只修改开发板网卡模块和加载配置。未改本机或开发板 App 代码，未改控制器机器人程序、未发送运动/使能/清错命令。只读共享反馈显示两臂均下使能。
+本次没有启动 SDK 遥操作，也没有通过真实运动验证连接长期稳定性。
+
+最终验证（原厂最小修复版）
+1. 连续 360 秒真实反馈：原始层 331964 包、普通 UDP 接收端 331983 包，均无坏序号、越界/非有限角度或坏校验；抓包丢弃 0。两端数量差异来自接收 socket 和抓包 socket 启动窗口不同，不能当作丢包数。
+2. 独立诊断端口：发送 300000 个内容逐包变化、带 SHA-256 的 UDP 包，收到且校验正确 300000 包；序号 0～299999，无丢失、无内容损坏、无抓包丢弃。接收窗口 310 秒，发送窗口 300 秒。
+3. 控制器到开发板 TCP：180 秒，1887436800 字节（约 1.76 GiB），28800 个内容逐块变化的数据块，无内容或顺序错误。
+4. 笔记本到开发板管理网口：3 次独立下载，每次 258250466 字节，SHA-256 全部匹配。
+5. 系统 SNMP 计数变化：UDP InErrors/InCsumErrors 均 0；TCP InCsumErrors +15。该计数是开发板全系统计数，并非已定位到某一网口或某一条连接。
+6. 180 秒负载观测：8 核整体 CPU 平均 20.03%，最高两秒平均 28.67%；最低可用内存 14225596 KiB（约 13.57 GiB），最高温度 33.307°C。包含只读校验工具自身的开销。
+
+独立相机故障仍未恢复
+App 相机状态仍是 fault，错误包含 Invalid MJPEG frame or dimensions / Audit changed: dmesg_sha256。
+控制器内核日志实际存在：
+  xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD
+  WARN Event TRB for slot 2 ep 2 with no TDs queued?
+该故障早于本轮网卡切换。没有清除/绕过这次审计，也没有将网卡验证等同于三路视频已恢复。
+
+部署与开机加载
+开发板：root@192.168.1.166；内核：6.1.99-rockchip-rk3588。
+机器人口：0004:41:00.0 / enP4p65s0 / 192.168.1.167。
+管理口：0003:31:00.0 / enP3p49s0 / 192.168.1.166。
+模块：/opt/xiaokai-r8125-20261109/r8125safe/r8125safe.ko。
+脚本：/opt/xiaokai-r8125-20261109/bind_network.py。
+服务：/etc/systemd/system/xiaokai-network-checksum.service，已 enabled，当前 active (exited)、Result=success。
+服务在 NetworkManager 前绑定两个已核对的 PCI 网口，仅适用本内核；脚本验证模块哈希。原模块保持不变；未改 initramfs。已验证脚本重复运行与服务当前启动，未进行开发板重启验证。
+手动切换时脚本要求 App idle、控制和采集关闭；切换失败会恢复此前驱动。对比测试的切换脚本曾实际触发自动回退；正式脚本的失败分支未单独注入故障验证。
+
+备份
+开发板原始备份：/var/backups/xiaokai-r8125-20261109/before.tar.gz。
+本机原始备份：backups/r8125-20261109/before.tar.gz。
+本机正式修复包：backups/r8125-20261109/repair-package.tar.gz。
+原始备份包含启动、网络配置，权限受限，勿作为公开附件分享。
+原始备份 SHA-256：bb81e3f5f86c25c470d55cb9384eda9ff09baf292a3d3c9bcd8c03a6d86377ce。
+原驱动 SHA-256：ab79f0bd7191738a49c517f523c43a26fc9b316588fc48411e2974677da657a1。
+修复模块 SHA-256：9e65c634fe1a9bbe82e5e073fdc41a5a62376f7b93ef90e91fcaae46c338f6f6。
+修复包 SHA-256：10dca179dfda5f74bad5d7e4a3fc407878243a259c441db33102a952d0e1e771。
+
+回退方法（仅在开发板上执行，先停止控制和采集）
+  sudo systemctl disable --now xiaokai-network-checksum.service
+  sudo systemd-run --unit=xiaokai-network-rollback /usr/bin/python3 /opt/xiaokai-r8125-20261109/bind_network.py both rollback
+第二条在独立服务中执行，避免管理网口重绑时 SSH 中断导致操作不完整。脚本会检查 App idle；请查看 journalctl -u xiaokai-network-rollback 以及两个网口的 ethtool -i。
+原厂 r8125 模块始终保留在系统原位置。
+
+对比调查与边界
+社区重写版、首次 DMA 同步修正、一致性 DMA 缓冲、关闭 EEE、关闭 PCIe Relaxed Ordering 均未消除原始坏包；这些实验版本已卸载，EEE/PCIe 临时设置已恢复。内核源码自带 r8169 的两次热绑定未建立链路，已自动回退，没有部署为开机驱动。
+最终选用匹配当前内核的原厂源代码，变化仅为软件接收校验、描述符读取与限定设备/模块命名。该方案使本轮真实反馈及独立 UDP 校验均为零异常；仍需后续长期运行观测，进一步定位系统 TCP 校验错误来源。
+相机 USB/xHCI 驱动问题独立保留，不能通过忽略 dmesg 审计来认作修复。
+
+来源和复核
+内核/原厂驱动源：orangepi-xunlong/linux-orangepi，提交 f6eedab0cbe9b4be3f855661a0a7e7008812d40a。
+https://github.com/orangepi-xunlong/linux-orangepi/tree/f6eedab0cbe9b4be3f855661a0a7e7008812d40a/drivers/net/ethernet/realtek/r8125
+对比用社区源：https://github.com/ewaldc/realtek-r8125-dkms，提交 527bcbe5ed45c67b20abae73dccc683eb6f0dc2b。
+DMA API 语义参考：https://docs.kernel.org/core-api/dma-attributes.html。
+同目录 final-result.json 为最终完整统计，vendor-safe.patch 为原厂 C 文件差异。

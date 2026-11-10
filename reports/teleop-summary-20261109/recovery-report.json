@@ -1,0 +1,53 @@
+{
+  "status": "alignment_recovered_with_posthoc_clock_estimate",
+  "source": "/home/orangepi/桌面/data/20261106_112055_fusion_1192e9c6",
+  "copy": "/home/orangepi/桌面/data_recovered/20261106_112055_fusion_1192e9c6_recovered",
+  "anchor_file": "record/recovery/posthoc-clock-diagnostic.json",
+  "estimated_drift_ppm": 3.1790128264804123,
+  "hardware_synchronized": false,
+  "original_error_preserved": "Audit changed: dmesg_sha256: ",
+  "original_recording_complete": false,
+  "upload_ready": false,
+  "note": "Start clock plus a later same-boot clock observation; software receive-time mapping only. Does not establish physical calibration or full 100 Hz gripper sampling.",
+  "verified": true,
+  "original_nonimage_files_unchanged": true,
+  "images_verified": {
+    "head_color": 52225,
+    "left_color": 51942,
+    "right_color": 51941
+  },
+  "aligned_state": {
+    "rows": 174090,
+    "fully_matched": 174090,
+    "missing": {
+      "left": 0,
+      "right": 0
+    },
+    "reused": {
+      "left": 42383,
+      "right": 42218
+    },
+    "max_abs_delta_ms": {
+      "left": 28.678746,
+      "right": 27.833828
+    },
+    "hardware_synchronized": false
+  },
+  "bundles": 51659,
+  "missing_action_bundle_count": 0,
+  "missing_gripper_action_bundle_count": 0,
+  "both_grippers_bundle_count": 51659,
+  "action_abs_delta_ms": {
+    "p50": 4.063495,
+    "p95": 9.78827,
+    "p99": 13.338142,
+    "max": 28.829106
+  },
+  "gripper_joint_abs_delta_ms": {
+    "p50": 4.122627,
+    "p95": 10.40075,
+    "p99": 14.474798,
+    "max": 25.990594
+  },
+  "finished_unix_ns": 1793941970264554512
+}

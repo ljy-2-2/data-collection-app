@@ -397,3 +397,20 @@ def test_camera_reconnect_and_joint_gaps_keep_valid_samples(tmp_path):
     m=json.loads((ep['directory']/'meta_info.json').read_text())
     assert m['complete'] and m['joint_samples']==3 and m['cameras']['head_color']['frames']==2
     assert m['quality_warnings']
+
+
+def test_annotation_cycle_uses_saved_frames_and_resets_each_episode(tmp_path,monkeypatch):
+    monkeypatch.delenv('DATA_COLLECTION_GATE_FILE',raising=False)
+    c=recorder(tmp_path);c.arm(dict(task='test',subtask_config=dict(name='抓放',labels=['pick','move','place'])))
+    try:
+        for episode_index in range(2):
+            c.accept([button(),button(A=True)]);wait(lambda:c.phase=='recording')
+            for count in range(1,13):
+                frame(c);wait(lambda:c.frames==count)
+                if count in (5,11):c.accept([button(),button(X=True),button(X=True)])
+                if count==11:c.accept([button(),button(Y=True)])
+                if count==12:c.accept([button(),button(X=True)])
+            c.accept([button(),button(B=True)]);wait(lambda:c.phase=='saved')
+            meta=json.loads((Path(c.last_episode)/'meta_info.json').read_text())
+            assert [(x['name'],x['start_frame'],x['end_frame']) for x in meta['subtask_annotation']['segments']]==[('pick',0,5),('move',5,11),('pick',11,12)]
+    finally:c.close()

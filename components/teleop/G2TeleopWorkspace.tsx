@@ -1,4 +1,5 @@
 'use client';
+import type { SubtaskConfig } from './SubtaskConfigPicker';
 import { Play, RefreshCw, Square, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { G2RobotPreview } from '../G2RobotPreview';
@@ -23,6 +24,7 @@ const CAMERA_LABELS: Record<string, string> = {
 
 export function G2TeleopWorkspace({
   task,
+  subtaskConfig,
   baseUrl,
   status,
   preview,
@@ -32,6 +34,7 @@ export function G2TeleopWorkspace({
   error,
 }: {
   task: string;
+  subtaskConfig?: SubtaskConfig | null;
   baseUrl: string;
   status: TeleopStatus | null;
   preview: PreviewStatus | null;
@@ -74,7 +77,7 @@ export function G2TeleopWorkspace({
   const start = () => {
     if (!task.trim() || !allReady || action) return;
     void onAction('start-teleop', {
-      task: task.trim(), robot_model: 'agibot-g2', mode: teleopMode,
+      task: task.trim(), subtask_config:subtaskConfig, robot_model: 'agibot-g2', mode: teleopMode,
       scale, max_joint_vel: velocity, extra_cameras: extraCameras,
     });
   };

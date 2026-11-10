@@ -105,7 +105,7 @@ def parse_camera_color(descriptors):
 
 def read_camera_color(usb_path, sysfs_root='/sys/bus/usb/devices'):
     """Read only this installation's fixed physical camera ports."""
-    if usb_path not in ('1-1', '1-2', '1-4'):
+    if usb_path not in ('1-1', '1-2', '1-4', '2-1'):
         raise ValueError('Unsupported camera USB path: %s' % usb_path)
     path = os.path.join(sysfs_root, usb_path, 'descriptors')
     with open(path, 'rb') as descriptor_file:

@@ -1,0 +1,48 @@
+{
+  "review_date": "2026-11-05",
+  "current_app_api_available": false,
+  "latest_local_formal_episode": "teleop_control/runtime/tianji/episodes/20261030_131129_fusion_e9714d01",
+  "latest_episode_is_pre_zed": true,
+  "joint_source": "/dev/FXDcss read-only controller measured feedback; 14 arm joint angles, speed, torque; target sampling 100 Hz",
+  "joint_units": {
+    "record/joints.jsonl": "position_deg in degrees",
+    "record/bundles.jsonl": "state__joint__position in radians",
+    "record/actions.jsonl": "SDK-accepted targets; distinct from measured state"
+  },
+  "physical_accuracy": "No external joint-angle/zero-offset calibration evidence; cannot certify absolute mechanical angular error.",
+  "sync": "Controller monotonic frame completion time versus shared-state read midpoint; camera triplets matched within 25ms, nearest actual joint sample; no exposure/hardware synchronization or calibrated sensor-to-host delay.",
+  "latest_episode_actual_metrics": {
+    "joint_hz": 100.00078755397307,
+    "shared_state_camera_abs_delta_ms": {
+      "p50": 6.354525,
+      "p95": 14.208685,
+      "max": 17.724933
+    },
+    "per_camera_nearest_joint_abs_delta_ms": {
+      "p50": 2.328085,
+      "p95": 5.827311,
+      "max": 8.610875
+    },
+    "camera_span_ms": {
+      "p50": 16.39436,
+      "p95": 23.280084,
+      "p99": 24.092171,
+      "max": 24.955355
+    },
+    "quality_passed": false,
+    "gripper_hz": {
+      "left": 91.62071585513706,
+      "right": 93.76336663799003
+    }
+  },
+  "confirmed_quality_issues": [
+    "New ZED configuration has no formal motion episode in the local episode directory; preview-only validation cannot certify training datasets.",
+    "720p30 three-camera preview logs show native queue drops (249/239/239 in reviewed stream), approximately 25 fps delivery; nominal settings are not guaranteed actual rates.",
+    "Original-size JPEG encode path uses Pillow verify without full decode. A saved corrupt wrist sample was accepted by this path but failed full load.",
+    "complete=true and data_validate=false can coexist; Tianji upload gating does not require data_validate or quality_passed.",
+    "Camera exposure delay, joint-feedback producer delay, gripper transport delay and cross-camera physical timing have not been measured.",
+    "Action attachment uses nearest time within 150ms and can select a future command; this is not a last-known-command causal policy.",
+    "Upload metadata carries nominal per-camera FPS and original timestamps; downstream variable-rate synchronized playback is not verified."
+  ],
+  "changes_made": "Read-only audit and isolated temporary reproduction; no collection or upload initiated."
+}

@@ -28,6 +28,9 @@ class TianjiCollection:
     def __init__(self, manager, output=None, episode_factory=Episode):
         self.manager = manager
         self.output = Path(output or APP_ROOT / "teleop_control/runtime/tianji/episodes")
+        self.saved_output = self.output
+        self.queue_root = None
+        self.submitted = 0
         self.episode_factory = episode_factory
         self.lock = threading.RLock()
         self.done = threading.Event()
@@ -52,11 +55,24 @@ class TianjiCollection:
         self.gripper_action_cache = {}
         self.gripper_action_session = None
 
+    def enable_background_save(self, root=None):
+        """Keep the current output/upload location while finalizing in another process."""
+        from .tianji_local_queue import configure, configured_root, ensure_service
+        self.queue_root = Path(root or configured_root() or self.saved_output.parent / 'save-queue').resolve()
+        configure(self.queue_root, self.saved_output)
+        self.output = self.queue_root / 'pending'
+        # This service owns only disk processing; it does not touch cameras or robots.
+        ensure_service(self.queue_root)
+
     def arm(self, request):
         with self.lock:
             if self.active():
                 raise RuntimeError("上一轮数据尚在保存，请稍后再开始遥操作")
             self.session = uuid.uuid4().hex
+            self.completed = 0
+            self.submitted = 0
+            self.episode = None
+            self.last_episode = None
             self.task = request["task"]
             mode = request.get("mode", "dual")
             self.controlled_sides = ("left", "right") if mode == "dual" else (mode,)
@@ -64,7 +80,8 @@ class TianjiCollection:
             self.upload_sides = ("left", "right") if upload_mode == "dual" else (upload_mode,)
             self.parameters = dict(request.get("parameters", {}))
             self.owner = current_platform_username()
-            self.buttons = Buttons()
+            self.buttons = Buttons(annotation=bool(request.get("subtask_config")))
+            self.subtask_config = copy.deepcopy(request.get("subtask_config"))
             self.latest = None
             self.gripper_action_cache = {}
             self.gripper_action_session = None
@@ -157,6 +174,9 @@ class TianjiCollection:
             reason = readiness(self.latest, required_sides=self.controlled_sides)
             if reason:
                 raise ValueError(reason)
+            if self.queue_root:
+                from .tianji_local_queue import require_worker
+                require_worker(self.queue_root)
             context = collection_context()
             camera_state = (self.manager.collection_camera_state() if hasattr(self.manager, 'collection_camera_state')
                             else dict(ids=list(CAMERA_MAPPING), profiles=None))
@@ -164,6 +184,7 @@ class TianjiCollection:
             args = SimpleNamespace(
                 output=str(self.output),
                 task=self.task,
+                subtask_config=getattr(self, "subtask_config", None),
                 max_seconds=0,
                 retain_native=False,
                 controlled_sides=self.controlled_sides,
@@ -187,7 +208,7 @@ class TianjiCollection:
                 camera_mapping,
                 self.latest,
                 client_factory=self.manager.adopt_camera_stream,
-                episode_index=self.completed + 1,
+                episode_index=(self.submitted if self.queue_root else self.completed) + 1,
             )
             self.phase, self.error = "starting", ""
             # Capture session ownership before this background operation begins.
@@ -204,6 +225,9 @@ class TianjiCollection:
                    if len(self.controlled_sides)==1 else {}),
                 **context,
             }
+            if self.queue_root:
+                args.background_finalize_root = str(self.queue_root)
+                args.background_finalize_info = info
             self.job = threading.Thread(
                 target=self._record, args=(self.episode, info), name="tianji-episode", daemon=True
             )
@@ -214,6 +238,11 @@ class TianjiCollection:
             if episode.stopping.is_set():
                 raise RuntimeError(episode.error or "开始采集前已收到结束指令")
             episode.run()
+            if getattr(episode, 'background_queued', False):
+                with self.lock:
+                    self.submitted += 1
+                    self.phase = 'queued'
+                return
             if episode.error:
                 raise RuntimeError(episode.error)
             metadata = json.loads((episode.directory / "meta_info.json").read_text())
@@ -239,7 +268,7 @@ class TianjiCollection:
                 self.error, self.phase = str(exc), "incomplete"
         finally:
             with self.lock:
-                self.last_episode = str(episode.directory) if episode.directory else None
+                self.last_episode = str(self.saved_output / getattr(episode, 'output_relative', episode.directory.name)) if episode.directory else None
             if self.armed and not self.done.is_set():
                 self.manager.resume_cameras_after_episode()
 
@@ -251,18 +280,31 @@ class TianjiCollection:
     def disarm(self, reason="teleop_stopped"):
         with self.lock:
             self.armed = False
-            self.stop(reason, "遥操作已结束，本轮未通过 B 键正常收尾")
+            # Closing after B must not convert an already stopped recording into an error.
+            already_stopped = self.episode is not None and self.episode.stopping.is_set()
+            self.stop(reason, None if already_stopped else "遥操作已结束，本轮未通过 B 键正常收尾")
 
     def snapshot(self):
         with self.lock:
             ep = self.episode
             phase = ep.state if self.active() and ep and not ep.finished.is_set() else self.phase
-            if ep and ep.stopping.is_set() and self.active():
+            ended = getattr(ep, "recording_ended_monotonic", None) if ep else None
+            stop_ns = getattr(ep, "stop_pc_ns", None) if ep else None
+            if stop_ns is not None:
+                ended = min(ended, stop_ns / 1e9) if ended is not None else stop_ns / 1e9
+            if ep and (ep.stopping.is_set() or ended is not None) and self.active():
                 phase = "finalizing"
             if not self.armed and not self.active() and phase == "ready":
                 phase = "idle"
             started = ep.started_monotonic if ep else None
+            elapsed = max(0., (ended if ended is not None else time.monotonic()) - started) if started is not None else 0.
+            local_save = None
+            if self.queue_root:
+                from .tianji_local_queue import queue_status
+                local_save = queue_status(self.queue_root, self.session)
+                self.completed = local_save['saved']
             return {
+                **({'local_save': local_save} if local_save else {}),
                 "state": phase,
                 "armed": self.armed,
                 "busy": self.active(),
@@ -270,7 +312,7 @@ class TianjiCollection:
                 "error": self.error,
                 "completed": self.completed,
                 "episode": ep.directory.name if ep and ep.directory else None,
-                "elapsed_s": max(0, time.monotonic() - started) if started and self.active() else 0,
+                "elapsed_s": elapsed,
                 "frames": dict(ep.frame_counts) if ep else {},
                 "last_episode": self.last_episode,
                 "last_gripper_fault": copy.deepcopy(self.last_gripper_fault),

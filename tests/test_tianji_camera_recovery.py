@@ -46,15 +46,22 @@ def audit():
     return result
 
 
-@pytest.mark.parametrize('native_reason', [BAD, 'Frame pipe closed or blocked for 1 second; stop'])
-@pytest.mark.parametrize('fault', ['none', 'hotplug', 'inventory_stop', 'usb', 'rt', 'cleanup', 'unknown', 'interface'])
-def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monkeypatch, fault, native_reason):
+@pytest.mark.parametrize('native_reason', [BAD, 'Invalid YUYV frame length; stop', 'Frame pipe closed or blocked for 1 second; stop'])
+@pytest.mark.parametrize('fault', ['none', 'hotplug', 'inventory_stop', 'zed_hid_stop', 'usb', 'rt', 'cleanup', 'unknown', 'interface'])
+@pytest.mark.parametrize('zed', [False, True])
+def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monkeypatch, tmp_path, fault, native_reason, zed):
     cameras = [{'id':name} for name in ('usb-1', 'usb-2', 'usb-4')]
     service = SimpleNamespace(config=dict(helper='/unused/capture', cameras=cameras),
-                              runtime='/unused', fault=None, last_stream=None)
+                              runtime=str(tmp_path), fault=None, last_stream=None)
+    if zed:
+        profiles = {c['id']:dict(format='mjpeg',width=1920,height=1080,fps=30) for c in cameras}
+        profiles['usb-1'].update(source_width=3840,source_height=1080,eye='left')
+        # Delivered profiles are a dict; native CLI mode names are a list.
+        monkeypatch.setitem(streaming.__dict__, 'camera_profiles', lambda *args:
+            (profiles, ['zed-left-1920x1080-30','mjpeg-1920x1080','mjpeg-1920x1080']))
     process = Mock(pid=43210, returncode=1)
     process.poll.return_value = 1
-    if fault == 'inventory_stop':
+    if fault in ('inventory_stop', 'zed_hid_stop'):
         process.returncode = 0; process.poll.return_value = 0
     process.stdout.fileno.return_value = 10
     rows = [dict(event=event, task=task, cpu=1, pid=2, msw=0, csw=1, pf=0, process_start_ticks=123)
@@ -66,6 +73,9 @@ def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monke
     if fault == 'usb': after.update(camera_audit.dmesg_fingerprint(b'[ 1.000001] baseline\n[ 2.000001] usb disconnected\n'))
     if fault in ('hotplug', 'inventory_stop'): after.update(camera_audit.dmesg_fingerprint(
         b'[ 1.000001] baseline\n[ 2.000001] usb 1-2: USB disconnect, device number 3\n'))
+    if fault == 'zed_hid_stop': after.update(camera_audit.dmesg_fingerprint(
+        b'[ 1.000001] baseline\n[ 2.000001] usb 1-1: New USB device found, idVendor=2b03, idProduct=f681\n'
+        b'[ 2.000002] hid-generic 0003:2B03:F681.0002: hiddev0,hidraw0: USB HID v1.11 Device [STEREOLABS ZED-M Hid Device] on usb-0000:00:14.0-1/input0\n'))
     replies = []
     now = iter(i/10 for i in range(1000))
     api = SimpleNamespace(ACTIVE=None, STOP=False, monotonic=lambda:next(now),
@@ -79,7 +89,8 @@ def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monke
     for key, value in dict(sha=lambda p:'hash', audit=Mock(side_effect=[before,after]), JointReader=Mock()).items():
         monkeypatch.setitem(streaming.__dict__, key, value)
     monkeypatch.setattr(streaming.subprocess, 'call', lambda *a, **kw:1)
-    monkeypatch.setattr(streaming.subprocess, 'Popen', lambda *a, **kw:process)
+    launch = Mock(return_value=process)
+    monkeypatch.setattr(streaming.subprocess, 'Popen', launch)
     monkeypatch.setattr(streaming.tempfile, 'TemporaryFile', lambda **kw:io.BytesIO(logs))
     monkeypatch.setattr(streaming.fcntl, 'fcntl', lambda *a:0)
     monkeypatch.setattr(streaming.select, 'select', lambda *a:([10],[],[]))
@@ -93,23 +104,25 @@ def test_bad_frame_stops_round_and_only_clean_camera_fault_offers_recovery(monke
         # Force the stream to terminate first, then exercise timed-out cleanup.
         api.STOP = True
     sock = Mock()
-    if fault == 'inventory_stop':
+    if fault in ('inventory_stop', 'zed_hid_stop'):
         sock.recv.return_value = b'S'
         monkeypatch.setattr(streaming.select, 'select', lambda *a:([sock],[],[]))
     streaming.run(service, sock, dict(seconds=60, observation_mode='teleop_observation'), api)
     end = replies[-1]
     assert not end['ok']
     assert service.fault
-    allowed = fault in ('none', 'inventory_stop') or (fault == 'hotplug' and native_reason == BAD)
+    pipe_failure = native_reason == 'Frame pipe closed or blocked for 1 second; stop'
+    allowed = fault in ('none', 'inventory_stop', 'zed_hid_stop') or (fault == 'hotplug' and not pipe_failure)
     assert end['recoverable_camera_fault'] is allowed
     assert (service.recovery_audit is not None) is allowed
-    assert end['camera_recovery_requires_manual'] is (native_reason != BAD and fault == 'none')
+    assert end['camera_recovery_requires_manual'] is (pipe_failure and fault == 'none')
     assert api.ACTIVE is None
     process.stdout.close.assert_called_once()
+    assert launch.call_args.kwargs['preexec_fn'].args == ((384 if zed else 256)*1024*1024,)
 
 
 @pytest.mark.parametrize('manual_required', [False, True])
-def test_recovery_allows_known_teleop_transitions_but_rejects_other_changes(monkeypatch, manual_required):
+def test_recovery_allows_known_teleop_transitions_but_rejects_other_changes(monkeypatch, tmp_path, manual_required):
     before, after = audit(), audit()
     after.update(camera_audit.dmesg_fingerprint(b'[ 1.000001] baseline\n[ 2.000001] Mot[0][0] process disable\n'))
     assert streaming.unchanged_for_recovery(before, after, 'teleop_observation')
@@ -119,7 +132,7 @@ def test_recovery_allows_known_teleop_transitions_but_rejects_other_changes(monk
         changed[key] = 'bad'
         if key == 'dmesg_sha256': changed['dmesg_nonservo_sha256'] = 'unknown'
         assert not streaming.unchanged_for_recovery(before, changed, 'teleop_observation')
-    service = SimpleNamespace(recovery_audit=before, fault='bad frame', last_finish=0,
+    service = SimpleNamespace(recovery_audit=before, fault='bad frame', last_finish=0, runtime=str(tmp_path),
                               last_stream=dict(ok=False, observation_mode='teleop_observation',
                                                camera_recovery_requires_manual=manual_required),
                               config=dict(helper='/unused/capture', cameras=[dict(id='usb-1')], cooldown_seconds=2))
@@ -200,10 +213,10 @@ def test_client_only_sends_manual_flag_for_explicit_request():
 
 
 @pytest.mark.parametrize('isolate', [False, True])
-def test_live_camera_stream_survives_only_negotiated_joint_gap(monkeypatch, isolate):
+def test_live_camera_stream_survives_only_negotiated_joint_gap(monkeypatch, tmp_path, isolate):
     cameras = [dict(id=name) for name in ('usb-1','usb-2','usb-4')]
     service = SimpleNamespace(config=dict(helper='/unused/capture',cameras=cameras),
-                              runtime='/unused',fault=None,last_stream=None)
+                              runtime=str(tmp_path),fault=None,last_stream=None)
     process = Mock(pid=43210,returncode=0)
     process.poll.return_value = 0
     process.stdout.fileno.return_value = 10

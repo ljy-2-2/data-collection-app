@@ -74,6 +74,15 @@ def device_info(camera):
         pass
     result = dict((k, camera[k]) for k in ('id','usb_path','vid','pid','format','width','height','fps'))
     result.update(available=available, bus=bus, address=address)
+    if not available and camera['vid'] == '2b03' and camera['pid'] == 'f682':
+        # The Mini's USB2 HID can be present while its USB3 video is absent.
+        # Restarting this service cannot power-cycle the missing video module.
+        try:
+            hid = '/sys/bus/usb/devices/1-1'
+            if read(hid+'/idVendor') == '2b03' and read(hid+'/idProduct') == 'f681':
+                result['connection_issue'] = 'zed_video_missing_hid_present'
+        except IOError:
+            pass
     return result
 
 def interface_idle(camera):
@@ -116,6 +125,8 @@ class Service(object):
         self.recovery_count = 0
         self.settings_supported = True
         self.camera_settings_rollback = {}
+        from camera_recheck import restore_failure
+        restore_failure(self)
 
     def dispatch(self, request):
         if not isinstance(request, dict) or not secret_equal(request.get('token'), self.config['token']):
@@ -125,10 +136,11 @@ class Service(object):
             return {'ok':True,'controller_monotonic_ns':int(monotonic()*1e9),
                     'boot_id':read('/proc/sys/kernel/random/boot_id')}, b''
         if method == 'status':
-            return {'ok':True,'version':'2.3.2','mode':'snapshot_and_stream',
+            return {'ok':True,'version':'2.5.0','bounded_timing_notice_audit':True,'mode':'snapshot_and_stream','zed_left_camera':True,
+                    'stream_latest_frames':True,
                     'observation_modes':['stationary','teleop_observation'],'graceful_stop':True,
                     'teleop_rt_policy':'teleop_observation_v1','stream_camera_selection':True,
-                    'camera_hotplug_recovery':True,'camera_inventory_events':True,
+                    'camera_manual_recheck':True,'camera_usb_recovery':'idle-dedicated-controller-v1','camera_hotplug_recovery':True,'camera_inventory_events':True,
                     'camera_controls':True,'per_camera_profiles':True,'stream_camera_controls':True,
                     'stream_joint_health':True,
                     'stream_transport_recovery':True,
@@ -142,6 +154,9 @@ class Service(object):
                     'recovery_count':self.recovery_count,
                     'stream_hz':30,'supported_joint_hz':[30,100],'max_stream_seconds':600,'stream_unlimited':True,'last_stream':self.last_stream,
                     'cooldown_seconds':self.config['cooldown_seconds']}, b''
+        if method == 'camera_recheck':
+            from camera_recheck import recheck
+            return recheck(self, sys.modules[__name__], manual=request.get('manual',False)), b''
         if method == 'recover':
             from streaming import recover
             return recover(self, sys.modules[__name__], manual=request.get('manual', False)), b''
@@ -243,9 +258,10 @@ def validate(config):
     for c in config['cameras']:
         if c['id'] in seen: raise ValueError('Duplicate camera ID')
         seen.add(c['id'])
-        if c['usb_path'] not in ('1-1','1-2','1-4') or c['format'] not in ('mjpeg','yuyv'):
+        zed = c['id'] == 'usb-1' and c['vid'] == '2b03' and c['pid'] == 'f682' and c['usb_path'] == '2-1'
+        if (c['usb_path'] not in ('1-1','1-2','1-4') and not zed) or c['format'] not in ('mjpeg','yuyv'):
             raise ValueError('Invalid camera configuration')
-        if not (160<=c['width']<=1024 and 120<=c['height']<=768 and 5<=c['fps']<=30):
+        if not (zed and (c['width'], c['height'], c['fps']) == (1920, 1080, 30)) and not (160<=c['width']<=1024 and 120<=c['height']<=768 and 5<=c['fps']<=30):
             raise ValueError('Unsafe capture mode')
 
 def main():

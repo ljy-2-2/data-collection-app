@@ -177,6 +177,8 @@ def create_app(
         if tianji.active():
             raise RuntimeError('请先在天机 Marvin M6页面断开设备，释放 VR 控制连接')
         tianji.require_other_idle()
+    from .subtask_configs import router as subtask_router
+    app.include_router(subtask_router())
     kuavo = KuavoManager(controller, other_idle=kuavo_other_idle)
     app.state.kuavo_manager = kuavo
     for route in kuavo_router(kuavo).routes:

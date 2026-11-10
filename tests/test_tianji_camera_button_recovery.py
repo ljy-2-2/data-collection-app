@@ -42,6 +42,46 @@ def test_healthy_three_camera_preview_is_kept(manager):
     client.recover_camera.assert_not_called()
 
 
+def test_missing_zed_video_has_specific_hint_without_disabling_wrists(manager):
+    m, client = manager
+    client.list_cameras.return_value = [
+        dict(id='usb-1', available=False, connection_issue='zed_video_missing_hid_present'),
+        dict(id='usb-2', available=True), dict(id='usb-4', available=True)]
+    m._prepare_preview(client)
+    assert set(m.camera_inventory) == {'usb_2', 'usb_4'}
+    assert '视频模块未上线' in m.camera_connection_issues['usb_1']
+    client.list_cameras.return_value[0] = dict(id='usb-1', available=True)
+    m._prepare_preview(client)
+    assert m.camera_connection_issues == {}
+    assert set(m.camera_inventory) == set(tianji.CAMERAS)
+
+
+@pytest.mark.parametrize('action', ['reconnect', 'check'])
+def test_explicit_reconnect_refreshes_a_healthy_partial_inventory(manager, monkeypatch, action):
+    m, client = manager
+    m.camera_thread = Mock()
+    m.camera_thread.is_alive.side_effect = [True, True, False, False]
+    m.camera_client = client
+    m.camera_phase = 'streaming'
+    m.camera_inventory = {'usb_2': 'usb-2', 'usb_4': 'usb-4'}
+    m.frames = {key: (b'jpeg', time.monotonic()) for key in m.camera_inventory}
+    monkeypatch.setattr(m, 'start_cameras', Mock())
+    if action == 'reconnect':
+        assert m.reconnect_camera_preview() == {'ok': True}
+    else:
+        m.check_cameras_in_background()
+    m.camera_check_thread.join(2)
+    assert not m.camera_check_thread.is_alive()
+    client.request_stop.assert_called_once()
+    client.status.assert_called_once()
+    m.start_cameras.assert_called_once()
+    assert not m.frames and m.camera_phase == 'connecting'
+    # The fresh receiver discovers the reattached main camera too.
+    m._prepare_preview(client)
+    assert set(m.camera_inventory) == set(tianji.CAMERAS)
+    client.recover_camera.assert_not_called()
+
+
 @pytest.mark.parametrize('blocked', ['armed', 'busy', 'recording', 'moving', 'simulation', 'other_task'])
 def test_active_tasks_block_local_reconnection(manager, monkeypatch, blocked):
     m, client = manager

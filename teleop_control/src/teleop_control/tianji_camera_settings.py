@@ -2,6 +2,7 @@
 import copy
 import threading
 import time
+from fusion_camera.profiles import valid_profile
 
 CAMERAS = {'usb_1', 'usb_2', 'usb_4'}
 CAMERA_LABELS = {'usb_1': '主相机', 'usb_2': '右相机', 'usb_4': '左相机'}
@@ -52,8 +53,7 @@ class CameraSettings:
             raise RuntimeError('相机返回无效的分辨率清单')
         for option in resolution['options']:
             if (not isinstance(option, dict) or not isinstance(option.get('id'), str)
-                    or option.get('format') not in ('mjpeg', 'yuyv') or option.get('fps') != 30
-                    or any(type(option.get(n)) is not int or option[n] <= 0 for n in ('width', 'height'))):
+                    or not valid_profile(option)):
                 raise RuntimeError('相机返回无效的分辨率参数')
         brightness = value['brightness']
         if type(brightness.get('supported')) is not bool:

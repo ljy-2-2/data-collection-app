@@ -61,11 +61,12 @@ def test_legacy_stationary_capture_keeps_original_command():
 def test_installer_payload_preserves_recovery_and_advertises_subset_capability():
     files = installer.source_files()
     server = base64.b64decode(files['FusionDataCollector/controller_v22/server.py'])
-    assert b"'version':'2.3.2'" in server
+    assert b"'version':'2.5.0'" in server
+    assert b"'zed_left_camera':True" in server
     assert b"'stream_camera_selection':True" in server
     assert b"if method == 'recover':" in server
     assert b'last_snapshot_error' in server
-    assert b'audit_changed(before, after, key, mode)' in base64.b64decode(
+    assert b'audit_changed(before, after, key, mode, allow_timing_notice=timing_notice_guard)' in base64.b64decode(
         files['FusionDataCollector/controller_v22/streaming.py'])
 
 

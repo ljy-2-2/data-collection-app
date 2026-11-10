@@ -39,8 +39,9 @@ def _iso_from_ns(value: object) -> str | None:
 def _tianji_playback_timing(metadata: dict) -> tuple[float, float | None]:
     """Preview encoding rate must not include startup, audit or disk cleanup.
 
-    The platform currently encodes all cameras at one constant rate. Report the
-    negotiated image rate, retaining actual per-frame clocks in the archive.
+    Report the nominal aligned-bundle rate (the slowest selected camera).
+    Individual camera features carry their own negotiated rate, retaining all
+    original images and actual per-frame clocks in the archive.
     This is not a claim of hardware synchronization or exact variable-rate replay.
     """
     rate = metadata.get("requested_image_hz", 30)
@@ -436,6 +437,26 @@ class CollectionUploader:
         )
         os.replace(temporary, receipt)
 
+    def _sync_subtask_labels(self, episode_id, metadata, info):
+        annotation = metadata.get('subtask_annotation') or {}
+        segments = annotation.get('segments') or []
+        if not segments:
+            return
+        url = f"{self.api_url}/episodes/{episode_id}/labels"
+        extensions = {"expected_platform_username": info.get('author')}
+        response = self.client.get(url, extensions=extensions)
+        response.raise_for_status()
+        existing = response.json()['items']
+        author = info.get('author') or current_platform_username()
+        for segment in segments:
+            payload = dict(key='subtask', value=segment['name'], t_start=segment['t_start'],
+                           t_end=segment['t_end'], author=author)
+            if any(all(label.get(key) == value for key, value in payload.items()) for label in existing):
+                continue
+            response = self.client.post(url, json=payload, extensions=extensions)
+            response.raise_for_status()
+            existing.append(payload)
+
     def _upload_episode(self, episode_dir: Path, info: dict[str, object]) -> None:
         episode_id = self._episode_id(episode_dir)
         local_relative_files = sorted(
@@ -534,6 +555,7 @@ class CollectionUploader:
                 extensions={"expected_platform_username": info.get("author")},
             )
             if existing.is_success:
+                self._sync_subtask_labels(episode_id, metadata, info)
                 self._write_receipt(episode_dir, episode_id)
                 return
         presign.raise_for_status()
@@ -602,7 +624,11 @@ class CollectionUploader:
                     "width": width,
                     "height": height,
                     "codec": "h264",
-                    "fps": fps,
+                    "fps": (camera.get("fps", fps) if metadata.get("robot_type") == "tianji" else fps),
+                    **({key: camera[key] for key in ('camera_model', 'eye', 'source_format', 'source_width',
+                        'source_height', 'encoding', 'jpeg_quality', 'actual_hz', 'source_yuv_matrix',
+                        'source_yuv_range', 'limited_range_assumption') if key in camera}
+                       if metadata.get("robot_type") == "tianji" else {}),
                 }
             )
         extra = {
@@ -723,6 +749,10 @@ class CollectionUploader:
                     },
                 }
             )
+        if metadata.get('subtask_annotation'):
+            extra['subtask_annotation'] = metadata['subtask_annotation']
+            # Label API validates against duration; retain the real frame timeline.
+            duration_s = max(duration_s or 0, max((s['t_end'] for s in metadata['subtask_annotation']['segments']), default=0))
         payload = {
             "id": str(episode_id),
             "source": info["source"],
@@ -747,4 +777,5 @@ class CollectionUploader:
             extensions={"expected_platform_username": info.get("author")},
         )
         registered.raise_for_status()
+        self._sync_subtask_labels(episode_id, metadata, info)
         self._write_receipt(episode_dir, episode_id)

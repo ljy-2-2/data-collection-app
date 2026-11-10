@@ -8,11 +8,12 @@ from .kuavo_preview import measured_feedback, measured_grippers
 
 
 class InputAdapter:
-    def __init__(self, source, arm_mode='dual', position_scale=1., observation=None, activation=None):
+    def __init__(self, source, arm_mode='dual', position_scale=1., observation=None, activation=None, annotation=False):
         if arm_mode not in ('dual','left','right','dual_base'):raise ValueError('无效遥操作范围')
         if type(position_scale) not in (int,float) or not math.isfinite(position_scale) or not .1<=position_scale<=1:
             raise ValueError('位移倍率须为 0.1–1')
         self.source, self.mode, self.scale, self.observation = source, arm_mode, position_scale, observation
+        self.annotation=annotation
         self.activation=activation
         self.base_gate=ModeBaseGate(observation)
 
@@ -36,7 +37,7 @@ class InputAdapter:
             if side=='left':
                 # Y intentionally returns both arms/grippers in every mode.
                 # Physical X is ignored; mode selection owns base admission.
-                buttons=replace(buttons, primary=base_pulse)
+                buttons=replace(buttons, primary=base_pulse, secondary=False if (self.annotation or getattr(self.activation, "annotation", False)) else buttons.secondary)
             active = self.mode in ('dual','dual_base',side)
             # Right B cancellation remains available even in left-only mode.
             return replace(value,pose=pose(value.pose),buttons=buttons,

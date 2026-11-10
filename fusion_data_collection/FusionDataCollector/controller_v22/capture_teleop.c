@@ -11,6 +11,7 @@
 #include <malloc.h>
 #include <poll.h>
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -22,6 +23,7 @@
 #include <libusb.h>
 #include <libuvc/libuvc.h>
 #include <libuvc/libuvc_internal.h>
+#include "zed_jpeg.h"
 
 /* Vendored implementation exports these without public header declarations. */
 void _uvc_swap_buffers(uvc_stream_handle_t *);
@@ -39,15 +41,43 @@ typedef struct {
     unsigned width, height;
     enum uvc_frame_format uvc_format;
     uint32_t exact_bytes, capacity;
+    unsigned source_width, fps; /* zero retains legacy single-view / 30 fps */
 } Profile;
-static const Profile mjpeg_profile = {"mjpeg", "FJM1", 1024, 768, UVC_FRAME_FORMAT_MJPEG, 0, 2U*1024U*1024U};
-static const Profile yuyv_profile = {"yuyv", "FJY1", 640, 480, UVC_FRAME_FORMAT_YUYV, 640U*480U*2U, 640U*480U*2U};
-static const Profile mjpeg_1280 = {"mjpeg-1280x1024", "FJM1", 1280, 1024, UVC_FRAME_FORMAT_MJPEG, 0, 4U*1024U*1024U};
-static const Profile mjpeg_1920 = {"mjpeg-1920x1080", "FJM1", 1920, 1080, UVC_FRAME_FORMAT_MJPEG, 0, MAX_FRAME};
-static const Profile yuyv_320 = {"yuyv-320x240", "FJY1", 320, 240, UVC_FRAME_FORMAT_YUYV, 320U*240U*2U, 320U*240U*2U};
+static const Profile mjpeg_profile = {"mjpeg", "FJM1", 1024, 768, UVC_FRAME_FORMAT_MJPEG, 0, 2U*1024U*1024U, 0, 0};
+static const Profile yuyv_profile = {"yuyv", "FJY1", 640, 480, UVC_FRAME_FORMAT_YUYV, 640U*480U*2U, 640U*480U*2U, 0, 0};
+static const Profile mjpeg_1280 = {"mjpeg-1280x1024", "FJM1", 1280, 1024, UVC_FRAME_FORMAT_MJPEG, 0, 4U*1024U*1024U, 0, 0};
+static const Profile mjpeg_1920 = {"mjpeg-1920x1080", "FJM1", 1920, 1080, UVC_FRAME_FORMAT_MJPEG, 0, MAX_FRAME, 0, 0};
+static const Profile yuyv_320 = {"yuyv-320x240", "FJY1", 320, 240, UVC_FRAME_FORMAT_YUYV, 320U*240U*2U, 320U*240U*2U, 0, 0};
+static const Profile zed_profiles[] = {
+    {"zed-left-2208x1242-15", "FJM1", 2208, 1242, UVC_FRAME_FORMAT_YUYV, 10969344U, 5484672U, 4416, 15},
+    {"zed-left-1920x1080-15", "FJM1", 1920, 1080, UVC_FRAME_FORMAT_YUYV, 8294400U, 4147200U, 3840, 15},
+    {"zed-left-1920x1080-30", "FJM1", 1920, 1080, UVC_FRAME_FORMAT_YUYV, 8294400U, 4147200U, 3840, 30},
+    {"zed-left-1280x720-15", "FJM1", 1280, 720, UVC_FRAME_FORMAT_YUYV, 3686400U, 1843200U, 2560, 15},
+    {"zed-left-1280x720-30", "FJM1", 1280, 720, UVC_FRAME_FORMAT_YUYV, 3686400U, 1843200U, 2560, 30},
+    {"zed-left-1280x720-60", "FJM1", 1280, 720, UVC_FRAME_FORMAT_YUYV, 3686400U, 1843200U, 2560, 60},
+    {"zed-left-672x376-15", "FJM1", 672, 376, UVC_FRAME_FORMAT_YUYV, 1010688U, 505344U, 1344, 15},
+    {"zed-left-672x376-30", "FJM1", 672, 376, UVC_FRAME_FORMAT_YUYV, 1010688U, 505344U, 1344, 30},
+    {"zed-left-672x376-60", "FJM1", 672, 376, UVC_FRAME_FORMAT_YUYV, 1010688U, 505344U, 1344, 60},
+    {"zed-left-672x376-100", "FJM1", 672, 376, UVC_FRAME_FORMAT_YUYV, 1010688U, 505344U, 1344, 100}
+};
+static unsigned profile_fps(const Profile *p) { return p->fps ? p->fps : 30; }
+static int profile_interval_matches(const Profile *p, uint32_t interval) {
+    unsigned fps = profile_fps(p);
+    /* ZED descriptors truncate the 100 ns period, while probe readback can
+     * round it up (15 fps: 666666 -> 666667). Accept only these two integers. */
+    return interval == 10000000U / fps ||
+        (p->source_width && interval == (10000000U + fps - 1U) / fps);
+}
+static void copy_left_yuyv(unsigned char *dst, const unsigned char *src,
+                           unsigned width, unsigned source_width, unsigned height) {
+    for (unsigned row = 0; row < height; ++row)
+        memcpy(dst + row * width * 2U, src + row * source_width * 2U, width * 2U);
+}
 static const Profile *camera_profiles[CAMERAS] = {&mjpeg_profile, &mjpeg_profile, &mjpeg_profile};
 
 static const Profile *find_profile(const char *name) {
+    for (unsigned i = 0; i < sizeof(zed_profiles)/sizeof(zed_profiles[0]); ++i)
+        if (!strcmp(name, zed_profiles[i].name)) return &zed_profiles[i];
     if (!strcmp(name, "mjpeg")) return &mjpeg_profile;
     if (!strcmp(name, "yuyv")) return &yuyv_profile;
     if (!strcmp(name, "mjpeg-1280x1024")) return &mjpeg_1280;
@@ -95,7 +125,9 @@ int LIBUSB_CALL libusb_set_configuration(libusb_device_handle *d, int c) {
 }
 
 typedef struct {
-    unsigned char *data;
+    unsigned char *data, *encoded;
+    unsigned encoding_state; /* 0 queued, 1 encoder owns it, 2 ready for sender */
+    uint32_t encoded_bytes;
     uint32_t bytes, seq, pts, scr;
     uint64_t stamp;
 } Frame;
@@ -105,7 +137,10 @@ typedef struct {
     uint64_t captured, sent, shutdown_dropped, gaps;
     uint64_t overflow_dropped, overflow_first_ns, overflow_last_ns;
     uint32_t overflow_first_seq, overflow_last_seq;
+    uint64_t superseded, invalid_dropped, startup_invalid_dropped;
 } Queue;
+/* Explicit inference option. Recording keeps the original FIFO behavior. */
+static int latest_frames = 0;
 typedef struct {
     int cpu;
     long pid;
@@ -245,7 +280,8 @@ static void header(unsigned char out[HEADER_BYTES], unsigned camera, const Frame
     le32(out+32, frame->pts); le32(out+36, frame->scr);
 }
 /* Header validation without JPEG decompression on the robot controller. */
-static int jpeg_valid_profile(const unsigned char *data, size_t size, const Profile *selected) {
+/* 1 = valid, 0 = malformed/incomplete, -1 = negotiated dimensions mismatch. */
+static int jpeg_status_profile(const unsigned char *data, size_t size, const Profile *selected) {
     size_t pos = 2, jpeg_size = size;
     int dimensions = 0;
     if (size < 128 || size > selected->capacity || data[0] != 0xff || data[1] != 0xd8) return 0;
@@ -269,13 +305,17 @@ static int jpeg_valid_profile(const unsigned char *data, size_t size, const Prof
         length = (unsigned)data[pos]*256U+data[pos+1];
         if (length < 2 || pos+length > size) return 0;
         if (marker >= 0xc0 && marker <= 0xcf && marker != 0xc4 && marker != 0xc8 && marker != 0xcc) {
-            if (length < 8 || data[pos+3]*256U+data[pos+4] != selected->height ||
-                data[pos+5]*256U+data[pos+6] != selected->width) return 0;
+            if (length < 8) return 0;
+            if (data[pos+3]*256U+data[pos+4] != selected->height ||
+                data[pos+5]*256U+data[pos+6] != selected->width) return -1;
             dimensions = 1;
         }
         pos += length;
     }
     return 0;
+}
+static int jpeg_valid_profile(const unsigned char *data, size_t size, const Profile *selected) {
+    return jpeg_status_profile(data, size, selected) == 1;
 }
 static int jpeg_valid(const unsigned char *data, size_t size) {
     return jpeg_valid_profile(data, size, &mjpeg_profile);
@@ -297,6 +337,16 @@ static void publish(Queue *q) {
 static void consume(Queue *q) {
     q->head = (q->head+1) % DEPTH; --q->count; ++q->sent;
 }
+/* Sender holds lock and has NOT taken an in-flight pointer yet. Never call
+ * from the USB callback: that could recycle the sender's unlocked head slot. */
+static Frame *take_latest_ready(Queue *q) {
+    while (q->count > 1) {
+        q->head = (q->head+1) % DEPTH;
+        --q->count;
+        ++q->superseded;
+    }
+    return q->count ? &q->frame[q->head] : NULL;
+}
 /* Bounded counters diagnose a missing first frame without printing per packet. */
 void fusion_uvc_transfer_observed(struct libusb_transfer *transfer) {
     unsigned i;
@@ -307,7 +357,10 @@ void fusion_uvc_transfer_observed(struct libusb_transfer *transfer) {
             bytes += transfer->iso_packet_desc[n].actual_length;
             errors += transfer->iso_packet_desc[n].status != LIBUSB_TRANSFER_COMPLETED;
         }
-    } else bytes = transfer->actual_length;
+    } else {
+        bytes = transfer->actual_length;
+        errors = transfer->status != LIBUSB_TRANSFER_COMPLETED;
+    }
     pthread_mutex_lock(&lock);
     for (i = 0; i < CAMERAS; ++i) if (cameras[i].stream == transfer->user_data) {
         cameras[i].usb_callbacks++;
@@ -339,6 +392,7 @@ void fusion_uvc_frame_complete(uvc_stream_handle_t *stream) {
     uint64_t stamp = now_ns();
     uint32_t seq = stream->hold_seq;
     const char *error = NULL;
+    int valid = 0;
     unsigned i;
     if (stopping()) return;
     pthread_mutex_lock(&lock);
@@ -347,10 +401,26 @@ void fusion_uvc_frame_complete(uvc_stream_handle_t *stream) {
     pthread_mutex_unlock(&lock);
     if (!camera) { fail("Unknown completed camera stream; stop"); return; }
     q = &queues[camera->index];
+    valid = frame_valid(stream->holdbuf, stream->hold_bytes, camera_profiles[camera->index]);
+    if (!valid && camera_profiles[camera->index]->source_width && !camera->have_frame &&
+        q->startup_invalid_dropped < 8) {
+        /* ZED can emit a partial/extra-row frame just after stream start.
+         * Establish the stream only on a complete stereo frame. Never crop,
+         * encode, publish, or refresh freshness from an invalid warm-up frame.
+         * Both the drop count and the existing first-frame deadline are bounded;
+         * after the first valid frame, FIFO length/sequence checks stay strict. */
+        pthread_mutex_lock(&lock);
+        ++q->startup_invalid_dropped;
+        fprintf(stderr, "{\"event\":\"startup_invalid_frame_drop\",\"camera\":%u,"
+                "\"seq\":%u,\"bytes\":%zu,\"expected_bytes\":%u,\"limit\":8}\n",
+                camera->index, seq, stream->hold_bytes, camera_profiles[camera->index]->exact_bytes);
+        pthread_mutex_unlock(&lock);
+        return;
+    }
     if (!camera->have_frame) camera->rate_start = stamp;
     else ++camera->rate_frames;
-    if (camera->rate_frames >= 30 && stamp-camera->rate_start < UINT64_C(900000000)) {
-        error = "Camera exceeds negotiated 30 fps (30 intervals below 900 ms); stop";
+    if (camera->rate_frames >= profile_fps(camera_profiles[camera->index]) && stamp-camera->rate_start < UINT64_C(900000000)) {
+        error = "Camera exceeds negotiated frame rate; stop";
     } else if (camera->have_frame && (uint32_t)(seq-camera->previous) != 1U) {
         fprintf(stderr, "{\"sequence_error_camera\":%u,\"previous\":%u,\"current\":%u,"
                 "\"completion_interval_ns\":%" PRIu64 "}\n", camera->index, camera->previous, seq,
@@ -359,12 +429,32 @@ void fusion_uvc_frame_complete(uvc_stream_handle_t *stream) {
         q->gaps += 1;
         pthread_mutex_unlock(&lock);
         error = "Camera source sequence gap/regression; stop";
-    } else if (!frame_valid(stream->holdbuf, stream->hold_bytes, camera_profiles[camera->index])) {
-        fprintf(stderr, "{\"invalid_camera\":%u,\"seq\":%u,\"bytes\":%zu}\n",
-                camera->index, seq, stream->hold_bytes);
-        error = camera_profiles[camera->index]->uvc_format == UVC_FRAME_FORMAT_YUYV ?
-            "Invalid YUYV frame length; stop" :
-            "Invalid MJPEG frame or dimensions; stop";
+    } else if (!valid) {
+        const Profile *profile = camera_profiles[camera->index];
+        int malformed_mjpeg = profile->uvc_format == UVC_FRAME_FORMAT_MJPEG &&
+            jpeg_status_profile(stream->holdbuf, stream->hold_bytes, profile) == 0;
+        if (latest_frames && malformed_mjpeg) {
+            /* Inference consumes only valid fresh observations. One malformed
+             * frame is a missing observation, not a permanent service fault.
+             * Never publish it, reuse its pixels, or refresh the last-valid time.
+             * Keep original sequence numbers so the loss remains observable.
+             * FIFO recording and negotiated-dimension failures remain strict. */
+            pthread_mutex_lock(&lock);
+            ++q->invalid_dropped;
+            if (q->invalid_dropped == 1)
+                fprintf(stderr, "{\"event\":\"invalid_frame_drop\",\"camera\":%u,"
+                        "\"seq\":%u,\"bytes\":%zu}\n", camera->index, seq, stream->hold_bytes);
+            pthread_mutex_unlock(&lock);
+        } else {
+            fprintf(stderr, "{\"invalid_camera\":%u,\"seq\":%u,\"bytes\":%zu,"
+                    "\"jpeg_status\":%d}\n", camera->index, seq, stream->hold_bytes,
+                    profile->uvc_format == UVC_FRAME_FORMAT_MJPEG ?
+                    jpeg_status_profile(stream->holdbuf, stream->hold_bytes, profile) : 0);
+            error = profile->uvc_format == UVC_FRAME_FORMAT_YUYV ?
+                "Invalid YUYV frame length; stop" :
+                "Invalid MJPEG frame or dimensions; stop";
+            report_camera_timeout(camera, "invalid_frame");
+        }
     } else {
         pthread_mutex_lock(&lock);
         slot = reserve(q);
@@ -381,20 +471,27 @@ void fusion_uvc_frame_complete(uvc_stream_handle_t *stream) {
             q->overflow_last_seq = seq;
         }
         else {
+            slot->encoding_state = 0;
+            slot->encoded = NULL;
             slot->bytes = (uint32_t)stream->hold_bytes;
             slot->seq = seq; slot->pts = stream->hold_pts; slot->scr = stream->hold_last_scr;
             slot->stamp = stamp;
-            memcpy(slot->data, stream->holdbuf, slot->bytes);
+            const Profile *selected_profile = camera_profiles[camera->index];
+            if (selected_profile->source_width) {
+                slot->bytes = selected_profile->width * selected_profile->height * 2U;
+                copy_left_yuyv(slot->data, stream->holdbuf, selected_profile->width,
+                               selected_profile->source_width, selected_profile->height);
+            } else memcpy(slot->data, stream->holdbuf, slot->bytes);
             publish(q);
-            pthread_cond_signal(&changed);
+            pthread_cond_broadcast(&changed);
         }
         pthread_mutex_unlock(&lock);
         if (!camera->have_frame)
             fprintf(stderr, "{\"camera\":%u,\"first_source_sequence\":%u}\n", camera->index, seq);
     }
     camera->previous = seq; camera->have_frame = 1;
-    pthread_mutex_lock(&lock); camera->last_frame = stamp; pthread_mutex_unlock(&lock);
-    if (camera->rate_frames >= 30) { camera->rate_start = stamp; camera->rate_frames = 0; }
+    if (valid) { pthread_mutex_lock(&lock); camera->last_frame = stamp; pthread_mutex_unlock(&lock); }
+    if (camera->rate_frames >= profile_fps(camera_profiles[camera->index])) { camera->rate_start = stamp; camera->rate_frames = 0; }
     if (error) fail(error);
 }
 /* Return 1 for our normal SIGTERM, -1 for a real transport failure. */
@@ -417,6 +514,49 @@ static int write_part(const void *bytes, size_t length, uint64_t deadline) {
     }
     return 0;
 }
+/* Two independent encoders use ordinary nice-19 scheduling on CPUs 0 and 2.
+ * USB/TLS remain on CPU 3; realtime CPU 1 and robot affinity are unchanged.
+ * Queue slots remain owned until the sender consumes them in source order. */
+static void *encode_zed_frames(void *cpu_number) {
+    cpu_set_t cpu;
+    CPU_ZERO(&cpu); CPU_SET((intptr_t)cpu_number, &cpu);
+    if (pthread_setaffinity_np(pthread_self(), sizeof(cpu), &cpu)) {
+        fail("Cannot set ZED encoder CPU affinity"); return NULL;
+    }
+    for (;;) {
+        Frame *frame = NULL;
+        Queue *q = &queues[0];
+        pthread_mutex_lock(&lock);
+        if (failed || interrupted) { pthread_mutex_unlock(&lock); break; }
+        for (unsigned i = 0; i < q->count; ++i) {
+            Frame *candidate = &q->frame[(q->head+i)%DEPTH];
+            if (candidate->encoding_state == 0) { frame = candidate; frame->encoding_state = 1; break; }
+        }
+        if (!frame) {
+            if (producers_done) { pthread_mutex_unlock(&lock); break; }
+            pthread_cond_wait(&changed, &lock); pthread_mutex_unlock(&lock); continue;
+        }
+        pthread_mutex_unlock(&lock);
+        unsigned char *encoded = NULL;
+        unsigned long size = 0;
+        int ok = zed_encode_left(frame->data, camera_profiles[0]->width, camera_profiles[0]->height, &encoded, &size);
+        pthread_mutex_lock(&lock);
+        frame->encoded = encoded; frame->encoded_bytes = (uint32_t)size;
+        frame->encoding_state = 2;
+        pthread_cond_broadcast(&changed);
+        pthread_mutex_unlock(&lock);
+        if (!ok) { fail("ZED left-eye JPEG encoding failed; stop"); break; }
+    }
+    return NULL;
+}
+static Frame *take_latest_encoded(Queue *q) {
+    while (q->count > 1 && q->frame[q->head].encoding_state == 2 &&
+           q->frame[(q->head+1)%DEPTH].encoding_state == 2) {
+        free(q->frame[q->head].encoded); q->frame[q->head].encoded = NULL;
+        q->head = (q->head+1)%DEPTH; --q->count; ++q->superseded;
+    }
+    return &q->frame[q->head];
+}
 static void *send_frames(void *unused) {
     unsigned next = 0;
     (void)unused;
@@ -429,24 +569,34 @@ static void *send_frames(void *unused) {
         pthread_mutex_lock(&lock);
         if (failed || interrupted) { pthread_mutex_unlock(&lock); break; }
         for (i = 0; i < CAMERAS; ++i)
-            if (queues[(next+i) % CAMERAS].count) { selected = (next+i) % CAMERAS; break; }
+            if (queues[(next+i) % CAMERAS].count &&
+                (!camera_profiles[(next+i)%CAMERAS]->source_width ||
+                 queues[(next+i)%CAMERAS].frame[queues[(next+i)%CAMERAS].head].encoding_state == 2)) {
+                selected = (next+i) % CAMERAS; break;
+            }
         if (selected == CAMERAS) {
-            if (producers_done) { pthread_mutex_unlock(&lock); break; }
+            if (producers_done && !(queues[0].count+queues[1].count+queues[2].count)) { pthread_mutex_unlock(&lock); break; }
             pthread_cond_wait(&changed, &lock);
             pthread_mutex_unlock(&lock);
             continue;
         }
-        frame = &queues[selected].frame[queues[selected].head];
+        frame = latest_frames ? (camera_profiles[selected]->source_width ? take_latest_encoded(&queues[selected]) : take_latest_ready(&queues[selected])) :
+                                &queues[selected].frame[queues[selected].head];
         pthread_mutex_unlock(&lock);
-        header(bytes, selected, frame, camera_profiles[selected]);
+        Frame outgoing = *frame;
+        if (camera_profiles[selected]->source_width) {
+            outgoing.data = frame->encoded; outgoing.bytes = frame->encoded_bytes;
+        }
+        header(bytes, selected, &outgoing, camera_profiles[selected]);
         deadline = now_ns()+NS;
         result = write_part(bytes, sizeof(bytes), deadline);
-        if (!result) result = write_part(frame->data, frame->bytes, deadline);
+        if (!result) result = write_part(outgoing.data, outgoing.bytes, deadline);
         if (result) {
             if (result < 0) fail("Frame pipe closed or blocked for 1 second; stop");
             break;
         }
         pthread_mutex_lock(&lock);
+        free(frame->encoded); frame->encoded = NULL;
         consume(&queues[selected]);
         pthread_mutex_unlock(&lock);
         next = (selected+1) % CAMERAS;
@@ -455,6 +605,15 @@ static void *send_frames(void *unused) {
 }
 static void report(const char *event, uint64_t rtpsi_delta) {
     pthread_mutex_lock(&lock);
+    fprintf(stderr, "{\"event\":\"startup_invalid_frame_totals\",\"dropped\":[%" PRIu64 ",%" PRIu64 ",%" PRIu64 "]}\n",
+            queues[0].startup_invalid_dropped, queues[1].startup_invalid_dropped, queues[2].startup_invalid_dropped);
+    if (latest_frames)
+        fprintf(stderr, "{\"event\":\"invalid_frame_totals\",\"dropped\":[%" PRIu64 ",%" PRIu64 ",%" PRIu64 "]}\n",
+                queues[0].invalid_dropped, queues[1].invalid_dropped, queues[2].invalid_dropped);
+    if (latest_frames)
+        fprintf(stderr, "{\"event\":\"latest_frame_selection\",\"policy\":\"latest_ready\","
+                "\"superseded\":[%" PRIu64 ",%" PRIu64 ",%" PRIu64 "]}\n",
+                queues[0].superseded, queues[1].superseded, queues[2].superseded);
     fprintf(stderr, "{\"event\":\"%s\",\"captured\":[%" PRIu64 ",%" PRIu64 ",%" PRIu64
             "],\"sent\":[%" PRIu64 ",%" PRIu64 ",%" PRIu64 "],\"pending\":[%u,%u,%u],"
             "\"shutdown_dropped\":[%" PRIu64 ",%" PRIu64 ",%" PRIu64 "],\"rtpsi_msw_delta\":%" PRIu64 "}\n",
@@ -487,10 +646,10 @@ static int open_camera(uvc_context_t *context, Camera *camera, int address) {
     if (result < 0) return result;
     for (i = 0; devices[i]; ++i) {
         uvc_device_descriptor_t *desc = NULL;
-        if (uvc_get_bus_number(devices[i]) != 1 || uvc_get_device_address(devices[i]) != address) continue;
+        if (uvc_get_bus_number(devices[i]) != (profile->source_width ? 2 : 1) || uvc_get_device_address(devices[i]) != address) continue;
         result = uvc_get_device_descriptor(devices[i], &desc);
         if (result < 0) break;
-        if (desc->idVendor == vids[camera->index] && desc->idProduct == pids[camera->index]) chosen = devices[i];
+        if (desc->idVendor == (profile->source_width ? 0x2b03 : vids[camera->index]) && desc->idProduct == (profile->source_width ? 0xf682 : pids[camera->index])) chosen = devices[i];
         uvc_free_device_descriptor(desc);
         break;
     }
@@ -499,16 +658,19 @@ static int open_camera(uvc_context_t *context, Camera *camera, int address) {
     if (result < 0) return result;
     memset(&ctrl, 0, sizeof(ctrl));
     result = uvc_get_stream_ctrl_format_size(camera->device, &ctrl, profile->uvc_format,
-                                             profile->width, profile->height, 30);
+                                             profile->source_width ? profile->source_width : profile->width, profile->height, profile_fps(profile));
     if (result < 0) return result;
     /* The vendored probe now propagates every USB error. Its returned readback
      * is verified below; do not SET the same probe a second time. */
     description = uvc_find_frame_desc(camera->device, ctrl.bFormatIndex, ctrl.bFrameIndex);
-    if (!description || description->wWidth != profile->width || description->wHeight != profile->height ||
-        !format_guid_matches(profile, description->parent->guidFormat) || ctrl.dwFrameInterval != 333333 ||
-        ctrl.dwMaxVideoFrameSize < 128 || ctrl.dwMaxVideoFrameSize > profile->capacity ||
+    fprintf(stderr, "{\"event\":\"negotiated_mode\",\"camera\":%u,\"width\":%u,\"height\":%u,\"interval\":%u,\"frame_bytes\":%u,\"payload_bytes\":%u}\n",
+            camera->index, description ? description->wWidth : 0, description ? description->wHeight : 0,
+            ctrl.dwFrameInterval, ctrl.dwMaxVideoFrameSize, ctrl.dwMaxPayloadTransferSize);
+    if (!description || description->wWidth != (profile->source_width ? profile->source_width : profile->width) || description->wHeight != profile->height ||
+        !format_guid_matches(profile, description->parent->guidFormat) || !profile_interval_matches(profile, ctrl.dwFrameInterval) ||
+        ctrl.dwMaxVideoFrameSize < 128 || ctrl.dwMaxVideoFrameSize > (profile->source_width ? profile->exact_bytes : profile->capacity) ||
         (profile->exact_bytes && ctrl.dwMaxVideoFrameSize < profile->exact_bytes) ||
-        !ctrl.dwMaxPayloadTransferSize || ctrl.dwMaxPayloadTransferSize > 3072)
+        !ctrl.dwMaxPayloadTransferSize || ctrl.dwMaxPayloadTransferSize > (profile->source_width ? 1024U*1024U : 3072U))
         return UVC_ERROR_INVALID_MODE;
     fprintf(stderr, "{\"camera\":%u,\"address\":%d,\"format\":\"%s\",\"width\":%u,\"height\":%u,"
             "\"interval_100ns\":%u,\"max_payload\":%u}\n", camera->index, address,
@@ -589,6 +751,13 @@ static int duration_active(uint64_t seconds, uint64_t elapsed) {
 /* Self-test deliberately executes before any /proc, resource limit or USB access. */
 #define REQUIRE(test) do { if (!(test)) { fprintf(stderr, "Self-test failed line %d: %s\n", __LINE__, #test); return 1; } } while (0)
 static int self_test(void) {
+    {
+        const unsigned char stereo[16] = {1,2,3,4,90,91,92,93,5,6,7,8,94,95,96,97};
+        const unsigned char expected[8] = {1,2,3,4,5,6,7,8};
+        unsigned char left[8];
+        copy_left_yuyv(left, stereo, 2, 4, 2);
+        if (memcmp(left, expected, sizeof(left))) return 1;
+    }
     const char *text = "CPU PID MSW CSW PF STAT %CPU NAME\n"
         "1 2033 23107 5003585 0 00300184 0.4 RTPSI\n"
         "1 0 0 4979699 0 00100084 5.3 FX_RtTask\n";
@@ -626,6 +795,34 @@ static int self_test(void) {
     for (i = 0; i < DEPTH; ++i) { REQUIRE(queue.frame[queue.head].seq == i); consume(&queue); }
     REQUIRE(queue.count == 0 && queue.sent == DEPTH);
     for (i = 0; i < DEPTH*2; ++i) { reserve(&queue)->seq = i; publish(&queue); REQUIRE(queue.frame[queue.head].seq == i); consume(&queue); }
+    {
+        Queue recent = {0};
+        Frame *inflight;
+        REQUIRE(take_latest_ready(&recent) == NULL);
+        /* Wrap the ring, then verify original sequence and capture stamp. */
+        for (i = 0; i < DEPTH+3; ++i) { reserve(&recent)->seq = i; publish(&recent); consume(&recent); }
+        for (i = 0; i < DEPTH; ++i) {
+            Frame *slot = reserve(&recent); REQUIRE(slot);
+            slot->seq = (uint32_t)(UINT32_MAX+i); slot->stamp = UINT64_C(1000000)+i;
+            publish(&recent);
+        }
+        inflight = take_latest_ready(&recent);
+        REQUIRE(inflight && inflight->seq == (uint32_t)(UINT32_MAX+DEPTH-1));
+        REQUIRE(inflight->stamp == UINT64_C(1000000)+DEPTH-1);
+        REQUIRE(recent.count == 1 && recent.superseded == DEPTH-1);
+        /* Producer can fill tails while sender holds an unlocked pointer. */
+        for (i = 0; i < DEPTH-1; ++i) {
+            Frame *slot = reserve(&recent); REQUIRE(slot && slot != inflight);
+            slot->seq = 100+i; publish(&recent);
+        }
+        REQUIRE(reserve(&recent) == NULL);
+        REQUIRE(inflight->seq == (uint32_t)(UINT32_MAX+DEPTH-1));
+        consume(&recent);
+        REQUIRE(take_latest_ready(&recent)->seq == 100+DEPTH-2);
+        REQUIRE(recent.superseded == 2*DEPTH-3);
+        consume(&recent);
+        REQUIRE(recent.count == 0 && recent.captured == recent.sent+recent.superseded);
+    }
     frame.seq = 0x78563412; frame.stamp = UINT64_C(0x1122334455667788);
     frame.bytes = 128; frame.pts = 0x98765432; frame.scr = 0xabcdef01;
     header(bytes, 2, &frame, &mjpeg_profile);
@@ -721,6 +918,82 @@ static int self_test(void) {
         memset(&cameras[0], 0, sizeof(cameras[0])); failed = 0; failure[0] = 0;
         pthread_cond_destroy(&stream.cb_cond); pthread_mutex_destroy(&stream.cb_mutex);
     }
+    {
+        /* Actual completion callback with synthetic buffers, never USB.
+         * Bad frames must not poison the service, enter a queue, or make an
+         * old image look fresh. A dimension change must still fail. */
+        uvc_stream_handle_t stream;
+        unsigned char bad[128], wrong[128];
+        uint64_t last_good;
+        memset(&stream, 0, sizeof(stream));
+        memcpy(bad, jpeg, sizeof(bad)); bad[127] = 0; /* Missing EOI. */
+        memcpy(wrong, jpeg, sizeof(wrong)); wrong[7] = 2;
+        REQUIRE(jpeg_status_profile(bad, sizeof(bad), &mjpeg_profile) == 0);
+        REQUIRE(jpeg_status_profile(wrong, sizeof(wrong), &mjpeg_profile) == -1);
+        cameras[0].stream = &stream;
+        for (i = 0; i < DEPTH; ++i) {
+            queues[0].frame[i].data = malloc(128); REQUIRE(queues[0].frame[i].data);
+        }
+        latest_frames = 1;
+        stream.holdbuf = jpeg; stream.hold_bytes = sizeof(jpeg); stream.hold_seq = 1;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(!failed && queues[0].count == 1);
+        last_good = cameras[0].last_frame;
+        stream.holdbuf = bad; stream.hold_seq = 2;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(!failed && queues[0].count == 1 && queues[0].invalid_dropped == 1);
+        REQUIRE(cameras[0].last_frame == last_good);
+        stream.hold_seq = 3;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(!failed && queues[0].invalid_dropped == 2 && cameras[0].last_frame == last_good);
+        stream.holdbuf = jpeg; stream.hold_seq = 4;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(!failed && queues[0].count == 2 && queues[0].frame[1].seq == 4);
+        REQUIRE(queues[0].frame[1].stamp >= last_good);
+        REQUIRE(!memcmp(queues[0].frame[1].data, jpeg, sizeof(jpeg)));
+        stream.holdbuf = wrong; stream.hold_seq = 5;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(failed && queues[0].count == 2); /* No dimension relaxation. */
+        failed = 0; failure[0] = 0; latest_frames = 0;
+        stream.holdbuf = bad; stream.hold_seq = 6;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(failed && queues[0].count == 2); /* FIFO semantics unchanged. */
+        for (i = 0; i < DEPTH; ++i) free(queues[0].frame[i].data);
+        memset(&queues[0], 0, sizeof(queues[0]));
+        memset(&cameras[0], 0, sizeof(cameras[0])); failed = 0; failure[0] = 0;
+    }
+    {
+        /* Exercise the actual ZED completion path with a tiny stereo fixture.
+         * Startup damage is discarded, valid left rows retain original seq,
+         * mid-stream damage and an exhausted warm-up budget still fail. */
+        Profile profile = {"zed-test", "FJM1", 2, 2, UVC_FRAME_FORMAT_YUYV, 16, 8, 4, 30};
+        uvc_stream_handle_t stream;
+        unsigned char raw[24];
+        memset(&stream, 0, sizeof(stream));
+        for (i = 0; i < sizeof(raw); ++i) raw[i] = (unsigned char)i;
+        camera_profiles[0] = &profile; cameras[0].stream = &stream;
+        queues[0].frame[0].data = malloc(8); REQUIRE(queues[0].frame[0].data);
+        stream.holdbuf = raw; stream.hold_bytes = 24; stream.hold_seq = 1;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(!failed && !queues[0].captured && !queues[0].count);
+        REQUIRE(queues[0].startup_invalid_dropped == 1 && !cameras[0].have_frame && !cameras[0].last_frame);
+        stream.hold_bytes = 16; stream.hold_seq = 2;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(!failed && queues[0].captured == 1 && queues[0].frame[0].seq == 2);
+        REQUIRE(queues[0].frame[0].bytes == 8 && !memcmp(queues[0].frame[0].data, raw, 4));
+        REQUIRE(!memcmp(queues[0].frame[0].data+4, raw+8, 4));
+        stream.hold_bytes = 24; stream.hold_seq = 3;
+        fusion_uvc_frame_complete(&stream);
+        REQUIRE(failed && queues[0].captured == 1 && queues[0].startup_invalid_dropped == 1);
+        free(queues[0].frame[0].data);
+        memset(&queues[0], 0, sizeof(queues[0])); memset(&cameras[0], 0, sizeof(cameras[0]));
+        failed = 0; failure[0] = 0; cameras[0].stream = &stream;
+        for (i = 0; i < 8; ++i) { stream.hold_seq = i+1; fusion_uvc_frame_complete(&stream); REQUIRE(!failed); }
+        stream.hold_seq = 9; fusion_uvc_frame_complete(&stream);
+        REQUIRE(failed && !queues[0].captured && queues[0].startup_invalid_dropped == 8);
+        memset(&queues[0], 0, sizeof(queues[0])); memset(&cameras[0], 0, sizeof(cameras[0]));
+        failed = 0; failure[0] = 0; camera_profiles[0] = &mjpeg_profile;
+    }
     REQUIRE(pipe(pipefd) == 0);
     REQUIRE(fcntl(pipefd[1], F_SETFL, O_NONBLOCK) == 0);
     while (write(pipefd[1], jpeg, sizeof(jpeg)) > 0) {}
@@ -733,7 +1006,7 @@ static int self_test(void) {
     interrupted = 0;
     REQUIRE(dup2(saved_stdout, STDOUT_FILENO) >= 0);
     close(saved_stdout); close(pipefd[0]); close(pipefd[1]);
-    fprintf(stderr, "{\"self_test\":\"passed\",\"usb_opened\":false,\"checks\":[\"completion_hook_burst_fifo_wrap_overflow\",\"rt_rules\",\"missing_duplicate_malformed_task\",\"queue_full_fifo_wrap\",\"FJM1_FJY1_headers\",\"YUY2_GUID_and_exact_length\",\"JPEG_dimensions_and_zero_padding\",\"full_pipe_timeout_cancel\"]}\n");
+    fprintf(stderr, "{\"self_test\":\"passed\",\"usb_opened\":false,\"checks\":[\"malformed_drop_recovery_freshness_dimension_and_fifo\",\"latest_ready_wrap_inflight_timestamp_accounting\",\"completion_hook_burst_fifo_wrap_overflow\",\"rt_rules\",\"missing_duplicate_malformed_task\",\"queue_full_fifo_wrap\",\"FJM1_FJY1_headers\",\"YUY2_GUID_and_exact_length\",\"JPEG_dimensions_and_zero_padding\",\"full_pipe_timeout_cancel\"]}\n");
     return 0;
 }
 
@@ -742,7 +1015,8 @@ int main(int argc, char **argv) {
     Rt baseline[2], previous[2], current[2];
     uvc_context_t *context = NULL;
     pthread_attr_t attr;
-    pthread_t sender;
+    pthread_t sender, encoders[2];
+    unsigned encoders_started = 0;
     int sender_started = 0, result = 1, i, j, flags;
     unsigned camera_mask = 7;
     int gap_reported[CAMERAS] = {0};
@@ -750,15 +1024,19 @@ int main(int argc, char **argv) {
     struct rlimit memory = {256U*1024U*1024U, 256U*1024U*1024U};
     struct rlimit core = {0, 0};
     if (argc == 2 && !strcmp(argv[1], "--self-test")) return self_test();
-    if (argc != 5 && argc != 6 && argc != 7) {
-        fprintf(stderr, "Usage: %s seconds(0=unlimited) bus1_addr1 bus1_addr2 bus1_addr4 [mjpeg|yuyv [probe_camera_index(0..2)|mask=1..7]] | --self-test\n", argv[0]);
+    if (argc != 5 && argc != 6 && argc != 7 && argc != 8) {
+        fprintf(stderr, "Usage: %s seconds(0=unlimited) bus1_addr1 bus1_addr2 bus1_addr4 [mjpeg|yuyv [probe_camera_index(0..2)|mask=1..7 [latest=1]]] | --self-test\n", argv[0]);
         return 2;
     }
     if (argc >= 6 && !select_profiles(argv[5])) {
         fprintf(stderr, "Invalid camera format: expected supported profile or three comma-separated profiles\n");
         return 2;
     }
-    if (argc == 7) {
+    if (argc == 8) {
+        if (strcmp(argv[7], "latest=1")) return 2;
+        latest_frames = 1;
+    }
+    if (argc >= 7) {
         uint64_t probe;
         if (!strncmp(argv[6], "mask=", 5)) {
             if (uint_value(argv[6]+5, &probe) || probe < 1 || probe > 7) return 2;
@@ -774,8 +1052,16 @@ int main(int argc, char **argv) {
     }
     for (i = 0; i < CAMERAS; ++i) for (j = i+1; j < CAMERAS; ++j)
         if ((camera_mask & (1U << i)) && (camera_mask & (1U << j)) &&
+            (camera_profiles[i]->source_width != 0) == (camera_profiles[j]->source_width != 0) &&
             numbers[i+1] == numbers[j+1]) return 2;
+    for (i = 0; i < CAMERAS; ++i) if (camera_mask & (1U << i)) {
+        if (camera_profiles[i]->source_width && (i != 0 || !zed_jpeg_available())) return 2;
+    }
     signal(SIGINT, request_stop); signal(SIGTERM, request_stop); signal(SIGPIPE, SIG_IGN);
+    /* ZED stereo buffers, two encoders and two full-HD wrist queues remain
+     * bounded; allow headroom for the 12 MiB USB3 request pool at 2K too. */
+    if ((camera_mask & 1) && camera_profiles[0]->source_width)
+        memory.rlim_cur = memory.rlim_max = 384U*1024U*1024U;
     if (setrlimit(RLIMIT_AS, &memory) || setrlimit(RLIMIT_CORE, &core)) { perror("resource limits"); return 1; }
     mallopt(M_ARENA_MAX, 1);
     if (read_rt(baseline)) { fprintf(stderr, "RT tasks missing/unavailable; stop\n"); return 1; }
@@ -793,7 +1079,17 @@ int main(int argc, char **argv) {
     if (uvc_init(&context, NULL) < 0) { fail("Cannot initialize UVC context"); goto cleanup; }
     if (pthread_create(&sender, &attr, send_frames, NULL)) { fail("Cannot create sender thread"); goto cleanup; }
     sender_started = 1;
-    for (i = 0; i < CAMERAS; ++i) {
+    if ((camera_mask & 1) && camera_profiles[0]->source_width) {
+        for (intptr_t encoder = 0; encoder < 2; ++encoder) {
+            if (pthread_create(&encoders[encoder], &attr, encode_zed_frames, (void *)(encoder*2))) {
+                fail("Cannot create bounded ZED encoder workers"); goto cleanup;
+            }
+            ++encoders_started;
+        }
+    }
+    for (int startup_slot = 0; startup_slot < CAMERAS; ++startup_slot) {
+        /* Complete the USB2 cameras' synchronous setup before USB3 bulk starts. */
+        i = camera_profiles[0]->source_width ? (startup_slot+1)%CAMERAS : startup_slot;
         if (!(camera_mask & (1U << i))) continue;
         if (stopping()) goto cleanup;
         cameras[i].index = (unsigned)i;
@@ -834,6 +1130,7 @@ cleanup:
         pthread_mutex_unlock(&cameras[i].stream->cb_mutex);
     }
     pthread_mutex_lock(&lock); producers_done = 1; pthread_cond_broadcast(&changed); pthread_mutex_unlock(&lock);
+    for (unsigned encoder = 0; encoder < encoders_started; ++encoder) pthread_join(encoders[encoder], NULL);
     if (sender_started) pthread_join(sender, NULL);
     for (i = CAMERAS-1; i >= 0; --i) {
         if (cameras[i].stream) uvc_stream_close(cameras[i].stream);
@@ -851,7 +1148,7 @@ cleanup:
         if (!interrupted && (camera_mask & (1U << i)) && !queues[i].captured) fail("Missing camera frames at natural end");
         queues[i].shutdown_dropped = queues[i].count;
         queues[i].count = 0;
-        for (j = 0; j < DEPTH; ++j) free(queues[i].frame[j].data);
+        for (j = 0; j < DEPTH; ++j) { free(queues[i].frame[j].data); free(queues[i].frame[j].encoded); }
     }
     report("teleop_final", delta);
     result = failed ? 1 : 0;

@@ -46,6 +46,7 @@ def devices(robot):
 
 def initial_state():
     return dict(ready=False, startupError='', authenticated=False, username='', error='', notice='', busy='', closing=False,
+        subtaskConfigs=[],subtaskConfigId='',subtaskConfig=None,subtaskConfigBusy=False,subtaskConfigError='',
         page='teleop',teleopStep=1,umiStep=1,robot='tianji',task='遥操作数据采集',umiTask='UMI 数据采集',profile='dual',
         parameters=parameter_defaults(),paramSaved=False,paramSaving=False,
         uploadMode='dual',g2Scale=.5,g2Speed=.5,extraCameras=[],g2Camera='head_color',tianjiCamera='usb_1',
@@ -98,6 +99,7 @@ class Bridge(QObject):
         self.config=config
         self.settings=QSettings(str(config/'qt-ui.ini'),QSettings.IniFormat)
         self._state['theme']=self.settings.value('theme','system')
+        self._state['task']=self.settings.value('task',self._state['task'],type=str)
         for key in ('tianjiCameraLayout','g2CameraLayout'):
             layout=self.settings.value(key,'left-center-right')
             if layout in ('left-center-right','right-center-left'):self._state[key]=layout
@@ -197,6 +199,10 @@ class Bridge(QObject):
                 current=self._teleop_camera_settings.get(key,{})
                 if not current.get('busy') and not current.get('error'):
                     self.teleop_camera_settings_update(key,value)
+        if 'task' in values and values['task']!=self._state['task']:
+            # Persist the editable draft, including an intentionally empty name.
+            # Validation belongs to Next/Start, not to each editing keystroke.
+            self.settings.setValue('task',values['task']);self.settings.sync()
         self._state.update(values);self.changed.emit()
         self.sync_umi_telemetry()
 
@@ -267,6 +273,7 @@ class Bridge(QObject):
         self.auth_revision+=1;auth_revision=self.auth_revision
         self.update(ready=True,startupError='',error='',notice='')
         if self.demo:return
+        if not self.umiOnly:self.loadSubtaskConfigs()
         if self.rawOnly:
             def local_ready(value):
                 if auth_revision != self.auth_revision or self._state['closing']:return
@@ -557,6 +564,54 @@ class Bridge(QObject):
         if self.demo:QTimer.singleShot(30,lambda:done(params))
         else:self.request('/tianji/parameters',params,done,failed=failed)
 
+    subtaskConfigSaved=Signal()
+
+    @Slot()
+    def clearSubtaskConfigError(self):
+        self.update(subtaskConfigError='')
+
+    @Slot()
+    def loadSubtaskConfigs(self):
+        # QML is constructed before the local service starts listening.
+        # serviceReady reloads the library on each successful service startup.
+        if self.demo or not self._state['ready'] or self._state['closing']:return
+        self.request('/subtask-configs',
+                     done=lambda rows:self.update(subtaskConfigs=rows,subtaskConfigError=''),
+                     failed=lambda message:self.update(subtaskConfigError='子任务配置加载失败：'+str(message)))
+
+    @Slot(str)
+    def selectSubtaskConfig(self, identifier):
+        if self.teleop_active() or self._state['busy'] or self._state['subtaskConfigBusy']:return
+        row=next((r for r in self._state['subtaskConfigs'] if r['id']==identifier),None)
+        self.update(subtaskConfigId=row['id'] if row else '',
+                    subtaskConfig=dict(name=row['name'],labels=list(row['labels'])) if row else None)
+
+    @Slot('QVariantMap')
+    def saveSubtaskConfig(self, value):
+        if self.teleop_active() or self._state['subtaskConfigBusy']:return
+        from teleop_control.subtask_annotations import SubtaskConfig
+        try:value=SubtaskConfig(**dict(value)).model_dump()
+        except ValueError:
+            self.update(subtaskConfigError='请为配置和每张子任务卡片填写 1～120 个字符的名称');return
+        self.update(subtaskConfigBusy=True,subtaskConfigError='')
+        def done(row):
+            self.update(subtaskConfigBusy=False,subtaskConfigs=[*self._state['subtaskConfigs'],row])
+            self.selectSubtaskConfig(row['id']);self.subtaskConfigSaved.emit()
+        if self.demo:done(dict(id=uuid.uuid4().hex,**value))
+        else:self.request('/subtask-configs',value,done,
+            failed=lambda message:self.update(subtaskConfigBusy=False,subtaskConfigError=str(message)))
+
+    @Slot(str)
+    def deleteSubtaskConfig(self, identifier):
+        if self.teleop_active() or self._state['subtaskConfigBusy']:return
+        self.update(subtaskConfigBusy=True,subtaskConfigError='')
+        def done(_):
+            self.update(subtaskConfigBusy=False,subtaskConfigs=[r for r in self._state['subtaskConfigs'] if r['id']!=identifier])
+            if self._state['subtaskConfigId']==identifier:self.selectSubtaskConfig('')
+        if self.demo:done(None)
+        else:self.request('/subtask-configs/'+quote(identifier,safe='')+'/delete',{},done,
+            failed=lambda message:self.update(subtaskConfigBusy=False,subtaskConfigError=str(message)))
+
     @Slot(str)
     def teleop(self,action):
         s=self._state
@@ -571,7 +626,7 @@ class Bridge(QObject):
             if action=='start' and not self.valid_task(s['task']):return
             restarting=action=='start' and not s['kuavo'].get('control_ready') and bool(s['kuavo'].get('can_restart'))
             preparing=action=='check' or restarting
-            payload = dict(network_namespace='current',task=s['task'],
+            payload = dict(network_namespace='current',task=s['task'],subtask_config=s['subtaskConfig'],
                            arm_mode=s['kuavoArmMode'],position_scale=1. if s['kuavo'].get('parameter_mode')=='service' else s['kuavoPositionScale'],
                            confirm_motion=action in ('check','start'),prepare_controller=preparing,prepare_grippers=preparing,prepare_session=preparing,prepare_manual=action=='check',require_prepared=action=='start',restart_after_stop=restarting,
                            motor_ids_confirmed=preparing,accept_unverified_gripper_bus=True)
@@ -583,7 +638,7 @@ class Bridge(QObject):
         elif s['robot']=='tianji':
             if action=='start':
                 if not self.valid_task(s['task']) or not s['paramSaved'] or s['paramSaving']:return
-                self.action('start','/tianji/start',dict(task=s['task'],mode=s['uploadMode'],upload_mode=s['uploadMode'],parameters=s['parameters']))
+                self.action('start','/tianji/start',dict(task=s['task'],subtask_config=s['subtaskConfig'],mode=s['uploadMode'],upload_mode=s['uploadMode'],parameters=s['parameters']))
             elif action in ('check','stop'):
                 self.action(action,'/tianji/'+action,priority=action=='stop')
             elif action in ('record/start','record/stop'):
@@ -591,7 +646,7 @@ class Bridge(QObject):
         elif action=='check':self.action('check','/devices/check')
         elif action=='start':
             if not self.valid_task(s['task']):return
-            self.action('start','/sessions',dict(robot_model='agibot-g2',mode='arm',task=s['task'],scale=s['g2Scale'],max_joint_vel=s['g2Speed'],extra_cameras=s['extraCameras']))
+            self.action('start','/sessions',dict(robot_model='agibot-g2',mode='arm',task=s['task'],subtask_config=s['subtaskConfig'],scale=s['g2Scale'],max_joint_vel=s['g2Speed'],extra_cameras=s['extraCameras']))
         elif action=='stop':
             sid=s['g2'].get('session',{}).get('session_id')
             if sid:self.action('stop','/sessions/'+quote(sid,safe='')+'/stop',priority=True)
@@ -1120,7 +1175,7 @@ class Bridge(QObject):
         def done(_):
             self.epoch+=1;self.auth_revision+=1;self.pending.clear();self.last_poll.clear()
             self.reset_camera_brightness()
-            appearance={key:self._state[key] for key in ('theme','tianjiCameraLayout','g2CameraLayout','uploadTarget')}
+            appearance={key:self._state[key] for key in ('theme','tianjiCameraLayout','g2CameraLayout','uploadTarget','task')}
             self._state=initial_state()
             if self.umiOnly:self._state['page']='umi'
             self.update(ready=True,**appearance)

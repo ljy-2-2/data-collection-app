@@ -1,0 +1,1 @@
+{"recovery_count": 1, "ok": true, "cameras": [{"available": true, "bus": 2, "id": "usb-1", "address": 2}, {"available": true, "bus": 1, "id": "usb-2", "address": 3}, {"available": true, "bus": 1, "id": "usb-4", "address": 4}], "verified_stream": false, "usb_controller_reinitialized": true, "recovered": true}

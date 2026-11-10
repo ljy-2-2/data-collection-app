@@ -1,0 +1,6 @@
+[ 3735.846456] xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD
+[ 3735.846899] xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD
+[ 3735.847342] xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD
+[ 3735.847787] xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD
+[ 3735.848262] xhci_hcd 0000:00:14.0: ERROR Transfer event TRB DMA ptr not part of current TD
+[ 3735.848823] xhci_hcd 0000:00:14.0: WARN Event TRB for slot 2 ep 2 with no TDs queued?

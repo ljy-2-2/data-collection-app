@@ -1,0 +1,45 @@
+{
+  "total_episodes": 81,
+  "total_frames": 12250,
+  "fps": 30,
+  "bytes": 599377951,
+  "video": {
+    "observation.images.center": {
+      "bytes": 279098801,
+      "width": 640,
+      "height": 480,
+      "frames": 12250,
+      "fps": 30.0
+    },
+    "observation.images.left": {
+      "bytes": 152780863,
+      "width": 640,
+      "height": 480,
+      "frames": 12250,
+      "fps": 30.0
+    },
+    "observation.images.right": {
+      "bytes": 156321894,
+      "width": 640,
+      "height": 480,
+      "frames": 12250,
+      "fps": 30.0
+    }
+  },
+  "action_semantics": {
+    "version": "umi-act-v1",
+    "state": "Current left controller xyz+xyzw+gripper, then right controller xyz+xyzw+gripper",
+    "action": "Next synchronized source frame's state; last source frame holds its own state",
+    "pose_frame": "pico_origin (source tracking frame)",
+    "position_units": "meters",
+    "gripper_units": "source /joint_states.position units (unchanged)",
+    "video_size": [
+      640,
+      480
+    ],
+    "note": "Cartesian demonstration targets, not robot joint commands; deployment requires a matching controller/retargeting adapter."
+  },
+  "parquet_rows": 12250,
+  "sum_training_duration_s": 408.3333333333333,
+  "storage_GB_per_hour": 5.284311731265307
+}

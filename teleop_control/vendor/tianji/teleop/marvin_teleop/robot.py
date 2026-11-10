@@ -79,6 +79,12 @@ class Robot:
             detail = f"；伺服原始错误码={self.read_servo_errors()}"
         except Exception as error:
             detail = f"；伺服诊断读取失败={error}"
+        if "robot UDP feedback not advancing" in last_error:
+            detail += (
+                f"；反馈链路：机器人 {self.config['robot_ip']}（UDP 目标端口 4729），本机 UDP 4730 接收。"
+                "请检查机器人网线、网卡地址和路由，确认机器人流量未被 VPN/代理接管；"
+                "SDK connect 成功仅表示本地连接初始化成功，不代表已收到机器人反馈"
+            )
         raise RuntimeError("robot startup check failed: " + last_error + detail)
 
     @staticmethod
@@ -213,13 +219,29 @@ class Robot:
     def read_servo_errors(self):
         # Synchronous parameter queries run at startup. During control, errors,
         # mode and freshness are checked from UDP for both arms every cycle.
+        # OnGetServoErr_A/B discard OnGetIntPara failures and leave the output
+        # unchanged. A zero-initialized array then falsely looks error-free.
+        # Use the same read-only parameters, retaining each query's status.
+        fn = self.api.robot.OnGetIntPara
+        fn.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_long)]
+        fn.restype = ctypes.c_long
         result = {}
         for side, channel in self.config["arm_channels"].items():
-            errors = (ctypes.c_long * 7)()
-            fn = getattr(self.api.robot, f"OnGetServoErr_{channel}")
-            fn.argtypes = [ctypes.POINTER(ctypes.c_long * 7)]
-            fn(ctypes.byref(errors))
-            result[side] = list(errors)
+            errors = []
+            for axis in range(7):
+                # The native SDK checks byte 29, so provide its full 30-byte
+                # zero-padded name buffer rather than a short Python string.
+                parameter = f"SERVO{0 if channel == 'A' else 1}ERR{axis}"
+                name = ctypes.create_string_buffer(parameter.encode("ascii"), 30)
+                value = ctypes.c_long()
+                status = fn(name, ctypes.byref(value))
+                if status != 0:
+                    raise RuntimeError(
+                        f"{side}: {parameter} 读取失败 (SDK status={status})；"
+                        "伺服错误码未知，不能视为全 0"
+                    )
+                errors.append(value.value)
+            result[side] = errors
         return result
 
     def enable(self, sides=None):

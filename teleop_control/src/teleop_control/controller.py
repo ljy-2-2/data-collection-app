@@ -370,7 +370,7 @@ class TeleopController:
                         self._guarded(command),
                         stdin=subprocess.DEVNULL,
                         start_new_session=True,
-                        env=self._robot_launch_env(),
+                        env={**(self._robot_launch_env() or os.environ), "TELEOP_SUBTASK_CONFIG": request.subtask_config.model_dump_json() if request.subtask_config else ""},
                     )
                 except OSError as exc:
                     raise HTTPException(

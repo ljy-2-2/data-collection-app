@@ -204,7 +204,7 @@ def main() -> int:
         # Reuse only the camera client's runtime modules; omit controller tools and sample data.
         camera_package = app / "fusion_camera_stream/fusion_camera"
         camera_package.mkdir(parents=True)
-        for name in ("__init__.py", "client.py", "stream.py", "episode.py", "grippers.py"):
+        for name in ("__init__.py", "client.py", "stream.py", "episode.py", "grippers.py", "profiles.py"):
             shutil.copy2(ROOT / "fusion_camera_stream/fusion_camera" / name, camera_package / name)
         # Self-contained, reviewed controller updater and its bounded UVC source.
         for relative in ("fusion_data_collection/FusionDataCollector/controller_v22",

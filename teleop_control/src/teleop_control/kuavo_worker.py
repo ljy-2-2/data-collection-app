@@ -46,6 +46,7 @@ def execute(module, config, options, emit):
     from .kuavo_input import InputAdapter, Observation, ObservedChannel, ActivationGate
     observation = Observation()
     activation = ActivationGate(options.get('standby',False))
+    activation.annotation=bool(options.get('subtask_config'))
     control = SessionControl()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: control.request_stop())
@@ -59,7 +60,9 @@ def execute(module, config, options, emit):
                 try:command=json.loads(line)
                 except ValueError:continue
                 if isinstance(command,dict) and command.get('action')=='activate':
-                    try:activation.activate(command.get('arm_mode'))
+                    try:
+                        activation.annotation=bool(command.get('subtask_config'))
+                        activation.activate(command.get('arm_mode'))
                     except ValueError:continue
         control.request_stop()  # Backend exit requests the original orderly cleanup.
     threading.Thread(target=listen, daemon=True).start()

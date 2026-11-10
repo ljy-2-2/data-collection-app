@@ -19,8 +19,16 @@ Column {
     property bool canMove: !locked && (tianji ? live && s.paramSaved : s.preview.available && status.devices.some(d=>d.id==="robot" && d.status==="connected"))
     property bool canRecover: tianji && !s.busy && !s.paramSaving && !cameraSettingsBusy && s.paramSaved && ["idle","error"].indexOf(status.state)>=0 && !(status.collection||{}).busy && !(status.collection||{}).recording
     property var collection: status.collection||{}
+    property var localSave: collection.local_save||null
+    function recordingDuration(seconds) {
+        let total = Number.isFinite(Number(seconds)) ? Math.max(0, Math.floor(Number(seconds))) : 0
+        let minutes = String(Math.floor(total / 60) % 60).padStart(2, "0")
+        let rest = String(total % 60).padStart(2, "0")
+        return (total >= 3600 ? String(Math.floor(total / 3600)).padStart(2, "0") + ":" : "") + minutes + ":" + rest
+    }
     property bool canCheck: !s.busy && !s.paramSaving && !cameraSettingsBusy && !collection.busy && !collection.recording && (!locked || (tianji && uncertain && status.control_active===false))
     spacing: 12
+    Txt {width:parent.width;visible:!!backend.state.subtaskConfig;text:backend.state.subtaskConfig ? "子任务："+backend.state.subtaskConfig.labels.join(" → ")+" · A 开始，B 保存；X 标注本段，Y 重置顺序（不执行回位）" : "";wrapMode:Text.Wrap;font.pixelSize:12;color:Theme.inkMuted}
     Card {
         id: control
         width: parent.width;height: setupGrid.height+footer.height+1
@@ -70,9 +78,11 @@ Column {
                     onClicked: backend.teleop(root.teleopStop || s.busy==="start" ? "stop" : "start")
                 }
                 Btn {objectName: "teleopCheck";text: "检查设备";glyph: "RefreshCw";busy: s.busy==="check";enabled:root.canCheck;onClicked: backend.teleop("check")}
-                Row {visible: root.tianji;spacing: 14;height: 34;layoutDirection: Qt.LeftToRight
-                    Txt {height: 34;text: "本次已完成  "+(root.collection.completed||0)+" Episode";font.pixelSize: 12;color: Theme.inkMuted}
-                    Txt {height: 34;text: root.collection.recording ? "● 采集中" : root.collection.busy ? "正在保存" : root.running ? "等待手柄 A" : "未开始遥操作";color: root.collection.recording ? Theme.red : Theme.inkMuted;font.pixelSize: 12}
+                Flow {visible: root.tianji;spacing:14;width:Math.min(footerFlow.width,episodeCount.width+episodeDuration.width+14+(recordingIndicator.visible?recordingIndicator.width+14:0)+(saveQueue.visible?saveQueue.width+14:0));height:implicitHeight;layoutDirection:Qt.LeftToRight
+                    Txt {id:episodeCount;objectName:"tianjiEpisodeCount";height:34;text:"本次已完成  "+(root.collection.completed||0)+" Episode";font.pixelSize:12;color:Theme.inkMuted}
+                    Txt {id:episodeDuration;objectName:"tianjiEpisodeDuration";height:34;text:"持续时间  "+root.recordingDuration(root.collection.elapsed_s);font.pixelSize:12;color:Theme.inkMuted}
+                    Txt {id:recordingIndicator;objectName:"tianjiRecordingIndicator";visible:!!root.collection.recording;height:34;text:"● 采集中";color:Theme.red;font.pixelSize:12}
+                    Txt {id:saveQueue;objectName:"tianjiSaveQueue";visible:!!root.localSave;height:34;text:"后台待保存 "+((root.localSave||{}).pending+(root.localSave||{}).processing||0)+" 条";font.pixelSize:12;color:Theme.inkMuted}
                 }
                 Row {visible: !root.tianji;spacing: 8;height: 34;layoutDirection: Qt.LeftToRight
                     Txt {height: 34;text: "额外信息保存：";font.pixelSize: 12;color: Theme.inkMuted}
@@ -83,6 +93,7 @@ Column {
             }
         }
     }
+    Txt {visible:root.tianji && !!root.localSave && (!root.localSave.worker_online || !!root.localSave.error);width:parent.width;wrapMode:Text.Wrap;text:(root.localSave||{}).error||"后台保存服务未就绪，已排队的数据保留";color:Theme.red;font.pixelSize:12}
     GridLayout {
         id: visualGrid;objectName: "teleopVisualGrid"
         width: parent.width;columns: width<1080 ? 1 : 2;columnSpacing: 12;rowSpacing: 12

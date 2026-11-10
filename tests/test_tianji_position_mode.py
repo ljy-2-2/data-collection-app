@@ -1,5 +1,6 @@
 """Position-mode regression tests using a fake SDK, without hardware access."""
 
+import ctypes
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -191,3 +192,59 @@ def test_mode_acknowledgement_across_counter_wrap(session, operation):
     robot.read()
     assert not pending
     assert robot.enabled_sides == ({'left', 'right'} if operation == 'enable' else set())
+
+
+def test_servo_diagnostics_preserve_codes_and_channel_mapping(session):
+    session.robot.config['arm_channels'] = dict(left='B', right='A')
+    queried = []
+
+    def get_parameter(name, output):
+        assert len(name.raw) == 30 and name.raw[29] == 0
+        parameter = name.value.decode('ascii')
+        queried.append(parameter)
+        ctypes.cast(output, ctypes.POINTER(ctypes.c_long))[0] = (
+            15 if parameter == 'SERVO1ERR3' else 0
+        )
+        return 0
+
+    session.api.robot.OnGetIntPara.side_effect = get_parameter
+    assert session.robot.read_servo_errors() == dict(
+        left=[0, 0, 0, 15, 0, 0, 0], right=[0] * 7,
+    )
+    assert queried == [f'SERVO{channel}ERR{axis}' for channel in (1, 0) for axis in range(7)]
+    with pytest.raises(ValueError, match='left: servo errors'):
+        session.robot.check_servo_errors()
+    session.api.robot.OnGetServoErr_A.assert_not_called()
+    session.api.robot.OnGetServoErr_B.assert_not_called()
+    session.api.send_cmd.assert_not_called()
+    session.api.set_state.assert_not_called()
+
+
+@pytest.mark.parametrize('failure_status', [-2, -1, 3])
+def test_servo_query_failure_cannot_report_zero_errors(session, failure_status):
+    # Seven successful reads must not hide a failure on the other arm.
+    session.api.robot.OnGetIntPara.side_effect = [0] * 7 + [failure_status]
+    with pytest.raises(RuntimeError, match='right: SERVO1ERR0 读取失败'):
+        session.robot.check_servo_errors()
+    assert session.api.robot.OnGetIntPara.call_count == 8
+    session.api.set_state.assert_not_called()
+
+
+def test_startup_without_feedback_reports_unknown_servo_status_and_link(session, monkeypatch):
+    clock = [100.]
+    monkeypatch.setattr('marvin_teleop.robot.time.monotonic', lambda: clock[0])
+    monkeypatch.setattr('marvin_teleop.robot.time.sleep',
+                        lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    session.feedback.advance = False
+    session.feedback.serial = 0
+    session.api.robot.OnGetIntPara.return_value = -2
+    with pytest.raises(RuntimeError) as error:
+        session.robot.wait_ready()
+    message = str(error.value)
+    assert 'robot UDP feedback not advancing' in message
+    assert '伺服诊断读取失败=' in message
+    assert '伺服原始错误码=' not in message
+    assert '127.0.0.1' in message and '目标端口 4729' in message and '本机 UDP 4730' in message
+    assert 'VPN/代理' in message
+    session.api.send_cmd.assert_not_called()
+    session.api.set_state.assert_not_called()

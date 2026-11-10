@@ -1,0 +1,661 @@
+{
+  "episode": "20261106_112055_fusion_1192e9c6",
+  "path": "/home/orangepi/桌面/data/20261106_112055_fusion_1192e9c6",
+  "meta_integrity": {
+    "error": "Audit changed: dmesg_sha256: ",
+    "joints": {
+      "count": 174090,
+      "span_s": 1740.911083848,
+      "actual_hz": 99.99878891873367,
+      "interval_ms": {
+        "p50": 10.002807,
+        "p95": 12.76608,
+        "p99": 13.947397,
+        "max": 34.078139
+      }
+    },
+    "cameras": {
+      "head_color": {
+        "count": 52225,
+        "span_s": 1740.915045585,
+        "actual_hz": 29.998017498005574,
+        "interval_ms": {
+          "p50": 33.296128,
+          "p95": 36.629454,
+          "p99": 38.601007,
+          "max": 40.320992
+        },
+        "sequence_gaps": 0
+      },
+      "right_color": {
+        "count": 51941,
+        "span_s": 1740.872866633,
+        "actual_hz": 29.835607754893953,
+        "interval_ms": {
+          "p50": 32.749492,
+          "p95": 36.538865,
+          "p99": 38.08875,
+          "max": 42.284828
+        },
+        "sequence_gaps": 0
+      },
+      "left_color": {
+        "count": 51942,
+        "span_s": 1740.906334084,
+        "actual_hz": 29.835608604026028,
+        "interval_ms": {
+          "p50": 32.668996,
+          "p95": 36.891822,
+          "p99": 38.241954,
+          "max": 42.78308
+        },
+        "sequence_gaps": 0
+      }
+    },
+    "bundles": {
+      "count": 51659,
+      "span_s": 1740.8792798,
+      "actual_hz": 29.673510736445035,
+      "interval_ms": {
+        "p50": 31.742903,
+        "p95": 41.62403,
+        "p99": 46.836365,
+        "max": 63.970243
+      }
+    },
+    "grippers": {
+      "left": {
+        "count": 156037,
+        "span_s": 1741.298695308,
+        "actual_hz": 89.60898002189133,
+        "interval_ms": {
+          "p50": 11.344827,
+          "p95": 23.490894,
+          "p99": 30.46857,
+          "max": 61.340288
+        }
+      },
+      "right": {
+        "count": 151778,
+        "span_s": 1741.287574168,
+        "actual_hz": 87.16366110435271,
+        "interval_ms": {
+          "p50": 11.590407,
+          "p95": 26.707023,
+          "p99": 34.854345,
+          "max": 64.928912
+        }
+      }
+    },
+    "gripper_feedback_integrity": {
+      "left": {
+        "samples": 156037,
+        "duplicates": 0,
+        "sequence_gaps": 0,
+        "sequence_regressions": 0,
+        "timestamp_regressions": 0,
+        "stale_samples": 0,
+        "future_samples": 0,
+        "invalid_samples": 0,
+        "source_queue_dropped": 0,
+        "publisher_queue_dropped": 0,
+        "publisher_send_queue_dropped": 0,
+        "unreceived_tail_samples": 0
+      },
+      "right": {
+        "samples": 151778,
+        "duplicates": 0,
+        "sequence_gaps": 0,
+        "sequence_regressions": 0,
+        "timestamp_regressions": 0,
+        "stale_samples": 0,
+        "future_samples": 0,
+        "invalid_samples": 0,
+        "source_queue_dropped": 0,
+        "publisher_queue_dropped": 0,
+        "publisher_send_queue_dropped": 0,
+        "unreceived_tail_samples": 0
+      }
+    },
+    "teleop_loop": {
+      "count": 105807,
+      "span_s": 1741.301295799,
+      "actual_hz": 60.76260337901528,
+      "interval_ms": {
+        "p50": 15.227139,
+        "p95": 25.498954,
+        "p99": 32.823202,
+        "max": 64.766456
+      }
+    },
+    "aligned_state": {
+      "rows": 174090,
+      "fully_matched": 0,
+      "missing": {
+        "left": 174090,
+        "right": 174090
+      },
+      "reused": {
+        "left": 0,
+        "right": 0
+      },
+      "max_abs_delta_ms": {
+        "left": null,
+        "right": null
+      },
+      "hardware_synchronized": false
+    },
+    "both_grippers_bundle_count": 0,
+    "telemetry_missing_packets": 0,
+    "missing_action_bundle_count": 51659,
+    "missing_gripper_action_bundle_count": 51659,
+    "timing_policy": "diagnostic_only",
+    "joint_timing_gap_count": 0,
+    "camera_queue_overflow": {
+      "policy": "drop_incoming",
+      "counter_scope": "whole_stream_including_preview",
+      "stream_totals": {},
+      "possibly_affected_episode_cameras": []
+    },
+    "record_count_matches_server": true,
+    "count_comparison": {
+      "matches": true,
+      "scope": "episode_after_subscription",
+      "stored": {
+        "frames": {
+          "usb-1": 52225,
+          "usb-2": 51941,
+          "usb-4": 51942
+        },
+        "joint_samples": 174090
+      },
+      "server_total": {
+        "frames": {
+          "usb-1": 53679,
+          "usb-2": 53402,
+          "usb-4": 53396
+        },
+        "joint_samples": 178983
+      },
+      "excluded_preview": {
+        "frames": {
+          "usb-1": 1454,
+          "usb-2": 1461,
+          "usb-4": 1454
+        },
+        "joint_samples": 4893,
+        "source": "received_before_subscription"
+      },
+      "expected": {
+        "frames": {
+          "usb-1": 52225,
+          "usb-2": 51941,
+          "usb-4": 51942
+        },
+        "joint_samples": 174090
+      }
+    },
+    "camera_span_ms": {
+      "p50": 18.156729,
+      "p95": 22.751495,
+      "p99": 24.549479,
+      "max": 24.996036
+    },
+    "image_joint_abs_delta_ms": {
+      "p50": 2.393017,
+      "p95": 5.182407,
+      "p99": 5.907272,
+      "max": 14.466049
+    },
+    "gripper_joint_abs_delta_ms": null,
+    "unmatched_images": {
+      "head_color": 566,
+      "right_color": 282,
+      "left_color": 283
+    },
+    "opening_calibration_valid": {
+      "left": true,
+      "right": true
+    },
+    "timestamp_note": "Image timestamps use the semantics declared by stream_start.timestamp_kind and share the controller clock with DCSS read times. Gripper PC receive times use two-anchor affine mapping. Sensor/exposure/transport latency uncalibrated.",
+    "target_rates_met": false,
+    "quality_passed": false
+  },
+  "complete": false,
+  "stop_reason": "B/Y",
+  "error": "Audit changed: dmesg_sha256: ",
+  "clock_after_present": false,
+  "joints": {
+    "count": 174090,
+    "span_s": 1740.911083848,
+    "hz": 99.99878891873367,
+    "nonincreasing": 0,
+    "interval_ms": {
+      "count": 174089,
+      "min": 1.098066,
+      "p50": 10.002807,
+      "p95": 12.7660512,
+      "p99": 13.947715239999988,
+      "max": 34.078139
+    },
+    "invalid_rows": 0,
+    "serial_pair_mismatches": 0,
+    "serial_repeat_transitions": 0,
+    "serial_regressions": 2,
+    "read_span_ms": {
+      "count": 174090,
+      "min": 0.011976,
+      "p50": 0.019464,
+      "p95": 0.028356,
+      "p99": 0.03631463999999966,
+      "max": 0.462696
+    },
+    "position_range_deg": [
+      7.62939453125e-05,
+      0.0007190704345703125,
+      0.000102996826171875,
+      0.0004119873046875,
+      0.0001087188720703125,
+      0.00011670589447021484,
+      0.00010985136032104492,
+      0.00048828125,
+      0.0046634674072265625,
+      0.00018310546875,
+      0.00885772705078125,
+      0.00016498565673828125,
+      0.000102996826171875,
+      0.000240325927734375
+    ],
+    "max_step_deg": [
+      5.14984130859375e-05,
+      0.0003223419189453125,
+      8.7738037109375e-05,
+      0.00018310546875,
+      8.392333984375e-05,
+      8.237361907958984e-05,
+      7.551908493041992e-05,
+      0.000152587890625,
+      0.0008382797241210938,
+      9.1552734375e-05,
+      0.001220703125,
+      0.00013017654418945312,
+      7.2479248046875e-05,
+      0.0002002716064453125
+    ],
+    "arm_state_counts": {
+      "[1, -1, 0, 1, -1, 0]": 174090
+    },
+    "serial_wrap_interpretation": {
+      "modulus": 1000000,
+      "wraps": 2,
+      "transitions": [
+        [
+          999990,
+          2
+        ],
+        [
+          999994,
+          4
+        ]
+      ],
+      "note": "Both arms wrap together; timestamps remain increasing and deltas are consistent with the documented 0..999999 counter range."
+    }
+  },
+  "aligned_state": {
+    "rows": 174090,
+    "timestamp_mismatches": 0,
+    "arm_radian_max_error": 0.0,
+    "fully_matched": 0,
+    "gripper_missing": {
+      "left": 174090,
+      "right": 174090
+    }
+  },
+  "grippers": {
+    "left": {
+      "count": 156037,
+      "span_s": 1741.298695308,
+      "hz": 89.60898002189133,
+      "nonincreasing": 0,
+      "interval_ms": {
+        "count": 156036,
+        "min": 0.012834,
+        "p50": 11.3448265,
+        "p95": 23.4909565,
+        "p99": 30.468173799999995,
+        "max": 61.340288
+      },
+      "invalid_positions": 0,
+      "sequence_gaps": 0,
+      "duplicate_or_regressed_sequences": 0,
+      "mapped_timestamp_rows": 0
+    },
+    "right": {
+      "count": 151778,
+      "span_s": 1741.287574168,
+      "hz": 87.16366110435271,
+      "nonincreasing": 0,
+      "interval_ms": {
+        "count": 151777,
+        "min": 0.011083,
+        "p50": 11.590407,
+        "p95": 26.70749919999996,
+        "p99": 34.85686499999991,
+        "max": 64.928912
+      },
+      "invalid_positions": 0,
+      "sequence_gaps": 0,
+      "duplicate_or_regressed_sequences": 0,
+      "mapped_timestamp_rows": 0
+    }
+  },
+  "bundles": {
+    "count": 51659,
+    "span_s": 1740.8792798,
+    "hz": 29.673510736445035,
+    "nonincreasing": 0,
+    "interval_ms": {
+      "count": 51658,
+      "min": 18.431763,
+      "p50": 31.742928999999997,
+      "p95": 41.6240957,
+      "p99": 46.83970567,
+      "max": 63.970243
+    },
+    "common_joint_image_abs_ms": {
+      "count": 154977,
+      "min": 0.139764,
+      "p50": 8.038348,
+      "p95": 14.367831399999995,
+      "p99": 15.572693999999998,
+      "max": 18.558296
+    },
+    "per_image_nearest_joint_abs_ms": {
+      "count": 154977,
+      "min": 0.087474,
+      "p50": 2.393017,
+      "p95": 5.1824108,
+      "p99": 5.9073065599999985,
+      "max": 14.466049
+    },
+    "camera_span_ms": {
+      "count": 51659,
+      "min": 8.277508,
+      "p50": 18.156729,
+      "p95": 22.751545399999998,
+      "p99": 24.549574760000002,
+      "max": 24.996036
+    },
+    "missing_joint_action_rows": 51659,
+    "both_grippers_rows": 0,
+    "invalid_source_refs": 0,
+    "arm_radian_max_error": 0.0,
+    "unreferenced_images": {
+      "head_color": 566,
+      "left_color": 283,
+      "right_color": 282
+    }
+  },
+  "actions": {
+    "count": 105807,
+    "span_s": 1741.301223757,
+    "hz": 60.76260589291662,
+    "nonincreasing": 0,
+    "interval_ms": {
+      "count": 105806,
+      "min": 9.509973,
+      "p50": 15.2332815,
+      "p95": 25.51396775,
+      "p99": 32.74932674999997,
+      "max": 64.731165
+    },
+    "mapped_timestamp_rows": 0,
+    "invalid_rows": 0,
+    "sequence_regressions": 0
+  },
+  "images": {
+    "head_color": {
+      "camera": "head_color",
+      "count": 52225,
+      "missing": [],
+      "decode_failures": [],
+      "dimension_mismatches": [],
+      "hash_mismatches": [],
+      "index_mismatches": [],
+      "bytes": 7761496579,
+      "span_s": 1740.915045585,
+      "hz": 29.998017498005574,
+      "nonincreasing": 0,
+      "interval_ms": {
+        "count": 52224,
+        "min": 26.279772,
+        "p50": 33.296128,
+        "p95": 36.62938185,
+        "p99": 38.60080529,
+        "max": 40.320992
+      },
+      "sequence_gaps": 0,
+      "sequence_regressions": 0,
+      "dimensions": {
+        "(1280, 720)": 52225
+      },
+      "file_count": 52225,
+      "byte_identical_extra_frames": 0
+    },
+    "left_color": {
+      "camera": "left_color",
+      "count": 51942,
+      "missing": [],
+      "decode_failures": [],
+      "dimension_mismatches": [],
+      "hash_mismatches": [],
+      "index_mismatches": [],
+      "bytes": 7826455776,
+      "span_s": 1740.906334084,
+      "hz": 29.835608604026028,
+      "nonincreasing": 0,
+      "interval_ms": {
+        "count": 51941,
+        "min": 25.984993,
+        "p50": 32.668996,
+        "p95": 36.891822,
+        "p99": 38.24181,
+        "max": 42.78308
+      },
+      "sequence_gaps": 0,
+      "sequence_regressions": 0,
+      "dimensions": {
+        "(1024, 768)": 51942
+      },
+      "file_count": 51942,
+      "byte_identical_extra_frames": 0
+    },
+    "right_color": {
+      "camera": "right_color",
+      "count": 51941,
+      "missing": [],
+      "decode_failures": [],
+      "dimension_mismatches": [],
+      "hash_mismatches": [],
+      "index_mismatches": [],
+      "bytes": 7260630520,
+      "span_s": 1740.872866633,
+      "hz": 29.835607754893953,
+      "nonincreasing": 0,
+      "interval_ms": {
+        "count": 51940,
+        "min": 26.431513,
+        "p50": 32.7494195,
+        "p95": 36.538877,
+        "p99": 38.08746768,
+        "max": 42.284828
+      },
+      "sequence_gaps": 0,
+      "sequence_regressions": 0,
+      "dimensions": {
+        "(1024, 768)": 51941
+      },
+      "file_count": 51941,
+      "byte_identical_extra_frames": 0
+    }
+  },
+  "audit_started": 1793937546.107881,
+  "audit_finished": 1793937948.270221,
+  "episode_bytes": 24433352075,
+  "audit_cause": {
+    "before_prefix_matched": true,
+    "after_prefix_matched": true,
+    "new_log_lines": 71,
+    "nonexempt_new_lines": [
+      "[ 1945.923300] hrtimer: interrupt took 43272 ns"
+    ],
+    "critical_equal": {
+      "robot_pids": true,
+      "modules": true,
+      "mounts": true,
+      "config_hashes": true
+    }
+  },
+  "camera_index_check": {
+    "head_color": {
+      "rows": 52225,
+      "mismatches": 0
+    },
+    "left_color": {
+      "rows": 51942,
+      "mismatches": 0
+    },
+    "right_color": {
+      "rows": 51941,
+      "mismatches": 0
+    }
+  },
+  "user_confirmed_static_endurance_test": true,
+  "raw_dataset_modified": false,
+  "app_or_controller_code_modified": false,
+  "robot_commands_sent": false,
+  "camera_service_restarted": false,
+  "supplemental_clock": {
+    "purpose": "Supplemental diagnostic clock observation after collection; not original clock_after and not applied to dataset",
+    "observed_unix_ns": 1793937832184087175,
+    "episode": "20261106_112055_fusion_1192e9c6",
+    "original_before": {
+      "offset_ns": -8167506721948,
+      "rtt_ns": 1202236,
+      "uncertainty_ns": 601118,
+      "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+      "pc_midpoint_ns": 8565075043451,
+      "measurements": [
+        {
+          "offset_ns": -8167506921965,
+          "rtt_ns": 1765729,
+          "uncertainty_ns": 882864,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 8564965103311
+        },
+        {
+          "offset_ns": -8167508614579,
+          "rtt_ns": 5023025,
+          "uncertainty_ns": 2511512,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 8565021083411
+        },
+        {
+          "offset_ns": -8167506721948,
+          "rtt_ns": 1202236,
+          "uncertainty_ns": 601118,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 8565075043451
+        }
+      ],
+      "method": "minimum_RTT_midpoint_estimate"
+    },
+    "posthoc_anchor": {
+      "offset_ns": -8167498373824,
+      "rtt_ns": 931866,
+      "uncertainty_ns": 465933,
+      "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+      "pc_midpoint_ns": 11191086467646,
+      "measurements": [
+        {
+          "offset_ns": -8167498373824,
+          "rtt_ns": 931866,
+          "uncertainty_ns": 465933,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191086467646
+        },
+        {
+          "offset_ns": -8167498439261,
+          "rtt_ns": 1156447,
+          "uncertainty_ns": 578223,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191126348586
+        },
+        {
+          "offset_ns": -8167498419482,
+          "rtt_ns": 1597442,
+          "uncertainty_ns": 798721,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191166463150
+        },
+        {
+          "offset_ns": -8167498455388,
+          "rtt_ns": 1618734,
+          "uncertainty_ns": 809367,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191206539943
+        },
+        {
+          "offset_ns": -8167498157760,
+          "rtt_ns": 1264362,
+          "uncertainty_ns": 632181,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191246469154
+        },
+        {
+          "offset_ns": -8167498454586,
+          "rtt_ns": 1591318,
+          "uncertainty_ns": 795659,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191286663779
+        },
+        {
+          "offset_ns": -8167498614112,
+          "rtt_ns": 1494486,
+          "uncertainty_ns": 747243,
+          "boot_id": "d786d40c-43ca-4ec1-995b-7c12d161fc01",
+          "pc_midpoint_ns": 11191326416388
+        }
+      ],
+      "method": "minimum_RTT_midpoint_estimate"
+    },
+    "same_boot": true,
+    "estimated_linear_drift_ppm": 3.1790128264804123,
+    "not_applied_to_original_episode": true
+  },
+  "black_screen_timeline": [
+    {
+      "time_local": "11:49:56.687",
+      "event": "Stream ended with dmesg audit failure; preview entered fault state"
+    },
+    {
+      "time_local": "11:49:58.972",
+      "event": "App attempted to reconnect after 2.285 s"
+    },
+    {
+      "time_local": "11:50:01.337",
+      "event": "Controller fault blocked preview reconnection"
+    },
+    {
+      "time_local": "11:51:57.874",
+      "event": "Background save published incomplete episode; approximately 121.15 s after stop"
+    }
+  ],
+  "conclusion": {
+    "raw_images_and_joint_data": "29-minute static run achieved approximately 30 fps per camera and 100 Hz joints; full strict decoding, hash checks and source references verified",
+    "grippers": "Raw real feedback preserved at approximately 89.61/87.16 Hz, below 100 Hz target",
+    "blocking_quality_issue": "clock_after.json absent after audit failure; all 174090 aligned rows have null grippers and all 51659 bundles lack joint/gripper action labels",
+    "root_trigger": "Only non-exempt added kernel log is hrtimer: interrupt took 43272 ns; exact before/after dmesg hashes reconstructed; robot PIDs, modules, mounts and config hashes unchanged",
+    "repair_status": "Diagnosis only. No fault clearing or rewrite of data/quality flags. Supplemental same-boot clock measurement separately retained to support a future explicitly labelled recovery."
+  }
+}

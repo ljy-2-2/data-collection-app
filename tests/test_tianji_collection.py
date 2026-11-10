@@ -111,6 +111,7 @@ def account(monkeypatch):
 
 
 def platform_client(seen, fail_upload=False):
+    labels = []
     def handler(request):
         seen.append(request)
         if request.url.host == "storage.test":
@@ -135,6 +136,10 @@ def platform_client(seen, fail_upload=False):
                     ]
                 },
             )
+        if request.url.path.endswith('/labels'):
+            if request.method=='GET':return httpx.Response(200,json={'items':labels})
+            labels.append(json.loads(request.content))
+            return httpx.Response(201,json=labels[-1])
         if request.url.path == "/episodes":
             return httpx.Response(201, json={"id": json.loads(request.content)["id"]})
         raise AssertionError(str(request.url))
@@ -156,7 +161,7 @@ def platform_client(seen, fail_upload=False):
         ("dual", "mjpeg", None, True, "queue"),
     ]
 )
-def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode, two_wrists, joint_gap):
+def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format, upload_mode, two_wrists, joint_gap, annotated=False, zed_mode=None, background=False):
     selected = ("left", "right") if mode == "dual" else (mode,)
     exported = selected if upload_mode is None else (upload_mode,)
     buf = io.BytesIO()
@@ -175,9 +180,27 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     size = [1024, 768] if raw_format == 'mjpeg' else [640, 480]
     profiles = {key:dict(format=raw_format,width=size[0],height=size[1],fps=30,
                          brightness=dict(supported=True,value=-8,min=-64,max=64,step=1,default=0)) for key in mapping} if two_wrists else None
-    if two_wrists:
+    camera_pixels = {}
+    if zed_mode:
+        from test_tianji_camera_settings import protocol
+        profiles = {key:dict(format='mjpeg',width=1024,height=768,fps=30) for key in mapping}
+        profiles['usb-1'] = dict(protocol.PROFILES[zed_mode], mode_id=zed_mode,
+            brightness=dict(supported=True,value=4,min=0,max=8,step=1,default=4))
+        for key, profile in profiles.items():
+            encoded = io.BytesIO()
+            Image.new('RGB',(profile['width'],profile['height']),(30,70,120)).save(encoded,format='JPEG')
+            camera_pixels[key] = encoded.getvalue()
+    if profiles is not None:
         manager.collection_camera_state = lambda:dict(ids=list(mapping),profiles=profiles)
     collection = TianjiCollection(manager, tmp_path)
+    if background:
+        import os
+        from teleop_control import tianji_local_queue as save_queue
+        collection.queue_root = tmp_path / 'queue'
+        save_queue.configure(collection.queue_root, tmp_path)
+        collection.output = collection.queue_root / 'pending'
+        save_queue.atomic_json(collection.queue_root / 'worker-state.json',
+                               dict(pid=os.getpid(), updated_at=time.time()))
     offset = 3_000_000_000
 
     class Camera:
@@ -240,6 +263,8 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                                            if joint_gap == 'fault' else 'Joint sampler delayed over 100 ms'))
                     yield StreamEvent(dict(type='health',ok=True,joint_feedback_ok=True))
                 row = feedback(i + 3, selected, a=1, b=int(i >= 65))
+                if annotated:
+                    row['button_press_counts'].update(X=sum(i>=n for n in [10,20,30,40]),Y=int(i>=35))
                 collection.accept(row)
                 stamp = row["pc_monotonic_ns"] + offset
                 yield StreamEvent(
@@ -271,13 +296,13 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
                                 "type": "image",
                                 "camera_id": camera,
                                 "format": raw_format,
-                                "width": size[0],
-                                "height": size[1],
+                                "width": profiles[camera]['width'] if profiles else size[0],
+                                "height": profiles[camera]['height'] if profiles else size[1],
                                 "timestamp_ns": stamp + k * 100_000,
                                 "sequence": counts[k] + (2 if joint_gap == 'queue' and i >= 30 else 0),
                                 **({'camera_settings': profiles[camera]} if profiles is not None else {}),
                             },
-                            pixels,
+                            camera_pixels.get(camera, pixels),
                         )
                         counts[k] += 1
                 time.sleep(0.008)
@@ -294,23 +319,48 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     manager.resume_cameras_after_episode.side_effect = lambda: resume_before_finalizing.append(
         not (collection.episode.directory / 'record/aligned_joints.jsonl').exists()
     )
-    collection.arm({"task": "SYNTHETIC TEST", "mode": mode, "upload_mode": upload_mode, "parameters": {"scale": 1}})
+    collection.arm({"task": "SYNTHETIC TEST", "mode": mode, "upload_mode": upload_mode, "parameters": {"scale": 1}, **({"subtask_config":dict(name="抓放",labels=["pick","move","place"])} if annotated else {})})
     assert collection.controlled_sides == selected
     collection.accept(feedback(1, selected))
     collection.accept(feedback(2, selected, a=1))
     collection.job.join(timeout=15)
     assert not collection.active()
+    if background:
+        import os
+        import subprocess
+        assert collection.episode.background_queued
+        assert collection.snapshot()['completed'] == 0
+        assert not (collection.episode.directory / READY_MARKER).exists()
+        # A new process reconstructs the episode only from durable raw input.
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run([sys.executable, '-c',
+            'from pathlib import Path; from teleop_control.tianji_local_queue import scan_once; '
+            'import sys; scan_once(Path(sys.argv[1]))', str(collection.queue_root)],
+            env=dict(os.environ, PYTHONPATH=str(root / 'teleop_control/src')),
+            capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0, result.stderr
+        state = save_queue.queue_status(collection.queue_root, collection.session)
+        assert not state['failed'], state
+        directory = tmp_path / collection.episode.directory.name
+        assert directory.exists(), state
+        assert not collection.episode.directory.exists()
+        # Subsequent checks use the published output, not the removed raw cache.
+        collection.episode.directory = directory
     if joint_gap == 'fault':
         assert collection.snapshot()['completed'] == 0
         directory = collection.episode.directory
         metadata = json.loads((directory/'meta_info.json').read_text())
         assert not metadata['complete']
-        assert '关节反馈中断' in collection.error
+        assert '关节反馈中断' in (metadata['error'] if background else collection.error)
         assert not (directory/READY_MARKER).exists()
         assert collection.armed  # Recording failure does not stop robot control.
         collection.disarm()
         return
     assert collection.snapshot()["completed"] == 1, collection.error
+    assert collection.episode.recording_ended_monotonic is not None
+    stopped = collection.episode.stop_pc_ns / 1e9 if collection.episode.stop_pc_ns is not None else collection.episode.recording_ended_monotonic
+    assert collection.snapshot()['elapsed_s'] == pytest.approx(max(0., stopped-collection.episode.started_monotonic))
+    assert not collection.snapshot()['recording']
     assert collection.armed  # B ends the Episode without stopping teleoperation.
     directory = collection.episode.directory
     metadata = json.loads((directory / "meta_info.json").read_text())
@@ -347,7 +397,12 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
     )
     for path in (directory / "camera").glob("*/frames/*.jpg"):
         with Image.open(path) as image:
-            assert image.size == (tuple(size) if two_wrists else (640, 480))
+            if zed_mode:
+                key = next(key for key, name in mapping.items() if name == path.parent.parent.name)
+                assert image.size == (profiles[key]['width'], profiles[key]['height'])
+                assert path.read_bytes() == camera_pixels[key]
+            else:
+                assert image.size == (tuple(size) if two_wrists else (640, 480))
             image.load()
     bundles = [
         json.loads(row)
@@ -377,12 +432,31 @@ def test_ab_episode_and_platform_round_trip(tmp_path, account, mode, raw_format,
         uploader.scan_once()
         assert len(seen) == count  # Receipt makes repeat scans idempotent.
     registered = json.loads(next(r for r in seen if r.url.path == "/episodes").content)
+    if annotated:
+        segments=metadata['subtask_annotation']['segments']
+        assert [x['name'] for x in segments]==['pick','move','place','pick']
+        assert segments[0]['start_frame']==0
+        assert all(a['end_frame']==b['start_frame'] for a,b in zip(segments,segments[1:]))
+        assert 0<segments[-1]['end_frame']<metadata['frames_recorded']
+        assert registered['extra']['subtask_annotation']==metadata['subtask_annotation']
+        labels=[json.loads(r.content) for r in seen if r.url.path.endswith('/labels') and r.method=='POST']
+        assert [r['value'] for r in labels]==['pick','move','place','pick']
+        assert labels[0]['t_end']<labels[1]['t_start']
     assert registered["robot_id"] == "天机 Marvin M6"
     assert registered["extra"]["robot_type"] == "tianji"
     assert registered["extra"]["robot_name"] == "天机 Marvin M6"
-    assert registered["extra"]["fps"] == 30
+    assert registered["extra"]["fps"] == (min(p['fps'] for p in profiles.values()) if zed_mode else 30)
+    if zed_mode:
+        assert metadata['requested_image_hz'] == min(p['fps'] for p in profiles.values())
     assert registered['extra']['controlled_sides'] == list(selected)
     assert registered['extra']['upload_sides'] == list(exported)
+    if zed_mode:
+        head = next(c for c in registered['extra']['cameras'] if c['key']=='observation.images.head_color')
+        assert (head['width'],head['height'],head['fps']) == tuple(profiles['usb-1'][k] for k in ('width','height','fps'))
+        assert head['eye'] == 'left' and head['camera_model'] == 'ZED Mini'
+        assert head['source_width'] == head['width'] * 2 and head['encoding'] == 'controller_jpeg'
+        assert metadata['cameras']['head_color']['eye'] == 'left'
+        assert 'actual_hz' in metadata['cameras']['head_color']
     features = registered['extra']['source_features']
     expected_names = [s + '_joint_' + str(j) for s in exported for j in range(1, 8)]
     assert features['observation.state']['names'] == expected_names
@@ -674,3 +748,12 @@ def test_recorded_destination_is_written_to_both_metadata_and_ready_marker(tmp_p
     marker=next(tmp_path.glob('*/'+READY_MARKER))
     assert json.loads(marker.read_text())['upload_destination']==destination
     assert json.loads((marker.parent/'meta_info.json').read_text())['upload_destination']==destination
+
+
+def test_annotated_tianji_episode_to_platform_labels(tmp_path, account):
+    test_ab_episode_and_platform_round_trip(tmp_path, account, 'dual', 'mjpeg', None, True, None, annotated=True)
+
+
+@pytest.mark.parametrize("zed_mode", ["zed-left-1920x1080-30", "zed-left-2208x1242-15", "zed-left-1280x720-60", "zed-left-672x376-100"])
+def test_zed_left_recording_and_upload_preserve_size_fps_and_provenance(tmp_path, account, zed_mode):
+    test_ab_episode_and_platform_round_trip(tmp_path, account, "dual", "mjpeg", None, False, False, zed_mode=zed_mode)

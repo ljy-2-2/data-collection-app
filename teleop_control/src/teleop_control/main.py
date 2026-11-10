@@ -244,6 +244,7 @@ def build_controller(
     gdk_env["PYTHONPATH"] = os.pathsep.join(
         item
         for item in (
+            str(root / "teleop_control" / "src"),
             str(xr_runtime),
             str(xr_runtime / "src"),
             gdk_env.get("PYTHONPATH", ""),
@@ -382,12 +383,19 @@ def main() -> None:
         umi_gate=umi_gate,
     )
     uploaders = []
+    if not args.mock:
+        try:
+            app.state.tianji_manager.collection.enable_background_save()
+        except (OSError, RuntimeError) as exc:
+            # Existing queued captures remain intact. The recording preflight
+            # refuses new captures until the independent worker is ready.
+            print(f"天机后台保存服务未就绪：{exc}", file=sys.stderr)
     if not raw_only:
         uploaders = [
             CollectionUploader(args.output, args.api_url, targets=targets),
             umi_uploader,
         ]
-        tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.output, args.api_url, targets=targets)
+        tianji_uploader = CollectionUploader(app.state.tianji_manager.collection.saved_output, args.api_url, targets=targets)
         app.state.tianji_manager.collection.uploader = tianji_uploader
         uploaders.append(tianji_uploader)
         kuavo_uploader=CollectionUploader(app.state.kuavo_manager.collection.output,args.api_url,targets=targets)

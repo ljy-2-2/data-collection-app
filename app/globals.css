@@ -1304,3 +1304,20 @@ select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .kuavo-base-direction:focus-visible .kuavo-base-sector { stroke: var(--accent-strong); stroke-width: 2; }
 .kuavo-manual-message { margin: 0; padding: 10px 18px; font-size: .75rem; color: var(--amber); border-top: 1px solid var(--line); }
 @media(max-width:780px) { .kuavo-manual-columns { grid-template-columns: 1fr; }.kuavo-manual-toolbar { flex-wrap: wrap; } }
+
+.subtask-picker-row,.subtask-option,.subtask-card {display:flex;gap:8px;align-items:center}
+.field-grid.teleop-setup-fields {grid-template-columns:minmax(120px,1fr) minmax(220px,1.3fr) 180px;align-items:start}
+.subtask-dropdown {position:relative;flex:1;min-width:0}
+.subtask-dropdown>.action-button {width:100%;justify-content:space-between}
+.subtask-options {position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:30;padding:6px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--surface,#fff);box-shadow:0 8px 24px #0002;max-height:260px;overflow:auto}
+.subtask-options button {padding:8px;text-align:left;border:0;border-radius:5px;background:transparent;color:inherit;cursor:pointer}
+.subtask-options button:hover {background:#8882}
+.subtask-option>button:first-child {flex:1;min-width:0;overflow-wrap:anywhere}
+.subtask-config-dialog {width:min(640px,calc(100vw - 32px));max-height:85vh;overflow:auto;border:1px solid var(--line,#ccc);border-radius:14px;padding:24px;background:var(--surface,#fff);color:var(--ink,#222)}
+.subtask-config-dialog::backdrop {background:#0007}
+.subtask-config-dialog h2 {margin:0 0 20px;font-size:20px}
+.subtask-config-dialog p,.subtask-config-picker small {font-size:12px;line-height:1.6;color:var(--ink-muted,#777)}
+.subtask-cards {display:grid;gap:10px;margin:16px 0;max-height:40vh;overflow:auto}
+.subtask-card {padding:12px;border:1px solid var(--line,#ccc);border-radius:9px}
+.subtask-card input {flex:1;min-width:0;padding:8px;border:1px solid var(--line,#ccc);border-radius:5px;background:transparent;color:inherit}
+.subtask-card button {font-size:12px;white-space:nowrap}

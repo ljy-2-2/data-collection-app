@@ -91,6 +91,8 @@ class ControlServer:
         self._recording = False
         self.recording_status = recording_status
         self._start_pending = False
+        self.annotation_config = json.loads(os.environ.get('TELEOP_SUBTASK_CONFIG') or 'null')
+        self.annotations = None
         self._actions: list[dict] = []
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._publish_recording(False)
@@ -136,6 +138,10 @@ class ControlServer:
                     elif kind == "stop":
                         self._publish_recording(False)
                         self.stop_event.set()
+                    elif kind == "annotation":
+                        with self._lock:
+                            if self._recording and self.annotations and not self.stop_event.is_set():
+                                self.annotations.press(msg.get('button'), msg['pc_ts_ns'])
                     elif kind == "action":
                         with self._lock:
                             if self._recording:
@@ -152,6 +158,9 @@ class ControlServer:
 
     def begin_episode(self):
         with self._lock:
+            if self.annotation_config:
+                from teleop_control.subtask_annotations import AnnotationCycle
+                self.annotations = AnnotationCycle(self.annotation_config)
             self._start_pending = False
             self._recording = True
             self._actions = []
@@ -420,6 +429,16 @@ def main():
             actions = server.finish_episode()
             count = write_actions(writer.dir, actions)
             frames = keep_right_arm_state_only(writer.dir) if args.right_only else None
+            if server.annotation_config:
+                with (writer.dir/'record'/'bundles.jsonl').open() as bundle_file:
+                    rows = (json.loads(line) for line in bundle_file if line.strip())
+                    annotation = server.annotations.export(row.get('pc_recv_ns', row['timestamp_ns']) for row in rows)
+                meta_path = writer.dir/'meta_info.json'
+                metadata = json.loads(meta_path.read_text())
+                metadata.update(annotation)
+                temporary = meta_path.with_suffix('.tmp')
+                temporary.write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
+                temporary.replace(meta_path)
             mark_episode_ready(
                 writer.dir,
                 session_id=args.session_id,

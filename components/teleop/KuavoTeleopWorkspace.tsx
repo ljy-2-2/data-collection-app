@@ -1,4 +1,5 @@
 'use client';
+import type { SubtaskConfig } from './SubtaskConfigPicker';
 import { useEffect, useRef, useState } from 'react';
 import { ActionButton, StatusDot } from '../CollectionUi';
 import { KuavoRobotPreview } from '../KuavoRobotPreview';
@@ -38,8 +39,8 @@ type Status = {
   pico_sdk_available?: boolean; preparation?: Record<string, unknown>;
   log_directory?: string; limitations?: string[]; logs?: string[];
 };
-export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=false}: {
-  darkMode?:boolean; baseUrl: string; task: string; onBusyChange?: (busy: boolean) => void;
+export function KuavoTeleopWorkspace({baseUrl, task, subtaskConfig, onBusyChange, darkMode=false}: {
+  darkMode?:boolean; baseUrl: string; task: string; subtaskConfig?:SubtaskConfig|null; onBusyChange?: (busy: boolean) => void;
 }) {
   const [status, setStatus] = useState<Status>({state:'idle'});
   const [action, setAction] = useState('');
@@ -161,7 +162,7 @@ export function KuavoTeleopWorkspace({baseUrl, task, onBusyChange, darkMode=fals
     const restarting=name==='start'&&!status.control_ready&&!!status.can_restart;
     const preparing=name==='check'||restarting;
     const body = name === 'stop' ? {session_id:status.session_id} : {
-      task, network_namespace:'current', arm_mode:armMode, position_scale:serviceParameters?1:motion.position_scale, confirm_motion:name==='check'||name==='start'||(name==='prepare'&&preparation!=='grippers_inspect'),
+      task, subtask_config:subtaskConfig, network_namespace:'current', arm_mode:armMode, position_scale:serviceParameters?1:motion.position_scale, confirm_motion:name==='check'||name==='start'||(name==='prepare'&&preparation!=='grippers_inspect'),
       prepare_controller:preparing,prepare_grippers:preparing,prepare_session:preparing,prepare_manual:name==='check',require_prepared:name==='start',restart_after_stop:restarting,
       accept_unverified_gripper_bus:true, motor_ids_confirmed:preparing||motorIds,
       ...(preparation ? {preparation_action:preparation} : {}),

@@ -474,7 +474,7 @@ void _uvc_swap_buffers(uvc_stream_handle_t *strmh) {
 
   /* swap the buffers */
   tmp_buf = strmh->holdbuf;
-  strmh->hold_bytes = strmh->got_bytes;
+  strmh->hold_bytes = strmh->payload_overflow ? 0 : strmh->got_bytes;
   strmh->holdbuf = strmh->outbuf;
   strmh->outbuf = tmp_buf;
   strmh->hold_last_scr = strmh->last_scr;
@@ -494,6 +494,7 @@ void _uvc_swap_buffers(uvc_stream_handle_t *strmh) {
 
   strmh->seq++;
   strmh->got_bytes = 0;
+  strmh->payload_overflow = 0;
   strmh->last_scr = 0;
   strmh->pts = 0;
 }
@@ -586,8 +587,14 @@ void _uvc_process_payload(uvc_stream_handle_t *strmh, uint8_t *payload, size_t p
   }
 
   if (data_len > 0) {
-    memcpy(strmh->outbuf + strmh->got_bytes, payload + header_len, data_len);
-    strmh->got_bytes += data_len;
+    /* A damaged bulk frame must fail validation, never write past the buffer. */
+    if (strmh->payload_overflow || strmh->got_bytes > LIBUVC_XFER_BUF_SIZE ||
+        data_len > LIBUVC_XFER_BUF_SIZE - strmh->got_bytes) {
+      strmh->payload_overflow = 1;
+    } else {
+      memcpy(strmh->outbuf + strmh->got_bytes, payload + header_len, data_len);
+      strmh->got_bytes += data_len;
+    }
 
     if (header_info & (1 << 1)) {
       /* The EOF bit is set, so publish the complete frame */
@@ -650,7 +657,7 @@ void LIBUSB_CALL _uvc_stream_callback(struct libusb_transfer *transfer) {
     pthread_mutex_lock(&strmh->cb_mutex);
 
     /* Mark transfer as deleted. */
-    for(i=0; i < LIBUVC_NUM_TRANSFER_BUFS; i++) {
+    for(i=0; i < strmh->num_transfer_bufs; i++) {
       if(strmh->transfers[i] == transfer) {
         UVC_DEBUG("Freeing transfer %d (%p)", i, transfer);
         free(transfer->buffer);
@@ -659,7 +666,7 @@ void LIBUSB_CALL _uvc_stream_callback(struct libusb_transfer *transfer) {
         break;
       }
     }
-    if(i == LIBUVC_NUM_TRANSFER_BUFS ) {
+    if(i == strmh->num_transfer_bufs ) {
       UVC_DEBUG("transfer %p not found; not freeing!", transfer);
     }
 
@@ -693,7 +700,7 @@ void LIBUSB_CALL _uvc_stream_callback(struct libusb_transfer *transfer) {
       pthread_mutex_lock(&strmh->cb_mutex);
 
       /* Mark transfer as deleted. */
-      for(i=0; i < LIBUVC_NUM_TRANSFER_BUFS; i++) {
+      for(i=0; i < strmh->num_transfer_bufs; i++) {
         if(strmh->transfers[i] == transfer) {
           UVC_DEBUG("Freeing orphan transfer %d (%p)", i, transfer);
           free(transfer->buffer);
@@ -701,7 +708,7 @@ void LIBUSB_CALL _uvc_stream_callback(struct libusb_transfer *transfer) {
           strmh->transfers[i] = NULL;
         }
       }
-      if(i == LIBUVC_NUM_TRANSFER_BUFS ) {
+      if(i == strmh->num_transfer_bufs ) {
         UVC_DEBUG("orphan transfer %p not found; not freeing!", transfer);
       }
 
@@ -820,6 +827,7 @@ uvc_error_t uvc_stream_open_ctrl(uvc_device_handle_t *devh, uvc_stream_handle_t 
     goto fail;
   }
   strmh->devh = devh;
+  strmh->num_transfer_bufs = LIBUVC_NUM_TRANSFER_BUFS;
   strmh->stream_if = stream_if;
   strmh->frame.library_owns_data = 1;
 
@@ -916,6 +924,18 @@ uvc_error_t uvc_stream_start(
   /* A VS interface uses isochronous transfers iff it has multiple altsettings.
    * (UVC 1.5: 2.4.3. VideoStreaming Interface) */
   isochronous = interface->num_altsetting > 1;
+  /* ZED Mini USB3 bulk produces 248 MB/s at 1080p30 stereo. Eight 32 KiB
+   * requests cover only 1 ms and starve while the sender is JPEG-encoding.
+   * 128 requests cover less than one stereo frame and still exhaust under
+   * three-camera TLS/encoding load. Queue 12 MiB (about 50 ms at 1080p30),
+   * leaving room for both wrists under the controller's 16 MiB usbfs limit.
+   * Keep wrist isochronous queues and their bandwidth unchanged. */
+  if (!isochronous) {
+    struct libusb_device_descriptor device_desc;
+    if (libusb_get_device_descriptor(strmh->devh->dev->usb_dev, &device_desc) == 0 &&
+        device_desc.idVendor == 0x2b03 && device_desc.idProduct == 0xf682)
+      strmh->num_transfer_bufs = LIBUVC_MAX_TRANSFER_BUFS;
+  }
 
   if (isochronous) {
     /* For isochronous streaming, we choose an appropriate altsetting for the endpoint
@@ -990,7 +1010,7 @@ uvc_error_t uvc_stream_start(
     }
 
     /* Set up the transfers */
-    for (transfer_id = 0; transfer_id < LIBUVC_NUM_TRANSFER_BUFS; ++transfer_id) {
+    for (transfer_id = 0; transfer_id < strmh->num_transfer_bufs; ++transfer_id) {
       transfer = libusb_alloc_transfer(packets_per_transfer);
       strmh->transfers[transfer_id] = transfer;      
       strmh->transfer_bufs[transfer_id] = malloc(total_transfer_size);
@@ -1003,7 +1023,7 @@ uvc_error_t uvc_stream_start(
       libusb_set_iso_packet_lengths(transfer, endpoint_bytes_per_packet);
     }
   } else {
-    for (transfer_id = 0; transfer_id < LIBUVC_NUM_TRANSFER_BUFS;
+    for (transfer_id = 0; transfer_id < strmh->num_transfer_bufs;
         ++transfer_id) {
       transfer = libusb_alloc_transfer(0);
       strmh->transfers[transfer_id] = transfer;
@@ -1027,7 +1047,7 @@ uvc_error_t uvc_stream_start(
     pthread_create(&strmh->cb_thread, NULL, _uvc_user_caller, (void*) strmh);
   }
 
-  for (transfer_id = 0; transfer_id < LIBUVC_NUM_TRANSFER_BUFS;
+  for (transfer_id = 0; transfer_id < strmh->num_transfer_bufs;
       transfer_id++) {
     ret = libusb_submit_transfer(strmh->transfers[transfer_id]);
     if (ret != UVC_SUCCESS) {
@@ -1037,7 +1057,7 @@ uvc_error_t uvc_stream_start(
   }
 
   if ( ret != UVC_SUCCESS && transfer_id > 0 ) {
-    for ( ; transfer_id < LIBUVC_NUM_TRANSFER_BUFS; transfer_id++) {
+    for ( ; transfer_id < strmh->num_transfer_bufs; transfer_id++) {
       free ( strmh->transfers[transfer_id]->buffer );
       libusb_free_transfer ( strmh->transfers[transfer_id]);
       strmh->transfers[transfer_id] = 0;
@@ -1268,7 +1288,7 @@ uvc_error_t uvc_stream_stop(uvc_stream_handle_t *strmh) {
 
   pthread_mutex_lock(&strmh->cb_mutex);
 
-  for(i=0; i < LIBUVC_NUM_TRANSFER_BUFS; i++) {
+  for(i=0; i < strmh->num_transfer_bufs; i++) {
     if(strmh->transfers[i] != NULL) {
       int res = libusb_cancel_transfer(strmh->transfers[i]);
       if(res < 0 && res != LIBUSB_ERROR_NOT_FOUND ) {
@@ -1281,11 +1301,11 @@ uvc_error_t uvc_stream_stop(uvc_stream_handle_t *strmh) {
 
   /* Wait for transfers to complete/cancel */
   do {
-    for(i=0; i < LIBUVC_NUM_TRANSFER_BUFS; i++) {
+    for(i=0; i < strmh->num_transfer_bufs; i++) {
       if(strmh->transfers[i] != NULL)
         break;
     }
-    if(i == LIBUVC_NUM_TRANSFER_BUFS )
+    if(i == strmh->num_transfer_bufs )
       break;
     pthread_cond_wait(&strmh->cb_cond, &strmh->cb_mutex);
   } while(1);

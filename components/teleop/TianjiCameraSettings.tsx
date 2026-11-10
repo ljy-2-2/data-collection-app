@@ -5,7 +5,7 @@ import { brightnessValue, type CameraBrightnessState } from '../CameraBrightness
 import { requestJson } from '../../lib/http';
 
 const defaultRoles = [{id:'usb_1',label:'主相机'},{id:'usb_4',label:'左相机'},{id:'usb_2',label:'右相机'}];
-type Mode = { id: string; label: string };
+type Mode = { id: string; label: string; eye?: string };
 export type CameraSettings = { brightness: CameraBrightnessState; resolution: { options: Mode[]; selected: Mode; editable: boolean } };
 type Draft = {mode_id:string;brightness:string};
 function checked(value: CameraSettings) {
@@ -109,8 +109,8 @@ export function TianjiCameraSettings({baseUrl,open,onClose,cameras,editable,onBu
       const value=values[role.id],next=drafts[role.id],brightness=value?.brightness;
       const disabled=!editable||loading||saving||!isConnected(role.id);
       return <fieldset key={role.id} disabled={disabled}>
-        <legend>{role.label}</legend>
-        <label className="tianji-camera-setting-row"><span>录制分辨率</span><select aria-label={role.label+'录制分辨率'} value={next?.mode_id||''} disabled={!value?.resolution.editable} onChange={event=>draft(role.id,{mode_id:event.target.value})}>
+        <legend>{role.label}{value?.resolution.selected.eye==='left'?' · ZED Mini 左眼':''}</legend>
+        <label className="tianji-camera-setting-row"><span>分辨率 / 帧率</span><select aria-label={role.label+'录制分辨率'} value={next?.mode_id||''} disabled={!value?.resolution.editable} onChange={event=>draft(role.id,{mode_id:event.target.value})}>
           {!value?<option value="">等待读取相机设置</option>:value.resolution.options.map(mode=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
         </select></label>
         <div className="tianji-camera-setting-row"><span>亮度</span><input type="range" aria-label={role.label+'亮度滑块'} disabled={!brightness?.supported} min={brightness?.supported?brightness.min:0} max={brightness?.supported?brightness.max:1} step={brightness?.supported?brightness.step:1} value={next?.brightness||0} onChange={event=>draft(role.id,{brightness:event.target.value})}/><input type="number" aria-label={role.label+'亮度数值'} disabled={!brightness?.supported} min={brightness?.supported?brightness.min:undefined} max={brightness?.supported?brightness.max:undefined} step={brightness?.supported?brightness.step:1} value={next?.brightness??''} onChange={event=>draft(role.id,{brightness:event.target.value})}/></div>

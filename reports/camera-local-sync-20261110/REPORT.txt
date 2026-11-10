@@ -1,0 +1,35 @@
+2026-11-10 本机相机代码同步
+
+只读现场检查：
+本机 App：127.0.0.1:8011，idle，control_active=false，camera_phase=fault。
+错误：控制器相机故障尚不能安全重连：Controller state changed during camera startup; Audit changed: dmesg_sha256。
+控制器：2.5.0、idle=true、camera_manual_recheck=true、stream_unlimited=true；上轮两路腕部采集异常结束，recoverable_camera_fault=false。
+本机旧重连路径仍要求旧 recoverable_camera_fault 为真，因此无法调用控制器已有的现场重新检查接口。
+未执行远端重连、服务重启、USB 恢复或机器人运动；现场画面恢复尚未验证。
+
+合入来源：
+reports/continuous-camera-20261109/implementation-and-tests.tar.gz
+backups/camera-recheck-20261109/candidate-and-tests.tar.gz
+backups/camera-recheck-20261109/board-session.tar.gz 的 prepared 文件
+backups/camera-recheck-20261109/controller-session.tar.gz 的 prepared 文件
+
+本机适配：
+1. 显式相机重检使用 camera_recheck，核查当前状态并等待真实新画面；失败首帧可进行一次有界重试。旧控制器兼容原路径。
+2. 连续流协商 checkpoint / live clock；每轮校验启动标识、单调分段编号、累计帧/关节计数。不伪造硬件进程正常退出。异常及丢帧质量信息继续保存。
+3. 独立后台保存队列将写盘整理与下一轮采集分离。本机正式 main 启用，默认缓存 runtime/tianji/save-queue，完成输出仍为 runtime/tianji/episodes，上传器仍读取完成输出。失败不覆盖已有目录、不上传不完整数据，按顺序重试；退出 App 不终止已入队任务。没有移植开发板专用的按运行批次清理/删除不完整数据逻辑。
+4. 网页、Qt 界面显示后台待保存数量和错误，保留子任务标注。
+5. 控制器安装工具纳入全部新模块、哈希清单和无限自动重启加 2 秒退避配置；模拟安装与失败回滚测试覆盖源码和服务配置。
+6. 安装包补齐相机 profiles 模块。现有路由测试改为跳过不带 path 的路由包装对象，不改变生产路由。
+
+验证：
+App 自带 Python 3.12 / Qt 运行环境：493 passed（24.60 秒），无跳过，2 条依赖弃用警告。
+范围：相机重连/协议/断流/审计、连续分段、采集/标注/上传、独立保存进程、磁盘失败重试和防覆盖、安装与回滚、Qt 界面、打包、控制服务。
+TypeScript：node_modules/.bin/tsc --noEmit 通过。
+git diff --check 通过。
+详见 regression.log。
+
+生效及性能范围：
+本次修改本机源码，未重启正在运行的 App、未重新打包或安装、未更新远端控制器。
+从本工作区重启 App 后使用新逻辑；控制器现有 2.5.0 已报告支持现场重检。
+0.39～0.44 秒仅为 11 月 9 日开发板结束采集到入队的实测参考，不是本机保证耗时，也不是最终保存耗时。
+相机现场故障是否消失、持续采集稳定性及本机分段耗时，仍需重启后连接实机验证。

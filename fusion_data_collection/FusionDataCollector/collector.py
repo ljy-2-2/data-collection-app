@@ -25,6 +25,7 @@ SDK = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SDK.parent / 'fusion_camera_stream'))
 from fusion_camera.stream import FusionStreamClient, joint_timing_gap
 from fusion_camera.client import Frame
+from fusion_camera.profiles import valid_profile, source_metadata
 from fusion_camera.episode import dump, line, match_bundles, percentiles, stats
 from PIL import Image
 
@@ -32,7 +33,7 @@ SIDES = ('left', 'right')
 CAMERAS = ('usb-1', 'usb-2', 'usb-4')
 PORT = 28765
 IMAGE_PROFILES = {'mjpeg': (1024, 768), 'yuyv': (640, 480)}
-NATIVE_SIZES = {'mjpeg': ((1024, 768), (1280, 1024), (1920, 1080)),
+NATIVE_SIZES = {'mjpeg': ((1024, 768), (1280, 1024), (1920, 1080), (2208, 1242), (1280, 720), (672, 376)),
                 'yuyv': ((320, 240), (640, 480))}
 YUYV_FRAME_BYTES = 640*480*2
 YUYV_THREE_CAMERA_BYTES_PER_SECOND = YUYV_FRAME_BYTES*30*3
@@ -178,7 +179,7 @@ def storage_reserve_bytes(seconds, retain_native, profiles=None):
     # Disk-space monitoring still stops safely if actual JPEG sizes exceed the estimate.
     rate = JPEG_AND_STATE_BYTES_PER_SECOND
     if profiles:
-        rate = int(sum(5_000_000 * max(1., p['width'] * p['height'] / (1024 * 768)) for p in profiles.values()))
+        rate = int(sum(5_000_000 * max(1., p['width'] * p['height'] / (1024 * 768)) * p.get('fps', 30)/30 for p in profiles.values()))
     if retain_native:
         rate += YUYV_THREE_CAMERA_BYTES_PER_SECOND
     # Unlimited episodes reserve an initial minute; the live 2 GB floor remains.
@@ -195,10 +196,12 @@ def image_preprocessing(start, retain_native):
                       stored_format='jpeg', stored_size=None, native_retained=bool(retain_native), per_camera={})
         for camera, profile in profiles.items():
             fmt, size = profile.get('format'), (profile.get('width'), profile.get('height'))
-            if fmt not in NATIVE_SIZES or size not in NATIVE_SIZES[fmt] or profile.get('fps') != 30:
+            if not valid_profile(profile):
                 raise ValueError('Unsupported per-camera native mode')
             result['per_camera'][camera] = dict(native_format=fmt, native_size=list(size), stored_size=list(size),
-                brightness=profile.get('brightness'), method='native JPEG passthrough' if fmt == 'mjpeg' else 'YUYV decoded to RGB then JPEG encoded')
+                brightness=profile.get('brightness'), **source_metadata(profile),
+                method=('ZED left eye extracted on controller, JPEG encoded once; stored without resize or re-encoding'
+                        if profile.get('eye') == 'left' else 'native JPEG passthrough' if fmt == 'mjpeg' else 'YUYV decoded to RGB then JPEG encoded'))
         return result
     native_format = start.get('format', 'mjpeg')  # Historical MJPEG starts omitted format.
     native_size = start.get('native_size', [1024, 768] if native_format == 'mjpeg' else None)
@@ -265,7 +268,8 @@ def readiness(row, now_ns=None, required_sides=SIDES):
 
 class Buttons:
     """Counts survive lossy telemetry; startup/reconnect held buttons never start."""
-    def __init__(self):
+    def __init__(self, annotation=False):
+        self.annotation = annotation
         self.key = None
         self.previous = None
 
@@ -276,9 +280,9 @@ class Buttons:
             self.key, self.previous = key, counts.copy()
             return None
         old, self.previous = self.previous, counts.copy()
-        if any(counts.get(k, 0) > old.get(k, 0) for k in ('B','Y')):
+        if any(counts.get(k, 0) > old.get(k, 0) for k in (('B',) if self.annotation else ('B','Y'))):
             return 'stop'  # Either save button wins over simultaneous starts.
-        if any(counts.get(k, 0) > old.get(k, 0) for k in ('A','X')):
+        if any(counts.get(k, 0) > old.get(k, 0) for k in (('A',) if self.annotation else ('A','X'))):
             return 'start'
         return None
 
@@ -456,10 +460,17 @@ class Episode(threading.Thread):
             raise ValueError('Invalid episode camera mapping')
         self.episode_index = episode_index
         self.required_sides = tuple(getattr(args, 'controlled_sides', SIDES))
+        self.annotations = None
+        if getattr(args, "subtask_config", None):
+            from teleop_control.subtask_annotations import AnnotationCycle
+            self.annotations = AnnotationCycle(args.subtask_config)
+        self.annotation_buttons = Buttons(annotation=True)
+        self.annotation_buttons.accept(trigger)
         self.action_rows = []
         self.record_stores = []
         self.records_finalized = False
         self.started_monotonic = None
+        self.recording_ended_monotonic = None
         self.frame_counts = {}
         self.client_factory = client_factory or (lambda: FusionStreamClient(
             args.host, credentials=args.credentials, timeout=5))
@@ -526,6 +537,14 @@ class Episode(threading.Thread):
                     continue
                 self.telemetry_gaps += max(0,row['sequence']-self.last_sequence-1)
             self.last_sequence = row['sequence']
+            previous = self.annotation_buttons.previous or {}
+            same_session = self.annotation_buttons.key == (row['session'], row.get('vr_session'))
+            self.annotation_buttons.accept(row)
+            if self.annotations and same_session and row.get('vr_connected') and not (self.stop_pc_ns and row['pc_monotonic_ns'] > self.stop_pc_ns):
+                for button in ('Y', 'X'):
+                    count = row.get('button_press_counts', {}).get(button, 0) - previous.get(button, 0)
+                    if count > 0:
+                        self.annotations.press(button, row['pc_monotonic_ns'])
             self.control_cycles.append({'timestamp_ns':row['pc_monotonic_ns']})
             line(file,row)
             if getattr(self.args, 'record_actions', False):
@@ -678,20 +697,26 @@ class Episode(threading.Thread):
                 except Exception:
                     pass
         finally:
+            if self.recording_ended_monotonic is None:
+                self.recording_ended_monotonic = time.monotonic()
             for rows in self.record_stores:
                 try:
                     rows.close(remove=self.records_finalized)
                 except OSError as exc:
                     self.error = self.error or str(exc)
-            self.state = 'finalizing'
-            if self.error and self.directory is None:
-                self.notice('未开始录制：'+self.error)
+            if getattr(self, 'background_queued', False):
+                self.state = 'queued'
+                self.finished.set()
             else:
-                self.notice('保存失败／数据不完整：'+self.error if self.error else '保存成功')
-            self.notice('保存目录：'+str(self.directory) if self.directory else '未创建保存目录')
-            self.notice('本轮已结束；松开按键后按 A/X 开始第 %d 轮。' % (self.episode_index+1))
-            self.state = 'incomplete' if self.error else 'saved'
-            self.finished.set()
+                self.state = 'finalizing'
+                if self.error and self.directory is None:
+                    self.notice('未开始录制：'+self.error)
+                else:
+                    self.notice('保存失败／数据不完整：'+self.error if self.error else '保存成功')
+                self.notice('保存目录：'+str(self.directory) if self.directory else '未创建保存目录')
+                self.notice('本轮已结束；松开按键后按 A/X 开始第 %d 轮。' % (self.episode_index+1))
+                self.state = 'incomplete' if self.error else 'saved'
+                self.finished.set()
 
     def _record(self, client):
         root = Path(self.args.output).expanduser().resolve()
@@ -701,6 +726,7 @@ class Episode(threading.Thread):
             rate_mb = (reserved_bytes-2_000_000_000)/(self.args.max_seconds or 60)/1e6
             raise RuntimeError('磁盘空间不足：按预计时长（不限时时预留首分钟）预留每秒 %.3f MB，另留 2 GB%s' % (
                 rate_mb, '（含三路原始 YUYV 55.296 MB/s）' if self.args.retain_native else ''))
+        capture_started_ns = time.time_ns()
         name = time.strftime('%Y%m%d_%H%M%S')+'_fusion_'+uuid.uuid4().hex[:8]
         self.directory = root/name
         self.directory.mkdir()
@@ -730,7 +756,7 @@ class Episode(threading.Thread):
             'teleop_runtime_mapping':getattr(self.args,'teleop_runtime_mapping',None),
             'requested_camera_profiles':getattr(self.args,'camera_profiles',None),
             'collector':'fusion_teleop_passive_collection', 'complete':False,'status':'starting',
-            'pc_start_ns':time.time_ns(),'start_trigger':self.trigger,
+            'pc_start_ns':capture_started_ns,'start_trigger':self.trigger,
             'requested_image_hz':30,'requested_joint_hz':100,
             'native_image_format':None, 'native_image_size':None,
             'storage_reserve_bytes':reserved_bytes,
@@ -793,7 +819,9 @@ class Episode(threading.Thread):
                                 raise RuntimeError('Controller restarted during startup')
                             preprocessing = image_preprocessing(m,self.args.retain_native)
                             meta.update(native_image_format=preprocessing['native_format'],
-                                        native_image_size=preprocessing['native_size'])
+                                        native_image_size=preprocessing['native_size'],
+                                        requested_image_hz=min(p.get('fps', 30) for p in
+                                            (m.get('camera_profiles') or {k: {} for k in self.mapping}).values()))
                             dump(record/'image_preprocessing.json',preprocessing)
                             dump(self.directory/'meta_info.json',meta)
                             dump(record/'stream_start.json',m)
@@ -833,7 +861,13 @@ class Episode(threading.Thread):
                                     m.get('joint_feedback_error') or '关节采样不可用'))
                                 client.request_stop()
                         elif kind == 'end':
+                            self.recording_ended_monotonic = time.monotonic()
                             final = m; dump(record/'stream_end.json',m)
+                            meta['recording_boundary'] = dict(
+                                kind=m.get('boundary_kind','native_stream_end'),
+                                transport_continues=bool(m.get('transport_continues')),
+                                checkpoint_id=m.get('checkpoint_id'),
+                                native_cleanup_performed=m.get('native_cleanup_performed',True))
                             if not self.stopping.is_set():
                                 self.notice('结束采集（%s），正在保存已有数据…' %
                                             (m.get('error') if not m.get('ok') else
@@ -859,22 +893,45 @@ class Episode(threading.Thread):
                 self._telemetry(tf,grippers)
             if not final or not final.get('ok'):
                 raise RuntimeError((final or {}).get('error') or '未收到正常结束与资源清理确认')
-            after = client.clock_sync(samples=3)
-            dump(record/'clock_after.json',after)
-            # Real stream end and the final clock RPC are complete. Preview may
-            # resume during disk finalization; it must not publish stored frames.
-            released = getattr(self.args, 'on_stream_released', None)
-            if released:
-                released()
         except Exception as exc:
             self.error = self.error or str(exc)
         finally:
+            if self.recording_ended_monotonic is None:
+                self.recording_ended_monotonic = time.monotonic()
+            # A real controller boundary seals this episode. Continuous streams
+            # use in-band clock replies; legacy streams release the serial service.
+            if before and final:
+                meta['controller_audit_warnings'] = final.get('audit_warnings', [])
+                meta['clock_after_attempted_on_stream_error'] = not final.get('ok', False)
+                try:
+                    candidate = client.clock_sync(samples=3)
+                    if (candidate['boot_id'] != before['boot_id']
+                            or candidate['pc_midpoint_ns'] <= before['pc_midpoint_ns']):
+                        raise RuntimeError('结束时钟的启动标识或时间顺序不匹配')
+                    after = candidate
+                    dump(record/'clock_after.json', after)
+                except Exception as exc:
+                    meta['clock_after_error'] = str(exc)
+                    self.error = self.error or '结束时钟同步失败：'+str(exc)
+                finally:
+                    released = getattr(self.args, 'on_stream_released', None)
+                    if released:
+                        try: released()
+                        except Exception as exc: meta['preview_resume_error'] = str(exc)
             while pending:
                 try:
                     finish_one()
                 except Exception as exc:
                     self.error = self.error or str(exc)
             pool.shutdown(wait=True)
+        if getattr(self.args, 'background_finalize_root', None):
+            from teleop_control.tianji_local_queue import enqueue
+            enqueue(self, cameras, joints, grippers, before, after, final, stream_start, meta)
+            return
+        self._finalize(cameras, joints, grippers, before, after, final, stream_start, meta, store)
+
+    def _finalize(self, cameras, joints, grippers, before, after, final, stream_start, meta, store):
+        record = self.directory/'record'
         self.state = 'finalizing'
         for cname, rows in cameras.items():
             rows.sort(key=lambda r:r['frame_index'])
@@ -967,7 +1024,9 @@ class Episode(threading.Thread):
         }
         validation['target_rates_met'] = bool(
             (validation['joints']['actual_hz'] or 0) >= 98
-            and all((r['actual_hz'] or 0) >= 29 for r in camera_stats.values())
+            and all((r['actual_hz'] or 0) >= ((stream_start or {}).get('camera_profiles') or {}).get(
+                next(key for key, name in self.mapping.items() if name == camera), {}).get('fps', 30) * (29/30)
+                for camera, r in camera_stats.items())
             and all((r['actual_hz'] or 0) >= .98*meta['requested_gripper_hz'] for r in (validation['grippers'][side] for side in self.required_sides)))
         feedback_quality = all(not any(count for name,count in integrity.items()
                                if name not in ('samples','duplicates'))
@@ -987,9 +1046,14 @@ class Episode(threading.Thread):
             last_bundle_ts_ns=bundles[-1]['timestamp_ns'] if bundles else None,
             cameras={k:{'frames':len(v),'encoding':'jpeg',
                         'width':v[0]['stored_width'] if v else None,'height':v[0]['stored_height'] if v else None,
-                        'native_format':v[0]['native_format'] if v else None,'native_size':v[0]['native_size'] if v else None}
+                        'native_format':v[0]['native_format'] if v else None,'native_size':v[0]['native_size'] if v else None,
+                        **source_metadata((((stream_start or {}).get('camera_profiles') or {}).get(
+                            next(key for key, name in self.mapping.items() if name == k), {}))),
+                        'actual_hz':camera_stats[k].get('actual_hz')}
                      for k,v in cameras.items()},
             data_validate=validation['quality_passed'],integrity=validation)
+        if self.annotations:
+            meta.update(self.annotations.export((b['timestamp_ns'] for b in bundles), clock_before=before, clock_after=after))
         dump(record/'validation.json',validation)
         dump(self.directory/'meta_info.json',meta)
         self.records_finalized = True

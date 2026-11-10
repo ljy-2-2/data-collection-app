@@ -50,6 +50,15 @@ EXPECTED['streaming.py'].append('0f9eebbcfae5c021dff295530cfd37afc443f9c831c820b
 EXPECTED['server.py'].append('41839bb84ac82fe03a40a647e980ffa74fa2f82b2b8ed77ffadd31a1a8d69282')
 EXPECTED['streaming.py'].append('67fc0a7866221d215b9b3c8524b1cca5056bb72bdde9911bbbe15366bf266dec')
 
+
+# Locally preserved and reviewed ARM releases (before and after continuous capture).
+EXPECTED['server.py'].append('32bce94f838c75df4f08a212e4816a6db4e683f546b24b0d7a14b0317751a58f')
+EXPECTED['server.py'].append('db7f2f790d3f8af77069df2ad79e497c89131bf52b4ecec5b6906c06c998ec4e')
+EXPECTED['server.py'].append('840f23d3e3b2247ae9d3e601a8278cd320a513e96170c1f1a2ae32b295570bcd')
+EXPECTED['streaming.py'].append('f15f4911b8b31021e43446889b7e8bcff94cdad85597b379cadc2ec453945b36')
+EXPECTED['streaming.py'].append('be3098810c0cba7fe3f89948338bd38c00236388290aacbde4f18dbc0ee2ec3d')
+EXPECTED['streaming.py'].append('8a38d56bbb47c891f402170c2847b08004a2d87558432eaf7c36a957a705880a')
+
 REMOTE = r'''
 from __future__ import print_function
 import base64, hashlib, json, os, subprocess, tempfile, time, sys
@@ -60,7 +69,13 @@ def idle():
     with open(os.devnull, 'wb') as null:
         code = subprocess.call(['/usr/bin/pgrep', '-x', 'capture-three|capture-three-t|capture'], stdout=null)
     if code != 1: raise RuntimeError('Camera helper active or process check failed; refusing update')
-if '/mnt/fusion-camera/server.py' not in open('/etc/init/fusion-camera.conf').read():
+service_conf = '/etc/init/fusion-camera.conf'
+old_conf = open(service_conf,'rb').read()
+new_conf = base64.b64decode(payload['source']['FusionDataCollector/controller_v22/fusion-camera.conf'])
+legacy_conf = new_conf.replace(b'respawn limit unlimited\npost-stop script\n    sleep 2\nend script', b'respawn limit 3 60')
+if old_conf not in (legacy_conf, new_conf):
+    raise RuntimeError('Unexpected service supervision configuration; refusing overwrite')
+if b'/mnt/fusion-camera/server.py' not in old_conf:
     raise RuntimeError('Unexpected camera service layout')
 idle()
 old = {name:open(os.path.join(root,name),'rb').read() for name in ('server.py','streaming.py','stream-manifest.json','camera_audit.py')}
@@ -96,8 +111,13 @@ if os.path.exists(root+'/camera_controls.py'):
 if os.path.exists(root+'/camera_color.py'):
     old['camera_color.py'] = open(root+'/camera_color.py','rb').read()
     modes['camera_color.py'] = os.stat(root+'/camera_color.py').st_mode & 511
+for name in ('camera_recheck.py','camera_usb_recovery.py','stream_checkpoint.py'):
+    if os.path.exists(root+'/'+name):
+        old[name] = open(root+'/'+name,'rb').read()
+        modes[name] = os.stat(root+'/'+name).st_mode & 511
 release = tempfile.mkdtemp(prefix='teleop-v23-'+time.strftime('%Y%m%d-%H%M%S')+'-', dir=root+'/releases')
 source = release+'/source'
+with open(release+'/fusion-camera.conf.before','wb') as f: f.write(old_conf)
 for name, data in old.items():
     with open(release+'/'+name+'.before','wb') as f: f.write(data)
 with open(release+'/status-before.json','w') as f: json.dump(payload['status'],f,indent=2)
@@ -145,8 +165,14 @@ manifest['sha256'][root+'/camera_audit.py'] = digest(base64.b64decode(
     payload['source']['FusionDataCollector/controller_v22/camera_audit.py']))
 manifest['teleop_source_sha256'] = {
     name:digest(base64.b64decode(data)) for name,data in payload['source'].items()}
+manifest['camera_manual_recheck'] = True
+manifest['stream_checkpoints'] = True
+manifest['stream_live_clock'] = True
+for name in ('server.py','streaming.py','camera_recheck.py','camera_usb_recovery.py','stream_checkpoint.py'):
+    manifest['sha256'][root+'/'+name] = digest(base64.b64decode(payload['source']['FusionDataCollector/controller_v22/'+name]))
 new = {'stream-manifest.json':json.dumps(manifest,sort_keys=True,indent=2).encode('ascii')}
-for name in ('server.py','streaming.py','camera_color.py','camera_controls.py','camera_audit.py'):
+for name in ('server.py','streaming.py','camera_color.py','camera_controls.py','camera_audit.py',
+             'camera_recheck.py','camera_usb_recovery.py','stream_checkpoint.py'):
     new[name] = open(source+'/FusionDataCollector/controller_v22/'+name,'rb').read()
     compile(new[name],name,'exec')
 for name,data in new.items():
@@ -159,6 +185,7 @@ try:
     idle()
     os.rename(new_helper,target)
     for name in new: os.rename(release+'/'+name+'.new',root+'/'+name)
+    with open(service_conf,'wb') as f: f.write(new_conf)
     subprocess.check_call(['/sbin/start','fusion-camera'])
     time.sleep(1)
     if b'start/running' not in subprocess.check_output(['/sbin/status','fusion-camera']):
@@ -169,6 +196,10 @@ try:
         raise RuntimeError('Controller audit changed during camera update')
 except Exception:
     subprocess.call(['/sbin/stop','fusion-camera'])
+    with open(service_conf,'wb') as f: f.write(old_conf)
+    for name in ('camera_recheck.py','camera_usb_recovery.py','stream_checkpoint.py'):
+        if name not in old and os.path.exists(root+'/'+name):
+            os.rename(root+'/'+name,release+'/'+name+'.failed')
     for name,data in old.items():
         path = root+'/'+name+'.rollback'
         with open(path,'wb') as f: f.write(data)
@@ -189,9 +220,11 @@ def source_files():
     base = ROOT/'fusion_data_collection'
     controller = base/'FusionDataCollector/controller_v22'
     paths = [controller/name for name in ('server.py','streaming.py','capture_teleop.c',
-              'build_teleop.sh','camera_color.py','camera_controls.py')]
+              'build_teleop.sh','camera_color.py','camera_controls.py','zed_jpeg.h',
+              'camera_recheck.py','camera_usb_recovery.py','stream_checkpoint.py','fusion-camera.conf')]
     vendor = base/'FusionCameraSDK/vendor'
     paths += sorted(vendor.rglob('*.h'))
+    paths += [vendor/'jpeg8/README']
     paths += sorted((vendor/'libuvc-0.0.6/src').glob('*.c'))
     files = {str(p.relative_to(base)):base64.b64encode(p.read_bytes()).decode('ascii') for p in paths}
     files['FusionDataCollector/controller_v22/streaming.py'] = base64.b64encode(

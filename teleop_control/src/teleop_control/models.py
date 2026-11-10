@@ -116,7 +116,11 @@ class PreviewStatus(BaseModel):
     cameras: list[CameraPreview]
 
 
+from .subtask_annotations import SubtaskConfig
+
+
 class StartSessionRequest(BaseModel):
+    subtask_config: SubtaskConfig | None = None
     robot_model: Literal["agibot-g2"]
     mode: Literal["arm"]
     # Omitted by older clients: retain the launcher's configured task label.

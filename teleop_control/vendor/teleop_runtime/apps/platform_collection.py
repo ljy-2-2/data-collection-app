@@ -7,6 +7,7 @@ preserves the data-platform's existing A/B recording protocol and action log.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import threading
 import time
@@ -93,6 +94,8 @@ class PlatformCollectionBridge:
         self._recording_requested = False
         self._previous_a = False
         self._previous_b = False
+        self._previous_xy = None
+        self._annotations = bool(os.environ.get("TELEOP_SUBTASK_CONFIG"))
 
     def process_buttons(self, frame: object) -> str | None:
         buttons = frame.right_controller.buttons
@@ -101,6 +104,16 @@ class PlatformCollectionBridge:
         self._previous_a = buttons.primary
         self._previous_b = buttons.secondary
 
+        left = frame.left_controller.buttons
+        xy = (left.primary, left.secondary)
+        old_xy, self._previous_xy = self._previous_xy, xy
+        if getattr(frame, 'stale', False):
+            self._previous_xy = None
+            return None
+        if self._annotations and self._recording_requested and old_xy is not None and not pressed_b:
+            for i, button in ((1, 'Y'), (0, 'X')):
+                if xy[i] and not old_xy[i]:
+                    self._client.send('annotation', button=button, pc_ts_ns=time.time_ns())
         # Preserve the legacy rule: stop wins if both edges arrive together.
         if pressed_b:
             if self._recording_requested and self._client.send(

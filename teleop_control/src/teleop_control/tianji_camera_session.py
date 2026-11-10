@@ -1,4 +1,4 @@
-"""Adopt an already running preview stream; retain its real audited end."""
+"""Record disjoint episodes on one transport using real controller checkpoints."""
 from collections import deque
 import copy
 import threading
@@ -21,11 +21,43 @@ class CameraSession:
         self.joint_error = None
         self.attached = False
         self.failure = None
+        self.clock_lock = threading.Lock()
+        self.clock_pending = None
+        self.clock_failure = None
+        self.last_checkpoint_id = 0
 
     def publish(self, event):
         stop = False
+        consumer = None
         with self.lock:
             kind = event.metadata['type']
+            if kind == 'clock':
+                pending = self.clock_pending
+                if pending is not None:
+                    pending['event'] = event
+                    pending['done'].set()
+                return
+            if kind == 'checkpoint':
+                consumer = self.consumer
+                if consumer is None or not consumer.continuous or not consumer.stop_requested:
+                    raise RuntimeError('收到不匹配的采集分段确认')
+                metadata = event.metadata
+                ident = metadata.get('checkpoint_id')
+                if (metadata.get('ok') is not True or type(ident) is not int
+                        or ident <= self.last_checkpoint_id
+                        or metadata.get('boot_id') != self.clock['boot_id']
+                        or metadata.get('transport_continues') is not True
+                        or metadata.get('native_exit') is not None
+                        or metadata.get('native_cleanup_performed') is not False):
+                    raise RuntimeError('控制器分段标识不匹配')
+                expected = [self.frame_counts[k] for k in ('usb-1','usb-2','usb-4')]
+                if event.metadata.get('frames') != expected or event.metadata.get('joint_samples') != self.joint_count:
+                    raise RuntimeError('控制器分段计数与实际接收数量不一致')
+                consumer._seal_checkpoint(event)
+                self.last_checkpoint_id = ident
+                self.consumer = None
+                self.attached = False
+                return
             if kind == 'start':
                 self.start = event
             elif kind == 'image':
@@ -42,14 +74,50 @@ class CameraSession:
                     self.joint_error = None
             elif kind == 'end':
                 self.end = event
-            if self.consumer is not None:
-                stop = self.consumer._put(event)
+            consumer = self.consumer
+            if consumer is not None:
+                stop = consumer._put(event)
         if stop:
-            self.consumer.request_stop()
+            consumer.request_stop()
+
+    def live_clock(self, samples=3):
+        with self.clock_lock:
+            rows = []
+            for _ in range(samples):
+                with self.lock:
+                    if self.clock_failure or self.failure or self.end or self.finished.is_set():
+                        raise RuntimeError(self.clock_failure or self.failure or '相机流已结束，无法同步时钟')
+                    pending = {'done': threading.Event(), 'start': time.monotonic_ns()}
+                    self.clock_pending = pending
+                    try:
+                        self.client.request_live_clock()
+                    except Exception:
+                        self.clock_pending = None
+                        self.clock_failure = '连续流时钟请求失败'
+                        raise
+                if not pending['done'].wait(5):
+                    with self.lock:
+                        self.clock_pending = None
+                        self.clock_failure = '连续流时钟响应超时'
+                    raise RuntimeError(self.clock_failure)
+                with self.lock:
+                    self.clock_pending = None
+                    if 'event' not in pending:
+                        raise RuntimeError(self.failure or '时钟同步期间相机流结束')
+                    metadata = pending['event'].metadata
+                end = metadata['pc_recv_monotonic_ns']
+                start = pending['start']
+                if metadata.get('boot_id') != self.clock['boot_id'] or end < start:
+                    raise RuntimeError('连续流时钟标识或时间顺序不匹配')
+                rows.append(dict(offset_ns=metadata['controller_monotonic_ns']-(start+end)//2,
+                    rtt_ns=end-start,uncertainty_ns=(end-start)//2,boot_id=metadata['boot_id'],
+                    pc_midpoint_ns=(start+end)//2))
+            return dict(min(rows,key=lambda row:row['rtt_ns']),measurements=rows,
+                        method='live_stream_minimum_RTT_midpoint_estimate')
 
     def subscribe(self):
         with self.lock:
-            if self.attached or self.end or self.failure or self.finished.is_set():
+            if self.attached or self.end or self.failure or self.clock_failure or self.finished.is_set():
                 raise RuntimeError('相机数据流当前无法接入采集，请检查设备')
             if self.joint_error:
                 raise RuntimeError('视频正常，关节反馈尚未恢复，暂不能采集：'+self.joint_error)
@@ -73,6 +141,8 @@ class CameraSession:
                 self.failure = self.failure or '相机流结束但未收到真实审计结果'
             if self.consumer:
                 self.consumer.changed.notify_all()
+            if self.clock_pending:
+                self.clock_pending['done'].set()
             self.finished.set()
 
 
@@ -88,8 +158,12 @@ class AdoptedCamera:
         self.closed = self.stop_requested = self.stream_started = self.end_received = False
         self.error = None
         self.clock_calls = 0
+        self.continuous = bool(session.start.metadata.get('stream_checkpoints') is True
+                               and session.start.metadata.get('stream_live_clock') is True)
+        self.boundary_received = threading.Event()
         metadata = copy.deepcopy(session.start.metadata)
         metadata['adopted_preview_stream'] = True
+        metadata['continuous_episode'] = self.continuous
         metadata['episode_subscription_pc_monotonic_ns'] = time.monotonic_ns()
         metadata['episode_count_baseline'] = dict(
             frames=dict(session.frame_counts), joint_samples=session.joint_count,
@@ -109,6 +183,16 @@ class AdoptedCamera:
         self.changed.notify_all()
         return False
 
+    def _seal_checkpoint(self, event):
+        metadata = copy.deepcopy(event.metadata)
+        metadata['type'] = 'end'
+        metadata['source_event_type'] = 'checkpoint'
+        metadata['continuous_episode'] = True
+        # This is a real controller boundary, never a claimed native process exit.
+        self._put(StreamEvent(metadata))
+        self.boundary_received.set()
+        self.changed.notify_all()
+
     def validate_stream(self):
         with self.session.lock:
             if self.closed or self.session.failure or self.session.end:
@@ -116,6 +200,8 @@ class AdoptedCamera:
 
     def clock_sync(self, samples=3):
         self.clock_calls += 1
+        if self.continuous:
+            return self.session.live_clock(samples=samples)
         if self.clock_calls == 1:
             return copy.deepcopy(self.session.clock)
         # The original owner must close its stream before the serial service
@@ -151,6 +237,7 @@ class AdoptedCamera:
                 self.bytes -= len(event.data)
             if event.metadata['type'] == 'end':
                 self.end_received = True
+                self.boundary_received.set()
                 yield event
                 if not event.metadata.get('ok'):
                     raise CameraError(event.metadata)
@@ -161,14 +248,27 @@ class AdoptedCamera:
         with self.session.lock:
             if not self.stop_requested and self.session.end is None:
                 self.stop_requested = True
-                self.session.client.request_stop()
+                if self.continuous:
+                    self.session.client.request_checkpoint()
+                else:
+                    self.session.client.request_stop()
 
     def close(self):
         self.request_stop()
+        if self.continuous:
+            with self.changed:
+                until = time.monotonic()+12
+                while not self.boundary_received.is_set() and not self.session.finished.is_set():
+                    left = until-time.monotonic()
+                    if left <= 0:
+                        self.session.failure = '采集分段未收到控制器确认'
+                        self.session.client.request_stop()
+                        raise RuntimeError(self.session.failure)
+                    self.changed.wait(left)
         with self.session.lock:
             self.closed = True
             self.queue.clear()
             self.bytes = 0
             self.changed.notify_all()
-        if not self.session.finished.wait(12):
+        if not self.continuous and not self.session.finished.wait(12):
             raise RuntimeError('采集结束后相机仍未释放，请检查设备')

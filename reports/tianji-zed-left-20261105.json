@@ -1,0 +1,378 @@
+{
+  "date": "2026-11-05",
+  "camera": "ZED Mini",
+  "eye": "left",
+  "mapping": "usb-1 -> head_color",
+  "default": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "brightness": 4
+  },
+  "brightness": {
+    "min": 0,
+    "max": 8,
+    "step": 1
+  },
+  "controller_release": "/mnt/fusion-camera/releases/zed-left-20261105-vujwS2",
+  "controller_backup": "/mnt/fusion-camera/releases/zed-left-20261105-vujwS2/before",
+  "mode_tests": [
+    {
+      "mode": "zed-left-672x376-15",
+      "frames": 46,
+      "actual_hz": 14.97523890171667,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-672x376-30",
+      "frames": 91,
+      "actual_hz": 29.95160055970423,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-672x376-60",
+      "frames": 181,
+      "actual_hz": 59.90350687203114,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-672x376-100",
+      "frames": 302,
+      "actual_hz": 99.80150951911804,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-1280x720-15",
+      "frames": 46,
+      "actual_hz": 14.999526304959605,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-1280x720-30",
+      "frames": 91,
+      "actual_hz": 29.99901697221251,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-1280x720-60",
+      "frames": 181,
+      "actual_hz": 59.956406116807315,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-1920x1080-15",
+      "frames": 45,
+      "actual_hz": 14.92841467728495,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-1920x1080-30",
+      "frames": 91,
+      "actual_hz": 29.894172526698686,
+      "sequence_gaps": 0,
+      "end_ok": true
+    },
+    {
+      "mode": "zed-left-2208x1242-15",
+      "frames": 46,
+      "actual_hz": 15.081751387483424,
+      "sequence_gaps": 0,
+      "end_ok": true
+    }
+  ],
+  "three_camera_stream": {
+    "usb-2": {
+      "frames": 157,
+      "actual_hz": 14.909953764276386,
+      "sequence_gaps": 0,
+      "received_hz": 14.886410063897214,
+      "bytes": 40678088
+    },
+    "usb-4": {
+      "frames": 150,
+      "actual_hz": 14.548161445785365,
+      "sequence_gaps": 0,
+      "received_hz": 14.515368868612635,
+      "bytes": 10324416
+    },
+    "usb-1": {
+      "frames": 300,
+      "actual_hz": 29.88510308002388,
+      "sequence_gaps": 0,
+      "received_hz": 29.921219740063798,
+      "bytes": 58366520
+    }
+  },
+  "three_camera_end_ok": true,
+  "desktop_stereo_frame": "/home/yeap/桌面/ZED左右单眼_20261105_142436",
+  "validation": {
+    "native_self_test": "passed locally and on controller",
+    "collection_upload_zed_profiles": "passed 1080p30, 2K15, 720p60, WVGA100; mock platform, JPEG byte preservation",
+    "python_latest_regression": "61 passed collection/upload/negotiation/ZED; 142 passed settings/subsets/isolation/audit/recovery; 89 passed audit/recovery after adding 9 ZED enumeration tests",
+    "typescript": "passed",
+    "qt_dialog_and_fixed_camera_layout": "passed",
+    "production_episode_upload": "not performed",
+    "robot_motion": "not performed"
+  },
+  "app_acceptance": {
+    "status": "passed",
+    "checks": [
+      {
+        "mode": "zed-left-1920x1080-30",
+        "brightness": 4,
+        "main_size": [
+          1920,
+          1080
+        ],
+        "cameras": [
+          {
+            "id": "usb_1",
+            "label": "主相机 · ZED Mini 左眼",
+            "connected": true,
+            "available": true,
+            "updated_at": 252990.950870273
+          },
+          {
+            "id": "usb_2",
+            "label": "右腕部相机",
+            "connected": true,
+            "available": true,
+            "updated_at": 252990.885735241
+          },
+          {
+            "id": "usb_4",
+            "label": "左腕部相机",
+            "connected": true,
+            "available": true,
+            "updated_at": 252990.902638467
+          }
+        ],
+        "camera_error": "",
+        "control_active": false
+      },
+      {
+        "mode": "zed-left-1280x720-60",
+        "brightness": 5,
+        "main_size": [
+          1280,
+          720
+        ],
+        "cameras": [
+          {
+            "id": "usb_1",
+            "label": "主相机 · ZED Mini 左眼",
+            "connected": true,
+            "available": true,
+            "updated_at": 252994.990659976
+          },
+          {
+            "id": "usb_2",
+            "label": "右腕部相机",
+            "connected": true,
+            "available": true,
+            "updated_at": 252994.971420903
+          },
+          {
+            "id": "usb_4",
+            "label": "左腕部相机",
+            "connected": true,
+            "available": true,
+            "updated_at": 252994.987496421
+          }
+        ],
+        "camera_error": "",
+        "control_active": false
+      },
+      {
+        "mode": "zed-left-1920x1080-30",
+        "brightness": 4,
+        "main_size": [
+          1920,
+          1080
+        ],
+        "cameras": [
+          {
+            "id": "usb_1",
+            "label": "主相机 · ZED Mini 左眼",
+            "connected": true,
+            "available": true,
+            "updated_at": 252999.137260019
+          },
+          {
+            "id": "usb_2",
+            "label": "右腕部相机",
+            "connected": true,
+            "available": true,
+            "updated_at": 252999.07881054
+          },
+          {
+            "id": "usb_4",
+            "label": "左腕部相机",
+            "connected": true,
+            "available": true,
+            "updated_at": 252999.119224414
+          }
+        ],
+        "camera_error": "",
+        "control_active": false
+      }
+    ],
+    "usb_video_device": "2b03:f682 at 2-1, 5000 Mbps",
+    "connection_issue_resolved": "ZED HID alone was enumerated; reseating both ends restored SuperSpeed video device",
+    "reconnect_fix": "Explicit reconnect refreshes a healthy partial inventory; 56 regression tests passed",
+    "production_episode_upload": "not performed"
+  },
+  "robot_processes_unchanged": true,
+  "current_settings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "eye": "left",
+    "brightness": 8
+  },
+  "parameter_application_fix": {
+    "startup_policy": "discard at most 8 invalid ZED frames before first valid frame; retain source sequences and first-frame timeout; strict after startup",
+    "zed_bulk_requests": 384,
+    "zed_pending_usb_bytes": 12582912,
+    "kernel_usbfs_limit_mb": 16,
+    "kernel_limit_changed": false,
+    "zed_process_address_space_limit_mb": 384,
+    "jpeg_quality": 90,
+    "native_self_test": "passed locally and on controller",
+    "python_recovery_subset_tests": "96 passed including real delivered-profile dict plus native CLI mode-list launch path",
+    "five_switches": [
+      {
+        "brightness": 4,
+        "hold_seconds": 5,
+        "all_three_fresh": true,
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "mode": "zed-left-1920x1080-30",
+        "advancing_frames": true,
+        "control_active": false
+      },
+      {
+        "brightness": 8,
+        "hold_seconds": 5,
+        "all_three_fresh": true,
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "mode": "zed-left-1920x1080-30",
+        "advancing_frames": true,
+        "control_active": false
+      },
+      {
+        "brightness": 4,
+        "hold_seconds": 5,
+        "all_three_fresh": true,
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "mode": "zed-left-1920x1080-30",
+        "advancing_frames": true,
+        "control_active": false
+      },
+      {
+        "brightness": 8,
+        "hold_seconds": 5,
+        "all_three_fresh": true,
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "mode": "zed-left-1920x1080-30",
+        "advancing_frames": true,
+        "control_active": false
+      },
+      {
+        "brightness": 4,
+        "hold_seconds": 5,
+        "all_three_fresh": true,
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "mode": "zed-left-1920x1080-30",
+        "advancing_frames": true,
+        "control_active": false
+      },
+      {
+        "brightness": 8,
+        "hold_seconds": 40,
+        "all_three_fresh": true,
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "mode": "zed-left-1920x1080-30",
+        "advancing_frames": true,
+        "control_active": false
+      }
+    ],
+    "final_two_minute_preview": {
+      "seconds": 120.29771941699437,
+      "checks": 239,
+      "brightness": 8,
+      "mode": "zed-left-1920x1080-30",
+      "all_three_fresh": true,
+      "stream_errors": false,
+      "first_frame_times": {
+        "usb_1": 254354.588808968,
+        "usb_2": 254354.57368881,
+        "usb_4": 254354.536685305
+      },
+      "last_frame_times": {
+        "usb_1": 254474.851224264,
+        "usb_2": 254474.874374368,
+        "usb_4": 254474.878242734
+      }
+    },
+    "additional_observation": "An earlier 140-second run ended on a right-wrist malformed JPEG plus a new hrtimer 70476 ns log. Native RT identity/page-fault/switch checks were unchanged. The isolated camera service was restored after inspection; audits remain enabled. Final 120-second three-camera run passed.",
+    "resource_observation": "During three-camera 1080p operation, a 15-second sample showed CPU2/CPU3 near 99%; no hardware-motion or production-upload validation in this session."
+  },
+  "black_screen_followup": {
+    "resolved": true,
+    "controller_boot_id": "8a46d44d-fdb0-4994-bfee-00241a8d6abd",
+    "configured_main_usb_path": "2-1",
+    "main_found_on_configured_port": false,
+    "wrist_previews_available": true,
+    "manual_camera_power_cycle_reported": true,
+    "after_power_cycle_main_frame_http_status": 503,
+    "next_check": null,
+    "ui_change": "Qt placeholder distinguishes missing device, connecting, and waiting for frame; web missing-device placeholder updated.",
+    "validation": [
+      "Qt actual QML disconnect/reconnect, frame visibility and hint test passed",
+      "TypeScript noEmit passed"
+    ],
+    "full_usb_inventory_confirmed_missing_video": true,
+    "observed_power_cycle": {
+      "hid_disconnect_controller_uptime_s": 537.974678,
+      "video_reenumerated_controller_uptime_s": 574.061613,
+      "video_vid_pid": "2b03:f682",
+      "video_usb_path": "2-1",
+      "speed_mbps": 5000
+    },
+    "verification": {
+      "all_three_continuous_seconds": 30.230491415015422,
+      "checks": 60,
+      "main_mode": "zed-left-1920x1080-30",
+      "brightness": 8,
+      "jpeg": "outputs/zed-adaptation-20261105/recovered-main-left.jpg"
+    },
+    "remaining_limitation": "Host reboot may leave ZED video absent; root hub reports no port power switching. Manual camera power cycle with host running restores enumeration; automatic reboot recovery not implemented.",
+    "ui_loaded": true
+  }
+}

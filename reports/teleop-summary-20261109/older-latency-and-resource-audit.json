@@ -1,0 +1,1141 @@
+{
+  "audit_started": 1793932092.3800335,
+  "mode": "read_only_existing_episode_and_passive_preview",
+  "episodes": [
+    {
+      "episode_id": "20261103_105303_fusion_b37db043",
+      "complete": true,
+      "status": "complete",
+      "stop_reason": "B/Y",
+      "error": null,
+      "frames_recorded": 36556,
+      "cameras": {
+        "head_color": {
+          "frames": 36940,
+          "encoding": "jpeg",
+          "width": 1024,
+          "height": 768,
+          "native_format": "mjpeg",
+          "native_size": [
+            1024,
+            768
+          ]
+        },
+        "right_color": {
+          "frames": 36748,
+          "encoding": "jpeg",
+          "width": 1024,
+          "height": 768,
+          "native_format": "mjpeg",
+          "native_size": [
+            1024,
+            768
+          ]
+        },
+        "left_color": {
+          "frames": 36748,
+          "encoding": "jpeg",
+          "width": 1024,
+          "height": 768,
+          "native_format": "mjpeg",
+          "native_size": [
+            1024,
+            768
+          ]
+        }
+      },
+      "data_validate": false,
+      "integrity": {
+        "error": null,
+        "joints": {
+          "count": 123169,
+          "span_s": 1231.67999654,
+          "actual_hz": 100.00000028091712,
+          "interval_ms": {
+            "p50": 10.008907,
+            "p95": 12.566985,
+            "p99": 13.314803,
+            "max": 19.271466
+          }
+        },
+        "cameras": {
+          "head_color": {
+            "count": 36940,
+            "span_s": 1231.683823016,
+            "actual_hz": 29.99065126109085,
+            "interval_ms": {
+              "p50": 32.014299,
+              "p95": 36.605933,
+              "p99": 38.150818,
+              "max": 41.946442
+            },
+            "sequence_gaps": 0
+          },
+          "right_color": {
+            "count": 36748,
+            "span_s": 1231.651822865,
+            "actual_hz": 29.83554225131675,
+            "interval_ms": {
+              "p50": 32.018872,
+              "p95": 36.233357,
+              "p99": 38.261855,
+              "max": 39.27917
+            },
+            "sequence_gaps": 0
+          },
+          "left_color": {
+            "count": 36748,
+            "span_s": 1231.652485807,
+            "actual_hz": 29.835526192213813,
+            "interval_ms": {
+              "p50": 32.056551,
+              "p95": 36.100395,
+              "p99": 36.586494,
+              "max": 39.064801
+            },
+            "sequence_gaps": 0
+          }
+        },
+        "bundles": {
+          "count": 36556,
+          "span_s": 1231.638703014,
+          "actual_hz": 29.67997019787099,
+          "interval_ms": {
+            "p50": 31.594795,
+            "p95": 40.364975,
+            "p99": 49.132316,
+            "max": 63.803783
+          }
+        },
+        "grippers": {
+          "left": {
+            "count": 116484,
+            "span_s": 1232.009990189,
+            "actual_hz": 94.54712293536727,
+            "interval_ms": {
+              "p50": 10.706661,
+              "p95": 22.359477,
+              "p99": 29.653388,
+              "max": 65.85578
+            }
+          },
+          "right": {
+            "count": 115811,
+            "span_s": 1232.007891381,
+            "actual_hz": 94.00102126796006,
+            "interval_ms": {
+              "p50": 10.906159,
+              "p95": 23.572504,
+              "p99": 31.230119,
+              "max": 56.245773
+            }
+          }
+        },
+        "gripper_feedback_integrity": {
+          "left": {
+            "samples": 116484,
+            "duplicates": 0,
+            "sequence_gaps": 0,
+            "sequence_regressions": 0,
+            "timestamp_regressions": 0,
+            "stale_samples": 0,
+            "future_samples": 0,
+            "invalid_samples": 0,
+            "source_queue_dropped": 0,
+            "publisher_queue_dropped": 0,
+            "publisher_send_queue_dropped": 0,
+            "unreceived_tail_samples": 0
+          },
+          "right": {
+            "samples": 115811,
+            "duplicates": 0,
+            "sequence_gaps": 0,
+            "sequence_regressions": 0,
+            "timestamp_regressions": 0,
+            "stale_samples": 0,
+            "future_samples": 0,
+            "invalid_samples": 0,
+            "source_queue_dropped": 0,
+            "publisher_queue_dropped": 0,
+            "publisher_send_queue_dropped": 0,
+            "unreceived_tail_samples": 0
+          }
+        },
+        "teleop_loop": {
+          "count": 70467,
+          "span_s": 1231.991392579,
+          "actual_hz": 57.19682817952923,
+          "interval_ms": {
+            "p50": 16.473424,
+            "p95": 25.150394,
+            "p99": 32.046484,
+            "max": 61.251878
+          }
+        },
+        "aligned_state": {
+          "rows": 123169,
+          "fully_matched": 123169,
+          "missing": {
+            "left": 0,
+            "right": 0
+          },
+          "reused": {
+            "left": 25177,
+            "right": 26061
+          },
+          "max_abs_delta_ms": {
+            "left": 31.527492,
+            "right": 26.889576
+          },
+          "hardware_synchronized": false
+        },
+        "both_grippers_bundle_count": 36556,
+        "telemetry_missing_packets": 0,
+        "missing_action_bundle_count": 0,
+        "missing_gripper_action_bundle_count": 0,
+        "timing_policy": "diagnostic_only",
+        "joint_timing_gap_count": 0,
+        "camera_queue_overflow": {
+          "policy": "drop_incoming",
+          "counter_scope": "whole_stream_including_preview",
+          "stream_totals": {},
+          "possibly_affected_episode_cameras": []
+        },
+        "record_count_matches_server": true,
+        "count_comparison": {
+          "matches": true,
+          "scope": "episode_after_subscription",
+          "stored": {
+            "frames": {
+              "usb-1": 36940,
+              "usb-2": 36748,
+              "usb-4": 36748
+            },
+            "joint_samples": 123169
+          },
+          "server_total": {
+            "frames": {
+              "usb-1": 39092,
+              "usb-2": 38883,
+              "usb-4": 38876
+            },
+            "joint_samples": 130345
+          },
+          "excluded_preview": {
+            "frames": {
+              "usb-1": 2152,
+              "usb-2": 2135,
+              "usb-4": 2128
+            },
+            "joint_samples": 7176,
+            "source": "received_before_subscription"
+          },
+          "expected": {
+            "frames": {
+              "usb-1": 36940,
+              "usb-2": 36748,
+              "usb-4": 36748
+            },
+            "joint_samples": 123169
+          }
+        },
+        "camera_span_ms": {
+          "p50": 18.138068,
+          "p95": 24.051158,
+          "p99": 24.071355,
+          "max": 24.942137
+        },
+        "image_joint_abs_delta_ms": {
+          "p50": 3.440819,
+          "p95": 5.029581,
+          "p99": 5.39845,
+          "max": 8.741541
+        },
+        "gripper_joint_abs_delta_ms": {
+          "p50": 3.887032,
+          "p95": 9.959349,
+          "p99": 13.469555,
+          "max": 25.049081
+        },
+        "unmatched_images": {
+          "head_color": 384,
+          "right_color": 192,
+          "left_color": 192
+        },
+        "opening_calibration_valid": {
+          "left": true,
+          "right": true
+        },
+        "timestamp_note": "Image timestamps use the semantics declared by stream_start.timestamp_kind and share the controller clock with DCSS read times. Gripper PC receive times use two-anchor affine mapping. Sensor/exposure/transport latency uncalibrated.",
+        "target_rates_met": false,
+        "quality_passed": false
+      }
+    },
+    {
+      "episode_id": "20261106_100028_fusion_56f5ccff",
+      "complete": false,
+      "status": "incomplete",
+      "stop_reason": "feedback_not_ready",
+      "error": "遥操作已停止或发生故障",
+      "frames_recorded": 3238,
+      "cameras": {
+        "head_color": {
+          "frames": 4763,
+          "encoding": "controller_jpeg",
+          "width": 1280,
+          "height": 720,
+          "native_format": "mjpeg",
+          "native_size": [
+            1280,
+            720
+          ],
+          "camera_model": "ZED Mini",
+          "eye": "left",
+          "source_format": "yuyv",
+          "source_width": 2560,
+          "source_height": 720,
+          "jpeg_quality": 90,
+          "source_yuv_matrix": "bt601",
+          "source_yuv_range": "limited",
+          "limited_range_assumption": true,
+          "fps": 30,
+          "mode_id": "zed-left-1280x720-30",
+          "actual_hz": 22.88157623571203
+        },
+        "right_color": {
+          "frames": 4763,
+          "encoding": "jpeg",
+          "width": 1920,
+          "height": 1080,
+          "native_format": "mjpeg",
+          "native_size": [
+            1920,
+            1080
+          ],
+          "fps": 30,
+          "mode_id": "mjpeg-1920x1080",
+          "actual_hz": 22.87881158965016
+        },
+        "left_color": {
+          "frames": 4763,
+          "encoding": "jpeg",
+          "width": 1920,
+          "height": 1080,
+          "native_format": "mjpeg",
+          "native_size": [
+            1920,
+            1080
+          ],
+          "fps": 30,
+          "mode_id": "mjpeg-1920x1080",
+          "actual_hz": 22.87839010772655
+        }
+      },
+      "data_validate": false,
+      "integrity": {
+        "error": "遥操作已停止或发生故障",
+        "joints": {
+          "count": 20515,
+          "span_s": 208.165472068,
+          "actual_hz": 98.54660235535522,
+          "interval_ms": {
+            "p50": 10.11115,
+            "p95": 15.004219,
+            "p99": 17.781393,
+            "max": 38.933406
+          }
+        },
+        "cameras": {
+          "head_color": {
+            "count": 4763,
+            "span_s": 208.115033289,
+            "actual_hz": 22.88157623571203,
+            "interval_ms": {
+              "p50": 34.684205,
+              "p95": 71.207722,
+              "p99": 73.738343,
+              "max": 99.994355
+            },
+            "sequence_gaps": 1481
+          },
+          "right_color": {
+            "count": 4763,
+            "span_s": 208.140181641,
+            "actual_hz": 22.87881158965016,
+            "interval_ms": {
+              "p50": 35.923469,
+              "p95": 68.813889,
+              "p99": 70.66999,
+              "max": 74.066051
+            },
+            "sequence_gaps": 1448
+          },
+          "left_color": {
+            "count": 4763,
+            "span_s": 208.144016147,
+            "actual_hz": 22.87839010772655,
+            "interval_ms": {
+              "p50": 35.596493,
+              "p95": 69.858177,
+              "p99": 73.22419,
+              "max": 94.690461
+            },
+            "sequence_gaps": 1448
+          }
+        },
+        "bundles": {
+          "count": 3238,
+          "span_s": 207.718755487,
+          "actual_hz": 15.583571124383067,
+          "interval_ms": {
+            "p50": 62.829966,
+            "p95": 111.220325,
+            "p99": 132.041199,
+            "max": 157.732665
+          }
+        },
+        "grippers": {
+          "left": {
+            "count": 18490,
+            "span_s": 207.676333697,
+            "actual_hz": 89.02795841424796,
+            "interval_ms": {
+              "p50": 11.335762,
+              "p95": 23.467472,
+              "p99": 30.540583,
+              "max": 43.554865
+            }
+          },
+          "right": {
+            "count": 17961,
+            "span_s": 207.674433222,
+            "actual_hz": 86.48151686924844,
+            "interval_ms": {
+              "p50": 11.61605,
+              "p95": 27.06863,
+              "p99": 35.885885,
+              "max": 55.918737
+            }
+          }
+        },
+        "gripper_feedback_integrity": {
+          "left": {
+            "samples": 18490,
+            "duplicates": 0,
+            "sequence_gaps": 0,
+            "sequence_regressions": 0,
+            "timestamp_regressions": 0,
+            "stale_samples": 0,
+            "future_samples": 0,
+            "invalid_samples": 0,
+            "source_queue_dropped": 0,
+            "publisher_queue_dropped": 0,
+            "publisher_send_queue_dropped": 0,
+            "unreceived_tail_samples": 0
+          },
+          "right": {
+            "samples": 17961,
+            "duplicates": 0,
+            "sequence_gaps": 0,
+            "sequence_regressions": 0,
+            "timestamp_regressions": 0,
+            "stale_samples": 0,
+            "future_samples": 0,
+            "invalid_samples": 0,
+            "source_queue_dropped": 0,
+            "publisher_queue_dropped": 0,
+            "publisher_send_queue_dropped": 0,
+            "unreceived_tail_samples": 0
+          }
+        },
+        "teleop_loop": {
+          "count": 11977,
+          "span_s": 208.594055891,
+          "actual_hz": 57.41294951500445,
+          "interval_ms": {
+            "p50": 16.447734,
+            "p95": 25.972271,
+            "p99": 32.9958,
+            "max": 488.940707
+          }
+        },
+        "aligned_state": {
+          "rows": 20515,
+          "fully_matched": 20469,
+          "missing": {
+            "left": 46,
+            "right": 46
+          },
+          "reused": {
+            "left": 5309,
+            "right": 5616
+          },
+          "max_abs_delta_ms": {
+            "left": 46.2812,
+            "right": 46.169201
+          },
+          "hardware_synchronized": false
+        },
+        "both_grippers_bundle_count": 3236,
+        "telemetry_missing_packets": 0,
+        "missing_action_bundle_count": 0,
+        "missing_gripper_action_bundle_count": 0,
+        "timing_policy": "diagnostic_only",
+        "joint_timing_gap_count": 0,
+        "camera_queue_overflow": {
+          "policy": "drop_incoming",
+          "counter_scope": "whole_stream_including_preview",
+          "stream_totals": {
+            "usb-1": {
+              "last_timestamp_ns": 1269257491913,
+              "first_sequence": 25,
+              "last_sequence": 25691,
+              "first_timestamp_ns": 413662331522,
+              "camera": 0,
+              "dropped": 7154,
+              "policy": "drop_incoming",
+              "event": "queue_overflow"
+            },
+            "usb-2": {
+              "last_timestamp_ns": 1269137614052,
+              "first_sequence": 42,
+              "last_sequence": 25563,
+              "first_timestamp_ns": 413753460309,
+              "camera": 1,
+              "dropped": 7014,
+              "policy": "drop_incoming",
+              "event": "queue_overflow"
+            },
+            "usb-4": {
+              "last_timestamp_ns": 1269294702071,
+              "first_sequence": 36,
+              "last_sequence": 25561,
+              "first_timestamp_ns": 413770397537,
+              "camera": 2,
+              "dropped": 7015,
+              "policy": "drop_incoming",
+              "event": "queue_overflow"
+            }
+          },
+          "possibly_affected_episode_cameras": [
+            "usb-1",
+            "usb-2",
+            "usb-4"
+          ]
+        },
+        "record_count_matches_server": true,
+        "count_comparison": {
+          "matches": true,
+          "scope": "episode_after_subscription",
+          "stored": {
+            "frames": {
+              "usb-1": 4763,
+              "usb-2": 4763,
+              "usb-4": 4763
+            },
+            "joint_samples": 20515
+          },
+          "server_total": {
+            "frames": {
+              "usb-1": 18530,
+              "usb-2": 18545,
+              "usb-4": 18538
+            },
+            "joint_samples": 84193
+          },
+          "excluded_preview": {
+            "frames": {
+              "usb-1": 13767,
+              "usb-2": 13782,
+              "usb-4": 13775
+            },
+            "joint_samples": 63678,
+            "source": "received_before_subscription"
+          },
+          "expected": {
+            "frames": {
+              "usb-1": 4763,
+              "usb-2": 4763,
+              "usb-4": 4763
+            },
+            "joint_samples": 20515
+          }
+        },
+        "camera_span_ms": {
+          "p50": 18.877833,
+          "p95": 24.171048,
+          "p99": 24.839664,
+          "max": 24.998292
+        },
+        "image_joint_abs_delta_ms": {
+          "p50": 1.907677,
+          "p95": 5.805387,
+          "p99": 12.13935,
+          "max": 17.593616
+        },
+        "gripper_joint_abs_delta_ms": {
+          "p50": 3.904617,
+          "p95": 10.449428,
+          "p99": 14.009521,
+          "max": 24.591129
+        },
+        "unmatched_images": {
+          "head_color": 1525,
+          "right_color": 1525,
+          "left_color": 1525
+        },
+        "opening_calibration_valid": {
+          "left": true,
+          "right": true
+        },
+        "timestamp_note": "Image timestamps use the semantics declared by stream_start.timestamp_kind and share the controller clock with DCSS read times. Gripper PC receive times use two-anchor affine mapping. Sensor/exposure/transport latency uncalibrated.",
+        "target_rates_met": false,
+        "quality_passed": false
+      }
+    }
+  ],
+  "joints": {
+    "count": 20515,
+    "span_s": 208.165472068,
+    "hz": 98.54660235535522,
+    "interval_ms": {
+      "n": 20514,
+      "min": 0.214236,
+      "p50": 10.1114625,
+      "p95": 15.004676799999999,
+      "p99": 17.78127912,
+      "max": 38.933406,
+      "mean": 10.147483283026226
+    },
+    "nonincreasing": 0,
+    "shape": [
+      20515,
+      14
+    ],
+    "invalid_values": 0,
+    "not_ok": 0,
+    "pair_serial_mismatch": 0,
+    "repeat_serial_transitions": 39,
+    "serial_regressions": 0,
+    "position_range_deg": [
+      0.0002346038818359375,
+      0.0020351409912109375,
+      0.000720977783203125,
+      0.00213623046875,
+      8.96453857421875e-05,
+      0.0001373291015625,
+      0.000446319580078125,
+      1.945831298828125,
+      3.1170759201049805,
+      2.1323776245117188,
+      2.9092483520507812,
+      1.6770973205566406,
+      1.0328636169433594,
+      2.0185928344726562
+    ],
+    "max_step_deg": [
+      0.0001201629638671875,
+      0.0007152557373046875,
+      0.00063323974609375,
+      0.0013580322265625,
+      7.62939453125e-05,
+      7.551908493041992e-05,
+      0.00016480684280395508,
+      0.166107177734375,
+      0.22543716430664062,
+      0.18534088134765625,
+      0.24994659423828125,
+      0.313934326171875,
+      0.104522705078125,
+      0.18220901489257812
+    ],
+    "max_abs_velocity_deg_s": [
+      0.1303424835205078,
+      0.07814884185791016,
+      0.11320724338293076,
+      0.10604552924633026,
+      0.11152496188879013,
+      0.11673660576343536,
+      0.08824767917394638,
+      9.81540298461914,
+      12.46076774597168,
+      9.945991516113281,
+      14.602293014526367,
+      13.53676986694336,
+      7.092766761779785,
+      15.63990306854248
+    ],
+    "arm_state_histogram": {
+      "[1, -1, 0, 1, -1, 0]": 20470,
+      "[109, -1, 0, 109, -1, 0]": 44,
+      "[0, -1, 0, 0, -1, 0]": 1
+    },
+    "read_span_ms": {
+      "n": 20515,
+      "min": 0.012012,
+      "p50": 0.020832,
+      "p95": 0.0303,
+      "p99": 0.04665120000000007,
+      "max": 0.0735,
+      "mean": 0.021593259566171096
+    },
+    "receipt_delay_ms": {
+      "n": 20515,
+      "min": 0.9631211918945313,
+      "p50": 7.141229365722657,
+      "p95": 20.714658035205073,
+      "p99": 38.956006578203144,
+      "max": 200.58899840722657,
+      "mean": 8.859822133349954
+    },
+    "degree_radian_max_error": 0.0,
+    "aligned_timestamp_mismatch": 0
+  },
+  "cameras": {
+    "head_color": {
+      "count": 4763,
+      "span_s": 208.115033289,
+      "hz": 22.88157623571203,
+      "interval_ms": {
+        "n": 4762,
+        "min": 22.947167,
+        "p50": 34.685471,
+        "p95": 71.2074724,
+        "p99": 73.74265796,
+        "max": 99.994355,
+        "mean": 43.703282925031495
+      },
+      "nonincreasing": 0,
+      "sequence_gaps": 1481,
+      "sequence_regressions": 0,
+      "receipt_delay_ms": {
+        "n": 4763,
+        "min": 305.1245763569336,
+        "p50": 341.74722237939454,
+        "p95": 362.5018636346679,
+        "p99": 378.3561967658105,
+        "max": 535.7172367216797,
+        "mean": 342.5910577699307
+      },
+      "decode_checked": 4763,
+      "decode_failures": [],
+      "missing_files": [],
+      "dimension_mismatches": [],
+      "native_hash_mismatches": 0,
+      "bytes": 718757786,
+      "dimensions": {
+        "(1280, 720)": 4763
+      },
+      "file_count": 4763,
+      "byte_identical_extra_frames": 0
+    },
+    "left_color": {
+      "count": 4763,
+      "span_s": 208.144016147,
+      "hz": 22.87839010772655,
+      "interval_ms": {
+        "n": 4762,
+        "min": 23.496599,
+        "p50": 35.597519000000005,
+        "p95": 69.85780445,
+        "p99": 73.23509011,
+        "max": 94.690461,
+        "mean": 43.709369203485934
+      },
+      "nonincreasing": 0,
+      "sequence_gaps": 1448,
+      "sequence_regressions": 0,
+      "receipt_delay_ms": {
+        "n": 4763,
+        "min": 317.70729712451174,
+        "p50": 347.8111938730469,
+        "p95": 366.47719961088865,
+        "p99": 382.45130963045904,
+        "max": 516.9229029067383,
+        "mean": 348.14586883493894
+      },
+      "decode_checked": 4763,
+      "decode_failures": [],
+      "missing_files": [],
+      "dimension_mismatches": [],
+      "native_hash_mismatches": 0,
+      "bytes": 1279078600,
+      "dimensions": {
+        "(1920, 1080)": 4763
+      },
+      "file_count": 4763,
+      "byte_identical_extra_frames": 0
+    },
+    "right_color": {
+      "count": 4763,
+      "span_s": 208.140181641,
+      "hz": 22.87881158965016,
+      "interval_ms": {
+        "n": 4762,
+        "min": 23.354315,
+        "p50": 35.923511,
+        "p95": 68.8137426,
+        "p99": 70.67111320000001,
+        "max": 74.066051,
+        "mean": 43.708563973330534
+      },
+      "nonincreasing": 0,
+      "sequence_gaps": 1448,
+      "sequence_regressions": 0,
+      "receipt_delay_ms": {
+        "n": 4763,
+        "min": 312.5669695151367,
+        "p50": 347.02752253564455,
+        "p95": 365.7697925203613,
+        "p99": 381.6168315470703,
+        "max": 530.5179094511719,
+        "mean": 347.22111245848146
+      },
+      "decode_checked": 4763,
+      "decode_failures": [],
+      "missing_files": [],
+      "dimension_mismatches": [],
+      "native_hash_mismatches": 0,
+      "bytes": 1147659904,
+      "dimensions": {
+        "(1920, 1080)": 4763
+      },
+      "file_count": 4763,
+      "byte_identical_extra_frames": 0
+    }
+  },
+  "alignment": {
+    "count": 3238,
+    "span_s": 207.718755487,
+    "hz": 15.583571124383067,
+    "interval_ms": {
+      "n": 3237,
+      "min": 8.753632,
+      "p50": 62.829966,
+      "p95": 111.23254359999999,
+      "p99": 131.9810106,
+      "max": 157.732665,
+      "mean": 64.17014380197713
+    },
+    "nonincreasing": 0,
+    "common_joint_image_abs_ms": {
+      "n": 9714,
+      "min": 0.232416,
+      "p50": 8.200987000000001,
+      "p95": 15.060683500000001,
+      "p99": 17.036138420000004,
+      "max": 24.499518,
+      "mean": 7.961581251492691
+    },
+    "per_image_nearest_joint_abs_ms": {
+      "n": 9714,
+      "min": 0.17523,
+      "p50": 1.907758,
+      "p95": 5.80569955,
+      "p99": 12.132338580000043,
+      "max": 17.593616,
+      "mean": 2.463913728433189
+    },
+    "camera_span_ms": {
+      "n": 3238,
+      "min": 3.190994,
+      "p50": 18.878577,
+      "p95": 24.1711056,
+      "p99": 24.831290160000002,
+      "max": 24.998292,
+      "mean": 18.147002989808524
+    },
+    "action_delta_ms": {
+      "n": 3238,
+      "min": -123.408864,
+      "p50": 0.0101615,
+      "p95": 8.57629914999999,
+      "p99": 12.012130860000006,
+      "max": 21.264201,
+      "mean": -0.0007501111797406026
+    },
+    "future_action_bundles": 1624,
+    "invalid_bundle_joint_refs": 0,
+    "invalid_bundle_camera_refs": 0,
+    "bundle_joint_rad_max_error": 0.0,
+    "missing_gripper_bundles": 2,
+    "software_clock_drift_ppm": 5.451181804993179,
+    "clock_uncertainty_ms": 0.749281
+  },
+  "episode_total_bytes": 3341838342,
+  "audit_finished": 1793932272.9575503,
+  "passive_monitor": {
+    "start_unix": 1793931992.4453976,
+    "end_unix": 1793932352.4687486,
+    "duration_s": 360.0233551680003,
+    "samples": 73,
+    "sample_interval_s": 5,
+    "cpu_percent_of_all_eight_cores": {
+      "min": 41.52240325865581,
+      "mean": 48.47097229001612,
+      "max": 63.37386018237082
+    },
+    "cpu_percent_preview_without_decode_audit": {
+      "min": 41.52240325865581,
+      "mean": 43.287330497235274,
+      "max": 47.507629704984744
+    },
+    "baseline_intervals": 36,
+    "cpu_per_core": {
+      "cpu": {
+        "min": 41.52240325865581,
+        "mean": 48.47097229001612,
+        "max": 63.37386018237082
+      },
+      "cpu0": {
+        "min": 28.066528066528065,
+        "mean": 33.77910637469826,
+        "max": 43.75
+      },
+      "cpu1": {
+        "min": 24.897959183673468,
+        "mean": 30.57855535100138,
+        "max": 41.566265060240966
+      },
+      "cpu2": {
+        "min": 24.59349593495935,
+        "mean": 30.29044866144702,
+        "max": 39.350912778904664
+      },
+      "cpu3": {
+        "min": 23.541666666666668,
+        "mean": 30.157890220562603,
+        "max": 41.104294478527606
+      },
+      "cpu4": {
+        "min": 29.7741273100616,
+        "mean": 59.73462979796004,
+        "max": 100.0
+      },
+      "cpu5": {
+        "min": 56.967213114754095,
+        "mean": 65.11202794944958,
+        "max": 72.78481012658227
+      },
+      "cpu6": {
+        "min": 47.2,
+        "mean": 67.7203008727254,
+        "max": 94.0119760479042
+      },
+      "cpu7": {
+        "min": 46.57258064516129,
+        "mean": 70.65191389368849,
+        "max": 100.0
+      }
+    },
+    "cpu_iowait_percent": {
+      "min": 0.10121457489878542,
+      "mean": 0.16968929643492559,
+      "max": 0.3847140292382662
+    },
+    "process_cpu_percent_100_equals_one_core": {
+      "desktop_app.py": {
+        "min": 109.18841121828892,
+        "mean": 122.16467509287706,
+        "max": 137.9890554070962
+      },
+      "teleop_control.main": {
+        "min": 65.07780779024624,
+        "mean": 72.2618143627041,
+        "max": 77.83379914048032
+      },
+      "teleop_control.tianji_worker": {
+        "min": 29.403069004128835,
+        "mean": 32.52273889958621,
+        "max": 35.398668252540695
+      },
+      "marvin_teleop.xr_worker": {
+        "min": 24.052697849453498,
+        "mean": 27.80362051166042,
+        "max": 31.99978997257901
+      }
+    },
+    "process_rss_mib": {
+      "desktop_app.py": {
+        "min": 834.0859375,
+        "mean": 850.5634096746576,
+        "max": 855.6953125,
+        "first": 838.36328125,
+        "last": 844.17578125
+      },
+      "teleop_control.main": {
+        "min": 109.109375,
+        "mean": 109.1941352739726,
+        "max": 109.3671875,
+        "first": 109.109375,
+        "last": 109.3671875
+      },
+      "teleop_control.tianji_worker": {
+        "min": 82.73828125,
+        "mean": 82.74743150684931,
+        "max": 82.75390625,
+        "first": 82.75390625,
+        "last": 82.73828125
+      },
+      "marvin_teleop.xr_worker": {
+        "min": 51.25,
+        "mean": 51.2634845890411,
+        "max": 51.28125,
+        "first": 51.2734375,
+        "last": 51.25
+      }
+    },
+    "available_memory_gib": {
+      "min": 13.203704833984375,
+      "mean": 13.466881268644986,
+      "max": 13.573009490966797
+    },
+    "swap_used_mib": {
+      "min": 1.75,
+      "mean": 16.493150684931507,
+      "max": 26.0
+    },
+    "max_temperature_c": 47.153,
+    "thermal_trips": {
+      "thermal_zone2": {
+        "type": "bigcore1-thermal",
+        "temp": "40692",
+        "trips": {
+          "trip_point_0_temp": "115000"
+        }
+      },
+      "thermal_zone0": {
+        "type": "soc-thermal",
+        "temp": "39769",
+        "trips": {
+          "trip_point_2_temp": "115000",
+          "trip_point_1_temp": "85000",
+          "trip_point_0_temp": "75000"
+        }
+      },
+      "thermal_zone5": {
+        "type": "gpu-thermal",
+        "temp": "37923",
+        "trips": {
+          "trip_point_0_temp": "115000"
+        }
+      },
+      "thermal_zone3": {
+        "type": "littlecore-thermal",
+        "temp": "40692",
+        "trips": {
+          "trip_point_0_temp": "115000"
+        }
+      },
+      "thermal_zone1": {
+        "type": "bigcore0-thermal",
+        "temp": "40692",
+        "trips": {
+          "trip_point_0_temp": "115000"
+        }
+      },
+      "thermal_zone6": {
+        "type": "npu-thermal",
+        "temp": "38846",
+        "trips": {
+          "trip_point_0_temp": "115000"
+        }
+      },
+      "thermal_zone4": {
+        "type": "center-thermal",
+        "temp": "37923",
+        "trips": {
+          "trip_point_0_temp": "115000"
+        }
+      }
+    },
+    "disk_busy_percent": {
+      "min": 0.9417572206542733,
+      "mean": 1.8007376636532098,
+      "max": 4.64664109643064
+    },
+    "robot_interface_receive_MB_s": {
+      "min": 17.045007742944975,
+      "mean": 17.308249353283276,
+      "max": 17.43220212556031
+    },
+    "robot_interface_error_deltas": {
+      "rx_errors": 0,
+      "rx_drops": 0,
+      "tx_errors": 0,
+      "tx_drops": 0
+    },
+    "offline_camera_samples": 0,
+    "camera_phases": [
+      "streaming"
+    ],
+    "camera_errors": [
+      ""
+    ],
+    "diagnostics_errors": [],
+    "control_active_samples": 0,
+    "recording_samples": 0,
+    "camera_updates_nonadvancing_between_samples": {
+      "usb_1": 0,
+      "usb_2": 0,
+      "usb_4": 0
+    }
+  },
+  "controller_read_only_sample": {
+    "duration_s": 10.001372814178467,
+    "cpu_percent": {
+      "all_cores": 36.57,
+      "cpu0": 29.07,
+      "cpu1": 1.29,
+      "cpu2": 25.98,
+      "cpu3": 100.0
+    },
+    "process_cpu_percent_one_core_100": {
+      "capture-three-teleop": 97.99,
+      "camera_server_python": 67.49
+    },
+    "capture_thread_allowed_cpus": {
+      "19848": "3",
+      "19849": "3",
+      "19850": "3",
+      "19851": "0",
+      "19852": "2",
+      "19853": "3"
+    },
+    "camera_server_thread_allowed_cpus": {
+      "1707": "3",
+      "19854": "3"
+    },
+    "interpretation": "Camera sender and Python stream server share CPU3, saturated during observation. Other capture threads use CPU0/2. This supports a controller-side bottleneck; it is not an isolated benchmark."
+  },
+  "limits": [
+    "No robot control, enable, movement, service restart, new camera stream or recording initiated. Only read-only diagnostics plus existing files.",
+    "Full strict JPEG decode and SHA256 checks cover the new ZED episode only. Nine first/middle/last sample images visually checked; no obvious black/corrupt image in these samples. Decodability does not rule out every visual artifact.",
+    "Physical joint calibration/absolute angular accuracy not measured. Left arm almost stationary; right arm range per joint only about 1-3 degrees in the saved episode.",
+    "Six-minute observation is preview load, partly concurrent with low-priority offline decode, not sustained live recording. Separate baseline CPU statistics exclude decoder interval.",
+    "Only old camera configuration has a 20.5-minute complete historical episode. New ZED episode is 208 seconds and incomplete. No hours-long validation.",
+    "Capture timestamps are controller frame-completion time, not exposure time. Receipt latency estimated using stored two-anchor software clock mapping.",
+    "Stored joint/camera alignment is valid by timestamp, with finite tolerance; hardware synchronization and sensor latency uncalibrated."
+  ],
+  "additional_findings": {
+    "new_episode_stop": "feedback_not_ready: telemetry no longer running; cannot infer spontaneous hardware failure from this reason alone",
+    "joint_serial_repeats": 39,
+    "gripper_hz": {
+      "left": 89.02795841424796,
+      "right": 86.48151686924844
+    },
+    "aligned_gripper_missing_rows_per_side": 46,
+    "future_action_matches": 1624,
+    "future_action_policy": "nearest_timestamp can select a later command; must account for this if downstream training requires causal labels",
+    "upload_quality_gate": "complete and actions_recorded gate readiness, but data_validate/quality_passed do not. Both saved episodes have quality_passed=false; the new incomplete episode is not eligible by complete gate.",
+    "jpeg_storage_gate": "original-resolution JPEG storage uses PIL verify() rather than full load(); audit fully decoded all files and found zero failures, but runtime validation is weaker.",
+    "long_run_storage": "disk-backed row records, bounded 48 image futures, 2 GB disk reserve, durable background finalization queue; no guarantee of unbounded duration",
+    "controller_wall_clock": "controller wall clock observed about 8 hours ahead of board; alignment uses monotonic clocks and stored offsets, not raw Unix timestamps"
+  },
+  "storage_estimate": {
+    "observed_episode_bytes": 3341838342,
+    "observed_bytes_per_s": 16053759.102318102,
+    "projected_GB_per_hour": 57.793532768345166,
+    "note": "Scene-dependent JPEG sizes; excludes temporary finalization copies and future scene changes. Capacity estimate is not runtime endurance proof."
+  }
+}

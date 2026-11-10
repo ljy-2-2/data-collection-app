@@ -1,0 +1,78 @@
+--- /tmp/xiaokai-r8125-fix-20261109/vendor-safe.original.c	2026-11-09 11:13:27.257220817 +0800
++++ /tmp/xiaokai-r8125-fix-20261109/r8125safe/r8125_n.c	2026-11-09 11:13:27.259220868 +0800
+@@ -209,7 +209,7 @@
+         {0,},
+ };
+ 
+-MODULE_DEVICE_TABLE(pci, rtl8125_pci_tbl);
++/* Explicit binding to the two audited board NICs only. */
+ 
+ static int use_dac = 1;
+ static int timer_count = 0x2600;
+@@ -6412,11 +6412,11 @@
+ {
+         switch (tp->InitRxDescType) {
+         case RX_DESC_RING_TYPE_3:
+-                return ((struct RxDescV3 *)desc)->RxDescNormalDDWord4.opts1;
++                return READ_ONCE(((struct RxDescV3 *)desc)->RxDescNormalDDWord4.opts1);
+         case RX_DESC_RING_TYPE_4:
+-                return ((struct RxDescV4 *)desc)->RxDescNormalDDWord2.opts1;
++                return READ_ONCE(((struct RxDescV4 *)desc)->RxDescNormalDDWord2.opts1);
+         default:
+-                return desc->opts1;
++                return READ_ONCE(desc->opts1);
+         }
+ }
+ 
+@@ -17251,6 +17251,10 @@
+         assert(pdev != NULL);
+         assert(ent != NULL);
+ 
++        if (strcmp(pci_name(pdev), "0004:41:00.0") &&
++            strcmp(pci_name(pdev), "0003:31:00.0"))
++                return -ENODEV;
++
+         board_idx++;
+ 
+         if (netif_msg_drv(&debug))
+@@ -17317,7 +17321,7 @@
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(3,0,0)
+                 tp->cp_cmd |= RxChkSum;
+ #else
+-                dev->features |= NETIF_F_RXCSUM;
++                /* RX checksum is deliberately verified in software. */
+                 switch (tp->mcfg) {
+                 case CFG_METHOD_2:
+                 case CFG_METHOD_3:
+@@ -17329,7 +17333,7 @@
+                         break;
+                 };
+                 dev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_TSO |
+-                                   NETIF_F_RXCSUM | NETIF_F_HW_VLAN_TX | NETIF_F_HW_VLAN_RX;
++                                   NETIF_F_HW_VLAN_TX | NETIF_F_HW_VLAN_RX;
+                 dev->vlan_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_TSO |
+                                      NETIF_F_HIGHDMA;
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
+@@ -20043,17 +20047,11 @@
+                 struct sk_buff *skb,
+                 struct RxDesc *desc)
+ {
+-        switch (tp->InitRxDescType) {
+-        case RX_DESC_RING_TYPE_3:
+-                rtl8125_rx_v3_csum(tp, skb, (struct RxDescV3 *)desc);
+-                break;
+-        case RX_DESC_RING_TYPE_4:
+-                rtl8125_rx_v4_csum(tp, skb, (struct RxDescV4 *)desc);
+-                break;
+-        default:
+-                rtl8125_rx_v1_csum(tp, skb, desc);
+-                break;
+-        }
++        /* On this RK3588 board, corrupt RX payloads were observed with a
++         * hardware checksum-valid indication. Always validate the bytes that
++         * reached host memory in the network stack. In particular, disabling
++         * RXCSUM must never leave CHECKSUM_UNNECESSARY on the received skb. */
++        skb->ip_summed = CHECKSUM_NONE;
+ }
+ 
+ /*

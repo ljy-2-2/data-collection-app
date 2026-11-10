@@ -150,6 +150,13 @@ print(result.strip())
 
 def patch_source(source):
     for before, after in REPLACEMENTS:
+        if (before == 'if before[key] != after[key]:' and before not in source
+                and source.count('if audit_changed(before, after, key, mode, allow_timing_notice=timing_notice_guard):') == 1):
+            continue  # Reviewed continuous-stream source already applies the policy.
+        if after in source:
+            if source.count(after) == 1 and before not in source.replace(after, ''):
+                continue
+            raise ValueError('Audit patch target is not unique')
         if source.count(before) != 1:
             raise ValueError('Audit patch target is not unique')
         source = source.replace(before, after)

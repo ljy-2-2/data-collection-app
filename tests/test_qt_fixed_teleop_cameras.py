@@ -109,8 +109,8 @@ class FixedTeleopCamerasTest(unittest.TestCase):
                 frame=QImage(640,480,QImage.Format_RGB32);frame.fill(QColor('#00ff00'))
                 camera._decoded(camera.sequence,frame);QTest.qWait(60)
                 assert camera.online and camera.isVisible()
-                def pixel():
-                    position=viewport.mapToScene(QPointF(viewport.width()/2,viewport.height()/2))
+                def pixel(bottom=False):
+                    position=viewport.mapToScene(QPointF(viewport.width()/2,viewport.height()-5 if bottom else viewport.height()/2))
                     screenshot=window.grabWindow();dpr=screenshot.devicePixelRatio()
                     return screenshot.pixelColor(int(position.x()*dpr),int(position.y()*dpr)).name()
                 assert pixel()=='#00ff00',pixel()
@@ -123,16 +123,20 @@ class FixedTeleopCamerasTest(unittest.TestCase):
                 assert screenshot.pixelColor(int(position.x()*dpr),int(position.y()*dpr)).name()=='#000000'
                 camera.offline();QTest.qWait(60)
                 assert camera.hasFrame and not camera.isVisible()
-                assert pixel()=='#000000',pixel()
+                waiting=find('teleopCameraWaiting-left')
+                assert waiting.isVisible() and waiting.property('text')=='等待相机画面…'
+                assert pixel(bottom=True)=='#000000'
                 camera._decoded(camera.sequence,frame);QTest.qWait(60)
                 assert pixel()=='#00ff00'
+                assert not waiting.isVisible()
                 # A disconnected inventory entry wins even if available is stale.
                 inventory([dict(id='usb_4',connected=False,available=True)])
                 assert camera.source=='' and not camera.hasFrame
-                assert pixel()=='#000000'
+                assert waiting.isVisible() and '相机未识别' in waiting.property('text')
+                assert pixel(bottom=True)=='#000000'
                 # A late decode from the previous connection cannot resurrect it.
                 camera._decoded(camera.sequence-1,frame);QTest.qWait(30)
-                assert not camera.online and pixel()=='#000000'
+                assert not camera.online and pixel(bottom=True)=='#000000'
                 inventory([dict(id='usb_4',connected=True)])
                 camera._decoded(camera.sequence,frame);QTest.qWait(60)
                 assert camera is find('teleopCamera-left') and pixel()=='#00ff00'

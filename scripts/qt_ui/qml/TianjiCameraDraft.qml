@@ -33,9 +33,9 @@ Rectangle {
     radius: 9;color: Theme.muted;border.color: Theme.line
     ColumnLayout {
         id: body;x:10;y:10;width:parent.width-20;spacing:9
-        Txt {text:root.cameraName;font.weight:Font.DemiBold}
+        Txt {text:root.cameraName+((root.resolution.selected||{}).eye==="left"?" · ZED Mini 左眼":"");font.weight:Font.DemiBold}
         RowLayout {Layout.fillWidth:true;spacing:10
-            Txt {text:"录制分辨率";Layout.preferredWidth:74;font.pixelSize:12;color:Theme.inkMuted}
+            Txt {text:"分辨率 / 帧率";Layout.preferredWidth:84;font.pixelSize:12;color:Theme.inkMuted}
             Select {objectName:"cameraDraftResolution-"+root.cameraKey;Layout.fillWidth:true;model:root.choices.map(m=>m.label);currentIndex:root.choices.findIndex(m=>m.id===root.modeId)
                 displayText:currentIndex>=0?root.choices[currentIndex].label:"等待读取相机设置"
                 enabled:root.ready && !!root.resolution.editable && root.choices.length>0

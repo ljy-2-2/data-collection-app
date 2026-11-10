@@ -6,6 +6,7 @@ import { ActionButton, SectionTitle, classNames } from '../CollectionUi';
 import { G2TeleopWorkspace } from './G2TeleopWorkspace';
 import { KuavoTeleopWorkspace } from './KuavoTeleopWorkspace';
 import { TianjiTeleopWorkspace } from './TianjiTeleopWorkspace';
+import { SubtaskConfigPicker, type SubtaskConfig } from './SubtaskConfigPicker';
 import { requestJson } from '../../lib/http';
 import type { AsyncAction, PreviewStatus, TeleopStatus } from '../../lib/teleopTypes';
 
@@ -24,7 +25,7 @@ interface TeleopPanelProps {
 
 // Register a separate workspace for each supported robot. Never fall back to G2
 // for an unknown model: its joint limits, telemetry and commands are G2-specific.
-const ROBOTS: Record<string, { label: string; Workspace: ComponentType<TeleopPanelProps & { task: string }> }> = {
+const ROBOTS: Record<string, { label: string; Workspace: ComponentType<TeleopPanelProps & { task: string; subtaskConfig?: SubtaskConfig | null }> }> = {
   'tianji': { label: '天机 Marvin M6', Workspace: TianjiTeleopWorkspace },
   'kuavo-5w': { label: '乐聚 KUAVO 5-W', Workspace: KuavoTeleopWorkspace },
   'agibot-g2': { label: '智元 G2', Workspace: G2TeleopWorkspace },
@@ -41,10 +42,11 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
       .then(value=>{if(!abort.signal.aborted)setUploadTarget(value);}).catch(()=>{if(!abort.signal.aborted)setUploadTarget(null);});
     return ()=>abort.abort();
   },[props.baseUrl,step]);
+  const [subtaskConfig,setSubtaskConfig]=useState<(SubtaskConfig & {id:string})|null>(null);
   const [task, setTask] = useState('遥操作数据采集');
   const [robotModel, setRobotModel] = useState('tianji');
   useEffect(() => { props.onRobotModelChange?.(robotModel); }, [robotModel, props.onRobotModelChange]);
-  const [configured, setConfigured] = useState<{ task: string; robotModel: string } | null>(null);
+  const [configured, setConfigured] = useState<{ task: string; robotModel: string; subtaskConfig: SubtaskConfig | null } | null>(null);
   const [robotBusy, setRobotBusy] = useState(false);
   const [returnError, setReturnError] = useState('');
   const robot = Object.hasOwn(ROBOTS, robotModel) ? ROBOTS[robotModel] : undefined;
@@ -73,7 +75,7 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
   function next() {
     if (!task.trim() || !robot) return;
     setTask(task.trim());
-    setConfigured({ task: task.trim(), robotModel });
+    setConfigured({ task: task.trim(), robotModel, subtaskConfig: subtaskConfig ? {name:subtaskConfig.name,labels:[...subtaskConfig.labels]} : null });
     setStep(2);
   }
 
@@ -103,11 +105,12 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
           <SectionTitle eyebrow="STEP 01" title="选择遥操作配置" />
           <form className="umi-stage-body" onSubmit={(event) => { event.preventDefault(); next(); }}>
             {uploadTarget&&<div className="teleop-upload-summary"><div><strong>上传到</strong><p>{uploadTarget.selected==='local'?'上传到当前设备的本地平台':'上传到云端平台'} · {uploadTarget.web_url}</p></div><strong>{uploadTarget.selected==='local'?'本机平台':'云端平台'}</strong></div>}
-            <div className="field-grid">
+            <div className="field-grid teleop-setup-fields">
               <label className="field">
                 <span>任务名称</span>
                 <input className="collection-task-name" type="text" value={task} onChange={(event) => setTask(event.target.value)} maxLength={120} required placeholder="请输入任务名称" />
               </label>
+              <SubtaskConfigPicker baseUrl={props.baseUrl} value={subtaskConfig} onChange={setSubtaskConfig}/>
               <label className="field">
                 <span>机器人型号</span>
                 <select value={robotModel} onChange={(event) => { setRobotModel(event.target.value); setConfigured(null); }}>
@@ -126,7 +129,8 @@ export const TeleopPanel = memo(function TeleopPanel(props: TeleopPanelProps) {
           UMI. Changing the model unmounts its workspace instead of sharing it. */}
       {configured && Workspace ? (
         <div className="teleop-workspace-view" hidden={step !== 2}>
-          <Workspace key={configured.robotModel} {...props} task={configured.task} onBusyChange={setRobotBusy} />
+          {configured.subtaskConfig&&<div className="inline-alert">子任务：{configured.subtaskConfig.labels.join(" → ")} · A 开始采集，B 保存；X 标注本段，Y 重置标注顺序（不执行回位）。</div>}
+          <Workspace key={configured.robotModel} {...props} task={configured.task} subtaskConfig={configured.subtaskConfig} onBusyChange={setRobotBusy} />
         </div>
       ) : null}
     </div>

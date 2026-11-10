@@ -1,6 +1,12 @@
 export type TianjiMode = 'dual' | 'left' | 'right';
 export type TianjiSide = 'left' | 'right';
 export const TIANJI_JOG_STEP_DEG = 10;
+export function formatTianjiDuration(seconds = 0) {
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const minutes = String(Math.floor(total / 60) % 60).padStart(2, '0');
+  const rest = String(total % 60).padStart(2, '0');
+  return (total >= 3600 ? `${String(Math.floor(total / 3600)).padStart(2, '0')}:` : '') + `${minutes}:${rest}`;
+}
 export interface TianjiParameters {
   scale: number;
   max_joint_speed_deg_s: number;
@@ -107,6 +113,7 @@ export interface TianjiStatus {
       | 'starting'
       | 'recording'
       | 'finalizing'
+      | 'queued'
       | 'saved'
       | 'incomplete';
     armed: boolean;
@@ -114,6 +121,15 @@ export interface TianjiStatus {
     recording: boolean;
     error: string;
     completed: number;
+    local_save?: {
+      pending: number;
+      processing: number;
+      failed: number;
+      incomplete: number;
+      saved: number;
+      worker_online: boolean;
+      error: string;
+    };
     episode: string | null;
     elapsed_s: number;
     frames: Record<string, number>;
@@ -148,6 +164,7 @@ export interface TianjiStatus {
   } | null;
   error?: string;
   camera_error?: string;
+  camera_connection_issues?: Record<string, string>;
   camera_phase?: string;
   camera_checking?: boolean;
   camera_joint_error?: string | null;

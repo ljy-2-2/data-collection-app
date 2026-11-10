@@ -27,7 +27,11 @@ class TianjiParameters(BaseModel):
         return self
 
 
+from .subtask_annotations import SubtaskConfig
+
+
 class TianjiStart(BaseModel):
+    subtask_config: SubtaskConfig | None = None
     model_config = ConfigDict(extra="forbid")
     mode: Literal["dual", "left", "right"] = "dual"
     upload_mode: Literal["dual", "left", "right"] | None = None

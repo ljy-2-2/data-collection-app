@@ -3,6 +3,7 @@ import json
 import socket
 import struct
 import time
+import threading
 from dataclasses import dataclass
 from .client import FusionCameraClient, Frame, CameraError, _exact, MAX_FRAME
 
@@ -29,6 +30,26 @@ class StreamEvent:
         return Frame(self.metadata, self.data)
 
 class FusionStreamClient(FusionCameraClient):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._control_lock = threading.Lock()
+
+    def _send_control(self, command):
+        with self._control_lock:
+            sock = getattr(self, '_stream_socket', None)
+            if sock is None:
+                raise RuntimeError('Camera stream is not running')
+            sock.sendall(command)
+
+    def recheck_cameras(self):
+        """Explicit fresh camera check; historical faults do not prevent it."""
+        old_timeout = self.timeout
+        try:
+            self.timeout = max(old_timeout, 30)
+            return self._request('camera_recheck', manual=True)[0]
+        finally:
+            self.timeout = old_timeout
+
     def recover_camera(self, *, manual=False):
         """Request checked recovery of a cleaned-up camera gap; no robot commands."""
         if type(manual) is not bool:
@@ -114,26 +135,38 @@ class FusionStreamClient(FusionCameraClient):
                             if not meta.get('ok'): raise CameraError(meta)
                             break
                         if not meta.get('ok'): raise CameraError(meta)
-                        if meta.get('type') not in ('start','image','joints','health'):
+                        if meta.get('type') not in ('start','image','joints','health','checkpoint','clock'):
                             raise ValueError('Unknown stream event')
                         yield StreamEvent(meta,body)
                 finally:
                     if not finished:
-                        try: sock.sendall(b'S')
+                        try: self._send_control(b'S')
                         except OSError: pass
                     self._stream_socket = None
+
+    def request_checkpoint(self):
+        sock = getattr(self, '_stream_socket', None)
+        if sock is None or getattr(self, '_stop_requested', False):
+            raise RuntimeError('Camera stream is not running')
+        self._send_control(b'C')
+
+    def request_live_clock(self):
+        sock = getattr(self, '_stream_socket', None)
+        if sock is None or getattr(self, '_stop_requested', False):
+            raise RuntimeError('Camera stream is not running')
+        self._send_control(b'T')
 
     def request_stop(self):
         """Ask for an audited normal end; keep reading until the end message."""
         sock = getattr(self, '_stream_socket', None)
         if sock is not None and not getattr(self, '_stop_requested', False):
-            sock.sendall(b'S')
+            self._send_control(b'S')
             self._stop_requested = True
 
     def close(self):
         sock = getattr(self, '_stream_socket', None)
         if sock is not None:
-            try: sock.sendall(b'S')
+            try: self._send_control(b'S')
             except OSError: pass
             try: sock.shutdown(socket.SHUT_RDWR)
             except OSError: pass

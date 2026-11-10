@@ -25,6 +25,36 @@ BASE = b'[    1.000001] existing kernel message\n'
 KEY = 'dmesg_sha256'
 
 
+@pytest.mark.parametrize('message,allowed', [
+    ('usb 2-1: USB disconnect, device number 3', True),
+    ('usb 2-1: new SuperSpeed USB device number 4 using xhci_hcd', True),
+    ('usb 2-1: New USB device found, idVendor=2b03, idProduct=f682', True),
+    ('usb 2-1: Product: ZED-M', True),
+    ('usb 2-1: Manufacturer: Technologies, Inc.', True),
+    ('usb 1-1: new full-speed USB device number 6 using xhci_hcd', True),
+    ('usb 1-1: New USB device found, idVendor=2b03, idProduct=f681', True),
+    ('usb 1-1: New USB device strings: Mfr=1, Product=2, SerialNumber=3', True),
+    ('usb 1-1: Product: ZED-M Hid Device', True),
+    ('usb 1-1: Manufacturer: STEREOLABS', True),
+    ('usb 1-1: SerialNumber: 14260598', True),
+    ('hid-generic 0003:2B03:F681.0002: hiddev0,hidraw0: USB HID v1.11 Device [STEREOLABS ZED-M Hid Device] on usb-0000:00:14.0-1/input0', True),
+    ('usb 1-2: Product: ZED-M Hid Device', False),
+    ('usb 1-1: reset full-speed USB device number 6 using xhci_hcd', False),
+    ('hid-generic 0003:2B03:F681.0002: hiddev0,hidraw0: USB HID v1.11 Device [STEREOLABS ZED-M Hid Device] on usb-0000:00:14.0-2/input0', False),
+    ('usb 1-1: device descriptor read/64, error -71', False),
+    ('hrtimer: interrupt took 70476 ns', False),
+    ('usb 2-2: Product: ZED-M', False),
+    ('usb 2-1: New USB device found, idVendor=2b03, idProduct=f681', False),
+    ('usb 2-1: reset SuperSpeed USB device number 3 using xhci_hcd', False),
+    ('xhci_hcd 0000:00:14.0: WARN: TRB error on endpoint', False),
+])
+def test_zed_normal_enumeration_only_allows_a_later_retry(message, allowed):
+    before = audit.dmesg_fingerprint(BASE)
+    after = audit.dmesg_fingerprint(BASE + ('[ 2.000001] '+message+'\n').encode())
+    assert audit.audit_changed(before, after, KEY, 'teleop_observation')
+    assert audit.camera_hotplug_only(before, after, 'teleop_observation') == allowed
+
+
 @pytest.mark.parametrize('message', [
     'Mot[0][0] process enable', 'Mot[1][6] process disable',
     '_FX_ServoFsmEnableOperation 0x800f', '_FX_ServoFsmDisableOperation 0x8007',
@@ -90,9 +120,19 @@ def test_installer_refuses_motion_or_other_camera_faults():
             installer.check_idle(dict(state='idle'), dict(status, **change))
 
 
-def test_source_patch_is_minimal_unique_and_reversible():
+def legacy_unpatched_source():
     source = (ROOT/'fusion_data_collection/FusionDataCollector/controller_v22/streaming.py').read_text()
+    source = source.replace('if audit_changed(before, after, key, mode, allow_timing_notice=timing_notice_guard):',
+                            'if audit_changed(before, after, key, mode):')
+    for before, after in reversed(installer.REPLACEMENTS):
+        source = source.replace(after, before)
+    return source
+
+
+def test_source_patch_is_minimal_unique_and_reversible():
+    source = legacy_unpatched_source()
     patched = installer.patch_source(source)
+    assert installer.patch_source(patched) == patched
     compile(patched, 'streaming.py', 'exec')
     assert "'robot_pids','modules','mounts','config_hashes','dmesg_sha256'" in patched
     assert 'if audit_changed(before, after, key, mode):' in patched
@@ -108,7 +148,7 @@ def test_source_patch_is_minimal_unique_and_reversible():
 @pytest.mark.parametrize('upgrade', [False, True])
 @pytest.mark.parametrize('stream_upgrade', [False, True])
 def test_remote_install_backs_up_and_rolls_back_on_start_failure(tmp_path, monkeypatch, fail_start, upgrade, stream_upgrade):
-    original = (ROOT/'fusion_data_collection/FusionDataCollector/controller_v22/streaming.py').read_bytes()
+    original = legacy_unpatched_source().encode()
     old = installer.patch_source(original.decode()).encode() if upgrade else original
     source = tmp_path/'streaming.py'
     source.write_bytes(old)
@@ -205,3 +245,15 @@ def test_unknown_existing_policy_is_not_overwritten(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='refusing overwrite'):
         exec(remote, {'PAYLOAD': base64.b64encode(json.dumps(payload).encode())})
     assert not list(tmp_path.glob('audit-servo-*'))
+
+@pytest.mark.parametrize('extra,allowed', [
+    (b'[ 2.000001] hrtimer: interrupt took 70476 ns\n', True),
+    (b'[ 2.000001] hrtimer: interrupt took 100001 ns\n', False),
+    (b'[ 2.000001] hrtimer: interrupt took 70476 ns\n[ 3.000001] hrtimer: interrupt took 1 ns\n', False),
+    (b'[ 2.000001] hrtimer: interrupt took 70476 ns\n[ 3.000001] xhci_hcd DMA error\n', False),
+])
+def test_timing_notice_requires_explicit_rt_guard_and_preserves_errors(extra, allowed):
+    before, after = audit.dmesg_fingerprint(BASE), audit.dmesg_fingerprint(BASE + extra)
+    assert audit.audit_changed(before, after, KEY, 'teleop_observation')
+    assert audit.audit_changed(before, after, KEY, 'teleop_observation', allow_timing_notice=True) is not allowed
+    assert audit.audit_changed(before, after, KEY, 'stationary', allow_timing_notice=True)

@@ -79,6 +79,26 @@ class TeleopControlsTest(unittest.TestCase):
                     QTest.qWait(60)
                 start = item('teleopStartStop')
                 check = item('teleopCheck')
+                assert item('tianjiEpisodeCount').property('text') == '本次已完成  0 Episode'
+                assert item('tianjiEpisodeDuration').property('text') == '持续时间  00:00'
+                assert not item('tianjiRecordingIndicator').property('visible')
+                def collection_state(**values):
+                    bridge.update(tianji=dict(bridge._state['tianji'], collection=values))
+                    QTest.qWait(30)
+                collection_state(recording=True, completed=0, elapsed_s=65.9)
+                assert item('tianjiEpisodeDuration').property('text') == '持续时间  01:05'
+                assert item('tianjiRecordingIndicator').property('visible')
+                collection_state(recording=False, busy=True, completed=0, elapsed_s=65.9)
+                assert not item('tianjiRecordingIndicator').property('visible')
+                collection_state(recording=False, completed=1, elapsed_s=65.9)
+                assert item('tianjiEpisodeCount').property('text') == '本次已完成  1 Episode'
+                QTest.qWait(100)
+                assert item('tianjiEpisodeDuration').property('text') == '持续时间  01:05'
+                collection_state(recording=True, completed=1, elapsed_s=0)
+                assert item('tianjiEpisodeDuration').property('text') == '持续时间  00:00'
+                collection_state(recording=True, completed=1, elapsed_s=3661)
+                assert item('tianjiEpisodeDuration').property('text') == '持续时间  01:01:01'
+                state()
                 assert start.property('enabled')
                 for status, busy in [('idle','move'), ('error','move'), ('moving',''), ('moving','stop')]:
                     state(status,busy)

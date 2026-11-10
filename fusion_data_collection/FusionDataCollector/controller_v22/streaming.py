@@ -3,6 +3,7 @@ from __future__ import print_function
 import collections
 import itertools
 import fcntl
+import functools
 import hashlib
 import json
 import os
@@ -16,6 +17,7 @@ import tempfile
 import threading
 import time
 from joints import JointReader
+from camera_audit import dmesg_fingerprint, audit_changed
 
 HEADER = struct.Struct('<4sIIQIIIII')
 MAX_FRAME = 6*1024*1024
@@ -44,7 +46,11 @@ def camera_profiles(service, api, selected, fallback):
             continue
         capabilities = camera_capabilities(camera)
         if key not in capabilities['modes']:
-            raise ValueError('Saved mode is not advertised at 30 fps: '+camera['id'])
+            raise ValueError('Saved resolution/frame rate is not advertised: '+camera['id'])
+        if profile.get('eye') == 'left':
+            from camera_color import read_camera_color
+            if read_camera_color(camera['usb_path'])['yuv_matrix'] != profile['source_yuv_matrix']:
+                raise ValueError('ZED color matrix differs from the JPEG encoder profile')
         info = api.device_info(camera)
         profile['brightness'] = brightness(camera, info, capabilities['brightness'],
                                           saved.get(camera['id'], {}).get('brightness'))
@@ -137,7 +143,7 @@ def audit():
     out['robot_pids'] = subprocess.check_output(['pgrep','-x','FXProducer|FXPSI|FXTcpFileServer|EtherCAT-OP']).decode().split()
     out['config_hashes'] = {p:sha(p) for p in ['/etc/init.d/FXStart.sh','/home/FUSION/Shell/run.sh',
         '/home/FUSION/Shell/start.sh','/boot/config-3.14.18-ipipe','/etc/network/interfaces','/etc/fstab','/etc/rc.local']}
-    out['dmesg_sha256'] = hashlib.sha256(subprocess.check_output(['dmesg'])).hexdigest()
+    out.update(dmesg_fingerprint(subprocess.check_output(['dmesg'])))
     return out
 
 def rt_snapshot(text):
@@ -161,7 +167,7 @@ def unchanged_for_recovery(before, after, mode='stationary', camera_hotplug=Fals
         from camera_audit import audit_changed
         from camera_audit import camera_hotplug_only
         for key in AUDIT_KEYS:
-            if not audit_changed(before, after, key, mode):
+            if not audit_changed(before, after, key, mode, allow_timing_notice=True):
                 continue
             if key == 'dmesg_sha256' and camera_hotplug and camera_hotplug_only(before, after, mode):
                 continue
@@ -236,12 +242,14 @@ def recover(service, api, manual=False):
         return {'ok':False,'error':'recovery_refused','detail':str(exc)}
     service.fault = None
     service.recovery_audit = None
+    from camera_recheck import remember_failure
+    remember_failure(service)
     service.recovery_count = getattr(service, 'recovery_count', 0)+1
     return {'ok':True,'recovered':True,'recovery_count':service.recovery_count}
 
-def limits():
+def limits(memory_bytes=256*1024*1024):
     os.setsid()
-    resource.setrlimit(resource.RLIMIT_AS, (256*1024*1024,)*2)
+    resource.setrlimit(resource.RLIMIT_AS, (memory_bytes,)*2)
     resource.setrlimit(resource.RLIMIT_CORE, (0,0))
     resource.setrlimit(resource.RLIMIT_FSIZE, (1024*1024,)*2)
 
@@ -386,7 +394,7 @@ def selection(request):
     return [i for i in CAMERA_IDS if i in ids]
 
 
-def native_command(helper, seconds, infos, selected, format_name, mode):
+def native_command(helper, seconds, infos, selected, format_name, mode, latest_frames=False):
     addresses = [str(info['address']) if info['id'] in selected else '0' for info in infos]
     if isinstance(format_name, (list, tuple)):
         format_name = ','.join(format_name)
@@ -394,6 +402,8 @@ def native_command(helper, seconds, infos, selected, format_name, mode):
     if mode == 'teleop_observation':
         mask = sum(1 << i for i, camera_id in enumerate(CAMERA_IDS) if camera_id in selected)
         command.append('mask=%d' % mask)
+        if latest_frames:
+            command.append('latest=1')
     return command
 
 
@@ -402,6 +412,10 @@ def run(service, sock, request, api):
     joint_hz = request.get('joint_hz',30)
     mode = request.get('observation_mode', 'stationary')
     isolate_joints = request.get('isolate_joint_feedback', False)
+    latest_frames = request.get('latest_frames', False)
+    if type(latest_frames) is not bool or (latest_frames and mode != 'teleop_observation'):
+        api.reply(sock, {'ok':False,'error':'invalid_latest_frames_policy'})
+        return
     if type(isolate_joints) is not bool or (isolate_joints and mode != 'teleop_observation'):
         api.reply(sock, {'ok':False,'error':'invalid_joint_feedback_policy'})
         return
@@ -429,6 +443,11 @@ def run(service, sock, request, api):
     before = after = None
     error = None
     counts = [0,0,0]
+    checkpoint_id = 0
+    checkpoint_audit = None
+    baseline_task = checkpoint_task = None
+    checkpoint_requested = False
+    last_stamps = {}
     started = False
     stop_reason = 'duration_limit'
     joint_sent = 0
@@ -449,7 +468,8 @@ def run(service, sock, request, api):
                 infos.append({'id':camera['id'], 'address':0})
                 continue
             info = api.device_info(camera)
-            if not info['available'] or info['bus'] != 1 or not api.interface_idle(camera):
+            expected_bus = 2 if camera.get('vid') == '2b03' and camera.get('pid') == 'f682' else 1
+            if not info['available'] or info['bus'] != expected_bus or not api.interface_idle(camera):
                 raise RuntimeError('Camera missing or busy: '+camera['id'])
             with open(os.devnull, 'wb') as null:
                 if subprocess.call(['/bin/fuser','/dev/bus/usb/%03d/%03d' % (info['bus'],info['address'])],
@@ -471,8 +491,11 @@ def run(service, sock, request, api):
         # Interleaved small joint records must not delay the tail of a large
         # image while TCP waits for an acknowledgement of a partial segment.
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        api.reply(sock, {'ok':True,'type':'start','version':'2.3.2','seconds':seconds,'hz':30,'joint_hz':joint_hz,
+        api.reply(sock, {'ok':True,'type':'start','version':'2.5.0','seconds':seconds,'hz':30,'joint_hz':joint_hz,
+                        'latest_frames':latest_frames,
                         'observation_mode':mode,'graceful_stop':True,
+                        'stream_checkpoints':mode == 'teleop_observation' and seconds == 0,
+                        'stream_live_clock':mode == 'teleop_observation' and seconds == 0,
                         'isolated_joint_feedback':isolate_joints,
                         'timestamp_kind':timestamp_kind,
                         'rt_policy':'teleop_observation_v1' if mode == 'teleop_observation' else 'stationary',
@@ -489,9 +512,11 @@ def run(service, sock, request, api):
         started = True
         if True:
             errors = tempfile.TemporaryFile(dir=service.runtime)
-            command = native_command(helper, seconds, infos, selected, native_profiles or profile['format'], mode)
+            command = native_command(helper, seconds, infos, selected, native_profiles or profile['format'], mode, latest_frames)
             process = subprocess.Popen(command,
-                stdout=subprocess.PIPE,stderr=errors,preexec_fn=limits,close_fds=True)
+                stdout=subprocess.PIPE,stderr=errors,preexec_fn=functools.partial(limits,
+                    (384 if any(p.get('source_width') for p in profiles.values()) else 256)*1024*1024),
+                close_fds=True)
             api.ACTIVE = process
             fd = process.stdout.fileno()
             fcntl.fcntl(fd,fcntl.F_SETFL,fcntl.fcntl(fd,fcntl.F_GETFL)|os.O_NONBLOCK)
@@ -502,6 +527,30 @@ def run(service, sock, request, api):
             while not eof or (sampler is not None and sampler.is_alive()):
                 if api.STOP or (deadline is not None and api.monotonic()>deadline): raise RuntimeError('Stream interrupted or timed out')
                 if eof and process.poll() not in (None,0): raise NativeHelperError('Native helper failed')
+                if baseline_task is not None and baseline_task.done.is_set() and checkpoint_audit is None:
+                    checkpoint_audit=baseline_task.result()
+                if checkpoint_requested and checkpoint_audit is not None and checkpoint_task is None:
+                    from stream_checkpoint import AuditTask,checkpoint
+                    checkpoint_task=AuditTask(checkpoint,(api,checkpoint_audit,process,errors,
+                        counts[:],joint_sent,sampler,selected,dict(last_stamps),checkpoint_id))
+                if checkpoint_task is not None and checkpoint_task.done.is_set():
+                    boundary,checkpoint_audit=checkpoint_task.result()
+                    now=int(api.monotonic()*1e9)
+                    if process.poll() is not None or sampler is None or sampler.error:
+                        raise RuntimeError('Capture failed before recording boundary delivery')
+                    # A recording boundary certifies received counts, not low latency.
+                    # Preserve measured frame age; buffered frames must not tear down
+                    # an otherwise live transport. Existing source-gap checks remain.
+                    boundary['frame_age_ns'] = dict((key, now-last_stamps[key]) for key in selected)
+                    boundary['frame_latency_warning'] = any(age>500000000 for age in boundary['frame_age_ns'].values())
+                    # Freeze counters at this ordered TLS boundary, after audit completes.
+                    # The main thread has kept draining images and joints throughout.
+                    boundary.update(frames=counts[:],joint_samples=joint_sent,
+                        timestamp_ns=now,controller_monotonic_ns=now,
+                        joint_gap_count=sampler.gap_count,joint_skipped_ticks=sampler.skipped,
+                        joint_max_lateness_ns=sampler.max_lateness_ns)
+                    api.reply(sock,boundary)
+                    checkpoint_task=None;checkpoint_requested=False
                 if sampler is not None:
                     if sampler.error: raise RuntimeError(sampler.error)
                     while True:
@@ -516,6 +565,16 @@ def run(service, sock, request, api):
                     if control == b'S':
                         stop_reason = 'client_stop'
                         raise Cancelled('Client requested normal end')
+                    if control == b'T' and mode == 'teleop_observation' and seconds == 0:
+                        api.reply(sock, dict(ok=True,type='clock',
+                            boot_id=api.read('/proc/sys/kernel/random/boot_id'),
+                            controller_monotonic_ns=int(api.monotonic()*1e9)))
+                        continue
+                    if control == b'C' and mode == 'teleop_observation' and seconds == 0:
+                        if checkpoint_requested:raise ValueError('Concurrent recording checkpoints')
+                        checkpoint_id += 1
+                        checkpoint_requested=True
+                        continue
                     if not control: raise IOError('Client disconnected before audited end')
                     raise ValueError('Unexpected data during stream')
                 if fd in ready:
@@ -549,6 +608,11 @@ def run(service, sock, request, api):
                         metadata['camera_settings'] = dict(frame_profile)
                     api.reply(sock, metadata, body)
                     counts[cam] += 1
+                    last_stamps[infos[cam]['id']] = stamp
+                    if (baseline_task is None and mode == 'teleop_observation' and seconds == 0
+                            and all(key in last_stamps for key in selected)):
+                        from stream_checkpoint import AuditTask,active_baseline
+                        baseline_task = AuditTask(active_baseline,(before,selected))
                 if api.monotonic()-last_monitor >= 2:
                     with open('/proc/xenomai/stat') as f: rt = f.read()
                     # Teleop records RTPSI switches; page faults and FX_RtTask
@@ -615,6 +679,12 @@ def run(service, sock, request, api):
                 if process.returncode not in (0, -signal.SIGTERM):
                     native_failed = True
         if process is not None: process.stdout.close()
+        for task in (baseline_task,checkpoint_task):
+            if task is not None:
+                task.join(3)
+                if task.is_alive():
+                    error = 'Recording checkpoint audit did not finish'
+                    service.fault = error
         if errors is not None:
             diagnostics = read_native_diagnostics(errors)
             errors.close()
@@ -634,10 +704,13 @@ def run(service, sock, request, api):
                                        for c in selected_configs):
             error = 'Camera interface did not return to idle'
             service.fault = error
+        timing_notice_guard = False
         if before is not None:
             after = audit()
+            timing_notice_guard = (native_rt_unchanged(diagnostics)
+                and unchanged_for_recovery(before, after, mode))
             for key in ('robot_pids','modules','mounts','config_hashes','dmesg_sha256'):
-                if before[key] != after[key]:
+                if audit_changed(before, after, key, mode, allow_timing_notice=timing_notice_guard):
                     error = (error+'; ' if error else '')+'Audit changed: '+key
                     service.fault = error
         # Retain the failed round and its error. Only a later authenticated
@@ -648,7 +721,8 @@ def run(service, sock, request, api):
                 'Camera has no new frame for 2 seconds; stop',
                 'Camera did not produce first frame after bounded startup retry; stop',
                 'Camera open/start or negotiation failed',
-                'Invalid MJPEG frame or dimensions; stop')
+                'Invalid MJPEG frame or dimensions; stop',
+                'Invalid YUYV frame length; stop')
             and process is not None and process.returncode == 1
             and error in ('Native helper failed (exit 1): '+reason,
                           'Native helper failed (exit 1): '+reason+'; Audit changed: dmesg_sha256'))
@@ -688,7 +762,12 @@ def run(service, sock, request, api):
             'camera_recovery_requires_manual':bool(pipe_failure and recoverable),
             'camera_queue_overflow':native_queue_overflow(diagnostics),
             'native_diagnostics':diagnostics, 'audit_before':before,'audit_after':after}
+        from camera_audit import timing_notice_warnings
+        result['audit_warnings'] = (timing_notice_warnings(before, after, mode)
+            if before is not None and after is not None and timing_notice_guard else [])
         service.last_stream = dict((k,v) for k,v in result.items() if not k.startswith('audit_') and k!='native_diagnostics')
         service.last_stream['native_diagnostics_tail'] = diagnostic_tail(diagnostics)
+        from camera_recheck import remember_failure
+        remember_failure(service)
         try: api.reply(sock,result)
         except (IOError,ValueError): pass

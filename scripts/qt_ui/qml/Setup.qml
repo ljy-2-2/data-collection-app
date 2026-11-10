@@ -12,12 +12,15 @@ Card {
         id: content;x: 12;y: heading.height+12;width: parent.width-24;spacing: 12
         UploadTarget {width: parent.width;visible: !root.umi && options.length>0;controlName: "teleopUploadTarget";readOnly: true}
         GridLayout {
-            width: parent.width;columns: width<440 ? 1 : 2;columnSpacing: 9;rowSpacing: 9
-            ColumnLayout {Layout.fillWidth: true;spacing: 4
+            id: configGrid
+            width: parent.width;columns: root.umi ? (width<440 ? 1 : 2) : (width<700 ? 1 : 3);columnSpacing: 9;rowSpacing: 9
+            readonly property real taskColumnWidth: columns===1 ? width : (width-180-2*columnSpacing)/2
+            ColumnLayout {Layout.fillWidth: true;Layout.minimumWidth:0;Layout.preferredWidth:root.umi ? -1 : configGrid.taskColumnWidth;Layout.maximumWidth:root.umi ? Infinity : configGrid.taskColumnWidth;Layout.alignment: Qt.AlignTop;spacing: 4
                 Txt {text: "任务名称";font.pixelSize: 12;color: Theme.inkMuted;font.weight: Font.DemiBold;Layout.preferredHeight: 18}
-                Field {id: task;objectName: root.umi ? "umiTask" : "teleopTask";Layout.fillWidth: true;text: root.umi ? backend.state.umiTask : backend.state.task;maximumLength: 120;font.pixelSize: 12;onEditingFinished: backend.setValue(root.umi ? "umiTask" : "task",text)}
+                Field {id: task;objectName: root.umi ? "umiTask" : "teleopTask";Layout.fillWidth: true;Layout.minimumWidth:0;text: root.umi ? backend.state.umiTask : backend.state.task;maximumLength: 120;font.pixelSize: 12;onTextEdited: if(!root.umi) backend.setValue("task",text);onEditingFinished: backend.setValue(root.umi ? "umiTask" : "task",text)}
             }
-            ColumnLayout {Layout.preferredWidth: parent.columns===1 ? parent.width : 180;Layout.maximumWidth: parent.columns===1 ? parent.width : 180;Layout.minimumWidth: parent.columns===1 ? 0 : 180;spacing: 4
+            SubtaskConfigPicker {visible:!root.umi;Layout.fillWidth:true;Layout.minimumWidth:0;Layout.preferredWidth:configGrid.taskColumnWidth;Layout.maximumWidth:configGrid.taskColumnWidth;Layout.alignment:Qt.AlignTop}
+            ColumnLayout {Layout.alignment: Qt.AlignTop;Layout.preferredWidth: parent.columns===1 ? parent.width : 180;Layout.maximumWidth: parent.columns===1 ? parent.width : 180;Layout.minimumWidth: parent.columns===1 ? 0 : 180;spacing: 4
                 Txt {text: root.umi ? "采集配置" : "机器人型号";font.pixelSize: 12;color: Theme.inkMuted;font.weight: Font.DemiBold;Layout.preferredHeight: 18}
                 Select {id: type;objectName: root.umi ? "umiProfile" : "robotType";Layout.fillWidth: true;model: root.umi ? ["双臂","仅左臂","仅右臂"] : backend.robotNames;currentIndex: root.umi ? ["dual","single-left","single-right"].indexOf(backend.state.profile) : root.robotKeys.indexOf(backend.state.robot);onActivated: index => {if(root.umi) backend.setValue("profile",["dual","single-left","single-right"][index]);else backend.setValue("robot",root.robotKeys[index])}}
             }
@@ -37,7 +40,7 @@ Card {
             }
         }
         Item {width: parent.width;height: 34
-            Btn {objectName: root.umi ? "umiNext" : "teleopNext";anchors.right: parent.right;text: root.umi ? "下一步：检查硬件" : "下一步：遥操作采集";primary: true;iconAfter: true;glyph: "ArrowRight";enabled: task.text.trim()!=="";onClicked: {backend.setValue(root.umi ? "umiTask" : "task",task.text);if(root.umi) backend.umiNext();else backend.configureTeleop(task.text,root.robotKeys[type.currentIndex])}}
+            Btn {objectName: root.umi ? "umiNext" : "teleopNext";anchors.right: parent.right;text: root.umi ? "下一步：检查硬件" : "下一步：遥操作采集";primary: true;iconAfter: true;glyph: "ArrowRight";enabled: task.text.trim()!=="" && (root.umi || !backend.state.subtaskConfigBusy);onClicked: {backend.setValue(root.umi ? "umiTask" : "task",task.text);if(root.umi) backend.umiNext();else backend.configureTeleop(task.text,root.robotKeys[type.currentIndex])}}
         }
     }
 }

@@ -23,6 +23,7 @@ Column {
     property bool motionDirty: !serviceParameters && (s.kuavoPositionScale!==savedMotion.position_scale || s.kuavoVelocity!==savedMotion.max_velocity_rad_s || s.kuavoAcceleration!==savedMotion.planning_acceleration_rad_s2)
     property bool locked: !!s.busy || activeSession || ["checking","preparing","ready"].indexOf(k.state)>=0
     spacing: 12
+    Txt {width:parent.width;visible:!!backend.state.subtaskConfig;text:backend.state.subtaskConfig ? "子任务："+backend.state.subtaskConfig.labels.join(" → ")+" · A 开始，B 保存；X 标注本段，Y 重置顺序（不执行回位）" : "";wrapMode:Text.Wrap;font.pixelSize:12;color:Theme.inkMuted}
     Card {
         width: parent.width;height: setupGrid.height+footer.height
         GridLayout {

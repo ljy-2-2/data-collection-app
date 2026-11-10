@@ -1,4 +1,5 @@
-"""Idle-only preview reconnection and one audited camera-service retry."""
+"""Explicit preview reconnection using a fresh controller camera check."""
+import time
 
 
 def require_idle(manager, *, allow_teleop=False):
@@ -56,10 +57,29 @@ def restart_local_preview(manager, *, allow_teleop=False):
         manager.camera_error = ""
         manager.camera_phase = "connecting"
     # Only an explicit Check Devices action reaches this code. The controller
-    # must have verified USB cleanup and unchanged robot tasks. No device reset,
-    # SSH, daemon restart or unconditional fault clearing happens here.
+    # checks current USB ownership and robot task stability. For a persistent
+    # startup fault it may recover the dedicated camera USB controller, but only
+    # with both arms disabled and no non-camera USB devices. No robot commands.
     with manager.new_camera_client() as fresh:
-        status = fresh.status()
+        # Upstart restarts an interrupted camera service after a short backoff.
+        # Authentication/protocol errors remain errors; retry only transport loss.
+        for attempt in range(3):
+            try:
+                status = fresh.status()
+                break
+            except OSError:
+                if attempt == 2:
+                    raise RuntimeError("相机服务暂时无法连接，请检查控制器网络或服务状态")
+                if manager.camera_recovery_cancel.wait(1.0):
+                    raise RuntimeError("本地相机预览重连已取消")
+        if status.get('camera_manual_recheck') is True:
+            require_idle(manager, allow_teleop=allow_teleop)
+            _require_not_cancelled(manager)
+            fresh.recheck_cameras()
+            status = fresh.status()
+            if status.get('fault') or status.get('idle') is not True:
+                raise RuntimeError("相机现场检查未完成")
+            return
         if status.get("fault"):
             if ('Frame pipe closed or blocked for 1 second; stop' in str(status['fault'])
                     and status.get('stream_transport_recovery') is not True):
@@ -78,3 +98,26 @@ def restart_local_preview(manager, *, allow_teleop=False):
             if status.get("fault") or status.get("idle") is not True:
                 raise RuntimeError("控制器未完成相机重连")
     # The caller starts a fresh local receiver after checking cancellation.
+
+
+def wait_for_preview(manager, timeout=35):
+    """A manual check finishes on real fresh frames, not just a successful RPC."""
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        if manager.camera_recovery_cancel.wait(.1):return None
+        if time.monotonic()-manager.last_access>8:return None
+        with manager.lock:
+            ids=set(manager.camera_inventory)
+            if ids and all(c in manager.frames and time.monotonic()-manager.frames[c][1]<manager.camera_frame_ttl for c in ids):
+                return True
+            alive=bool(manager.camera_thread and manager.camera_thread.is_alive())
+            if not alive:
+                return False if manager.camera_error else None
+    return False
+
+
+def startup_retry_needed(manager):
+    return any(reason in str(manager.camera_error) for reason in (
+        'Camera did not produce first frame after bounded startup retry; stop',
+        'Camera has no new frame for 2 seconds; stop',
+        'Camera open/start or negotiation failed'))

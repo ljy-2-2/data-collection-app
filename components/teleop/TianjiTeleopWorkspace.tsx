@@ -1,4 +1,5 @@
 'use client';
+import type { SubtaskConfig } from './SubtaskConfigPicker';
 import {
   Settings2,
   ChevronUp,
@@ -20,6 +21,7 @@ import {
   TIANJI_LIMITS,
   TIANJI_SIDES,
   validTianjiParameters,
+  formatTianjiDuration,
   type TianjiMode,
   type TianjiParameters,
   type TianjiSide,
@@ -70,11 +72,13 @@ function loadPoses(): Pose[] {
 
 export function TianjiTeleopWorkspace({
   task,
+  subtaskConfig,
   baseUrl,
   darkMode,
   onBusyChange,
 }: {
   task: string;
+  subtaskConfig?: SubtaskConfig | null;
   baseUrl: string;
   darkMode: boolean;
   onBusyChange?: (busy: boolean) => void;
@@ -582,21 +586,13 @@ export function TianjiTeleopWorkspace({
         <div className="teleop-control-footer">
           <div className="teleop-control-actions">
             <div className="tianji-collection-summary" role="status" aria-live="polite" aria-atomic="true">
-              <span>本次完成 <strong>{collection?.completed ?? 0}</strong> Episode</span>
-              <span className="compact-status">
-                <StatusDot online={collecting || running} pulse={collecting} />
-                {collecting
-                  ? '采集中'
-                  : collection?.state === 'starting'
-                    ? '准备采集'
-                    : collectionBusy
-                      ? '正在保存'
-                      : running
-                        ? '等待手柄 A'
-                        : pending === 'check' || state?.state === 'checking'
-                          ? '正在检查设备'
-                          : '未开始遥操作'}
-              </span>
+              <span>本次已完成 <strong>{collection?.completed ?? 0}</strong> Episode</span>
+              <span>持续时间 {formatTianjiDuration(collection?.elapsed_s)}</span>
+              {collection?.local_save && <span>后台待保存 {collection.local_save.pending + collection.local_save.processing} 条</span>}
+              {collecting && <span className="compact-status">
+                <StatusDot online pulse />
+                采集中
+              </span>}
             </div>
             <ActionButton
               kind="secondary"
@@ -625,7 +621,7 @@ export function TianjiTeleopWorkspace({
               <ActionButton
                 busy={pending === 'start'}
                 disabled={count !== 3 || locked || saving || !valid || dirty}
-                onClick={() => act('start', { task, mode, upload_mode: mode, parameters: saved })}
+                onClick={() => act('start', { task, subtask_config:subtaskConfig, mode, upload_mode: mode, parameters: saved })}
               >
                 <Play size={15} fill="currentColor" />
                 开始遥操作
@@ -638,6 +634,11 @@ export function TianjiTeleopWorkspace({
             {collection.error}
           </div>
         ) : null}
+        {collection?.local_save && (!collection.local_save.worker_online || collection.local_save.error) && (
+          <div className="inline-alert teleop-panel-alert" role="alert">
+            {collection.local_save.error || '后台保存服务未就绪，已排队的数据保留'}
+          </div>
+        )}
         {collection?.upload.error ? (
           <div className="tianji-hint" role="status">
             上传待重试：{collection.upload.error}
@@ -680,7 +681,7 @@ export function TianjiTeleopWorkspace({
                 {camera.connected?<CameraStream scope="tianji" src={`${baseUrl}/tianji/cameras/${camera.id}/stream`}
                   waiting={!camera.connected || !camera.available}
                   refreshTimeoutMs={state?.camera_preview_mode==='snapshot'?Math.max(10000,cameras.length*8000):10000}
-                  alt={`${camera.label}画面`}/>:<span className="umi-stream-retry">等待相机画面…</span>}
+                  alt={`${camera.label}画面`}/>:<span className="umi-stream-retry">{state?.camera_connection_issues?.[camera.id] || '相机未识别，请检查 USB 连接'}</span>}
                 <span className="tianji-camera-label">{camera.label}</span>
               </div>
             </div>)}

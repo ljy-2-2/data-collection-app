@@ -215,6 +215,7 @@ typedef struct uvc_device_info {
   and then allow the user to change the number of buffers as required.
  */
 #define LIBUVC_NUM_TRANSFER_BUFS 8
+#define LIBUVC_MAX_TRANSFER_BUFS 384
 
 #define LIBUVC_XFER_BUF_SIZE	( 16 * 1024 * 1024 )
 
@@ -235,6 +236,7 @@ struct uvc_stream_handle {
   uint32_t pts, hold_pts;
   uint32_t last_scr, hold_last_scr;
   size_t got_bytes, hold_bytes;
+  uint8_t payload_overflow;
   uint8_t *outbuf, *holdbuf;
   pthread_mutex_t cb_mutex;
   pthread_cond_t cb_cond;
@@ -242,8 +244,9 @@ struct uvc_stream_handle {
   uint32_t last_polled_seq;
   uvc_frame_callback_t *user_cb;
   void *user_ptr;
-  struct libusb_transfer *transfers[LIBUVC_NUM_TRANSFER_BUFS];
-  uint8_t *transfer_bufs[LIBUVC_NUM_TRANSFER_BUFS];
+  unsigned num_transfer_bufs;
+  struct libusb_transfer *transfers[LIBUVC_MAX_TRANSFER_BUFS];
+  uint8_t *transfer_bufs[LIBUVC_MAX_TRANSFER_BUFS];
   struct uvc_frame frame;
   enum uvc_frame_format frame_format;
 };

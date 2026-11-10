@@ -1,0 +1,114 @@
+{
+  "episode_count": 98,
+  "cameras": {
+    "center": {
+      "frames": 18096,
+      "weighted_hz": 29.71000046753881,
+      "episode_hz_range": [
+        26.587542141254293,
+        30.37186418466943
+      ],
+      "max_gap_ms": 200.028,
+      "episodes_gap_over100ms": 16,
+      "timestamp_nonincreasing": 0
+    },
+    "left": {
+      "frames": 18191,
+      "weighted_hz": 29.841028858244186,
+      "episode_hz_range": [
+        29.796290416515237,
+        30.313574717624782
+      ],
+      "max_gap_ms": 44.182,
+      "episodes_gap_over100ms": 0,
+      "timestamp_nonincreasing": 0
+    },
+    "right": {
+      "frames": 17939,
+      "weighted_hz": 29.42966827077851,
+      "episode_hz_range": [
+        21.677650244063596,
+        30.313632958689563
+      ],
+      "max_gap_ms": 267.968,
+      "episodes_gap_over100ms": 5,
+      "timestamp_nonincreasing": 0
+    }
+  },
+  "signals": {
+    "/pico/controller/right/state": {
+      "samples": 54804,
+      "weighted_hz": 89.9902836450134,
+      "max_gap_ms": 26.535168,
+      "sequence_gaps": 0,
+      "invalid_tracking": 0,
+      "median_record_delay_ms_range": [
+        0.4145845,
+        0.515259
+      ]
+    },
+    "/joint_states": {
+      "samples": 60880,
+      "weighted_hz": 100.00071319435298,
+      "max_gap_ms": 13.510621,
+      "sequence_gaps": 0,
+      "invalid_tracking": 0,
+      "median_record_delay_ms_range": [
+        0.393268,
+        0.463299
+      ]
+    },
+    "/pico/hmd/state": {
+      "samples": 54765,
+      "weighted_hz": 89.99051049900527,
+      "max_gap_ms": 26.535168,
+      "sequence_gaps": 0,
+      "invalid_tracking": 0,
+      "median_record_delay_ms_range": [
+        0.30043600000000004,
+        0.3497265
+      ]
+    },
+    "/pico/controller/left/state": {
+      "samples": 54781,
+      "weighted_hz": 89.99057781907113,
+      "max_gap_ms": 26.535168,
+      "sequence_gaps": 0,
+      "invalid_tracking": 0,
+      "median_record_delay_ms_range": [
+        0.364245,
+        0.414867
+      ]
+    }
+  },
+  "high_resolution_storage": {
+    "episodes": 96,
+    "bytes": 6719555515,
+    "GB": 6.719555515,
+    "aggregate_camera_span_s": 596.609556,
+    "MB_s": 11.262902927756658,
+    "GB_min": 0.6757741756653994,
+    "GB_hour": 40.54645053992397,
+    "duration_method": "sum of longest camera source timestamp span per episode; approximate",
+    "files": {
+      "center.mp4": 1479101506,
+      "left.mp4": 2533650903,
+      "meta.json": 115668,
+      "metadata.yaml": 3174450,
+      "right.mp4": 2627833978,
+      "signals.mcap": 59973118,
+      "video-manifest.json": 15705892
+    }
+  },
+  "source_duration_range_s": [
+    4.236111,
+    10.004436
+  ],
+  "total_bytes": 6728655304,
+  "gripper_names": [
+    "left_left_finger_joint",
+    "right_right_finger_joint"
+  ],
+  "gripper_invalid": 0,
+  "camera_gap_over100ms_episodes": 21
+}

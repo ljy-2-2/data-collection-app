@@ -1,0 +1,14 @@
+{
+  "source": "https://github.com/ewaldc/realtek-r8125-dkms",
+  "commit": "527bcbe5ed45c67b20abae73dccc683eb6f0dc2b",
+  "kernel_source": "https://github.com/orangepi-xunlong/linux-orangepi",
+  "kernel_commit": "f6eedab0cbe9b4be3f855661a0a7e7008812d40a",
+  "module_name": "r8125fix",
+  "pci_target": "0004:41:00.0",
+  "disabled_features": [
+    "PTP",
+    "RSS",
+    "multiple TX queues"
+  ],
+  "original_driver_preserved": true
+}

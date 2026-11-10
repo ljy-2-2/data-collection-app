@@ -1,0 +1,1831 @@
+{
+  "version": 1,
+  "source": "local data-platform-cloud",
+  "selection": "all active episodes, created_at DESC, id DESC",
+  "row_range": [
+    43,
+    133
+  ],
+  "episodes": [
+    {
+      "row": 43,
+      "id": "c14b013d-48a4-593a-a20c-25fe028c4fd7",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:08:45.148728+00:00",
+      "duration_s": 5.819503,
+      "folder": "UMI_数据采集_098_20261013-101728",
+      "storage": {
+        "mcap": "raw/c14b013d-48a4-593a-a20c-25fe028c4fd7/signals.mcap",
+        "meta": "raw/c14b013d-48a4-593a-a20c-25fe028c4fd7/meta.json",
+        "metadata": "raw/c14b013d-48a4-593a-a20c-25fe028c4fd7/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "81f68112361a441d1d28fe5dd32c66b1ad476f55527c3b0c8b5f39b0760da7b0",
+        "meta.json": "cdf00448a2f74360319a264e33d07f5e916029da6a5978ae80be356c24e1603a",
+        "metadata.yaml": "ca54576a4455557856fd161efcd659e18ba8e6a6e39d9cf87b9308b22d5a4120"
+      }
+    },
+    {
+      "row": 44,
+      "id": "e560ff25-a258-55f5-a121-fccddbc24b9d",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:08:05.551438+00:00",
+      "duration_s": 5.968089,
+      "folder": "UMI_数据采集_097_20261013-101716",
+      "storage": {
+        "mcap": "raw/e560ff25-a258-55f5-a121-fccddbc24b9d/signals.mcap",
+        "meta": "raw/e560ff25-a258-55f5-a121-fccddbc24b9d/meta.json",
+        "metadata": "raw/e560ff25-a258-55f5-a121-fccddbc24b9d/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "073ecc62d22f04bd6c4bb3e2fbd203744809afd5e34854e90ef4c715148d9403",
+        "meta.json": "17dc287afbf79f43960d89b8d7a096922e3e24c3811bd862b587f2735aa6267f",
+        "metadata.yaml": "0680e586af6a25c7b59260e944b3bad985ffbf02b6858362174557c9a5873c0c"
+      }
+    },
+    {
+      "row": 45,
+      "id": "150f9d43-f5e0-5a2d-8556-2643f6efcc49",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:07:25.938693+00:00",
+      "duration_s": 5.447036,
+      "folder": "UMI_数据采集_096_20261013-101701",
+      "storage": {
+        "mcap": "raw/150f9d43-f5e0-5a2d-8556-2643f6efcc49/signals.mcap",
+        "meta": "raw/150f9d43-f5e0-5a2d-8556-2643f6efcc49/meta.json",
+        "metadata": "raw/150f9d43-f5e0-5a2d-8556-2643f6efcc49/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "d0666575914ad3a41082dfbd51701116aa232af62b0d88516a9848f728a06a70",
+        "meta.json": "6d6dd001aa90f5ce5ffb9679796658ef5087eb3358b75ed2939ddb1f97867b54",
+        "metadata.yaml": "db73ae362a17c7ce841fd88ae860285b5c5cf05e7284c6f1fe094dc22434bf6e"
+      }
+    },
+    {
+      "row": 46,
+      "id": "82150744-47e2-502d-9c9c-49f7194e778c",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:06:49.334970+00:00",
+      "duration_s": 5.5264406,
+      "folder": "UMI_数据采集_095_20261013-101648",
+      "storage": {
+        "mcap": "raw/82150744-47e2-502d-9c9c-49f7194e778c/signals.mcap",
+        "meta": "raw/82150744-47e2-502d-9c9c-49f7194e778c/meta.json",
+        "metadata": "raw/82150744-47e2-502d-9c9c-49f7194e778c/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "426da7d15fef96039f70144f3e4e1b325a94c1b00395d68eb35b7814e64da831",
+        "meta.json": "afb63d73ffbb6505239e22b38fa6a8f8634e7effd2ace59b47c1bf2c983b39e8",
+        "metadata.yaml": "8bc049e5a1d4d4cec22b4187a811e3c35dd13b82900c9e902757c4c8037a22d3"
+      }
+    },
+    {
+      "row": 47,
+      "id": "6a892b68-da3e-51d1-9b2a-4dae056b4c2a",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:06:12.765798+00:00",
+      "duration_s": 5.2654715,
+      "folder": "UMI_数据采集_094_20261013-101637",
+      "storage": {
+        "mcap": "raw/6a892b68-da3e-51d1-9b2a-4dae056b4c2a/signals.mcap",
+        "meta": "raw/6a892b68-da3e-51d1-9b2a-4dae056b4c2a/meta.json",
+        "metadata": "raw/6a892b68-da3e-51d1-9b2a-4dae056b4c2a/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "623dbff1e21e09e7f0494ddfb79b284e67d0afa713584154f61a20db5e8e2676",
+        "meta.json": "ba849bdec044c77548eb3d7ca230917010e26fe64062303cdbc69e003f5b3765",
+        "metadata.yaml": "51b0328a11e9938fc082759491c7a3c4fb0d9632b825495d83c65ef763c76e63"
+      }
+    },
+    {
+      "row": 48,
+      "id": "59b10682-ed6f-5a69-8d70-eb0a3e62a08e",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:05:36.165486+00:00",
+      "duration_s": 5.805336,
+      "folder": "UMI_数据采集_093_20261013-101623",
+      "storage": {
+        "mcap": "raw/59b10682-ed6f-5a69-8d70-eb0a3e62a08e/signals.mcap",
+        "meta": "raw/59b10682-ed6f-5a69-8d70-eb0a3e62a08e/meta.json",
+        "metadata": "raw/59b10682-ed6f-5a69-8d70-eb0a3e62a08e/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "5cf3e8ad32b4564ff744ee30d0b8b963316f34265c5316b3d53000e3e2c95a5b",
+        "meta.json": "ebbc6f7bdb4437accd7937c0842bcf1cea693af67cbabdc0a16067f0024c4ddc",
+        "metadata.yaml": "038e574547a35c850eeda628ec3739d4614c4166ea88cc07c93ebd8531f7ea18"
+      }
+    },
+    {
+      "row": 49,
+      "id": "51fb630b-a71c-55af-bfbf-bbdde03ae078",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:04:56.530514+00:00",
+      "duration_s": 5.594257,
+      "folder": "UMI_数据采集_092_20261013-101611",
+      "storage": {
+        "mcap": "raw/51fb630b-a71c-55af-bfbf-bbdde03ae078/signals.mcap",
+        "meta": "raw/51fb630b-a71c-55af-bfbf-bbdde03ae078/meta.json",
+        "metadata": "raw/51fb630b-a71c-55af-bfbf-bbdde03ae078/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "34371900c71cc44739a5636dfdde59a58cefffb6d99cd7b28808f7151d79a4fd",
+        "meta.json": "4a72a1c0079aee6054905753f98175681ce8b94537a422fbe36cc22600ec6257",
+        "metadata.yaml": "2af434fed80ca4c5c573da9a74f6bfd3f01836aa7c5b594f8358c8be7b4257c6"
+      }
+    },
+    {
+      "row": 50,
+      "id": "53bec5f7-a2d0-5880-89e6-71d3562dea83",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:04:19.975247+00:00",
+      "duration_s": 6.464139,
+      "folder": "UMI_数据采集_091_20261013-101559",
+      "storage": {
+        "mcap": "raw/53bec5f7-a2d0-5880-89e6-71d3562dea83/signals.mcap",
+        "meta": "raw/53bec5f7-a2d0-5880-89e6-71d3562dea83/meta.json",
+        "metadata": "raw/53bec5f7-a2d0-5880-89e6-71d3562dea83/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "e676191bf84d060eaea5ab6ec9834aab86686f2c4be6ea2c6f5c6c14fe2c9ea4",
+        "meta.json": "1aade12489cea4fa161efc8cda8e311f2aa7c32dc23af1cff1065cc39eb9ce1d",
+        "metadata.yaml": "b0e00ff46fe464f59e4692e4ca6fca8301fcaf5fd97da9b8e429c0a735cfa936"
+      }
+    },
+    {
+      "row": 51,
+      "id": "6de8c1ea-5ad5-53f6-bc9e-24b83202b736",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:03:37.225739+00:00",
+      "duration_s": 5.906398,
+      "folder": "UMI_数据采集_090_20261013-101547",
+      "storage": {
+        "mcap": "raw/6de8c1ea-5ad5-53f6-bc9e-24b83202b736/signals.mcap",
+        "meta": "raw/6de8c1ea-5ad5-53f6-bc9e-24b83202b736/meta.json",
+        "metadata": "raw/6de8c1ea-5ad5-53f6-bc9e-24b83202b736/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "95a0aa4527e0573e34ef8fb1afe8b088d5d61ff54423a89b9a2550f41492c4d1",
+        "meta.json": "e34553e13b04e79fc6b548549aea2a62c3994ffc905d9ad29fc9cf8810c96025",
+        "metadata.yaml": "e344f8b1beab9ffdc61227c3b6d0459f22e8af02227c031a393961e325e24557"
+      }
+    },
+    {
+      "row": 52,
+      "id": "b1eef919-525a-5026-9330-98a2e805e260",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:02:57.562017+00:00",
+      "duration_s": 5.463858,
+      "folder": "UMI_数据采集_089_20261013-101534",
+      "storage": {
+        "mcap": "raw/b1eef919-525a-5026-9330-98a2e805e260/signals.mcap",
+        "meta": "raw/b1eef919-525a-5026-9330-98a2e805e260/meta.json",
+        "metadata": "raw/b1eef919-525a-5026-9330-98a2e805e260/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "a3ed2e0cb3a8249f45583ae9b678580654d03c3f2dc690746fb7c77bb397287b",
+        "meta.json": "affbb27f4ea6d542dd47d9c1cf4179d104293df909a417a870e98759cf42715d",
+        "metadata.yaml": "4e65f85907fcf61d654b8c04e5ca5c4268699fc34b3a34267432d5f9131c8b2c"
+      }
+    },
+    {
+      "row": 53,
+      "id": "5f857eb1-ea7e-52f4-a501-7fc6043009cb",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:02:20.971536+00:00",
+      "duration_s": 6.31361,
+      "folder": "UMI_数据采集_088_20261013-101518",
+      "storage": {
+        "mcap": "raw/5f857eb1-ea7e-52f4-a501-7fc6043009cb/signals.mcap",
+        "meta": "raw/5f857eb1-ea7e-52f4-a501-7fc6043009cb/meta.json",
+        "metadata": "raw/5f857eb1-ea7e-52f4-a501-7fc6043009cb/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "5d547d8d29fdff32ed018967e4a06e97f9800f981382d07382fa01e37cc73c4c",
+        "meta.json": "2cf01463f2dd8e3bd754d8a160868de26e5a63aa01d1246384b79afdd8faf6c5",
+        "metadata.yaml": "5e308b2b5ad1ee9f5f236866320a3942e0a8e3fdb6ff7d7e08ed95c0023b7900"
+      }
+    },
+    {
+      "row": 54,
+      "id": "df1a5bb1-1768-5ab6-b1bf-5e01491ea7b5",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:01:38.261776+00:00",
+      "duration_s": 5.9127893,
+      "folder": "UMI_数据采集_087_20261013-101505",
+      "storage": {
+        "mcap": "raw/df1a5bb1-1768-5ab6-b1bf-5e01491ea7b5/signals.mcap",
+        "meta": "raw/df1a5bb1-1768-5ab6-b1bf-5e01491ea7b5/meta.json",
+        "metadata": "raw/df1a5bb1-1768-5ab6-b1bf-5e01491ea7b5/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "7c880016e30b11176bed25d9cb79b1fcbd2c4ee75ef14a24b9eee94b87420207",
+        "meta.json": "7569d89ad4b07f24e97ec8d4b5a60e75da2c02d2c667ded38d7a12e2d0dd2194",
+        "metadata.yaml": "25745281a151a837b8f84926c4fe6d12ff3a8f97b2ef32733f5dad40761d5aea"
+      }
+    },
+    {
+      "row": 55,
+      "id": "94c42e8a-3771-5c7f-9003-24bbc8daaca9",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:00:58.632499+00:00",
+      "duration_s": 6.6335993,
+      "folder": "UMI_数据采集_086_20261013-101450",
+      "storage": {
+        "mcap": "raw/94c42e8a-3771-5c7f-9003-24bbc8daaca9/signals.mcap",
+        "meta": "raw/94c42e8a-3771-5c7f-9003-24bbc8daaca9/meta.json",
+        "metadata": "raw/94c42e8a-3771-5c7f-9003-24bbc8daaca9/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "40c23b1cdf96555e32d41f3966ef4b02a9f33fea0a631fffa022bd8acc582edf",
+        "meta.json": "83d62dfc0fd46e06762d3305847896e1ae46e47db7afb34dd4de93c40d981ef4",
+        "metadata.yaml": "9fe1123aeb9e9a4806c70a372abd8d72ff23e05d50d191baf1616a1033577dc8"
+      }
+    },
+    {
+      "row": 56,
+      "id": "6f291c0e-03ab-5e45-817e-1d87b27702e1",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 11:00:15.938096+00:00",
+      "duration_s": 5.694884,
+      "folder": "UMI_数据采集_085_20261013-101434",
+      "storage": {
+        "mcap": "raw/6f291c0e-03ab-5e45-817e-1d87b27702e1/signals.mcap",
+        "meta": "raw/6f291c0e-03ab-5e45-817e-1d87b27702e1/meta.json",
+        "metadata": "raw/6f291c0e-03ab-5e45-817e-1d87b27702e1/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "fbf3caea4dfe1171e81101613671fb919d2ffb8fbfa14922fdc3e5721f3447c1",
+        "meta.json": "db6679a8cf7c2c9cd6fb136c8c8fcfcb9d6afc51186cd9b84f8f14cfe2b32267",
+        "metadata.yaml": "abec92df0eb41923919b6aaedb6b8514029d649d9f513f9d5d727312aa051048"
+      }
+    },
+    {
+      "row": 57,
+      "id": "f8c194c9-fc69-5617-8eab-c28a1c28272c",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:59:36.223893+00:00",
+      "duration_s": 5.545083,
+      "folder": "UMI_数据采集_084_20261013-101422",
+      "storage": {
+        "mcap": "raw/f8c194c9-fc69-5617-8eab-c28a1c28272c/signals.mcap",
+        "meta": "raw/f8c194c9-fc69-5617-8eab-c28a1c28272c/meta.json",
+        "metadata": "raw/f8c194c9-fc69-5617-8eab-c28a1c28272c/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "3b4ac253d7537d042d61d60eee5a35691c1ee9e913f2ee9aca0033460a682520",
+        "meta.json": "9724910b996c712d5422e18e24261135b6d936e5544819f03cebeebc0cb55e96",
+        "metadata.yaml": "24f2cab0226e4874ef036ea3d30dc0720a7d3378965e3cd39df8307a900910a3"
+      }
+    },
+    {
+      "row": 58,
+      "id": "faf963fa-b80b-5e3d-a6d5-c77b1d2076b2",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:58:59.561703+00:00",
+      "duration_s": 5.3924885,
+      "folder": "UMI_数据采集_083_20261013-101402",
+      "storage": {
+        "mcap": "raw/faf963fa-b80b-5e3d-a6d5-c77b1d2076b2/signals.mcap",
+        "meta": "raw/faf963fa-b80b-5e3d-a6d5-c77b1d2076b2/meta.json",
+        "metadata": "raw/faf963fa-b80b-5e3d-a6d5-c77b1d2076b2/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "480841d9bd9c367b2f379f0d31b4749974cb343ffa941f886d6e7b80b81230bd",
+        "meta.json": "2958cf42037dcb519f644f681b63f3cbcec2fecdeef8c5299183b755ccfb9ff8",
+        "metadata.yaml": "18e3b3382bdec490f2ced5c1dd6b933ff6ed5b94d2ef3f0470467d40e8a3b697"
+      }
+    },
+    {
+      "row": 59,
+      "id": "58efd291-8411-53a5-b320-ba808f10bfc1",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:58:22.963684+00:00",
+      "duration_s": 5.979453,
+      "folder": "UMI_数据采集_082_20261013-101310",
+      "storage": {
+        "mcap": "raw/58efd291-8411-53a5-b320-ba808f10bfc1/signals.mcap",
+        "meta": "raw/58efd291-8411-53a5-b320-ba808f10bfc1/meta.json",
+        "metadata": "raw/58efd291-8411-53a5-b320-ba808f10bfc1/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "14cdcacd03ecc9e46b707f19cdb2717c431ab9cb538bab76b9d21e29a886f568",
+        "meta.json": "c6e9ceb99c8502315578c47d7e93fbd4d0a1bb5861a85807e07dafda8c2b67fe",
+        "metadata.yaml": "d6e19c8568074908cc4f9daddbb104038a7e6e5836e1c3a32d7699fe6ae488d8"
+      }
+    },
+    {
+      "row": 60,
+      "id": "587378c7-9714-5979-9b04-8183d0d68061",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:57:43.307840+00:00",
+      "duration_s": 5.827637,
+      "folder": "UMI_数据采集_081_20261013-101255",
+      "storage": {
+        "mcap": "raw/587378c7-9714-5979-9b04-8183d0d68061/signals.mcap",
+        "meta": "raw/587378c7-9714-5979-9b04-8183d0d68061/meta.json",
+        "metadata": "raw/587378c7-9714-5979-9b04-8183d0d68061/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "d695662ce002aba91e17c26edce66b19d81c87126cf1af7166a8643799d62395",
+        "meta.json": "aba5765307b201c1a4edf6c8e46b6a1367ee31315ccdb4006511ff0f4610f0a0",
+        "metadata.yaml": "b745c57c1f0fb49297850ca0beb56f4b49e3ec4a4bcb194229aee08a1c701076"
+      }
+    },
+    {
+      "row": 61,
+      "id": "6c4dff6d-65d1-542a-8db8-2daf9b89ec3e",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:57:03.642920+00:00",
+      "duration_s": 6.095047,
+      "folder": "UMI_数据采集_080_20261013-101242",
+      "storage": {
+        "mcap": "raw/6c4dff6d-65d1-542a-8db8-2daf9b89ec3e/signals.mcap",
+        "meta": "raw/6c4dff6d-65d1-542a-8db8-2daf9b89ec3e/meta.json",
+        "metadata": "raw/6c4dff6d-65d1-542a-8db8-2daf9b89ec3e/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "295d8d21ab61db172826f5e2bd5872affad9ec612248d26ebd245d55d5cddac2",
+        "meta.json": "f1871d19990dea253b4cf34787f9a18768a837127ed8bc76dc38105c173b1b77",
+        "metadata.yaml": "8bfa5d0e2a39801658e86c2a1298ae30509724cce3c3c56f4c15209c1b005a51"
+      }
+    },
+    {
+      "row": 62,
+      "id": "d4d57f88-e907-5d00-9bfd-cdb8dd8935eb",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:56:23.958759+00:00",
+      "duration_s": 5.362543,
+      "folder": "UMI_数据采集_079_20261013-101230",
+      "storage": {
+        "mcap": "raw/d4d57f88-e907-5d00-9bfd-cdb8dd8935eb/signals.mcap",
+        "meta": "raw/d4d57f88-e907-5d00-9bfd-cdb8dd8935eb/meta.json",
+        "metadata": "raw/d4d57f88-e907-5d00-9bfd-cdb8dd8935eb/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "4ae3c7216daf6fd261a8a8819ec496d9d063d49588af54116a534b04b5857203",
+        "meta.json": "9154933f41e458d520c42c3bfaa7820576a217af70724bb934a28b20f9760b71",
+        "metadata.yaml": "d05a7888d6cde160883aefa22cbf1cbabf4d08d6c6635820b9c5aaaea243f5d1"
+      }
+    },
+    {
+      "row": 63,
+      "id": "572cb759-69b9-5152-8d7f-9697e7878ab4",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:55:47.292389+00:00",
+      "duration_s": 5.6521926,
+      "folder": "UMI_数据采集_078_20261013-101217",
+      "storage": {
+        "mcap": "raw/572cb759-69b9-5152-8d7f-9697e7878ab4/signals.mcap",
+        "meta": "raw/572cb759-69b9-5152-8d7f-9697e7878ab4/meta.json",
+        "metadata": "raw/572cb759-69b9-5152-8d7f-9697e7878ab4/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "3163a81a0f9f74117f3ac8378ab4533d942413745d90b71c94df7eb93d7d2702",
+        "meta.json": "7094ac495f0af29d6c160983bc477b9f75af45a03749cd491c0fce216bd52b58",
+        "metadata.yaml": "6337f4df780af80ea56e742aec2e02ec6ebdf7caa6e39291fa982f7840ef717e"
+      }
+    },
+    {
+      "row": 64,
+      "id": "d4e1db97-c10a-5179-b8de-16ebbab5ea00",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:55:07.588074+00:00",
+      "duration_s": 5.8910675,
+      "folder": "UMI_数据采集_077_20261013-101205",
+      "storage": {
+        "mcap": "raw/d4e1db97-c10a-5179-b8de-16ebbab5ea00/signals.mcap",
+        "meta": "raw/d4e1db97-c10a-5179-b8de-16ebbab5ea00/meta.json",
+        "metadata": "raw/d4e1db97-c10a-5179-b8de-16ebbab5ea00/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "4dba50f5c3f50fd4b85a73718576135553ac4f52c45126baf987d4ab3cb1efdf",
+        "meta.json": "8ce85a22f8e562f1a688df544510e2213daa9a4f7af76373b613cbf4e4d13300",
+        "metadata.yaml": "d049a19adb3dd5336d395fa4a0127e0fe17a2b8816ac0d012bc09fd78432abeb"
+      }
+    },
+    {
+      "row": 65,
+      "id": "38e0785e-04ea-5cd3-a072-8c78de0b9b0e",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:54:27.987423+00:00",
+      "duration_s": 5.5883617,
+      "folder": "UMI_数据采集_076_20261013-101146",
+      "storage": {
+        "mcap": "raw/38e0785e-04ea-5cd3-a072-8c78de0b9b0e/signals.mcap",
+        "meta": "raw/38e0785e-04ea-5cd3-a072-8c78de0b9b0e/meta.json",
+        "metadata": "raw/38e0785e-04ea-5cd3-a072-8c78de0b9b0e/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "f26dc6aef346fbfa00a1089841aaccb51f776280b452fe5c33fd16f696a48d08",
+        "meta.json": "2a6da9aaf32a177f8f735b22d03dbf9bd7d6dca2ab2264728d1e58bb295c90ca",
+        "metadata.yaml": "ef1b70528ac1afb0ff8fe4eb6f14c22ef0f9c15bc614435a06baaa416180f2d2"
+      }
+    },
+    {
+      "row": 66,
+      "id": "b24964e0-0056-5bf3-b027-733e7470b6a0",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:53:51.408056+00:00",
+      "duration_s": 5.6208706,
+      "folder": "UMI_数据采集_075_20261013-101134",
+      "storage": {
+        "mcap": "raw/b24964e0-0056-5bf3-b027-733e7470b6a0/signals.mcap",
+        "meta": "raw/b24964e0-0056-5bf3-b027-733e7470b6a0/meta.json",
+        "metadata": "raw/b24964e0-0056-5bf3-b027-733e7470b6a0/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "1491547b605f9441d953fded584198b86bb34bdede387f76c5800560147a75dc",
+        "meta.json": "b83abbc265b97ed6b061981bd6d01193bd1c4575ae959358fb56277d33fa9ca9",
+        "metadata.yaml": "787b16979cfb0816734a6ff288f1ce7c19394d6625c8c3f69c80259676501c39"
+      }
+    },
+    {
+      "row": 67,
+      "id": "31c925a9-ca64-5102-875e-415e730a0c46",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:53:11.716839+00:00",
+      "duration_s": 5.3577127,
+      "folder": "UMI_数据采集_074_20261013-101121",
+      "storage": {
+        "mcap": "raw/31c925a9-ca64-5102-875e-415e730a0c46/signals.mcap",
+        "meta": "raw/31c925a9-ca64-5102-875e-415e730a0c46/meta.json",
+        "metadata": "raw/31c925a9-ca64-5102-875e-415e730a0c46/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "5be640e4009e5fd127945c271dc5b4cb49d84999ad3aa4bd74700a3b3b849a77",
+        "meta.json": "195e0f70e404fd949be8ac47794344fdf1a0669a25c34bee01ad4a2324ba946c",
+        "metadata.yaml": "a38227580efe5b9912ac76cd4cd00effa1a5deac494b32f80387f811ea0e751a"
+      }
+    },
+    {
+      "row": 68,
+      "id": "6cbdf73a-987d-52ef-8e78-c4a65d9f4709",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:52:38.091787+00:00",
+      "duration_s": 5.439809,
+      "folder": "UMI_数据采集_073_20261013-101108",
+      "storage": {
+        "mcap": "raw/6cbdf73a-987d-52ef-8e78-c4a65d9f4709/signals.mcap",
+        "meta": "raw/6cbdf73a-987d-52ef-8e78-c4a65d9f4709/meta.json",
+        "metadata": "raw/6cbdf73a-987d-52ef-8e78-c4a65d9f4709/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "6619064371c2bcb11de08f0b0b424f6793afe59a973700382d5d28d51c6567f2",
+        "meta.json": "e741e5727d00d08de45bdfaa29b0dbc52ae5cd8851284d61488d7e75360388e2",
+        "metadata.yaml": "b2d47b5aa8e09555c6f61180bcd5d7676452919b05e13ca6e40e36fa4a845c88"
+      }
+    },
+    {
+      "row": 69,
+      "id": "d7cd4ba1-9420-50c7-8694-175e0ead590a",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:52:01.426664+00:00",
+      "duration_s": 6.015148,
+      "folder": "UMI_数据采集_072_20261013-101046",
+      "storage": {
+        "mcap": "raw/d7cd4ba1-9420-50c7-8694-175e0ead590a/signals.mcap",
+        "meta": "raw/d7cd4ba1-9420-50c7-8694-175e0ead590a/meta.json",
+        "metadata": "raw/d7cd4ba1-9420-50c7-8694-175e0ead590a/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "2660bb8e03ee9fe29029218c668643028a2765ce16db37c5882e2e733e60ed88",
+        "meta.json": "13cdd4318701b0eeaf575a9d307b9331ba27bd9534ad9d457f637c6c3ebc2d55",
+        "metadata.yaml": "a1a4acd036897db7eef3c2eea4f1e876a40a10352bdb1c475bb070a3b1dc99ca"
+      }
+    },
+    {
+      "row": 70,
+      "id": "085530d9-53b9-5d80-ae52-b1585c18194a",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:51:18.786287+00:00",
+      "duration_s": 6.377594,
+      "folder": "UMI_数据采集_071_20261013-101033",
+      "storage": {
+        "mcap": "raw/085530d9-53b9-5d80-ae52-b1585c18194a/signals.mcap",
+        "meta": "raw/085530d9-53b9-5d80-ae52-b1585c18194a/meta.json",
+        "metadata": "raw/085530d9-53b9-5d80-ae52-b1585c18194a/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "63773703c2376e9b98fe5ad9eea0dd89f3436d4e8e38b8cf6f18680f8c1a6c8d",
+        "meta.json": "3580f00a060c5553a131e80081cb66bbf9ff333bc3d9fffae29e112e1dc84eb5",
+        "metadata.yaml": "ffabcfd14ae1dff53e6234d957cfbd662fa0226aed79d81a1adf9f1e2b844ae6"
+      }
+    },
+    {
+      "row": 71,
+      "id": "82a3f519-e8c3-5b74-971b-c4d35c0171a7",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:50:39.106282+00:00",
+      "duration_s": 5.9528456,
+      "folder": "UMI_数据采集_070_20261013-101021",
+      "storage": {
+        "mcap": "raw/82a3f519-e8c3-5b74-971b-c4d35c0171a7/signals.mcap",
+        "meta": "raw/82a3f519-e8c3-5b74-971b-c4d35c0171a7/meta.json",
+        "metadata": "raw/82a3f519-e8c3-5b74-971b-c4d35c0171a7/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "15860ca6a3908c2a0df737c252cb9b06c666c7bf9acfe4412095ff493063ff1d",
+        "meta.json": "e1229f0e235b69f284d5f046ac80e00e36cc4c821d0463bdf693703f95d7bee9",
+        "metadata.yaml": "681c0fe16cfb02680f98158c66148895ee4e16ef36893ec7666181e27d496c71"
+      }
+    },
+    {
+      "row": 72,
+      "id": "b2ff8685-296f-553d-9f30-11561cb4cdf6",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:49:59.425641+00:00",
+      "duration_s": 6.5778103,
+      "folder": "UMI_数据采集_069_20261013-101007",
+      "storage": {
+        "mcap": "raw/b2ff8685-296f-553d-9f30-11561cb4cdf6/signals.mcap",
+        "meta": "raw/b2ff8685-296f-553d-9f30-11561cb4cdf6/meta.json",
+        "metadata": "raw/b2ff8685-296f-553d-9f30-11561cb4cdf6/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "dd56f09b515e4437c70751301ee6d3e652c95cd824858728a6036b8a3e420428",
+        "meta.json": "ec0764bc5c8727b950ced37d56b665972faf0af59ea262fe2fdb2eaddf919173",
+        "metadata.yaml": "4aba529072a58833b3a31f0f2b44983ed4393506aed6f7ec41dd1f7aea434ebf"
+      }
+    },
+    {
+      "row": 73,
+      "id": "8163edb5-437c-5971-8919-66eb62f9f6c8",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:49:13.705494+00:00",
+      "duration_s": 6.107902,
+      "folder": "UMI_数据采集_068_20261013-100955",
+      "storage": {
+        "mcap": "raw/8163edb5-437c-5971-8919-66eb62f9f6c8/signals.mcap",
+        "meta": "raw/8163edb5-437c-5971-8919-66eb62f9f6c8/meta.json",
+        "metadata": "raw/8163edb5-437c-5971-8919-66eb62f9f6c8/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "01cd10dbb1fe214aafc7138b63fb08354b788237c93c20de48327ef0950fcb7b",
+        "meta.json": "5415e32188412f790b6b8447f9a686445165ea918434b97fb9675be641a5e03d",
+        "metadata.yaml": "25e2095db4836033f0d6e218611b3b4068fec34dacd88619ef2c2a3f722ad2a3"
+      }
+    },
+    {
+      "row": 74,
+      "id": "1cdda178-a4a8-5d4d-bf99-50c238b6d929",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:48:34.101359+00:00",
+      "duration_s": 5.3964415,
+      "folder": "UMI_数据采集_067_20261013-100944",
+      "storage": {
+        "mcap": "raw/1cdda178-a4a8-5d4d-bf99-50c238b6d929/signals.mcap",
+        "meta": "raw/1cdda178-a4a8-5d4d-bf99-50c238b6d929/meta.json",
+        "metadata": "raw/1cdda178-a4a8-5d4d-bf99-50c238b6d929/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "ec5d098d9d35a6db5bbaf1c5c0e7d8fad3c94fafee0076315e847700ddedcb2c",
+        "meta.json": "4f600ffd7d0725ffa3799c288f1957561b90da9e70190f5d1c3fb039562ce9ee",
+        "metadata.yaml": "f603b2a112584ffd87e78cbc21f1a6d75b4ce469d7509e3fdfe73604b0b5590b"
+      }
+    },
+    {
+      "row": 75,
+      "id": "63859a82-eb0a-5ca9-b1ad-7553a1972563",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:47:57.560438+00:00",
+      "duration_s": 5.2230725,
+      "folder": "UMI_数据采集_066_20261013-100933",
+      "storage": {
+        "mcap": "raw/63859a82-eb0a-5ca9-b1ad-7553a1972563/signals.mcap",
+        "meta": "raw/63859a82-eb0a-5ca9-b1ad-7553a1972563/meta.json",
+        "metadata": "raw/63859a82-eb0a-5ca9-b1ad-7553a1972563/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "fca29e468179cd6864b5c3ad779dcfad31f4d1154f76dd95c04bc79d43a70889",
+        "meta.json": "6e566fed2cf4464145d2d03986405eb26758217acf733d8f1653d00875185df7",
+        "metadata.yaml": "ffcd1022b15f6cce59c4c1266216130fb86e9c7a9b13a358efe5e75e5b0b604d"
+      }
+    },
+    {
+      "row": 76,
+      "id": "d25d55da-a4fd-5f32-90cf-90d18fddf75b",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:47:20.995448+00:00",
+      "duration_s": 5.4402075,
+      "folder": "UMI_数据采集_065_20261013-100838",
+      "storage": {
+        "mcap": "raw/d25d55da-a4fd-5f32-90cf-90d18fddf75b/signals.mcap",
+        "meta": "raw/d25d55da-a4fd-5f32-90cf-90d18fddf75b/meta.json",
+        "metadata": "raw/d25d55da-a4fd-5f32-90cf-90d18fddf75b/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "88b1f70598d7b5dbd6d426f999ab15b0bcf907296e09e7b0f798fa70caeb7a16",
+        "meta.json": "8f3de0e2f9ff8c24ff469b617421cef6e6bb18270eae63c4f62a6ffa6d1d9903",
+        "metadata.yaml": "a1a18d360f1b1a6a85ed361835aee0fccdbc5fcd349dd0115720511a938bdde7"
+      }
+    },
+    {
+      "row": 77,
+      "id": "f762f2db-b508-562c-a4de-949f83fc0a78",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:46:44.348442+00:00",
+      "duration_s": 5.721058,
+      "folder": "UMI_数据采集_064_20261013-100825",
+      "storage": {
+        "mcap": "raw/f762f2db-b508-562c-a4de-949f83fc0a78/signals.mcap",
+        "meta": "raw/f762f2db-b508-562c-a4de-949f83fc0a78/meta.json",
+        "metadata": "raw/f762f2db-b508-562c-a4de-949f83fc0a78/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "1b3bb7c4b2633622d416a1cc013d0e86b4ecbc28752c036961a940e687463b6d",
+        "meta.json": "b3a343845897ef0c545fb3f8a3b6699e58a987cecb15dbc6443dea30c0e11ad9",
+        "metadata.yaml": "f29b04fc4ee017297c8dc2f5d62c67edecb025476385ab43247ef46905618305"
+      }
+    },
+    {
+      "row": 78,
+      "id": "3b88901f-3823-5476-9ca0-da4fb06e5b7b",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:46:04.701740+00:00",
+      "duration_s": 5.7359347,
+      "folder": "UMI_数据采集_063_20261013-100812",
+      "storage": {
+        "mcap": "raw/3b88901f-3823-5476-9ca0-da4fb06e5b7b/signals.mcap",
+        "meta": "raw/3b88901f-3823-5476-9ca0-da4fb06e5b7b/meta.json",
+        "metadata": "raw/3b88901f-3823-5476-9ca0-da4fb06e5b7b/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "9ced3615af9f77e0f736c7225650bf87374e1292783d5d7d20a78297a5ff6293",
+        "meta.json": "c2d8a2f88e0b636ca83f89eec6960996d6ea7ff8543a606088ff8995ef0bdb0a",
+        "metadata.yaml": "f4954ff3493bbbf861fe39fd425070be77e1fa35149dc8a68fe3d59d852150ef"
+      }
+    },
+    {
+      "row": 79,
+      "id": "2f6acef7-c826-5dea-83e8-f1e5e2aa40b7",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:45:28.128651+00:00",
+      "duration_s": 5.24928,
+      "folder": "UMI_数据采集_062_20261013-100800",
+      "storage": {
+        "mcap": "raw/2f6acef7-c826-5dea-83e8-f1e5e2aa40b7/signals.mcap",
+        "meta": "raw/2f6acef7-c826-5dea-83e8-f1e5e2aa40b7/meta.json",
+        "metadata": "raw/2f6acef7-c826-5dea-83e8-f1e5e2aa40b7/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "ef432176b2a7a738ebfd988e367f9cd8601876a9ecbaaf8231fa7c58d837f486",
+        "meta.json": "e16546b0e8e2c006bc37888db81424e1ff489f2c4ea39cb81d79445477d276bf",
+        "metadata.yaml": "19315614da6243cc1fb4a22aa5dd8ae66dd36d79c0a4f380f869766f05e76a92"
+      }
+    },
+    {
+      "row": 80,
+      "id": "00b565b4-4624-5485-a894-28b2e8b6665b",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:44:51.458524+00:00",
+      "duration_s": 5.4003167,
+      "folder": "UMI_数据采集_061_20261013-100734",
+      "storage": {
+        "mcap": "raw/00b565b4-4624-5485-a894-28b2e8b6665b/signals.mcap",
+        "meta": "raw/00b565b4-4624-5485-a894-28b2e8b6665b/meta.json",
+        "metadata": "raw/00b565b4-4624-5485-a894-28b2e8b6665b/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "bafa73ac1da04e9a277190131a699d66ff4ea33bdba7116f4dbd2234e6d667b0",
+        "meta.json": "57b66f00950ea8be045ef8f697c7bcc1a6f3415ba9aa616b46dd33a37dd98255",
+        "metadata.yaml": "8f05a2cc7a970d644fdff5aa628d3951e9563408a125932a077d6bd66017890c"
+      }
+    },
+    {
+      "row": 81,
+      "id": "2d37a4b8-40e1-5f7f-81f8-7b91118ae266",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:44:14.870236+00:00",
+      "duration_s": 5.6697054,
+      "folder": "UMI_数据采集_060_20261013-100720",
+      "storage": {
+        "mcap": "raw/2d37a4b8-40e1-5f7f-81f8-7b91118ae266/signals.mcap",
+        "meta": "raw/2d37a4b8-40e1-5f7f-81f8-7b91118ae266/meta.json",
+        "metadata": "raw/2d37a4b8-40e1-5f7f-81f8-7b91118ae266/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "9f6ea0632fa81778776929d3b7ee0ddb2a2ae2f92b909ec3766bde7794deef63",
+        "meta.json": "9e020b98ebd99ea60113ca31f07565de25e4392036194d7dbd68abc9f5520f70",
+        "metadata.yaml": "07fa4aa7a1eb4a4aaac5f0da9d2f2a6d4e6e38518655d969def7da3ac0f3b374"
+      }
+    },
+    {
+      "row": 82,
+      "id": "539f2f33-c53f-5b2c-ae2f-f90c8b5fc229",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:43:38.183901+00:00",
+      "duration_s": 5.770193,
+      "folder": "UMI_数据采集_059_20261013-100704",
+      "storage": {
+        "mcap": "raw/539f2f33-c53f-5b2c-ae2f-f90c8b5fc229/signals.mcap",
+        "meta": "raw/539f2f33-c53f-5b2c-ae2f-f90c8b5fc229/meta.json",
+        "metadata": "raw/539f2f33-c53f-5b2c-ae2f-f90c8b5fc229/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "7410629bedca16d431916cc55d2c757f679d34cfa151e6752ab8fba1daa63030",
+        "meta.json": "eccc2a750d7bd0e8c1425b8e2199c9c4f82f7d21da12ea2fe1d844bbc4eba65f",
+        "metadata.yaml": "a31a430aa4c92e543e0dc9a5aa55ee72294cd54b4e2e322ca0ec20e483566e8b"
+      }
+    },
+    {
+      "row": 83,
+      "id": "4b3c19f1-327e-52af-a87a-ff1d06b426bf",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:42:58.497845+00:00",
+      "duration_s": 5.6456165,
+      "folder": "UMI_数据采集_058_20261013-100600",
+      "storage": {
+        "mcap": "raw/4b3c19f1-327e-52af-a87a-ff1d06b426bf/signals.mcap",
+        "meta": "raw/4b3c19f1-327e-52af-a87a-ff1d06b426bf/meta.json",
+        "metadata": "raw/4b3c19f1-327e-52af-a87a-ff1d06b426bf/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "0e743010febc13d6511f025d4514207c079670ccee364159519f6f046b8ea027",
+        "meta.json": "bd44a9ee8413bd05dbc69dfcaff3203609f8f1fdd4cbd329ade7dbc0e8c7fde5",
+        "metadata.yaml": "bc3e8c8716e1a37b67ea2abee7903a5c734997879625cdae5315d24f847cec07"
+      }
+    },
+    {
+      "row": 84,
+      "id": "34e6973c-6ed5-5e6b-94bc-f30c7c3e493e",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:42:21.942175+00:00",
+      "duration_s": 5.2125807,
+      "folder": "UMI_数据采集_057_20261013-100548",
+      "storage": {
+        "mcap": "raw/34e6973c-6ed5-5e6b-94bc-f30c7c3e493e/signals.mcap",
+        "meta": "raw/34e6973c-6ed5-5e6b-94bc-f30c7c3e493e/meta.json",
+        "metadata": "raw/34e6973c-6ed5-5e6b-94bc-f30c7c3e493e/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "657417880f93fbb4be31c76c488ab257f52d5635eb08c815fbd28a0c8d7fa82a",
+        "meta.json": "ca62e6fafe1673912c14b2c1717c75aec75de545ef4a0231f952f03e8c95637f",
+        "metadata.yaml": "385d9c231a3b13bcfd47b5e55dd6243d681267abc273d6f1bb7339f6042d1764"
+      }
+    },
+    {
+      "row": 85,
+      "id": "7ad87d1b-ea03-5de5-9915-cab63f41be0c",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:41:45.323271+00:00",
+      "duration_s": 5.0877256,
+      "folder": "UMI_数据采集_056_20261013-100536",
+      "storage": {
+        "mcap": "raw/7ad87d1b-ea03-5de5-9915-cab63f41be0c/signals.mcap",
+        "meta": "raw/7ad87d1b-ea03-5de5-9915-cab63f41be0c/meta.json",
+        "metadata": "raw/7ad87d1b-ea03-5de5-9915-cab63f41be0c/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "03ca1610a89b969c325dc1d6485050a3ecee2385bc2ef0919be7f7135a7b71e8",
+        "meta.json": "4c0a2702109a3f4bd5f50ed7b9371d5e761e8bc712e43547683b00e2c5bc5bae",
+        "metadata.yaml": "08f7f36322bfed6ccc859adc78c3b7ba9a340f5c6be0b68f74cb8116372bdbbf"
+      }
+    },
+    {
+      "row": 86,
+      "id": "a4e83098-5f3b-5c77-89b6-dfa0232bb59d",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:41:11.574716+00:00",
+      "duration_s": 5.6101665,
+      "folder": "UMI_数据采集_055_20261013-100523",
+      "storage": {
+        "mcap": "raw/a4e83098-5f3b-5c77-89b6-dfa0232bb59d/signals.mcap",
+        "meta": "raw/a4e83098-5f3b-5c77-89b6-dfa0232bb59d/meta.json",
+        "metadata": "raw/a4e83098-5f3b-5c77-89b6-dfa0232bb59d/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "013e43f475294a60f2f9ce14fbd3de58f9285d63814102d91ee206ce57401884",
+        "meta.json": "fc926758ea855b5dc6f3c95ac39001a17c7849228372d630ff548a2a6f310d8f",
+        "metadata.yaml": "3e4e41486f89780d6915f0f4afe43ea1925825f8860b588438f21de44a8d3487"
+      }
+    },
+    {
+      "row": 87,
+      "id": "ec7ad7dd-9cab-5e48-99ea-795010dc4d54",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:40:31.957849+00:00",
+      "duration_s": 5.7150617,
+      "folder": "UMI_数据采集_054_20261013-100511",
+      "storage": {
+        "mcap": "raw/ec7ad7dd-9cab-5e48-99ea-795010dc4d54/signals.mcap",
+        "meta": "raw/ec7ad7dd-9cab-5e48-99ea-795010dc4d54/meta.json",
+        "metadata": "raw/ec7ad7dd-9cab-5e48-99ea-795010dc4d54/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "3ed76e36e90989ea75221008f05d82e7af8a194bf5a0749ede5a744f05116b7c",
+        "meta.json": "5adfd4b7418de708ede2638036cb1b9fb38c5b54814fd49b52e93afec855ab18",
+        "metadata.yaml": "18ecdd920630601378d5f242eca227c2024ca89ea77acbe87cb3a4172183b0a7"
+      }
+    },
+    {
+      "row": 88,
+      "id": "6a4ca020-da8b-5b8d-88db-646de342a0cd",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:39:52.339646+00:00",
+      "duration_s": 6.125743,
+      "folder": "UMI_数据采集_053_20261013-100458",
+      "storage": {
+        "mcap": "raw/6a4ca020-da8b-5b8d-88db-646de342a0cd/signals.mcap",
+        "meta": "raw/6a4ca020-da8b-5b8d-88db-646de342a0cd/meta.json",
+        "metadata": "raw/6a4ca020-da8b-5b8d-88db-646de342a0cd/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "92f9849310f3d5fc6003f7eb1c7f591ed4e07179271029d8672256edf98ce82d",
+        "meta.json": "7bab9fec155c88485da08011b44040f1fcbb501ab861c6380407c8541b373e16",
+        "metadata.yaml": "5f330db62d484903528f79ba1a694cc0567f420425fa329541ef0484f7776d3c"
+      }
+    },
+    {
+      "row": 89,
+      "id": "d3553bb8-4a80-526b-a53a-ed7e32e84a02",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:39:12.768073+00:00",
+      "duration_s": 6.10281,
+      "folder": "UMI_数据采集_052_20261013-100445",
+      "storage": {
+        "mcap": "raw/d3553bb8-4a80-526b-a53a-ed7e32e84a02/signals.mcap",
+        "meta": "raw/d3553bb8-4a80-526b-a53a-ed7e32e84a02/meta.json",
+        "metadata": "raw/d3553bb8-4a80-526b-a53a-ed7e32e84a02/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "cfb1011a93877c27a8c21dc843a7f6bb3768fc82bd580dea0ff479da82dad161",
+        "meta.json": "3b60dba9702cff434aa1daf99c046c955be8c035eeaa1b7bffe4bd4cbc93ab9b",
+        "metadata.yaml": "890458a1e3f96fee61534d70d291681dfe46b98323ab06a0f31525ab11a8d7fe"
+      }
+    },
+    {
+      "row": 90,
+      "id": "90e120f7-0d44-5bad-aab1-8a80c0e276e1",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:38:33.174899+00:00",
+      "duration_s": 5.3858113,
+      "folder": "UMI_数据采集_051_20261013-100431",
+      "storage": {
+        "mcap": "raw/90e120f7-0d44-5bad-aab1-8a80c0e276e1/signals.mcap",
+        "meta": "raw/90e120f7-0d44-5bad-aab1-8a80c0e276e1/meta.json",
+        "metadata": "raw/90e120f7-0d44-5bad-aab1-8a80c0e276e1/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "6a6f0edf75695de3a520336e4d987148fd72133adb2c7e5693d217d617021318",
+        "meta.json": "49f75e6c3c6f25b73de39fd9c9b5af1ad66864601178d497b8d5b509167402d3",
+        "metadata.yaml": "b5f4b2462cf7ab2cd15c4ad71584f28954d90de1d0a6f3f692ea744bfa0fc21b"
+      }
+    },
+    {
+      "row": 91,
+      "id": "52db5def-f380-53ad-8ad4-3a1ad5cbe226",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:37:56.642237+00:00",
+      "duration_s": 5.8916016,
+      "folder": "UMI_数据采集_050_20261013-100417",
+      "storage": {
+        "mcap": "raw/52db5def-f380-53ad-8ad4-3a1ad5cbe226/signals.mcap",
+        "meta": "raw/52db5def-f380-53ad-8ad4-3a1ad5cbe226/meta.json",
+        "metadata": "raw/52db5def-f380-53ad-8ad4-3a1ad5cbe226/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "54b241e8ea0edced349c183ffa026a45f0573f80f6a29e3b198974b1e5da9729",
+        "meta.json": "b276dcd47a4c1cc8185299ab5a1e9c33640928c84c3c8fbf4b098e2b2f36f797",
+        "metadata.yaml": "11902b77d4a77f4265af58bcfa2bad28542fadffccba03fa9e977c036f182887"
+      }
+    },
+    {
+      "row": 92,
+      "id": "20b6c82b-a768-56e8-802b-362ea2b4aef3",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:37:16.897202+00:00",
+      "duration_s": 5.8960915,
+      "folder": "UMI_数据采集_049_20261013-100339",
+      "storage": {
+        "mcap": "raw/20b6c82b-a768-56e8-802b-362ea2b4aef3/signals.mcap",
+        "meta": "raw/20b6c82b-a768-56e8-802b-362ea2b4aef3/meta.json",
+        "metadata": "raw/20b6c82b-a768-56e8-802b-362ea2b4aef3/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "f0db6fe6ff0c5cb96776b68558576a8546d796bf05caba1b8643dfa13acd44c6",
+        "meta.json": "9359ca78b3be3588646e48996f999c5192edd015de5a09e7ad78fb3ebd47c2f2",
+        "metadata.yaml": "30bdf596cff4a89c9cb4c977d819fab1496cd366849f93bf669b0ee58fec7eed"
+      }
+    },
+    {
+      "row": 93,
+      "id": "d5e5fc8c-bfb2-556f-a7e5-f272e0f18083",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:36:34.122092+00:00",
+      "duration_s": 6.142924,
+      "folder": "UMI_数据采集_048_20261013-100325",
+      "storage": {
+        "mcap": "raw/d5e5fc8c-bfb2-556f-a7e5-f272e0f18083/signals.mcap",
+        "meta": "raw/d5e5fc8c-bfb2-556f-a7e5-f272e0f18083/meta.json",
+        "metadata": "raw/d5e5fc8c-bfb2-556f-a7e5-f272e0f18083/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "aa3cc016336afe0756338e8547ce59aaa1b97f6f5c8c53ba460f5e019f2537f6",
+        "meta.json": "9bca78dc3cbbef5d9ae03dcba495b4a0da94da7a6442fbec45e72af7d946b0d6",
+        "metadata.yaml": "494573d27bc43eebca7b1c9823d472892d880f1cfd0bd71be2f4ce99a31d385e"
+      }
+    },
+    {
+      "row": 94,
+      "id": "06269565-76d9-5f70-a953-457991328e13",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:35:48.220130+00:00",
+      "duration_s": 6.272289,
+      "folder": "UMI_数据采集_047_20261013-100305",
+      "storage": {
+        "mcap": "raw/06269565-76d9-5f70-a953-457991328e13/signals.mcap",
+        "meta": "raw/06269565-76d9-5f70-a953-457991328e13/meta.json",
+        "metadata": "raw/06269565-76d9-5f70-a953-457991328e13/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "37f2432afe654db3a192222817c34dabc49051e5920e0cdc40bd4fb1154f1c08",
+        "meta.json": "957492f279568d5db9c8858e6788ac31438aa5ce7b3d2b87885a3b5422b39d8d",
+        "metadata.yaml": "6560a8697be367bb38eb203a607c710158d26268f980206bf0016259b2a64366"
+      }
+    },
+    {
+      "row": 95,
+      "id": "af098adf-e8c0-5928-ba82-b32857e717ad",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:35:04.972552+00:00",
+      "duration_s": 5.8263645,
+      "folder": "UMI_数据采集_046_20261013-100249",
+      "storage": {
+        "mcap": "raw/af098adf-e8c0-5928-ba82-b32857e717ad/signals.mcap",
+        "meta": "raw/af098adf-e8c0-5928-ba82-b32857e717ad/meta.json",
+        "metadata": "raw/af098adf-e8c0-5928-ba82-b32857e717ad/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "ea3b3234ec43af6a43d8b3aaced8e1c5e8d31926717614a906ff6785ec28944a",
+        "meta.json": "6ecfc5db897e5f1b73b203b95fe5a68a491a96bd68be862894a3cd02651b80f6",
+        "metadata.yaml": "b9988a63e0ad090605ed3c66f03612fd2a405bc91fc5b68f1342d11fe0a41f9e"
+      }
+    },
+    {
+      "row": 96,
+      "id": "992a22b8-7370-5393-86d3-0e19022a2b3f",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:34:22.229206+00:00",
+      "duration_s": 5.5949407,
+      "folder": "UMI_数据采集_045_20261013-100234",
+      "storage": {
+        "mcap": "raw/992a22b8-7370-5393-86d3-0e19022a2b3f/signals.mcap",
+        "meta": "raw/992a22b8-7370-5393-86d3-0e19022a2b3f/meta.json",
+        "metadata": "raw/992a22b8-7370-5393-86d3-0e19022a2b3f/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "2b3f45591130ca448db2b1164ec584c4541ae871fd9db25c7f95e84e04a44f84",
+        "meta.json": "f4271ed633e46aefa70272a3be034677725f306826413cee90ffe1287621a078",
+        "metadata.yaml": "386e77d2d3eaad03a2d33db845925c7dc05ff728b9ac3c3da6c90354580fd833"
+      }
+    },
+    {
+      "row": 97,
+      "id": "6a2e94a9-b5c5-50a0-a8dd-fc161ccdba66",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:33:42.547630+00:00",
+      "duration_s": 5.8492947,
+      "folder": "UMI_数据采集_044_20261013-100152",
+      "storage": {
+        "mcap": "raw/6a2e94a9-b5c5-50a0-a8dd-fc161ccdba66/signals.mcap",
+        "meta": "raw/6a2e94a9-b5c5-50a0-a8dd-fc161ccdba66/meta.json",
+        "metadata": "raw/6a2e94a9-b5c5-50a0-a8dd-fc161ccdba66/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "92535e15a0c8a3ec514ae969f80c53e5e3387f18a791dadb5a92afe85ebf87a4",
+        "meta.json": "f097d35c67dfac470e1fe8ab6e19b722735d69791cfe094adc1399074ae7f6c4",
+        "metadata.yaml": "79edc21a3f82bddfe67dac969fd48976f17060148295318b5e578e55c87a7eb0"
+      }
+    },
+    {
+      "row": 98,
+      "id": "357f2ece-41d7-50e4-9fb5-27c17ccad217",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:32:59.776984+00:00",
+      "duration_s": 4.8219566,
+      "folder": "UMI_数据采集_043_20261013-100140",
+      "storage": {
+        "mcap": "raw/357f2ece-41d7-50e4-9fb5-27c17ccad217/signals.mcap",
+        "meta": "raw/357f2ece-41d7-50e4-9fb5-27c17ccad217/meta.json",
+        "metadata": "raw/357f2ece-41d7-50e4-9fb5-27c17ccad217/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "114724ad0df211ed425efe4b07d4ba00340c1fbccfdbcd70040c48942ab1b18e",
+        "meta.json": "f85ffdc01c6840276caa2892a2d688575001e72422c7e8f57553219fae1e2987",
+        "metadata.yaml": "0beb2343e175f88a8544364de88559a56afd595abf1b122a055848fa7f87ed51"
+      }
+    },
+    {
+      "row": 99,
+      "id": "4f8a599c-5f27-576c-a5a3-fa3435ffcd3d",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:32:23.163129+00:00",
+      "duration_s": 5.294179,
+      "folder": "UMI_数据采集_042_20261013-100111",
+      "storage": {
+        "mcap": "raw/4f8a599c-5f27-576c-a5a3-fa3435ffcd3d/signals.mcap",
+        "meta": "raw/4f8a599c-5f27-576c-a5a3-fa3435ffcd3d/meta.json",
+        "metadata": "raw/4f8a599c-5f27-576c-a5a3-fa3435ffcd3d/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "9c8df0a438fb061ee46c7f999016bf7ce7a47b0deffa2b81041b5dc026792101",
+        "meta.json": "fad5ff63e8cc195ed9283bd2f96da28ee53fc8837825463c3854cb80ab8e8a87",
+        "metadata.yaml": "2bbeabe1d4186012aaf695a796a40e71bd183dc89393c65b47401b12b7a0cdbd"
+      }
+    },
+    {
+      "row": 100,
+      "id": "92bbdde6-e787-53e0-af80-7f0f85ae387f",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:31:43.409137+00:00",
+      "duration_s": 5.942197,
+      "folder": "UMI_数据采集_041_20261013-100056",
+      "storage": {
+        "mcap": "raw/92bbdde6-e787-53e0-af80-7f0f85ae387f/signals.mcap",
+        "meta": "raw/92bbdde6-e787-53e0-af80-7f0f85ae387f/meta.json",
+        "metadata": "raw/92bbdde6-e787-53e0-af80-7f0f85ae387f/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "5e4bc96e9fb46d8672aa8ef43106b64f8efb02c456f379bd7168bc30925edf5a",
+        "meta.json": "9e97ff04b8a1dc0edd4b6e7892c007f7451b5f9695eb990be976a03e29141a8a",
+        "metadata.yaml": "65535853556c2a3a67ab46f42995598bd33cf90aa5c6c89b7dbc3120ee689830"
+      }
+    },
+    {
+      "row": 101,
+      "id": "80ab8467-4b25-5f1b-ab91-8279251db1ed",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:31:00.692292+00:00",
+      "duration_s": 5.4133997,
+      "folder": "UMI_数据采集_040_20261013-100045",
+      "storage": {
+        "mcap": "raw/80ab8467-4b25-5f1b-ab91-8279251db1ed/signals.mcap",
+        "meta": "raw/80ab8467-4b25-5f1b-ab91-8279251db1ed/meta.json",
+        "metadata": "raw/80ab8467-4b25-5f1b-ab91-8279251db1ed/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "e5c842bd88b85284bfc6df236f598cc9c1541635eb7866e1bfa79a8890ca487a",
+        "meta.json": "b245fb9d7c8a28084c99b940ec7c0c835cea2a5108db1e909a04164cb763c212",
+        "metadata.yaml": "dbb23a18565f423589a06484c1a3e8cb1c152fec0fa9a5abb4b3c8fefeeb4a7d"
+      }
+    },
+    {
+      "row": 102,
+      "id": "2a4c7c44-b25f-52c3-a9d5-b18bc079fa0e",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:30:21.029095+00:00",
+      "duration_s": 5.5387526,
+      "folder": "UMI_数据采集_039_20261013-100034",
+      "storage": {
+        "mcap": "raw/2a4c7c44-b25f-52c3-a9d5-b18bc079fa0e/signals.mcap",
+        "meta": "raw/2a4c7c44-b25f-52c3-a9d5-b18bc079fa0e/meta.json",
+        "metadata": "raw/2a4c7c44-b25f-52c3-a9d5-b18bc079fa0e/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "5a6f3bf3992c57b3663449ecea688d4921ce14fbb1e76a01de7c1b85a36abc04",
+        "meta.json": "e0e27eb4100ff787682c2885b69b1235e6b6eb17585e1564ee2cbc7248c0f6bc",
+        "metadata.yaml": "2644f4553387618a9b275957807246b20c80c6ef213e87ed578b28a00148e7c2"
+      }
+    },
+    {
+      "row": 103,
+      "id": "286df6ec-1b09-507a-b986-a5a5e0f96f9d",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:29:41.314443+00:00",
+      "duration_s": 5.6658487,
+      "folder": "UMI_数据采集_038_20261013-100020",
+      "storage": {
+        "mcap": "raw/286df6ec-1b09-507a-b986-a5a5e0f96f9d/signals.mcap",
+        "meta": "raw/286df6ec-1b09-507a-b986-a5a5e0f96f9d/meta.json",
+        "metadata": "raw/286df6ec-1b09-507a-b986-a5a5e0f96f9d/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "e179acbc1f8d7c584d1a8f7da4d1529ca82df8a8dfc75e8760f766f6f9cfed75",
+        "meta.json": "7c3171e1734cbb77ba8399967c298007ec47f5b4f62e00cb6c5810c919e7914a",
+        "metadata.yaml": "210fe6cdc3302914679c60b5669a616ceda255a7e4292f62c2ef8da2d413091d"
+      }
+    },
+    {
+      "row": 104,
+      "id": "27519ee1-dc04-5209-9be9-0c2952b0ea8a",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:29:01.576721+00:00",
+      "duration_s": 5.7146564,
+      "folder": "UMI_数据采集_037_20261013-100008",
+      "storage": {
+        "mcap": "raw/27519ee1-dc04-5209-9be9-0c2952b0ea8a/signals.mcap",
+        "meta": "raw/27519ee1-dc04-5209-9be9-0c2952b0ea8a/meta.json",
+        "metadata": "raw/27519ee1-dc04-5209-9be9-0c2952b0ea8a/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "f70a075c1eaa563a0b64b3365027e8d9dc953860db4e14b4b3234fb6f3cb89f2",
+        "meta.json": "c80e85d6aa9dff519a7c2436a75a2f54740967e8e6416e28344320fd5e2c7123",
+        "metadata.yaml": "a27292ae75a192bda7ba4f4e900db8f8ea56a711e8b30018c671ce7aa75ab5f3"
+      }
+    },
+    {
+      "row": 105,
+      "id": "130c3abf-ba1e-5d89-9d9e-94492ca90207",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:28:21.827151+00:00",
+      "duration_s": 5.1089506,
+      "folder": "UMI_数据采集_036_20261013-095958",
+      "storage": {
+        "mcap": "raw/130c3abf-ba1e-5d89-9d9e-94492ca90207/signals.mcap",
+        "meta": "raw/130c3abf-ba1e-5d89-9d9e-94492ca90207/meta.json",
+        "metadata": "raw/130c3abf-ba1e-5d89-9d9e-94492ca90207/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "657a30a8d158ec7b41870c236bd4ac30794d0ee951a045c6a82780c18751fe89",
+        "meta.json": "f5471c3a38911ec4be77b3ec61f8d151c392d964ddb93e79a3b4a10fff9bf07f",
+        "metadata.yaml": "f25d8ed9325e45c62d4b5a7560d17d6094d45ab01a6ae0b6d0d004992d3387f1"
+      }
+    },
+    {
+      "row": 106,
+      "id": "5c120803-983a-53ad-bf38-d0e81ae59046",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:27:42.045433+00:00",
+      "duration_s": 6.1366844,
+      "folder": "UMI_数据采集_035_20261013-095943",
+      "storage": {
+        "mcap": "raw/5c120803-983a-53ad-bf38-d0e81ae59046/signals.mcap",
+        "meta": "raw/5c120803-983a-53ad-bf38-d0e81ae59046/meta.json",
+        "metadata": "raw/5c120803-983a-53ad-bf38-d0e81ae59046/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "bf6929e166e97ee507dad8974bf9f484de12477e00eb2814e1513d3acf81a60f",
+        "meta.json": "21d6f0855592c20b23414aaf9c5e9293e7923b108116ea1cbe0779e6396f6945",
+        "metadata.yaml": "b9a6cd50148c5814b72c87ac848aeebdfb26a3a4056eb1f2e0b24af05326a917"
+      }
+    },
+    {
+      "row": 107,
+      "id": "261e466b-551f-5d68-b4c9-f0bf9f6c6ad3",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:26:59.389324+00:00",
+      "duration_s": 6.080577,
+      "folder": "UMI_数据采集_034_20261013-095916",
+      "storage": {
+        "mcap": "raw/261e466b-551f-5d68-b4c9-f0bf9f6c6ad3/signals.mcap",
+        "meta": "raw/261e466b-551f-5d68-b4c9-f0bf9f6c6ad3/meta.json",
+        "metadata": "raw/261e466b-551f-5d68-b4c9-f0bf9f6c6ad3/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "892870a36379ed39b74160ab5c2dd13c8edefdfc6555356f4886621203c5dddb",
+        "meta.json": "ed34b37c968646b438eaaa3362ec6ebe0a28a1d7324df2f1bb47564f51599069",
+        "metadata.yaml": "bad386512a546c780e5a1594e42efe69d78fcc5e70ebc49e780bc7c487ea5620"
+      }
+    },
+    {
+      "row": 108,
+      "id": "1a2fe21f-51a7-5408-878c-e776d01577f4",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:26:16.619787+00:00",
+      "duration_s": 6.1062098,
+      "folder": "UMI_数据采集_033_20261013-095854",
+      "storage": {
+        "mcap": "raw/1a2fe21f-51a7-5408-878c-e776d01577f4/signals.mcap",
+        "meta": "raw/1a2fe21f-51a7-5408-878c-e776d01577f4/meta.json",
+        "metadata": "raw/1a2fe21f-51a7-5408-878c-e776d01577f4/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "2d3dbbc9709e506f1f4e14891819adff812605e8768922d54f3771d252113352",
+        "meta.json": "589f257c17f9ff0229ac2bc391ef29ec63153428306a9b26c63a156316939f81",
+        "metadata.yaml": "08bbc7a0eb8075e28df9dc79071b655c182242c4ff68ebc5796fa5e1884a7a28"
+      }
+    },
+    {
+      "row": 109,
+      "id": "f7347c9f-02ea-576e-96e8-9875d0e3cc16",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:25:30.856836+00:00",
+      "duration_s": 7.1882744,
+      "folder": "UMI_数据采集_032_20261013-095814",
+      "storage": {
+        "mcap": "raw/f7347c9f-02ea-576e-96e8-9875d0e3cc16/signals.mcap",
+        "meta": "raw/f7347c9f-02ea-576e-96e8-9875d0e3cc16/meta.json",
+        "metadata": "raw/f7347c9f-02ea-576e-96e8-9875d0e3cc16/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "ecadb1f7bc43acadafc5607604eef8c4f0500eafe13e8c00326f29bcbcf1e2fd",
+        "meta.json": "d474c84df0918808aadf048ccdcee2c0a5ad4d7383956aadcaf3b4108beb2e31",
+        "metadata.yaml": "31d729dd934da28b74c2691959e2e99c609ff163b3cfd962a48628ae4872826d"
+      }
+    },
+    {
+      "row": 110,
+      "id": "c7c8df3b-a94b-5ea9-8e44-891928dfe1c2",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:24:42.113666+00:00",
+      "duration_s": 7.960678,
+      "folder": "UMI_数据采集_031_20261013-095756",
+      "storage": {
+        "mcap": "raw/c7c8df3b-a94b-5ea9-8e44-891928dfe1c2/signals.mcap",
+        "meta": "raw/c7c8df3b-a94b-5ea9-8e44-891928dfe1c2/meta.json",
+        "metadata": "raw/c7c8df3b-a94b-5ea9-8e44-891928dfe1c2/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "790ac2464f7c6ed2e491456ed67f2097d7542cee85ab32b706ccea8b4fa18032",
+        "meta.json": "70ffc0b2ada0642494c9d61d1c16806938337ff63cafb023a6259bcef267041d",
+        "metadata.yaml": "3730c471138132f7734a10126cb50d61d9c3cbcd9dffa4c4aee82089bfa3e0c2"
+      }
+    },
+    {
+      "row": 111,
+      "id": "97f182f3-40b7-5c52-8c9f-6e82942e74aa",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:23:47.220209+00:00",
+      "duration_s": 7.5484095,
+      "folder": "UMI_数据采集_030_20261013-095736",
+      "storage": {
+        "mcap": "raw/97f182f3-40b7-5c52-8c9f-6e82942e74aa/signals.mcap",
+        "meta": "raw/97f182f3-40b7-5c52-8c9f-6e82942e74aa/meta.json",
+        "metadata": "raw/97f182f3-40b7-5c52-8c9f-6e82942e74aa/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "3621d1be61c57341e4f30fcfc81fa9d5b8697e43e2d3dfd634696ca837625f2b",
+        "meta.json": "6f82f360b84c1a36e686e29dd42289a6273b902dd3a81d1dd42c51ca07c1d446",
+        "metadata.yaml": "6b9a8f08f8832f0ab509249b99bb4dc0be61f38a57e064c8a5b6563e1f556545"
+      }
+    },
+    {
+      "row": 112,
+      "id": "d542db63-eed7-5a88-bf27-d5420b3b50ef",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:22:58.380408+00:00",
+      "duration_s": 6.89771,
+      "folder": "UMI_数据采集_029_20261013-095716",
+      "storage": {
+        "mcap": "raw/d542db63-eed7-5a88-bf27-d5420b3b50ef/signals.mcap",
+        "meta": "raw/d542db63-eed7-5a88-bf27-d5420b3b50ef/meta.json",
+        "metadata": "raw/d542db63-eed7-5a88-bf27-d5420b3b50ef/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "10b9b102e50a96cea4e3f40b655e7e34c7acc4423ec490ff03e9abadae81986e",
+        "meta.json": "aeb7b5af5afa6a00187757055cc71daa3c6894dd83b86b02305522263809dd01",
+        "metadata.yaml": "8f3329c7e7c8722bd129f75f94f5ac8fb8f1db5aa6320f433db864819868ef12"
+      }
+    },
+    {
+      "row": 113,
+      "id": "eef485ed-dffc-5830-b8d5-d5198bc8c0b1",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:22:06.427531+00:00",
+      "duration_s": 7.0651364,
+      "folder": "UMI_数据采集_028_20261013-095347",
+      "storage": {
+        "mcap": "raw/eef485ed-dffc-5830-b8d5-d5198bc8c0b1/signals.mcap",
+        "meta": "raw/eef485ed-dffc-5830-b8d5-d5198bc8c0b1/meta.json",
+        "metadata": "raw/eef485ed-dffc-5830-b8d5-d5198bc8c0b1/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "5c2e7ed43973f0c0d5edd4a225e13c10d2809831096a886c196cc27477451cc8",
+        "meta.json": "1257b9aa8f046afb06e34ea9a5b7e7beda43cdb38cb2a459924cce17dd022d79",
+        "metadata.yaml": "17aeffb35bd3f583a90020898dc9c8ad526e63dc79b57185375d8d1f92ed9613"
+      }
+    },
+    {
+      "row": 114,
+      "id": "820d4a47-0117-5cca-9110-1d42f7a900e7",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:21:14.561108+00:00",
+      "duration_s": 7.580909,
+      "folder": "UMI_数据采集_027_20261013-095330",
+      "storage": {
+        "mcap": "raw/820d4a47-0117-5cca-9110-1d42f7a900e7/signals.mcap",
+        "meta": "raw/820d4a47-0117-5cca-9110-1d42f7a900e7/meta.json",
+        "metadata": "raw/820d4a47-0117-5cca-9110-1d42f7a900e7/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "c8d5b7b5dc37944af8645f3dbb7c55ce17726224a4cd821e44dd888744db36a8",
+        "meta.json": "761afd2222c3b82d002e823902215fbdfa874c63484d939ac72d45df046611f6",
+        "metadata.yaml": "3d15bb2edbc7e77425c4d1aa62eb2faa8cebe4345cd171bf88c3ae0a73dd4ac6"
+      }
+    },
+    {
+      "row": 115,
+      "id": "cb0d4f74-6ee6-5fb7-a2b0-ff3a7e8035e6",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:20:22.745362+00:00",
+      "duration_s": 7.8946457,
+      "folder": "UMI_数据采集_026_20261013-095311",
+      "storage": {
+        "mcap": "raw/cb0d4f74-6ee6-5fb7-a2b0-ff3a7e8035e6/signals.mcap",
+        "meta": "raw/cb0d4f74-6ee6-5fb7-a2b0-ff3a7e8035e6/meta.json",
+        "metadata": "raw/cb0d4f74-6ee6-5fb7-a2b0-ff3a7e8035e6/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "40898f7d972233e2aa32e4d0082e79a767de59793f7c3cd5ea2df6fcb358b0df",
+        "meta.json": "eaf9545e116f66f3683b95aad4675d94f9b17a1e84df52db9457cbd24d5150ce",
+        "metadata.yaml": "fbe24d88b004df5b95d3e55f4f9b5206c0238403260564cd5b46c6eef0acdbe8"
+      }
+    },
+    {
+      "row": 116,
+      "id": "0391c2cc-1eee-540c-99f2-f1884b0d00e6",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:19:30.921008+00:00",
+      "duration_s": 7.809472,
+      "folder": "UMI_数据采集_025_20261013-095252",
+      "storage": {
+        "mcap": "raw/0391c2cc-1eee-540c-99f2-f1884b0d00e6/signals.mcap",
+        "meta": "raw/0391c2cc-1eee-540c-99f2-f1884b0d00e6/meta.json",
+        "metadata": "raw/0391c2cc-1eee-540c-99f2-f1884b0d00e6/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "8b26f37265d04d90e73dc901643997f50dcd3efcf8952961ca83659d92a93f2e",
+        "meta.json": "af1cbbefe766c3d4d63a62ad531ef88b83f8a56582715a4c658c48a93fc4dd6f",
+        "metadata.yaml": "60d5768bdc5d00cb83ddf050ebfcc8fd0d530887d66e547219ac3c3cacbcc240"
+      }
+    },
+    {
+      "row": 117,
+      "id": "b2e80151-f1fe-5c01-b28d-4caccd57b093",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 10:18:35.932571+00:00",
+      "duration_s": 7.855556,
+      "folder": "UMI_数据采集_024_20261013-095236",
+      "storage": {
+        "mcap": "raw/b2e80151-f1fe-5c01-b28d-4caccd57b093/signals.mcap",
+        "meta": "raw/b2e80151-f1fe-5c01-b28d-4caccd57b093/meta.json",
+        "metadata": "raw/b2e80151-f1fe-5c01-b28d-4caccd57b093/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "be0c9d1ffd20619a493efcd6a4969ea2c586febc116036ecf3697fafd1dd59fc",
+        "meta.json": "8564282905a111fec6451a2ab55ca3dfa39bc2ce8ab803408c57b3da7eba3056",
+        "metadata.yaml": "3ca99e610bd85f285d56b23348245bcfd93fc3b8fe952bc40ba6e4e8904a6dba"
+      }
+    },
+    {
+      "row": 118,
+      "id": "001bf73a-227e-5786-a242-6a146484c026",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:56:35.915606+00:00",
+      "duration_s": 8.003965,
+      "folder": "UMI_数据采集_023_20261013-095220",
+      "storage": {
+        "mcap": "raw/001bf73a-227e-5786-a242-6a146484c026/signals.mcap",
+        "meta": "raw/001bf73a-227e-5786-a242-6a146484c026/meta.json",
+        "metadata": "raw/001bf73a-227e-5786-a242-6a146484c026/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "d661d32345c2e85cf6fa011a98015b11261dd25a1b1e05eba5397c6966d92841",
+        "meta.json": "3e835a06e29cf28dd66a9e6c5ade0702be478640d55eda25cdc2557623e3720b",
+        "metadata.yaml": "20702c912de0e5b4c05afac559756d1dcd7db696d3f517f773b2098c8c5e00c0"
+      }
+    },
+    {
+      "row": 119,
+      "id": "e73d946d-54f6-5e2c-9e7d-5382408d5a29",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:55:41.068750+00:00",
+      "duration_s": 7.0197754,
+      "folder": "UMI_数据采集_022_20261013-094758",
+      "storage": {
+        "mcap": "raw/e73d946d-54f6-5e2c-9e7d-5382408d5a29/signals.mcap",
+        "meta": "raw/e73d946d-54f6-5e2c-9e7d-5382408d5a29/meta.json",
+        "metadata": "raw/e73d946d-54f6-5e2c-9e7d-5382408d5a29/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "60edbf259a736a6521b078f7b0c81090162f63cb8163c8148b490d06854e26ce",
+        "meta.json": "1d1411a1d0ba1f2b33e6ac269950de3016e223fd8c923af4e6a32eb916386ef6",
+        "metadata.yaml": "58863ba88c080d1b8f38a363270dcf724fb1aa6609c410698b1d29ee59f79d5e"
+      }
+    },
+    {
+      "row": 120,
+      "id": "bc494a76-e67a-5853-9859-33da91658589",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:54:52.306612+00:00",
+      "duration_s": 7.567404,
+      "folder": "UMI_数据采集_021_20261013-094740",
+      "storage": {
+        "mcap": "raw/bc494a76-e67a-5853-9859-33da91658589/signals.mcap",
+        "meta": "raw/bc494a76-e67a-5853-9859-33da91658589/meta.json",
+        "metadata": "raw/bc494a76-e67a-5853-9859-33da91658589/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "6a5ce0425e5560dcb97c7f2ebfd1f1824425830a9e8f285736b37568432d7f83",
+        "meta.json": "a0aa6bd8e1196273b8e050bbfffc508d46774044e59428b9e81a109f16ab0126",
+        "metadata.yaml": "d6519bf2d1e0e3eda238c68f145022101accb18f8803c0aa052cd6e1fb4552c4"
+      }
+    },
+    {
+      "row": 121,
+      "id": "2013618b-c2ea-5f25-9796-f9357a98ca48",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:52:15.276719+00:00",
+      "duration_s": 6.653982,
+      "folder": "UMI_数据采集_020_20261013-094719",
+      "storage": {
+        "mcap": "raw/2013618b-c2ea-5f25-9796-f9357a98ca48/signals.mcap",
+        "meta": "raw/2013618b-c2ea-5f25-9796-f9357a98ca48/meta.json",
+        "metadata": "raw/2013618b-c2ea-5f25-9796-f9357a98ca48/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "f1187f4dce5dd8e1a42bfbefd0876bd8cb8e2d6b1a1709b09ada3ee6f7e758b3",
+        "meta.json": "d331e949091eee0210766a3d917f4a6af882e4ea9f0a7a3d02d735ffad17074c",
+        "metadata.yaml": "f9ca6ab77d5154b99f692db246ad1507b74910e9501cea672936305839fbf15b"
+      }
+    },
+    {
+      "row": 122,
+      "id": "65b1735f-ca47-5434-9672-cac75301ea1e",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:51:23.501196+00:00",
+      "duration_s": 6.844468,
+      "folder": "UMI_数据采集_019_20261013-094705",
+      "storage": {
+        "mcap": "raw/65b1735f-ca47-5434-9672-cac75301ea1e/signals.mcap",
+        "meta": "raw/65b1735f-ca47-5434-9672-cac75301ea1e/meta.json",
+        "metadata": "raw/65b1735f-ca47-5434-9672-cac75301ea1e/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "d6b3cd9e9c069c8651582e2c6469be68a9d1420939c64ea0d976e2791253475c",
+        "meta.json": "c33c1b410783998de598232c02225b2a4e154c40df5ea6eb458aa12ba34c7e1d",
+        "metadata.yaml": "1d607dafe43071791068f1f0033bb7e8bd9d8ffe857cc5b537e0c9ea3accc0a3"
+      }
+    },
+    {
+      "row": 123,
+      "id": "9f9d66af-8761-5feb-b3bd-7544b9d12d63",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:50:22.706689+00:00",
+      "duration_s": 7.1951036,
+      "folder": "UMI_数据采集_018_20261013-094651",
+      "storage": {
+        "mcap": "raw/9f9d66af-8761-5feb-b3bd-7544b9d12d63/signals.mcap",
+        "meta": "raw/9f9d66af-8761-5feb-b3bd-7544b9d12d63/meta.json",
+        "metadata": "raw/9f9d66af-8761-5feb-b3bd-7544b9d12d63/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "0aeda63a124c80b20d4fecabc816bc4340747e5c836f1f2d800de5cda002375c",
+        "meta.json": "a02c22eeba6d38334366648198cde049cb31704d483b2bb412e13288e6bbda26",
+        "metadata.yaml": "f957fec16a920aca2245242988a199a3a28c8496046196a0591638a2536ff706"
+      }
+    },
+    {
+      "row": 124,
+      "id": "47ca734d-d38d-5373-9efb-c8bf922032ff",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:49:21.893718+00:00",
+      "duration_s": 5.00334,
+      "folder": "UMI_数据采集_017_20261013-094329",
+      "storage": {
+        "mcap": "raw/47ca734d-d38d-5373-9efb-c8bf922032ff/signals.mcap",
+        "meta": "raw/47ca734d-d38d-5373-9efb-c8bf922032ff/meta.json",
+        "metadata": "raw/47ca734d-d38d-5373-9efb-c8bf922032ff/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "45e1cfcf55d899be142f8239145d1f0cc059a9bdf17cfb5fcfd42afc71125a4d",
+        "meta.json": "27d65cf862646ecde7c873372454c98b3c15b2d6757643e9684f1b60537395b2",
+        "metadata.yaml": "504453cc83a6e8485bbd2daf4c77e9e2f081757b95063cf8050a701bc413cdb9"
+      }
+    },
+    {
+      "row": 125,
+      "id": "212a53db-54c8-5a01-886c-153a2e3df985",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:48:45.211235+00:00",
+      "duration_s": 4.358448,
+      "folder": "UMI_数据采集_016_20261013-094320",
+      "storage": {
+        "mcap": "raw/212a53db-54c8-5a01-886c-153a2e3df985/signals.mcap",
+        "meta": "raw/212a53db-54c8-5a01-886c-153a2e3df985/meta.json",
+        "metadata": "raw/212a53db-54c8-5a01-886c-153a2e3df985/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "858922e3a3dd5084e52918f21ff3fae30eb8326c20ab30807b280b28f3acc6d1",
+        "meta.json": "a0edca28949408f930594101b2c013b337b51aa1f7739252f4b06b07a5bb1b49",
+        "metadata.yaml": "a348859512d364d8028168a214f25dd2f6774b4980c7e905c98d5c84829a9a02"
+      }
+    },
+    {
+      "row": 126,
+      "id": "c88d53a3-b152-514d-825a-86fa4d13f334",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:46:44.265887+00:00",
+      "duration_s": 4.096556,
+      "folder": "UMI_数据采集_015_20261013-094143",
+      "storage": {
+        "mcap": "raw/c88d53a3-b152-514d-825a-86fa4d13f334/signals.mcap",
+        "meta": "raw/c88d53a3-b152-514d-825a-86fa4d13f334/meta.json",
+        "metadata": "raw/c88d53a3-b152-514d-825a-86fa4d13f334/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "ffc0d360408d418cd040823bcf000f7de8699547bd5630780d24c9d35704f774",
+        "meta.json": "60dce33955f71ff77129f401cfbdfd7ae8a5fd0ef5362eb5b507e9db06c5f617",
+        "metadata.yaml": "1d960a6df6ff6f6216e1b7c81f1e8ac640f86a47a2fcfda9f53fce0b70e4632b"
+      }
+    },
+    {
+      "row": 127,
+      "id": "71b751be-7243-5f93-a9e4-e7850a826994",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:46:04.647950+00:00",
+      "duration_s": 5.4023323,
+      "folder": "UMI_数据采集_014_20261013-094128",
+      "storage": {
+        "mcap": "raw/71b751be-7243-5f93-a9e4-e7850a826994/signals.mcap",
+        "meta": "raw/71b751be-7243-5f93-a9e4-e7850a826994/meta.json",
+        "metadata": "raw/71b751be-7243-5f93-a9e4-e7850a826994/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "83d7344479caa0d1d997822a561e88a1aed2c66a0957260809b90975b9c92290",
+        "meta.json": "179c2e1b62b41595f18284497500760e2b4172f05055be45e50ec222271d6eff",
+        "metadata.yaml": "62c61bd26f9ab1fe854c3e0b79111293a424240e87f6e942c90678854a00c9c7"
+      }
+    },
+    {
+      "row": 128,
+      "id": "e9f72eb2-71fe-578e-b277-99d6a8b733f8",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:45:06.811507+00:00",
+      "duration_s": 4.745412,
+      "folder": "UMI_数据采集_013_20261013-094111",
+      "storage": {
+        "mcap": "raw/e9f72eb2-71fe-578e-b277-99d6a8b733f8/signals.mcap",
+        "meta": "raw/e9f72eb2-71fe-578e-b277-99d6a8b733f8/meta.json",
+        "metadata": "raw/e9f72eb2-71fe-578e-b277-99d6a8b733f8/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "babdf8fe7a89972b29b297e06851bd7c96210bec61da29607d478649bd011ab2",
+        "meta.json": "43cc703f5671f810c681305caf3acf42be3719f7131c23e55bb18649fbdd4321",
+        "metadata.yaml": "81b1e1d63a5c68fc4cd1dee536249a6f70bf6e3842b21ee436c1d28d21422c36"
+      }
+    },
+    {
+      "row": 129,
+      "id": "7d52b817-c59e-5e06-8955-f570ba84b2b8",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:44:24.015369+00:00",
+      "duration_s": 4.9838157,
+      "folder": "UMI_数据采集_012_20261013-094050",
+      "storage": {
+        "mcap": "raw/7d52b817-c59e-5e06-8955-f570ba84b2b8/signals.mcap",
+        "meta": "raw/7d52b817-c59e-5e06-8955-f570ba84b2b8/meta.json",
+        "metadata": "raw/7d52b817-c59e-5e06-8955-f570ba84b2b8/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "487f87bd071f5af218de7c8c4a38fd06bf31e3bf02306b14e20b83633a6b48b8",
+        "meta.json": "4e7e34bc3016e3aee13ba97828fa5d18bb07abc6010100cf84f32c22f7539b86",
+        "metadata.yaml": "55ec86e13442b98b3e69d31f61e2a5b53f898e37c607d1faf7acd461a85fc00c"
+      }
+    },
+    {
+      "row": 130,
+      "id": "178dfe4f-c1b4-5288-ae50-b68952a78d80",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:43:20.352568+00:00",
+      "duration_s": 4.8762894,
+      "folder": "UMI_数据采集_011_20261013-094030",
+      "storage": {
+        "mcap": "raw/178dfe4f-c1b4-5288-ae50-b68952a78d80/signals.mcap",
+        "meta": "raw/178dfe4f-c1b4-5288-ae50-b68952a78d80/meta.json",
+        "metadata": "raw/178dfe4f-c1b4-5288-ae50-b68952a78d80/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "782dd41d74a45af0d36c94a99040d42df3062a15ee0b02ae027e985bacf71aa6",
+        "meta.json": "7e8642edc84f33752838380a3fe8244e14aa558c429de748f913f8ba2ede85b1",
+        "metadata.yaml": "72601fd2c5411a8150d07b3bcb67d00eb462ee84d041274cb94aa0e4c4026fcc"
+      }
+    },
+    {
+      "row": 131,
+      "id": "a4caea24-2c38-59e4-9f87-8ea8b32c338f",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:42:34.683136+00:00",
+      "duration_s": 5.660742,
+      "folder": "UMI_数据采集_010_20261013-094014",
+      "storage": {
+        "mcap": "raw/a4caea24-2c38-59e4-9f87-8ea8b32c338f/signals.mcap",
+        "meta": "raw/a4caea24-2c38-59e4-9f87-8ea8b32c338f/meta.json",
+        "metadata": "raw/a4caea24-2c38-59e4-9f87-8ea8b32c338f/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "8a9d5349812a340593936483832ee64af1f4ca7f2893132dce689424987cd2ce",
+        "meta.json": "1b686774848f3dd1f9b599edb27faa7f9992f28fa77bd3be282ffe44ff20ca48",
+        "metadata.yaml": "48a7261ff323d96e4c7d4ce8f5527e664f427060d57f00b278d6d3078d64121c"
+      }
+    },
+    {
+      "row": 132,
+      "id": "9889a13c-7706-580b-9537-f4f09d488ba6",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:36:48.447354+00:00",
+      "duration_s": 6.8762283,
+      "folder": "UMI_数据采集_009_20261013-093548",
+      "storage": {
+        "mcap": "raw/9889a13c-7706-580b-9537-f4f09d488ba6/signals.mcap",
+        "meta": "raw/9889a13c-7706-580b-9537-f4f09d488ba6/meta.json",
+        "metadata": "raw/9889a13c-7706-580b-9537-f4f09d488ba6/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "ed119216bc80a2ac25827de4f486c2dd501808f61b58495920c4661c4c0299dc",
+        "meta.json": "4188e09e570787f0b542deb316eca7302c739760f89d8986da310446719d8742",
+        "metadata.yaml": "ce3d6141303d07aca151d7b4715766184c677fb2978f80b81ca275a3b87c618a"
+      }
+    },
+    {
+      "row": 133,
+      "id": "cac81e64-441f-5b8f-9f46-c0597936e113",
+      "task": "UMI_数据采集",
+      "source": "rosbag",
+      "created_at": "2026-10-13 09:22:25.929299+00:00",
+      "duration_s": 7.536953,
+      "folder": "UMI_数据采集_008_20261013-090929",
+      "storage": {
+        "mcap": "raw/cac81e64-441f-5b8f-9f46-c0597936e113/signals.mcap",
+        "meta": "raw/cac81e64-441f-5b8f-9f46-c0597936e113/meta.json",
+        "metadata": "raw/cac81e64-441f-5b8f-9f46-c0597936e113/metadata.yaml"
+      },
+      "platform_check": "normal",
+      "files": {
+        "signals.mcap": "fa321589f9e615fd2979ef22e22749ae1fc0ce5b1811f1eb836805b10a8c6b11",
+        "meta.json": "dd12902001b0ded0a85436b8c26ebca7cb7c9af8f887220f8d58b78767b2db84",
+        "metadata.yaml": "8f7175fa2ec182d317eb4823b6ab5e65c55977973f5a3cf9416648b8a9e0f07a"
+      }
+    }
+  ]
+}

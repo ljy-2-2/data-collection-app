@@ -25,7 +25,7 @@ def test_standalone_routes_expose_collection_and_platform_status():
         cors_origins=["http://127.0.0.1:4173"],
         platform_api_url="http://127.0.0.1:9",
     )
-    paths = {route.path for route in app.routes}
+    paths = {getattr(route, 'path', None) for route in app.routes}
     assert {
         "/healthz",
         "/status",
@@ -71,7 +71,7 @@ def test_umi_monitor_native_mode_is_explicit_and_independent_of_raw_transport(mo
         ]}),
     )
     app = create_app(MockController(), cors_origins=[], umi=provider)
-    endpoint = next(route.endpoint for route in app.routes if route.path == "/umi/cameras/{camera_key}")
+    endpoint = next(route.endpoint for route in app.routes if getattr(route, 'path', None) == "/umi/cameras/{camera_key}")
 
     async def request():
         response = await endpoint("left", raw=True, native=native)
@@ -98,7 +98,7 @@ def test_umi_preview_raw_transport_keeps_video_bytes_and_releases_stream(raw):
         MockController(), cors_origins=[],
         umi=SimpleNamespace(candidate_camera_stream=lambda key: frames()),
     )
-    endpoint = next(route.endpoint for route in app.routes if route.path == "/umi/device-cameras/{camera_key}")
+    endpoint = next(route.endpoint for route in app.routes if getattr(route, 'path', None) == "/umi/device-cameras/{camera_key}")
 
     async def request():
         response = await endpoint("video2", raw=raw)

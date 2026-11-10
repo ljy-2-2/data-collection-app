@@ -33,7 +33,11 @@ LIMITATIONS = [
 class PreparationCancelled(RuntimeError):
     pass
 
+from .subtask_annotations import SubtaskConfig
+
+
 class Options(BaseModel):
+    subtask_config: SubtaskConfig | None = None
     model_config = ConfigDict(extra='forbid', strict=True)
     network_namespace: Literal['kuavons','current'] = 'current'
     task: str = Field(default='KUAVO 遥操作', min_length=1, max_length=120)
@@ -613,7 +617,7 @@ class KuavoManager:
                     raise ValueError('遥操作尚未准备完成，或手柄输入未释放/已过期')
                 self.collection.arm({**options,'parameters':copy.deepcopy(self.value.get('session_settings'))})
                 try:
-                    self.process.stdin.write(json.dumps({'action':'activate','arm_mode':mode})+'\n');self.process.stdin.flush()
+                    self.process.stdin.write(json.dumps({'action':'activate','arm_mode':mode,**({'subtask_config':options['subtask_config']} if options.get('subtask_config') else {})})+'\n');self.process.stdin.flush()
                 except OSError:
                     self.collection.disarm();raise
                 self.activation_requested=True

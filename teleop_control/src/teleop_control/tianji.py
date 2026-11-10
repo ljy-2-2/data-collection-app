@@ -28,7 +28,7 @@ from .tianji_models import TianjiMove, TianjiParameters, TianjiStart, TianjiCame
 from .tianji_gripper_config import stored_parameters, parameter_storage, synchronized_gripper_endpoints
 from .tianji_collection import TianjiCollection
 from .tianji_camera_session import CameraSession
-from .tianji_camera_recovery import restart_local_preview
+from .tianji_camera_recovery import restart_local_preview, wait_for_preview, startup_retry_needed
 from .tianji_preview_recovery import recover_preview_gap, inventory_changed
 from .tianji_camera_settings import CameraSettings
 
@@ -57,6 +57,7 @@ class TianjiManager:
         self.frames = {}
         self.camera_frame_metadata = {}
         self.camera_inventory = {}
+        self.camera_connection_issues = {}
         self.camera_preview_mode = "stream"
         self.camera_thread = None
         self.camera_check_thread = None
@@ -241,7 +242,7 @@ class TianjiManager:
             return {"ok": True, "state": box["state"]}
         return {"ok": True}
 
-    def check_cameras_in_background(self):
+    def check_cameras_in_background(self, *, force=False):
         # Robot/VR checks have already succeeded. Camera errors stay separate
         # and camera network/cleanup delays must never hold command_lock.
         with self.lock:
@@ -249,14 +250,21 @@ class TianjiManager:
                 return
             def check():
                 try:
-                    self.check_camera_recovery(allow_teleop=True)
+                    for attempt in range(2):
+                        self.check_camera_recovery(allow_teleop=True, force=force or attempt > 0)
+                        if self.camera_recovery_cancel.is_set():
+                            return
+                        self.start_cameras()
+                        outcome = wait_for_preview(self)
+                        if outcome is not False:
+                            return
+                        if attempt or not startup_retry_needed(self):
+                            raise RuntimeError(self.camera_error or '相机检查未收到有效画面')
+                        self._diagnostic_event('camera_check_startup_retry')
                 except Exception as error:
                     self.camera_error = str(error)
                     self.camera_phase = 'fault'
                     self._diagnostic_event('camera_check_failed', error=str(error))
-                else:
-                    if not self.camera_recovery_cancel.is_set():
-                        self.start_cameras()
             self.camera_check_thread = threading.Thread(target=check, name='tianji-camera-check', daemon=True)
             self.camera_check_thread.start()
 
@@ -268,7 +276,7 @@ class TianjiManager:
                 raise RuntimeError('请先结束本轮采集或相机设置，再重连视频')
             self.camera_recovery_cancel.clear()
             self.last_access = time.monotonic()
-            self.check_cameras_in_background()
+            self.check_cameras_in_background(force=True)
         return {'ok': True}
 
     def _diagnostic_event(self, kind, **details):
@@ -337,7 +345,8 @@ class TianjiManager:
             value["cameras"] = [
                 {
                     "id": c,
-                    "label": CAMERA_LABELS.get(c, c),
+                    "label": ("主相机 · ZED Mini 左眼" if self.camera_frame_metadata.get(c, {}).get('camera_settings', {}).get('eye') == 'left'
+                              else CAMERA_LABELS.get(c, c)),
                     "connected": True,
                     "available": c in self.frames and time.monotonic() - self.frames[c][1] < self.camera_frame_ttl,
                     "updated_at": self.frames[c][1] if c in self.frames else None,
@@ -352,6 +361,7 @@ class TianjiManager:
                         feedback["position_rad"] = feedback.get("position")
                         feedback["age_s"] = time.monotonic() - feedback.get("received", 0)
             value["camera_error"] = self.camera_error
+            value['camera_connection_issues'] = dict(self.camera_connection_issues)
             value["camera_phase"] = self.camera_phase
             value['camera_checking'] = bool(self.camera_check_thread and self.camera_check_thread.is_alive())
             value['camera_joint_error'] = getattr(self.camera_session, 'joint_error', None)
@@ -393,15 +403,15 @@ class TianjiManager:
             self.camera_thread = threading.Thread(target=self._cameras, daemon=True)
             self.camera_thread.start()
 
-    def check_camera_recovery(self, *, allow_teleop=False):
+    def check_camera_recovery(self, *, allow_teleop=False, force=False):
         # Explicit idle-only reconnect; the controller classifies recoverable faults.
         with self.lock:
             healthy = (self.camera_thread and self.camera_thread.is_alive()
                        and not self.camera_error and self.camera_phase == "streaming"
-                       and bool(self.camera_inventory or self.frames)
+                       and set(CAMERAS).issubset(self.camera_inventory or self.frames)
                        and all(c in self.frames and time.monotonic() - self.frames[c][1] < self.camera_frame_ttl
                                for c in (self.camera_inventory or self.frames)))
-        if healthy:
+        if healthy and not force:
             return
         self.camera_preview_restarting = True
         try:
@@ -523,6 +533,10 @@ class TianjiManager:
         with self.lock:
             self.camera_settings.inventory(cameras)
             self.camera_inventory = inventory
+            self.camera_connection_issues = {
+                c['id'].replace('-', '_'): 'ZED 视频模块未上线；需给相机单独断电恢复，重启相机服务无法恢复供电'
+                for c in cameras if c.get('connection_issue') == 'zed_video_missing_hid_present'
+                and c.get('id') == 'usb-1' and not c.get('available')}
             for camera in set(self.frames) - set(inventory):
                 del self.frames[camera]
             self.camera_selection_supported = status.get("stream_camera_selection") is True
@@ -795,7 +809,8 @@ def tianji_router(manager):
                     value = manager.frames.get(camera_id)
                 if value and value[1] != stamp and time.monotonic() - value[1] < manager.camera_frame_ttl:
                     stamp = value[1]
-                    yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + value[0] + b"\r\n")
+                    yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                           + str(len(value[0])).encode("ascii") + b"\r\n\r\n" + value[0] + b"\r\n")
                 elif ((manager.camera_thread is None or not manager.camera_thread.is_alive())
                       and not manager.collection.active()
                       and manager.camera_phase != "resuming"):

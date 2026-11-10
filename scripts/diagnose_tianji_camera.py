@@ -111,7 +111,7 @@ for name in ('streaming.py','server.py','camera_audit.py'):
         result['camera_sources'][name] = dict(sha256=hashlib.sha256(data).hexdigest())
     except IOError as e: result['camera_sources'][name] = dict(error=str(e))
 result['usb'] = {}
-for name in ('1-1','1-2','1-4'):
+for name in ('1-1','1-2','1-4','2-1'):
     path = '/sys/bus/usb/devices/'+name
     info = dict((key,read(path+'/'+key).strip()) for key in
         ('idVendor','idProduct','busnum','devnum','speed','bcdDevice','bcdUSB',

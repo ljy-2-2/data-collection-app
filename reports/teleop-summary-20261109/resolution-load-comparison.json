@@ -1,0 +1,618 @@
+{
+  "result": {
+    "original": {
+      "usb_1": {
+        "mode_id": "zed-left-1280x720-30",
+        "brightness": 6
+      },
+      "usb_2": {
+        "mode_id": "mjpeg-1920x1080",
+        "brightness": 9
+      },
+      "usb_4": {
+        "mode_id": "mjpeg-1920x1080",
+        "brightness": 9
+      }
+    },
+    "changed": true,
+    "restored": true,
+    "test": "preview-only native frame-count comparison; no robot control or formal collection",
+    "apply_requested_time": 1793933805.6482322,
+    "low_ready_time": 1793933810.2991517,
+    "low_finished_time": 1793933990.4141495,
+    "restore_requested_time": 1793933990.4141557,
+    "after": {
+      "usb_1": {
+        "mode_id": "zed-left-1280x720-30",
+        "brightness": 6
+      },
+      "usb_2": {
+        "mode_id": "mjpeg-1920x1080",
+        "brightness": 9
+      },
+      "usb_4": {
+        "mode_id": "mjpeg-1920x1080",
+        "brightness": 9
+      }
+    }
+  },
+  "native_windows_in_time_order": [
+    {
+      "inode": 31010,
+      "samples": 15,
+      "observed_window_s": 70.10000000000036,
+      "sent_delta": [
+        1634,
+        1634,
+        1635
+      ],
+      "fps_camera_order_usb1_usb2_usb4": [
+        23.309557774607583,
+        23.309557774607583,
+        23.32382310984296
+      ],
+      "pending_frames": {
+        "0": {
+          "min": 7,
+          "mean": 7.6,
+          "max": 8
+        },
+        "1": {
+          "min": 7,
+          "mean": 7.466666666666667,
+          "max": 8
+        },
+        "2": {
+          "min": 7,
+          "mean": 7.466666666666667,
+          "max": 8
+        }
+      },
+      "overflow_delta": {
+        "0": 469,
+        "1": 457,
+        "2": 458
+      },
+      "controller_cpu3_percent": {
+        "min": 100.0,
+        "mean": 100.0,
+        "max": 100.0
+      },
+      "note": "Native periodic send counters, sampled every 0.2 s. Interval endpoints have up to roughly 0.2 s polling uncertainty each; no UI-frame-rate inference."
+    },
+    {
+      "inode": 31128,
+      "samples": 35,
+      "observed_window_s": 170.14999999999964,
+      "sent_delta": [
+        5106,
+        5078,
+        5078
+      ],
+      "fps_camera_order_usb1_usb2_usb4": [
+        30.008815750808175,
+        29.84425506905678,
+        29.84425506905678
+      ],
+      "pending_frames": {
+        "0": {
+          "min": 1,
+          "mean": 1.1428571428571428,
+          "max": 2
+        },
+        "1": {
+          "min": 0,
+          "mean": 0.17142857142857143,
+          "max": 1
+        },
+        "2": {
+          "min": 0,
+          "mean": 0.17142857142857143,
+          "max": 1
+        }
+      },
+      "overflow_delta": {
+        "0": 0,
+        "1": 0,
+        "2": 0
+      },
+      "controller_cpu3_percent": {
+        "min": 89.14141414141415,
+        "mean": 93.02200304892251,
+        "max": 94.1747572815534
+      },
+      "note": "Native periodic send counters, sampled every 0.2 s. Interval endpoints have up to roughly 0.2 s polling uncertainty each; no UI-frame-rate inference."
+    },
+    {
+      "inode": 31241,
+      "samples": 6,
+      "observed_window_s": 25.11999999999989,
+      "sent_delta": [
+        482,
+        482,
+        483
+      ],
+      "fps_camera_order_usb1_usb2_usb4": [
+        19.18789808917206,
+        19.18789808917206,
+        19.22770700636951
+      ],
+      "pending_frames": {
+        "0": {
+          "min": 7,
+          "mean": 7.833333333333333,
+          "max": 8
+        },
+        "1": {
+          "min": 7,
+          "mean": 7.666666666666667,
+          "max": 8
+        },
+        "2": {
+          "min": 7,
+          "mean": 7.833333333333333,
+          "max": 8
+        }
+      },
+      "overflow_delta": {
+        "0": 269,
+        "1": 264,
+        "2": 265
+      },
+      "controller_cpu3_percent": {
+        "min": 99.73614775725594,
+        "mean": 99.87009832038815,
+        "max": 100.0
+      },
+      "note": "Native periodic send counters, sampled every 0.2 s. Interval endpoints have up to roughly 0.2 s polling uncertainty each; no UI-frame-rate inference."
+    }
+  ],
+  "board_phases": {
+    "baseline": {
+      "duration_s": 60.010353908999605,
+      "samples": 13,
+      "settings": {
+        "usb_1": {
+          "mode_id": "zed-left-1280x720-30",
+          "brightness": 6
+        },
+        "usb_2": {
+          "mode_id": "mjpeg-1920x1080",
+          "brightness": 9
+        },
+        "usb_4": {
+          "mode_id": "mjpeg-1920x1080",
+          "brightness": 9
+        }
+      },
+      "image_decode_checked": 39,
+      "decode_failures": [],
+      "image_dimensions": {
+        "usb_1": [
+          [
+            1280,
+            720
+          ]
+        ],
+        "usb_2": [
+          [
+            1920,
+            1080
+          ]
+        ],
+        "usb_4": [
+          [
+            1920,
+            1080
+          ]
+        ]
+      },
+      "camera_errors": [
+        ""
+      ],
+      "camera_phases": [
+        "streaming"
+      ],
+      "cpu_percent_all_8_cores": {
+        "min": 44.261874197689345,
+        "mean": 45.30840473168307,
+        "max": 45.84709169418339
+      },
+      "available_memory_gib": {
+        "min": 13.539703369140625,
+        "mean": 13.548575181227465,
+        "max": 13.564979553222656
+      },
+      "max_temperature_c": 39.769,
+      "robot_interface_rx_MB_s": {
+        "min": 17.356388469601104,
+        "mean": 17.423958651870194,
+        "max": 17.470478479927813
+      },
+      "control_active_samples": 0,
+      "recording_samples": 0
+    },
+    "low": {
+      "duration_s": 180.00503495300018,
+      "samples": 37,
+      "settings": {
+        "usb_1": {
+          "mode_id": "zed-left-1280x720-30",
+          "brightness": 6
+        },
+        "usb_2": {
+          "mode_id": "mjpeg",
+          "brightness": 9
+        },
+        "usb_4": {
+          "mode_id": "mjpeg",
+          "brightness": 9
+        }
+      },
+      "image_decode_checked": 111,
+      "decode_failures": [],
+      "image_dimensions": {
+        "usb_1": [
+          [
+            1280,
+            720
+          ]
+        ],
+        "usb_2": [
+          [
+            1024,
+            768
+          ]
+        ],
+        "usb_4": [
+          [
+            1024,
+            768
+          ]
+        ]
+      },
+      "camera_errors": [
+        ""
+      ],
+      "camera_phases": [
+        "streaming"
+      ],
+      "cpu_percent_all_8_cores": {
+        "min": 40.0507614213198,
+        "mean": 42.896663572166354,
+        "max": 45.484693877551024
+      },
+      "available_memory_gib": {
+        "min": 13.54046630859375,
+        "mean": 13.547126460719753,
+        "max": 13.570972442626953
+      },
+      "max_temperature_c": 39.769,
+      "robot_interface_rx_MB_s": {
+        "min": 14.079534918828005,
+        "mean": 14.934997826606782,
+        "max": 15.093289416849224
+      },
+      "control_active_samples": 0,
+      "recording_samples": 0
+    },
+    "restored": {
+      "duration_s": 14.996592964999763,
+      "samples": 4,
+      "settings": {
+        "usb_1": {
+          "mode_id": "zed-left-1280x720-30",
+          "brightness": 6
+        },
+        "usb_2": {
+          "mode_id": "mjpeg-1920x1080",
+          "brightness": 9
+        },
+        "usb_4": {
+          "mode_id": "mjpeg-1920x1080",
+          "brightness": 9
+        }
+      },
+      "image_decode_checked": 12,
+      "decode_failures": [],
+      "image_dimensions": {
+        "usb_1": [
+          [
+            1280,
+            720
+          ]
+        ],
+        "usb_2": [
+          [
+            1920,
+            1080
+          ]
+        ],
+        "usb_4": [
+          [
+            1920,
+            1080
+          ]
+        ]
+      },
+      "camera_errors": [
+        ""
+      ],
+      "camera_phases": [
+        "streaming"
+      ],
+      "cpu_percent_all_8_cores": {
+        "min": 43.46086521630408,
+        "mean": 44.22620649792935,
+        "max": 44.66532460996477
+      },
+      "available_memory_gib": {
+        "min": 13.537830352783203,
+        "mean": 13.544156074523926,
+        "max": 13.549358367919922
+      },
+      "max_temperature_c": 39.769,
+      "robot_interface_rx_MB_s": {
+        "min": 15.695177678216291,
+        "mean": 16.485128653487756,
+        "max": 17.459842436841775
+      },
+      "control_active_samples": 0,
+      "recording_samples": 0
+    }
+  },
+  "stream_end_checks": [
+    {
+      "profiles": {
+        "usb-1": {
+          "source_yuv_range": "limited",
+          "mode_id": "zed-left-1280x720-30",
+          "encoding": "controller_jpeg",
+          "brightness": {
+            "step": 1,
+            "min": 0,
+            "default": 4,
+            "max": 8,
+            "supported": true,
+            "value": 6
+          },
+          "limited_range_assumption": true,
+          "format": "mjpeg",
+          "source_format": "yuyv",
+          "height": 720,
+          "width": 1280,
+          "source_width": 2560,
+          "camera_model": "ZED Mini",
+          "jpeg_quality": 90,
+          "fps": 30,
+          "eye": "left",
+          "source_height": 720,
+          "source_yuv_matrix": "bt601"
+        },
+        "usb-2": {
+          "mode_id": "mjpeg-1920x1080",
+          "brightness": {
+            "step": 1,
+            "min": -64,
+            "default": 0,
+            "max": 64,
+            "supported": true,
+            "value": 9
+          },
+          "format": "mjpeg",
+          "height": 1080,
+          "width": 1920,
+          "fps": 30
+        },
+        "usb-4": {
+          "mode_id": "mjpeg-1920x1080",
+          "brightness": {
+            "step": 1,
+            "min": -64,
+            "default": 0,
+            "max": 64,
+            "supported": true,
+            "value": 9
+          },
+          "format": "mjpeg",
+          "height": 1080,
+          "width": 1920,
+          "fps": 30
+        }
+      },
+      "end_ok": true,
+      "error": null,
+      "frames": [
+        2214,
+        2227,
+        2221
+      ],
+      "joint_samples": 9478,
+      "joint_skipped_ticks": 49,
+      "native_exit": 0,
+      "native_cleanup_timed_out": false,
+      "queue_overflow": {
+        "usb-1": {
+          "last_timestamp_ns": 4438162266016,
+          "first_sequence": 19,
+          "last_sequence": 2861,
+          "first_timestamp_ns": 4343422849617,
+          "camera": 0,
+          "dropped": 640,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        },
+        "usb-2": {
+          "last_timestamp_ns": 4438082078726,
+          "first_sequence": 33,
+          "last_sequence": 2857,
+          "first_timestamp_ns": 4343430818449,
+          "camera": 1,
+          "dropped": 624,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        },
+        "usb-4": {
+          "last_timestamp_ns": 4438100633159,
+          "first_sequence": 27,
+          "last_sequence": 2851,
+          "first_timestamp_ns": 4343449252605,
+          "camera": 2,
+          "dropped": 624,
+          "policy": "drop_incoming",
+          "event": "queue_overflow"
+        }
+      },
+      "app_stream_start_to_end_s": 96.57003782100037,
+      "start_wall": 1793933709.5975697,
+      "end_wall": 1793933806.1676075,
+      "audit_critical_equal": {
+        "robot_pids": true,
+        "modules": true,
+        "mounts": true,
+        "config_hashes": true,
+        "dmesg_sha256": true
+      },
+      "native_rt_final": [
+        {
+          "event": "rt_final",
+          "task": "RTPSI",
+          "cpu": 1,
+          "pid": 2035,
+          "msw": 13522,
+          "csw": 4436509,
+          "pf": 0,
+          "process_start_ticks": 1663
+        },
+        {
+          "event": "rt_final",
+          "task": "FX_RtTask",
+          "cpu": 1,
+          "pid": 0,
+          "msw": 0,
+          "csw": 4422010,
+          "pf": 0,
+          "process_start_ticks": 0
+        }
+      ]
+    },
+    {
+      "profiles": {
+        "usb-1": {
+          "source_yuv_range": "limited",
+          "mode_id": "zed-left-1280x720-30",
+          "encoding": "controller_jpeg",
+          "brightness": {
+            "step": 1,
+            "min": 0,
+            "default": 4,
+            "max": 8,
+            "supported": true,
+            "value": 6
+          },
+          "limited_range_assumption": true,
+          "format": "mjpeg",
+          "source_format": "yuyv",
+          "height": 720,
+          "width": 1280,
+          "source_width": 2560,
+          "camera_model": "ZED Mini",
+          "jpeg_quality": 90,
+          "fps": 30,
+          "eye": "left",
+          "source_height": 720,
+          "source_yuv_matrix": "bt601"
+        },
+        "usb-2": {
+          "mode_id": "mjpeg",
+          "brightness": {
+            "step": 1,
+            "min": -64,
+            "default": 0,
+            "max": 64,
+            "supported": true,
+            "value": 9
+          },
+          "format": "mjpeg",
+          "height": 768,
+          "width": 1024,
+          "fps": 30
+        },
+        "usb-4": {
+          "mode_id": "mjpeg",
+          "brightness": {
+            "step": 1,
+            "min": -64,
+            "default": 0,
+            "max": 64,
+            "supported": true,
+            "value": 9
+          },
+          "format": "mjpeg",
+          "height": 768,
+          "width": 1024,
+          "fps": 30
+        }
+      },
+      "end_ok": true,
+      "error": null,
+      "frames": [
+        5410,
+        5395,
+        5389
+      ],
+      "joint_samples": 18080,
+      "joint_skipped_ticks": 1,
+      "native_exit": 0,
+      "native_cleanup_timed_out": false,
+      "queue_overflow": {},
+      "app_stream_start_to_end_s": 181.44816434600034,
+      "start_wall": 1793933809.4700294,
+      "end_wall": 1793933990.9181933,
+      "audit_critical_equal": {
+        "robot_pids": true,
+        "modules": true,
+        "mounts": true,
+        "config_hashes": true,
+        "dmesg_sha256": true
+      },
+      "native_rt_final": [
+        {
+          "event": "rt_final",
+          "task": "RTPSI",
+          "cpu": 1,
+          "pid": 2035,
+          "msw": 13522,
+          "csw": 4621325,
+          "pf": 0,
+          "process_start_ticks": 1663
+        },
+        {
+          "event": "rt_final",
+          "task": "FX_RtTask",
+          "cpu": 1,
+          "pid": 0,
+          "msw": 0,
+          "csw": 4606826,
+          "pf": 0,
+          "process_start_ticks": 0
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "No robot control, enable, motion or formal training episode was started. Camera preview streams and JPEG samples only.",
+    "Native counts and clean stream-end counts measure the camera transport, not a simultaneous live teleoperation/full-recorder benchmark.",
+    "Three-minute short test; no hours-long endurance proof.",
+    "Image decoding is sampled every 5 seconds per camera, not every frame.",
+    "No exposure-to-receive latency measurement is available for this test; pending queue length is a congestion indicator, not calibrated latency."
+  ],
+  "initial_interruption": {
+    "error": "Audit changed: dmesg_sha256",
+    "sole_new_kernel_line": "[ 2622.351520] hrtimer: interrupt took 17016 ns",
+    "verified_exact_original_hash_after_removing_that_line": true,
+    "maintenance": "preserved evidence; checked idle USB, native clean exit, unchanged robot tasks/config/modules/mounts, stable kernel state and manifest; restarted independent fusion-camera service only",
+    "backup": "/mnt/fusion-camera/reviewed-timer-ObQWV1",
+    "audit_policy_changed": false
+  }
+}
