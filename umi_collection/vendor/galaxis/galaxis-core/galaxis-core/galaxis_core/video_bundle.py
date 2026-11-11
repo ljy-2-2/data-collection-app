@@ -23,7 +23,7 @@ from mcap.writer import Writer, CompressionType
 
 FORMAT = "umi-mp4-v1"
 MANIFEST = "video-manifest.json"
-DEFAULT_VIDEO_CRF = 18
+DEFAULT_VIDEO_CRF = 12
 CAMERAS = {f"/{side}_camera/image_raw/compressed": side for side in ("left", "right", "center")}
 
 
@@ -226,7 +226,9 @@ def convert_bundle(record_dir: Path, *, crf: int = DEFAULT_VIDEO_CRF) -> dict:
             raise ValueError('相机数据不完整：录制的话题与配置不一致，原始数据保留')
         limits = contract['limits']
         for topic, values in timestamps.items():
-            failure, warnings = recording_timing_result(values, source_times[topic], limits)
+            expected_fps = float(contract['cameras'][CAMERAS[topic]].get('framerate',30.0))
+            topic_limits = dict(limits, min_rate_hz=max(limits['min_rate_hz'],expected_fps*0.9))
+            failure, warnings = recording_timing_result(values, source_times[topic], topic_limits)
             if failure:
                 raise ValueError(f'{topic} 质量不合格：{failure}；原始数据保留')
             relative = [(t-source_times[topic][0])/1e9 for t in source_times[topic]]

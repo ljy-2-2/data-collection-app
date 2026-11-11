@@ -1,9 +1,44 @@
 """Camera recording contract checks, independent of ROS and image decoders."""
 from collections import deque
 from pathlib import Path
+import json
+import math
 
 
-def load_contract(path=Path('/etc/galaxis/collection_profile.yaml')):
+def performance_camera_modes(profile, selection_dir=Path('/opt/camera-selection')):
+    """Resolve a saved fast mode without overriding the user's resolution."""
+    modes = {role: dict(mode) for role, mode in profile.get('cameras', {}).items()}
+    try:
+        policy = json.loads((selection_dir/'performance.json').read_text())
+        selection = json.loads((selection_dir/'roles.json').read_text())
+    except (OSError,ValueError,TypeError):
+        return modes
+    if not isinstance(policy,dict) or not isinstance(selection,dict):
+        return modes
+    for role, mode in modes.items():
+        if role == 'center' and profile.get('camera_sources',{}).get('center','usb') != 'usb':
+            continue
+        settings = policy.get(role,{})
+        selected = selection.get(role,{})
+        if not isinstance(settings,dict) or not isinstance(selected,dict):
+            continue
+        identity = settings.get('identity',{})
+        if not isinstance(identity,dict) or not identity or any(
+            selected.get(k,'') != identity.get(k,'') for k in ('vendor','product','serial')):
+            continue
+        try:
+            width,height = int(settings['width']),int(settings['height'])
+            fps = float(settings['fps'])
+        except (KeyError,ValueError,TypeError,OverflowError):
+            continue
+        if (width,height) != (mode.get('image_width'),mode.get('image_height')):
+            continue
+        if math.isfinite(fps) and 1 <= fps <= 400:
+            mode['framerate'] = fps
+    return modes
+
+
+def load_contract(path=Path('/etc/galaxis/collection_profile.yaml'), selection_dir=Path('/opt/camera-selection')):
     import yaml
     if not path.exists():
         return {}
@@ -15,7 +50,8 @@ def load_contract(path=Path('/etc/galaxis/collection_profile.yaml')):
         limits = dict(version=2, min_rate_hz=27.0, rate_window_sec=5.0,
                                     warn_frame_gap_sec=0.5, stop_min_rate_hz=20.0,
                                     stop_low_rate_sec=10.0, max_frame_gap_sec=3.0, warmup_sec=1.0)
-    return dict(cameras={role: profile['cameras'][role] for role in profile['active_cameras']},
+    modes = performance_camera_modes(profile, selection_dir)
+    return dict(cameras={role: modes[role] for role in profile['active_cameras']},
                 limits=limits)
 
 
@@ -67,7 +103,7 @@ class CameraCadence:
         if len(self.samples)<2 or now-self.samples[-1][0] > self.max_gap:
             return '相机尚未持续出帧或图像已停顿'
         if self.samples[-1][0]-self.samples[0][0] < self.window-.05:
-            return '正在验证三路相机持续 30 帧采集能力'
+            return '正在验证相机持续出帧与采样频率'
         arrival = [x[0] for x in self.samples]
         source = [(x[1]-self.samples[0][1])/1e9 for x in self.samples]
         problem = (timing_failure(arrival, min_rate=self.minimum, max_gap=self.max_gap, window=self.window)

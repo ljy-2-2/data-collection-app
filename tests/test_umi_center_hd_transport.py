@@ -21,6 +21,7 @@ def relay(monkeypatch):
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     instance=object.__new__(module.CenterCameraFlipNode)
     instance._vertical_flip=False;instance._jpeg_quality=95
+    instance._last_preview_mono=float('-inf');instance._preview_interval=1/15
     compressed=[];raw=[]
     instance._compressed_pub=SimpleNamespace(publish=compressed.append)
     instance._image_pub=SimpleNamespace(get_subscription_count=lambda:0,publish=raw.append)

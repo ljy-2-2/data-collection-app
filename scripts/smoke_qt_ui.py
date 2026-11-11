@@ -84,7 +84,7 @@ def main():
                 try:self.wfile.write(b'--frame\r\nContent-Type: image/jpeg\r\nContent-Length: '+str(len(image)).encode()+b'\r\n\r\n'+image+b'\r\n--frame--\r\n')
                 except (BrokenPipeError,ConnectionResetError):pass
                 return
-            mapping={'/platform/destinations':state['uploadTarget'],'/platform/auth/preferences':{},'/tianji/status':state['tianji'],'/status':state['g2'],'/preview':state['preview'],'/umi/status':state['umi']}
+            mapping={'/subtask-configs':[], '/platform/destinations':state['uploadTarget'],'/platform/auth/preferences':{},'/tianji/status':state['tianji'],'/status':state['g2'],'/preview':state['preview'],'/umi/status':state['umi']}
             if self.path.startswith('/umi/encoders/preview'):value={'encoders':{'left':{'value':.12,'online':True},'right':{'value':.34,'online':True}}}
             else:value=mapping.get(self.path,{})
             self.respond(value)
@@ -132,10 +132,15 @@ def main():
         window=engine.rootObjects()[0];window.resize(1024,640)
         record_keys=UmiRecordKeys(app,window,bridge)
         def wait(predicate=lambda:True,timeout=6000):
+            nonlocal window
             deadline=time.monotonic()+timeout/1000
             QTest.qWait(80)
             while not predicate():
                 assert time.monotonic()<deadline,(bridge.state,failures,warnings[-12:]);QTest.qWait(40)
+            # Qt 6.8 can invalidate borrowed Python wrappers during Loader
+            # replacement even while the engine still owns the live window.
+            roots=engine.rootObjects();assert len(roots)==1
+            window=roots[0];record_keys.window=window
         def item(name):
             result=window.findChild(QObject,name)
             if result is None:
@@ -150,6 +155,16 @@ def main():
             control=item(name);assert control.property('enabled'),name
             point=control.mapToScene(QPointF(control.width()/2,control.height()/2)).toPoint()
             QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,point);wait()
+        def select_robot(key):
+            control=item('robotType');control.forceActiveFocus()
+            index=bridge.robotKeys.index(key)
+            if index==len(bridge.robotKeys)-1:
+                QTest.keyClick(window,Qt.Key_End)
+            else:
+                QTest.keyClick(window,Qt.Key_Home)
+                for _ in range(index):QTest.keyClick(window,Qt.Key_Down)
+            wait(lambda:bridge.state['robot']==key)
+            assert item('robotType').property('currentIndex')==index
         def snap(name):
             print('CHECK',name,flush=True)
             if args.screenshots:
@@ -171,9 +186,10 @@ def main():
             assert main.y()==left.y()==0 and right.y()>left.height()
             assert main.height()>left.height()
             if robot=='tianji':
-                main_view=item('teleopCameraViewport-center');main_params=item('teleopCameraParameters-center')
+                main_view=item('teleopCameraViewport-center')
                 assert main_view.width()>item('teleopCameraViewport-left').width()
-                assert main_params.y()>=main_view.y()+main_view.height()
+                assert item('teleopCameraSettings').property('enabled')
+                assert not item('tianjiCameraDialog').property('visible')
             assert abs(right.y()+right.height()-main.height())<.01
             sources=[camera.source for camera in cameras]
             geometry=[(t.x(),t.y(),t.width(),t.height()) for t in tiles]
@@ -189,7 +205,7 @@ def main():
             scroll.setProperty('contentY',scroll.property('contentY')+card.mapToScene(QPointF(0,0)).y()-180)
             wait();snap(robot+'-three-cameras')
             scroll.setProperty('contentY',0);wait()
-            print('PASS '+robot+' three camera identities, main-left/wrists-right layout and removed settings',flush=True)
+            print('PASS '+robot+' three camera identities and main-left/wrists-right layout',flush=True)
         print("Qt fixture loaded",flush=True)
         bridge.serviceReady();wait();snap('login')
         # Deliberately return a cached valid session from the fixture. Merely
@@ -214,15 +230,15 @@ def main():
                 assert bridge.state['uploadTarget']['selected']=='cloud'
         print('PASS real navigation buttons preserve login and destination',flush=True)
         # Exercise user selection, then a state notification/poll before advancing.
-        robot_type=item('robotType');robot_type.forceActiveFocus()
-        QTest.keyClick(window,Qt.Key_Home)
-        wait(lambda:bridge.state['robot']=='agibot-g2')
+        select_robot('kuavo-5w')
+        bridge.update(notice='乐聚型号选择检查');wait()
+        assert bridge.state['robot']=='kuavo-5w'
+        select_robot('agibot-g2')
         bridge.update(notice='型号选择刷新检查');QTest.qWait(500)
-        assert robot_type.property('currentIndex')==0
-        QTest.keyClick(window,Qt.Key_End)
-        wait(lambda:bridge.state['robot']=='tianji')
+        assert item('robotType').property('currentIndex')==bridge.robotKeys.index('agibot-g2')
+        select_robot('tianji')
         bridge.update(notice='');wait()
-        assert robot_type.property('currentIndex')==1
+        assert item('robotType').property('currentIndex')==bridge.robotKeys.index('tianji')
         click('teleopNext');wait(lambda:bridge.state['paramSaved']);snap('tianji')
         bridge.setValue('robot','agibot-g2')
         assert bridge.state['robot']=='tianji', 'Do not switch the active workspace from the setup selector'
@@ -240,7 +256,7 @@ def main():
         click('teleopCheck');wait(lambda:bridge.can_move())
         verify_three_cameras('tianji')
         bridge.setValue('uploadMode','left');click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='running')
-        start=next(p for path,p in reversed(requests) if path=='/tianji/start');assert start['mode']=='dual' and start['upload_mode']=='left' and start['parameters']['left_gripper_speed']==8.5
+        start=next(p for path,p in reversed(requests) if path=='/tianji/start');assert start['mode']=='left' and start['upload_mode']=='left' and start['parameters']['left_gripper_speed']==8.5
         assert start['parameters']['left_gripper_accel']==12 and start['parameters']['right_gripper_accel']==35
         before=len(requests);bridge.jog('left',1,1);wait();assert len(requests)==before,'Motion must be blocked while teleoperating'
         click('teleopStartStop');wait(lambda:bridge.state['tianji']['state']=='idle')
@@ -256,11 +272,9 @@ def main():
         old=[part.matrix.copy() for part in scene.parts_value];scene.update_pose({'joints':{'left':[30,0,0,0,0,0,0]}})
         assert any(not (a==b.matrix).all() for a,b in zip(old,scene.parts_value))
         bridge.returnTeleop();wait(lambda:bridge.state['teleopStep']==1)
-        robot_type=item('robotType');robot_type.forceActiveFocus()
-        QTest.keyClick(window,Qt.Key_Home)
-        wait(lambda:bridge.state['robot']=='agibot-g2')
+        select_robot('agibot-g2')
         bridge.update(notice='刷新后保持 G2');QTest.qWait(500)
-        assert robot_type.property('currentIndex')==0
+        assert item('robotType').property('currentIndex')==bridge.robotKeys.index('agibot-g2')
         bridge.update(notice='');wait()
         click('teleopNext');wait(lambda:bridge.state['teleopStep']==2)
         assert bridge.state['robot']=='agibot-g2'
@@ -280,6 +294,7 @@ def main():
         wait(lambda:all(bridge.state['cameraLive'].values()))
         snap('umi-local-target')
         # Move the real button into view for the full hardware flow.
+        scroll=item('pageScroll')
         scroll.setProperty('contentY',scroll.property('contentHeight')-scroll.height());wait();click('umiStart')
         wait(lambda:bridge.state['umiStep']==3 and bridge.state['umi'].get('monitor_connected'))
         before=len(requests);bridge.selectUploadTarget('cloud');wait()

@@ -70,7 +70,7 @@ def test_raw_api_health_auth_and_retry_do_not_use_network(tmp_path,monkeypatch):
     local=RawOnlySession();umi=Mock(data_root=tmp_path)
     umi.status.return_value={'state':'idle'}
     app=create_app(MockController(),cors_origins=[],umi=umi,platform_login=local,upload_targets=local)
-    endpoints={r.path:r.endpoint for r in app.routes}
+    endpoints={r.path:r.endpoint for r in app.routes if hasattr(r,'path')}
     assert asyncio.run(endpoints['/platform/status']())['upload_mode']=='disabled'
     assert endpoints['/platform/auth']()['session_type']=='local'
     assert asyncio.run(endpoints['/umi/import/scan']())=={'state':'idle'}
@@ -78,6 +78,8 @@ def test_raw_api_health_auth_and_retry_do_not_use_network(tmp_path,monkeypatch):
 
 def test_main_raw_mode_does_not_construct_uploaders(tmp_path,monkeypatch):
     from teleop_control import main as m
+    # main() exports its gate for child workers; restore it after this in-process test.
+    monkeypatch.setenv('DATA_COLLECTION_GATE_FILE', str(tmp_path/'unused-gate.json'))
     monkeypatch.setenv('DATA_COLLECTION_STORAGE_MODE','raw-only')
     monkeypatch.setattr(sys,'argv',['collector','--mock','--umi-data-root',str(tmp_path)])
     def forbidden(*a,**kw): pytest.fail('raw mode must not create platform client/uploader')

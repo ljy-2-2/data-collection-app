@@ -372,7 +372,7 @@ class RecordManager(Node):
             try:
                 with open(gate_file, encoding="utf-8") as handle:
                     gate = json.load(handle)
-                if gate.get("available") is not True or not 0 <= time.time() - gate["checked_at"] < 10:
+                if gate.get("available") is not True or not 0 <= (time.monotonic() - gate["checked_monotonic"] if "checked_monotonic" in gate else time.time() - gate["checked_at"]) < 10:
                     return False, ""
                 self.collection_author = gate["username"]
                 self.collection_destination = gate.get('upload_destination')
@@ -639,7 +639,7 @@ class RecordManager(Node):
         if self.record_format == 'rosbag' and getattr(self, 'compressed_mcap_enabled', False):
             if self.use_sim_time:
                 raise ValueError('压缩原始录制暂不支持仿真时钟，未开始录制')
-            command = [sys.executable, '-m', 'galaxis_core.compressed_recorder', '--defer-video', '-o', record_dir]
+            command = [sys.executable, '-m', 'galaxis_core.compressed_recorder', '--raw-video', '-o', record_dir]
             if self.qos_overrides_file:
                 command.extend(['--qos-profile-overrides-path', self.qos_overrides_file])
             return [*command, *self.record_topics]
@@ -841,8 +841,10 @@ class RecordManager(Node):
             'zero': 'calibrated_closed',
         }
         if getattr(self, 'compressed_mcap_enabled', False):
-            meta['recording_format'] = 'umi-mcap-h264-v1'
-            meta['_deferred_raw'] = True
+            meta['recording_format'] = 'umi-mcap-mjpeg-v1'
+            meta['raw_compression'] = 'none'
+            if getattr(self, 'video_mp4_enabled', False):
+                meta['video_output'] = 'mp4'
         if getattr(self, 'collection_author', None):
             meta['author'] = self.collection_author
         if getattr(self, 'collection_destination', None):
@@ -912,7 +914,7 @@ class RecordManager(Node):
         if self.recent_record_dir and Path(self.recent_record_dir).is_dir():
             Path(self.recent_record_dir, 'recording-failure.json').unlink(missing_ok=True)
         self.recording_saved_pub.publish(String(data=self.recent_record_dir or ''))
-        return True, "异常回合已保留，将恢复完整数据并自动上传"
+        return True, "异常回合已保留，将恢复可用数据；缺失数据不会补造"
 
     def interrupt_recording(self, reason):
         if not self._recording_start_lock.acquire(blocking=False):
@@ -1039,7 +1041,8 @@ class RecordManager(Node):
         completed_msg = String()
         completed_msg.data = self.recent_record_dir
         if (not getattr(self, "video_mp4_enabled", False)
-                or (Path(self.recent_record_dir) / '.compressed-raw.json').is_file()):
+                or ((Path(self.recent_record_dir) / '.compressed-raw.json').is_file()
+                    and not (Path(self.recent_record_dir) / '.mp4-pending.json').exists())):
             self.recording_completed_pub.publish(completed_msg)
 
         if journal:
@@ -1070,17 +1073,31 @@ class RecordManager(Node):
         if compressed.is_file():
             from galaxis_core.mcap_video import FORMAT
             saved = json.loads(compressed.read_text())
-            if saved.get('format') != FORMAT or saved.get('state') != 'complete':
+            if saved.get('format') not in (FORMAT, 'umi-mcap-mjpeg-v1') or saved.get('state') != 'complete':
                 raise ValueError('压缩原始包未完成，保留回合等待恢复')
             if requires_interval_recovery(saved.get('continuity_issue')):
-                raise ValueError('采集源数据存在真实缺口，原始包已保留，将恢复并上传连续区间')
+                raise ValueError('采集源数据存在真实缺口，原始包已保留，将恢复连续区间')
             meta['source_continuity'] = saved.get('continuity_summary', {})
-            meta['recording_format'] = FORMAT
+            meta['recording_format'] = saved['format']
             meta['raw_compression'] = saved['encoder']
             meta['raw_sha256'] = saved['sha256']
-            # The original MCAP is the canonical dataset. It is not converted
-            # into a disposable signal-only bag and is never deleted on upload.
+            if saved.get('data_quality'):
+                meta['data_quality'] = saved['data_quality']
+                atomic_json(record_dir / 'data-quality.json', saved['data_quality'])
+            if 'first_log_ns' in saved:
+                meta['recorded_interval_ns'] = dict(start=saved['first_log_ns'], end=saved['last_log_ns'])
+            # Only newly requested MP4 episodes enter the offline queue.
+            # Legacy MJPEG episodes remain untouched.
             atomic_json(record_dir / 'meta.json', meta)
+            if meta.get('video_output') == 'mp4' and saved['format'] == 'umi-mcap-mjpeg-v1':
+                atomic_json(record_dir / '.mp4-pending.json', dict(meta, _video_crf=DEFAULT_VIDEO_CRF))
+                atomic_json(record_dir / 'raw-data-status.json', dict(
+                    state='processing', message='数据已暂存，空闲时生成 MP4；校验通过后清理临时视频'))
+                return
+            if saved['format'] == 'umi-mcap-mjpeg-v1':
+                atomic_json(record_dir / 'raw-data-status.json', dict(
+                    state='ready', message='相机原始数据已保存，无后续压缩',
+                    file=saved['file'], sha256=saved['sha256']))
             return
         atomic_json(record_dir / ".mp4-pending.json", dict(meta, _video_crf=DEFAULT_VIDEO_CRF))
         atomic_json(record_dir / "meta.json", meta)

@@ -11,6 +11,13 @@ from pathlib import Path
 from .platform_auth import PlatformLogin
 
 
+def _lease_fresh(value):
+    # Both processes share this host's monotonic clock, unaffected by NTP.
+    age = (time.monotonic() - value['checked_monotonic']
+           if 'checked_monotonic' in value else time.time() - value['checked_at'])
+    return 0 <= age < 10
+
+
 def collection_context() -> dict:
     """Snapshot recording ownership; never infer it later from the active UI."""
     filename = os.environ.get("DATA_COLLECTION_GATE_FILE")
@@ -18,7 +25,7 @@ def collection_context() -> dict:
         return {}
     try:
         value = json.loads(Path(filename).read_text())
-        if value.get('available') is not True or not 0 <= time.time()-value['checked_at'] < 10:
+        if value.get('available') is not True or not _lease_fresh(value):
             raise ValueError('采集平台登录状态未就绪')
         result = {'author': value['username']}
         if 'upload_destination' in value:
@@ -34,7 +41,7 @@ def collection_available(filename=None) -> bool:
         return True  # Standalone tools outside the desktop supervisor.
     try:
         value = json.loads(Path(filename).read_text())
-        return value.get("available") is True and 0 <= time.time() - value["checked_at"] < 10
+        return value.get("available") is True and _lease_fresh(value)
     except (OSError, ValueError, TypeError, KeyError):
         return False
 
@@ -48,7 +55,10 @@ class CollectionGate:
     def _write(self, available: bool, username: str = "", destination: dict | None = None):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_suffix(".tmp")
-        payload = dict(available=available, username=username, checked_at=time.time())
+        payload = dict(available=available, username=username, checked_at=time.time(),
+                       checked_monotonic=time.monotonic())
+        if getattr(self.login, 'raw_only', False) is True:
+            payload['storage_mode'] = 'raw-only'
         if destination is not None:
             payload['upload_destination'] = destination
         temporary.write_text(json.dumps(payload))

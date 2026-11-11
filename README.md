@@ -344,7 +344,7 @@ bash scripts/push_github.sh "本次修改说明"
 
 脚本使用系统 Git 和 SSH，并在脚本进程内清除 `LD_LIBRARY_PATH`、`LD_PRELOAD`，避免 Conda 或机器人 SDK 的 OpenSSL 库引发 `OpenSSL version mismatch`；不会改变当前终端的 Conda 环境。如果提交成功但推送失败，提交仍保留在本地，排除连接问题后重新运行同一命令即可。
 
-本机已配置 `ljy`。在其它电脑首次克隆后，若没有这个远程名，可运行 `git remote add ljy git@github.com:ljy-2-2/data-collection-app.git`，然后在 `main` 分支执行上述脚本。
+若尚未配置 `ljy`，脚本会自动添加上述 GitHub 地址；已有 `ljy` 指向其他推送地址或配置了多个推送地址时，脚本会停止，不覆盖现有配置。其他远程（如 `origin`）保持不变。
 
 ## 乐聚 KUAVO 5-W
 

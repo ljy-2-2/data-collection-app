@@ -8,6 +8,8 @@ unset LD_LIBRARY_PATH LD_PRELOAD
 export GIT_SSH_COMMAND=/usr/bin/ssh
 export GIT_SSH_VARIANT=ssh
 readonly git_bin=/usr/bin/git
+readonly github_remote=ljy
+readonly github_url='git@github.com:ljy-2-2/data-collection-app.git'
 
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 
@@ -15,7 +17,10 @@ if [[ "$("$git_bin" branch --show-current)" != "main" ]]; then
     printf '%s\n' '请先切换到 main 分支，再执行此脚本。' >&2
     exit 1
 fi
-if [[ "$("$git_bin" remote get-url --push ljy)" != 'git@github.com:ljy-2-2/data-collection-app.git' ]]; then
+if ! "$git_bin" remote get-url "$github_remote" >/dev/null 2>&1; then
+    "$git_bin" remote add "$github_remote" "$github_url"
+fi
+if [[ "$("$git_bin" remote get-url --push --all "$github_remote")" != "$github_url" ]]; then
     printf '%s\n' '远程 ljy 与指定 GitHub 仓库不符，未提交或推送。' >&2
     exit 1
 fi
@@ -24,4 +29,4 @@ fi
 if ! "$git_bin" diff --cached --quiet; then
     "$git_bin" commit -m "${1:-更新数据采集软件}"
 fi
-"$git_bin" push --set-upstream ljy main
+"$git_bin" push --set-upstream "$github_remote" main

@@ -83,8 +83,8 @@ void test('Tianji workspace has three modes, three named cameras, modal paramete
   assert.match(html, /<strong>遥操作设置<\/strong>/);
   assert.doesNotMatch(html, /tianji-autosave-label|等待自动保存/);
   assert.doesNotMatch(html, /已自动保存|本阶段不触发采集/);
-  assert.match(html, /本次完成 <strong>0<\/strong> Episode/);
-  assert.match(html, /未开始遥操作/);
+  assert.match(html, /本次已完成 <strong>0<\/strong> Episode/);
+  assert.match(html, /持续时间 00:00/);
   assert.ok(html.indexOf('tianji-collection-summary') < html.indexOf('检查设备</button>'));
   assert.doesNotMatch(html, /tianji-collection-panel|tianji-collection-stats|<h3>数据采集<\/h3>|结束本段/);
   assert.match(html, /A \/ X 开始采集，B \/ Y 结束并保存/);

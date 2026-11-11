@@ -46,7 +46,11 @@ class DurableStream:
 
 
 class CompressedBag:
-    def __init__(self, folder, *, native=None, defer_video=False, encoder_timeout=0):
+    def __init__(self, folder, *, native=None, defer_video=False, raw_video=False, encoder_timeout=0):
+        if raw_video and defer_video:
+            raise ValueError('Raw video and deferred encoding are mutually exclusive')
+        self.raw_video = raw_video
+        self.format = 'umi-mcap-mjpeg-v1' if raw_video else FORMAT
         self.defer_video = defer_video
         self.encoder_timeout = encoder_timeout
         self.folder = Path(folder)
@@ -54,7 +58,7 @@ class CompressedBag:
         self.path = self.folder / (self.folder.name+'_0.mcap')
         self.partial = self.path.with_suffix('.mcap.partial')
         self.stream = DurableStream(self.partial)
-        self.writer = Writer(self.stream, chunk_size=256*1024, compression=CompressionType.ZSTD,
+        self.writer = Writer(self.stream, chunk_size=256*1024, compression=CompressionType.NONE if raw_video else CompressionType.ZSTD,
                              enable_crcs=True, enable_data_crcs=True)
         self.writer.start(profile='ros2', library='galaxis-compressed-recorder')
         self.lock = threading.Lock()
@@ -71,25 +75,27 @@ class CompressedBag:
         self.continuity_issue = None
         self.continuity_summary = {}
         self.reception = ReceptionMetrics()
+        self.camera_calibration = {}
+        self.malformed_jpeg = {}
 
     def topic(self, topic, type_name, definition, qos=''):
         if topic in self.channels:
             return
         original_type = type_name
-        if topic in CAMERAS and not self.defer_video:
+        if topic in CAMERAS and not self.defer_video and not self.raw_video:
             if type_name != 'sensor_msgs/msg/CompressedImage':
                 raise ValueError('Only JPEG CompressedImage inputs are supported')
             type_name, definition = VIDEO_TYPE, VIDEO_SCHEMA
         with self.lock:
             sid = self.writer.register_schema(type_name, 'ros2msg', definition)
             cid = self.writer.register_channel(topic, 'cdr', sid, {'offered_qos_profiles': qos,
-                'recording_format': FORMAT, 'source_type': original_type})
+                'recording_format': self.format, 'source_type': original_type})
             self.channels[topic] = dict(id=cid, type=type_name, qos=qos)
             self.counts[topic] = 0
 
     def message(self, topic, payload, log_time, publish_time=None, sequence=0):
         stamp = (int(log_time), int(publish_time or log_time), int(sequence) & 0xffffffff)
-        if topic in CAMERAS and not self.defer_video:
+        if topic in CAMERAS and not self.defer_video and not self.raw_video:
             prefix, jpeg = split_image(payload)
             import io
             from PIL import Image
@@ -105,6 +111,18 @@ class CompressedBag:
                 self.encoders[topic] = LiveEncoder(output, native=self.native, managed=self.encoder_timeout is None)
             self.encoders[topic].submit(jpeg, (prefix, stamp), timeout=self.encoder_timeout)
         else:
+            if self.raw_video and topic in CAMERAS:
+                from .capture_quality import jpeg_structure_valid
+                if not jpeg_structure_valid(payload):
+                    self.malformed_jpeg[topic] = self.malformed_jpeg.get(topic, 0)+1
+            if topic.endswith('/camera_info') and topic not in self.camera_calibration:
+                try:
+                    from rclpy.serialization import deserialize_message
+                    from sensor_msgs.msg import CameraInfo
+                    from .capture_quality import calibration_summary
+                    self.camera_calibration[topic] = calibration_summary(deserialize_message(payload, CameraInfo))
+                except Exception:
+                    self.camera_calibration[topic] = dict(calibrated=False, reason='相机内参消息无法解析')
             self._write(topic, payload, stamp)
 
     def _write(self, topic, payload, stamp):
@@ -177,7 +195,7 @@ class CompressedBag:
                 duration=dict(nanoseconds=self.last-self.first),
                 starting_time=dict(nanoseconds_since_epoch=self.first),
                 message_count=sum(self.counts.values()), compression_format='', compression_mode='',
-                custom_data={'recording_format': FORMAT}, ros_distro=os.getenv('ROS_DISTRO', 'jazzy'),
+                custom_data={'recording_format': self.format}, ros_distro=os.getenv('ROS_DISTRO', 'jazzy'),
                 topics_with_message_count=[dict(topic_metadata=dict(name=t, type=c['type'],
                     serialization_format='cdr', offered_qos_profiles=[], type_description_hash=''),
                     message_count=self.counts[t]) for t,c in self.channels.items()],
@@ -201,12 +219,17 @@ class CompressedBag:
             self.stream.stream.close()
             os.replace(self.partial, self.path)
             os.replace(tmp, self.folder/'metadata.yaml')
-            atomic_json(self.folder/'.compressed-raw.json', dict(format=FORMAT, state='complete',
+            from .capture_quality import capture_quality
+            quality = capture_quality(self.counts, self.camera_calibration, self.malformed_jpeg,
+                                      self.reception.snapshot(), self.continuity_summary)
+            atomic_json(self.folder/'.compressed-raw.json', dict(format=self.format, state='complete',
+                data_quality=quality, first_log_ns=self.first, last_log_ns=self.last,
                 file=self.path.name, sha256=self.stream.digest.hexdigest(),
-                message_count=sum(self.counts.values()), camera_frames={t:e.count for t,e in self.encoders.items()},
+                message_count=sum(self.counts.values()), camera_frames=({t:n for t,n in self.counts.items() if t in CAMERAS} if self.raw_video else {t:e.count for t,e in self.encoders.items()}),
                 camera_sizes=self.sizes,
                 continuity_issue=self.continuity_issue, continuity_summary=self.continuity_summary,
-                encoder='rockchip-h264-qp20' if self.native else 'libx264-crf18-zerolatency'))
+                container_compression='none' if self.raw_video else 'zstd',
+                encoder='none' if self.raw_video else ('rockchip-h264-qp20' if self.native else 'libx264-crf18-zerolatency')))
         finally:
             self.stream.stream.close()
 
@@ -248,12 +271,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output', required=True, type=Path)
     parser.add_argument('--native', type=Path)
-    parser.add_argument('--defer-video', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--defer-video', action='store_true')
+    mode.add_argument('--raw-video', action='store_true', help='Preserve original JPEG/CDR bytes with no MCAP compression or video transcoding')
     parser.add_argument('--qos-profile-overrides-path')
     parser.add_argument('topics', nargs='+')
     args = parser.parse_args()
     native = args.native
-    if not args.defer_video and platform.machine() in ('aarch64', 'arm64') and native is None:
+    if not args.defer_video and not args.raw_video and platform.machine() in ('aarch64', 'arm64') and native is None:
         native = Path(__file__).parent/'native/mpp-jpeg-h264'
         if not native.is_file():
             raise RuntimeError('缺少板载视频编码组件，未开始录制；请更新完整运行环境')
@@ -268,7 +293,7 @@ def main():
     if args.qos_profile_overrides_path:
         import yaml
         overrides = yaml.safe_load(Path(args.qos_profile_overrides_path).read_text()) or {}
-    bag = CompressedBag(args.output, native=native, defer_video=args.defer_video)
+    bag = CompressedBag(args.output, native=native, defer_video=args.defer_video, raw_video=args.raw_video)
     stopped = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())

@@ -86,13 +86,15 @@ def test_telemetry_endpoint_never_scans_status_or_upload_directories(monkeypatch
     monkeypatch.setattr("teleop_control.app.telemetry_events", events)
     app = create_app(MockController(), cors_origins=[], umi=SimpleNamespace(
         monitor_url="http://127.0.0.1:8770", status=forbidden))
-    endpoint = next(route.endpoint for route in app.routes if route.path == "/umi/telemetry")
-
     async def consume():
-        response = await endpoint()
-        assert response.media_type == "text/event-stream"
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/umi/telemetry")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
         assert response.headers["cache-control"] == "no-store"
-        return [part async for part in response.body_iterator]
+        return response.text
 
-    assert asyncio.run(consume()) == ['data:{"monitor_connected":true}\n\n']
+    assert asyncio.run(consume()) == 'data:{"monitor_connected":true}\n\n'
     assert urls == ["http://127.0.0.1:8770"]

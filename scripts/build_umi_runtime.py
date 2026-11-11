@@ -20,8 +20,8 @@ from build_deb import ROOT, ignore_private
 from sanitize_package import clear_secrets
 from runtime_platform import native_target
 
-TAG = "xiaokai-umi-runtime:20261009.1"
-BUILD_TAG = "xiaokai-umi-build:20261009.1"
+TAG = "xiaokai-umi-runtime:20261110.1"
+BUILD_TAG = "xiaokai-umi-build:20261110.1"
 CACHE = ROOT / ".build-cache/umi-distribution"
 
 

@@ -285,7 +285,7 @@ def test_successful_recordings_use_compact_bundle_for_every_destination(tmp_path
     assert saved['recording_format'] == 'umi-mp4-v1'
     assert saved['files'] == [{'type': 'mcap', 'name': 'media/signals.mcap'}]
     manifest = video_bundle.validate_bundle(folder / 'media')
-    assert manifest['crf'] == 18
+    assert manifest['crf'] == 12
     assert all(c['frame_count'] == 5 and c['size'] == [64, 48] for c in manifest['cameras'])
     assert not (folder / '.mp4-pending.json').exists()
     assert not UmiRosbagUploader._processing(folder)

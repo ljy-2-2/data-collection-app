@@ -73,6 +73,16 @@ def load_collection_profile(path: Path | None) -> dict[str, Any]:
         profile['camera_quality'] = dict(version=2, min_rate_hz=27.0, rate_window_sec=5.0,
             warn_frame_gap_sec=0.5, stop_min_rate_hz=20.0, stop_low_rate_sec=10.0,
             max_frame_gap_sec=3.0, warmup_sec=1.0)
+    # The same resolution/identity policy feeds driver parameters and the
+    # recorded contract. It never changes an explicit Setup resolution.
+    import importlib.util
+    helper = Path(__file__).resolve().parents[2]/'galaxis-core/galaxis-core/galaxis_core/camera_quality.py'
+    selection_dir = Path(__file__).resolve().parents[2]/'runtime-camera-selection'
+    if helper.is_file() and selection_dir.is_dir() and profile.get('cameras'):
+        spec = importlib.util.spec_from_file_location('_umi_camera_quality', helper)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        profile['cameras'] = module.performance_camera_modes(profile, selection_dir)
     return profile
 
 
@@ -80,7 +90,7 @@ def load_camera_overrides(path: Path | None) -> dict[str, dict[str, Any]]:
     """Load and validate per-role camera modes saved by Device Setup."""
     if path is None or not path.exists():
         return {}
-    loaded = load_yaml(path)
+    loaded = load_collection_profile(path)
     cameras = loaded.get("cameras", {}) if isinstance(loaded, dict) else {}
     if cameras is None:
         return {}
@@ -262,7 +272,7 @@ def apply_collection_profile(filename: str, data: Any, profile: dict[str, Any]) 
                     expected_type='sensor_msgs/msg/CompressedImage',
                     best_effort=True, qos_depth=30,
                     timeout_sec=0.2, escalation=1,
-                    min_rate_hz=quality['min_rate_hz'], rate_escalation=0,
+                    min_rate_hz=max(quality['min_rate_hz'],float(mode['framerate'])*0.9), rate_escalation=0,
                     rate_window_sec=quality['rate_window_sec'],
                     max_frame_gap_sec=quality['warn_frame_gap_sec'], debounce_sec=0.0)
                 conditions[f'{side}_image_sustained_failure'] = dict(

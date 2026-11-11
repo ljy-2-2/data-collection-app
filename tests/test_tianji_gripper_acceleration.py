@@ -90,7 +90,8 @@ def test_saved_ui_parameters_reach_start_move_and_change_real_driver_frames(tmp_
         assert tianji.TianjiManager(MockController()).parameters().model_dump() == selected
         started = client.post('/tianji/start', json=dict(task='offline fixture', parameters=saved.json()))
         assert started.status_code == 200, started.text
-        assert requests[-1] == ('start', dict(task='offline fixture', mode='dual', upload_mode=None, parameters=selected))
+        assert requests[-1] == ('start', dict(task='offline fixture', mode='dual', upload_mode=None,
+                                            subtask_config=None, parameters=selected))
         started_parameters = requests[-1][1]['parameters']
         moved = client.post('/tianji/move', json=dict(kind='gripper', side='left', closure=.5))
         assert moved.status_code == 200, moved.text

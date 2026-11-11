@@ -1,6 +1,7 @@
 """Vertically flip the portable center-camera stream in software."""
 
 from copy import deepcopy
+import time
 
 import cv2
 import numpy as np
@@ -29,6 +30,9 @@ class CenterCameraFlipNode(Node):
         )
         self.declare_parameter("output_camera_info_topic", "/center_camera/camera_info")
         self.declare_parameter("jpeg_quality", 100)
+        self.declare_parameter("preview_fps", 15.0)
+        self._preview_interval = 1.0 / max(1.0, float(self.get_parameter("preview_fps").value))
+        self._last_preview_mono = float("-inf")
 
         self._vertical_flip = bool(self.get_parameter("vertical_flip").value)
         self._jpeg_quality = max(
@@ -77,7 +81,8 @@ class CenterCameraFlipNode(Node):
                 CompressedImage,
                 str(self.get_parameter("input_compressed_topic").value),
                 self._on_compressed,
-                image_qos,
+                QoSProfile(depth=60, reliability=ReliabilityPolicy.RELIABLE,
+                           durability=DurabilityPolicy.VOLATILE),
             )
         else:
             self.create_subscription(
@@ -98,9 +103,12 @@ class CenterCameraFlipNode(Node):
         # multi-megabyte raw frames between processes and a second lossy encode.
         # The raw path remains available for the G2 bridge, which has no JPEG topic.
         needs_raw = self._image_pub.get_subscription_count() > 0
-        if not self._vertical_flip and not needs_raw:
+        if not self._vertical_flip:
             self._compressed_pub.publish(message)
-            return
+            now = time.monotonic()
+            if not needs_raw or now-self._last_preview_mono < self._preview_interval:
+                return
+            self._last_preview_mono = now
         pixels = cv2.imdecode(np.frombuffer(message.data, dtype=np.uint8), cv2.IMREAD_COLOR)
         if pixels is None:
             self.get_logger().warning("invalid center-camera JPEG; skipping frame")
@@ -116,8 +124,6 @@ class CenterCameraFlipNode(Node):
             output.format = "bgr8; jpeg compressed bgr8"
             output.data = encoded.tobytes()
             self._compressed_pub.publish(output)
-        else:
-            self._compressed_pub.publish(message)
         if needs_raw:
             raw = Image()
             raw.header = message.header

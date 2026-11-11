@@ -240,7 +240,7 @@ def validate_recorded_continuity(folder):
 
 def recover_episode(journal):
     import yaml
-    from mcap.writer import Writer
+    from mcap.writer import Writer, CompressionType
     from .ownership import normalize_tree_access, resolve_record_owner
     journal = Path(journal)
     value = json.loads(journal.read_text())
@@ -315,7 +315,14 @@ def recover_episode(journal):
         outputs.append(target)
     # Publish the complete split set before releasing any upload barriers.
     for target in outputs:
-        (target/'.mp4-pending.json').unlink(missing_ok=True)
+        # Preserve originals of interrupted rounds. Convert only the validated
+        # recovery copy when this NEW episode explicitly requested local MP4.
+        recovered_meta = json.loads((target/'meta.json').read_text())
+        if recovered_meta.get('video_output') == 'mp4':
+            from .video_bundle import DEFAULT_VIDEO_CRF
+            atomic_json(target/'.mp4-pending.json', dict(recovered_meta, _video_crf=DEFAULT_VIDEO_CRF))
+        else:
+            (target/'.mp4-pending.json').unlink(missing_ok=True)
         (target/'.recovery-pending').unlink(missing_ok=True)
         sync_directory(target)
     update_journal(journal, state='recovered', recovered_parts=[p.name for p in outputs])
@@ -344,7 +351,7 @@ def continuous_intervals(start_ns, end_ns, gaps):
 def publish_recovered_interval(folder, sources, value, interruption, missing,
                                issues, signal_gaps, start_ns, end_ns, part):
     import yaml
-    from mcap.writer import Writer
+    from mcap.writer import Writer, CompressionType
     from .ownership import normalize_tree_access, resolve_record_owner
     old_episode = value['metadata'].get('episode') or {}
     # Interframe video must begin at a keyframe. Include decoder preroll from
@@ -363,7 +370,8 @@ def publish_recovered_interval(folder, sources, value, interruption, missing,
     with tempfile.TemporaryDirectory(prefix='.capture-repair-', dir=folder) as temporary:
         output = Path(temporary)/'recovered.mcap'
         with output.open('wb') as target:
-            writer = Writer(target, enable_crcs=True); writer.start(profile='ros2')
+            writer = Writer(target, enable_crcs=True, compression=(CompressionType.NONE
+                if value['metadata'].get('recording_format') == 'umi-mcap-mjpeg-v1' else CompressionType.ZSTD)); writer.start(profile='ros2')
             for source in sources:
                 schema_ids, channel_ids = {}, {}
                 for schema, channel, message in complete_messages(source, []):
@@ -408,7 +416,7 @@ def publish_recovered_interval(folder, sources, value, interruption, missing,
     if part['part_count'] > 1:
         metadata['uuid'] = str(uuid.uuid5(uuid.NAMESPACE_URL, str(value['metadata'].get('uuid', '')) + ':' + str(folder)))
     metadata['files'] = [dict(type='mcap', name='recovered.mcap')]
-    metadata['recording_format'] = (FORMAT if any(c['type'] == VIDEO_TYPE for c in channels_info.values()) else 'rosbag2-mcap')
+    metadata['recording_format'] = (FORMAT if any(c['type'] == VIDEO_TYPE for c in channels_info.values()) else ('umi-mcap-mjpeg-v1' if value['metadata'].get('recording_format') == 'umi-mcap-mjpeg-v1' else 'rosbag2-mcap'))
     metadata['interruption'] = report
     metadata['episode'] = dict(old_episode, start_time=start_ns/1e9, end_time=end_ns/1e9, success=False)
     segments = []

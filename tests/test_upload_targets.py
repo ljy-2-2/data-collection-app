@@ -127,7 +127,7 @@ def test_destination_switch_rejected_during_collection(tmp_path):
     t=targets(tmp_path)
     umi=SimpleNamespace(status=lambda:UmiStatus(state='recording'))
     app=create_app(MockController(),cors_origins=[],umi=umi,upload_targets=t,platform_login=t)
-    route=next(r.endpoint for r in app.routes if r.path=='/platform/destinations' and 'POST' in r.methods)
+    route=next(r.endpoint for r in app.routes if getattr(r,'path',None)=='/platform/destinations' and 'POST' in r.methods)
     with pytest.raises(HTTPException) as e:route(UploadTargetRequest(kind='local'),SimpleNamespace(headers={}))
     assert e.value.status_code==409 and t.selected=='cloud'
 

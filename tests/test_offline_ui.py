@@ -25,7 +25,9 @@ def test_service_ready_keeps_login_and_device_controls_locked(bridge, destinatio
     requests = []
     def request(path, **kwargs):
         requests.append(path)
-        if path == '/platform/destinations':
+        if path == '/subtask-configs':
+            kwargs['done']([])
+        elif path == '/platform/destinations':
             if destination_available:
                 kwargs['done']({'selected': 'cloud'})
             else:
@@ -35,7 +37,7 @@ def test_service_ready_keeps_login_and_device_controls_locked(bridge, destinatio
             kwargs['done']({})
     bridge.request = request
     bridge.serviceReady()
-    assert requests == ['/platform/destinations', '/platform/auth/preferences']
+    assert requests == ['/subtask-configs', '/platform/destinations', '/platform/auth/preferences']
     if destination_available:
         assert bridge.state['uploadTarget']['selected'] == 'cloud'
     assert not bridge.state['authenticated']

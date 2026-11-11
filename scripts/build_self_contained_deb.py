@@ -311,7 +311,8 @@ def main():
     (stage / "DEBIAN/control").write_text(
         f"Package: {APP}\nVersion: {args.version}\nSection: utils\nPriority: optional\nArchitecture: amd64\n"
         f"Maintainer: Xiaokai Lab <support@localhost>\nInstalled-Size: {size}\n"
-        "Depends: gnome-keyring, libpam-gnome-keyring, dbus-user-session\n"
+        # Password storage is optional; ordinary login works without Secret Service.
+        "Recommends: gnome-keyring, libpam-gnome-keyring, dbus-user-session\n"
         "Description: Xiaokai self-contained cloud data collection desktop\n"
         " Private Python, Qt, graphics libraries, device tools and collection daemon.\n")
     # A source deb may contain generated checksums that no longer describe this repack.

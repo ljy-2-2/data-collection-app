@@ -54,7 +54,8 @@ def finalize_episode(folder):
         return
     crf = meta.pop('_video_crf', DEFAULT_VIDEO_CRF)
     from .capture_recovery import validate_recorded_continuity
-    validate_recorded_continuity(folder)
+    if not (folder / 'media/video-manifest.json').is_file():
+        validate_recorded_continuity(folder)
     cleanup_interrupted_encodes(folder)
     # Compress every successful MP4 recording before upload, including large
     # recordings targeting a same-machine platform. Raw handoff would retain
@@ -64,12 +65,21 @@ def finalize_episode(folder):
     started = time.monotonic()
     manifest = convert_bundle(folder, crf=crf)
     converted = time.monotonic()
+    for key in ('raw_sha256', 'raw_compression'):
+        if key in meta:
+            meta['source_' + key] = meta.pop(key)
+    meta['video_compression'] = dict(codec='h264', crf=crf, lossy=True)
     meta.update(files=[{'type': 'mcap', 'name': 'media/signals.mcap'}],
                 recording_format='umi-mp4-v1', video_manifest='media/video-manifest.json')
     atomic_json(folder / 'meta.json', meta)
     # Every frame and timestamp has been validated before the original is
     # removed. Upload is gated on removal of the pending marker, below.
     cleanup_source(folder, manifest)
+    if manifest.get('source_format') != 'umi-mcap-h264-v1':
+        (folder / '.compressed-raw.json').unlink(missing_ok=True)
+    atomic_json(folder / 'raw-data-status.json', dict(
+        state='ready', message='MP4 视频与采集信号已保存本机',
+        video_manifest='media/video-manifest.json', recording_format='umi-mp4-v1'))
     (folder / 'recording-failure.json').unlink(missing_ok=True)
     normalize_tree_access(str(folder), *resolve_record_owner(str(folder)))
     pending.unlink()

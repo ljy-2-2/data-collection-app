@@ -79,7 +79,7 @@ def test_platform_login_failure_never_returns_offline_access(failure, expected_c
     login = Mock()
     login.login.side_effect = failure
     app = create_app(MockController(), cors_origins=[], platform_login=login)
-    endpoint = next(r.endpoint for r in app.routes if r.path == '/platform/auth/login')
+    endpoint = next(r.endpoint for r in app.routes if getattr(r, 'path', None) == '/platform/auth/login')
     with pytest.raises(HTTPException) as error:
         endpoint(SimpleNamespace(username='operator', password='wrong', remember_password=False,
                  auto_login=False, use_saved_password=False), SimpleNamespace(headers={}))
