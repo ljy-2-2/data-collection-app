@@ -63,7 +63,7 @@ class ModelPart(QObject):
 class RobotScene(QObject):
     cameraChanged=Signal()
     default_zoom=1.
-    default_yaw=math.pi
+    default_yaw=0.
     def __init__(self,root,parent=None,*,load_model=True,model_file="tianji-model.json"):
         super().__init__(parent)
         self.calibration=endpoints(root)
@@ -102,7 +102,7 @@ class RobotScene(QObject):
     def zoomValue(self):return self.zoom
     def update_camera(self):
         # At zero orbit angles, view from base -X toward +X with +Z up.
-        # Default yaw=pi views the front from +X toward -X.
+        # Tianji defaults to the operator view behind the robot.
         upright=np.array([[0,-1,0,0],[0,0,1,0],[-1,0,0,0],[0,0,0,1]])
         view=rotation((1,0,0),self.pitch)@upright@rotation((0,0,1),self.yaw)@transform((0,0,-.85))
         self.camera_matrix=np.linalg.inv(view)@transform((-self.pan_x,self.pan_y,4))
@@ -153,6 +153,7 @@ class RobotScene(QObject):
 class KuavoScene(RobotScene):
     """Official display meshes driven only by KUAVO measured joint radians."""
     default_zoom=.95
+    default_yaw=math.pi
     def __init__(self,root,parent=None):
         super().__init__(root,parent,model_file='kuavo-model.json')
 

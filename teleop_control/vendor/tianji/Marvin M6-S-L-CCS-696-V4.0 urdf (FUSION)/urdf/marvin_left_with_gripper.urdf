@@ -655,7 +655,7 @@
     <visual name="gL_53">
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../meshes/gripper/part_53.stl" />
+        <mesh filename="../meshes/gripper/motor_adapter.stl" />
       </geometry>
       <material name="gL_53_mat">
         <color rgba="0.72 0.75 0.8 1" />
@@ -664,7 +664,7 @@
     <collision name="gripper_collision_L_53">
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../meshes/gripper/part_53.stl" />
+        <mesh filename="../meshes/gripper/motor_adapter.stl" />
       </geometry>
     </collision>
     <inertial>
@@ -816,7 +816,7 @@
   <joint name="gripper_mount_L" type="fixed">
     <parent link="flange_L" />
     <child link="gripper_L" />
-    <origin xyz="0 0 0" rpy="0 0 -0.7853981633974483" />
+    <origin xyz="0 0 0" rpy="0 0 -1.570796326794897" />
   </joint>
   <!-- Nominal fixed TCP: intersection of motor axis with the plane containing both fixed jaw pivot axes; NOT physical calibration. xyz in metres; tool X=finger approach, Y=jaw opening, Z=right-handed normal. See description/grasp_center.txt. -->
   <link name="grasp_center_L" />

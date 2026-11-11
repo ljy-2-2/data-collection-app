@@ -1,11 +1,14 @@
 """Export fixed gripper frames from the active URDFs to the display artifact."""
 import json
+import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 
 def sync_frames(app_root):
     vendor = app_root/'teleop_control/vendor/tianji'
+    sys.path.insert(0, str(vendor/'teleop'))
+    from marvin_teleop.tool_frame import parse_tool_frame, resolve_urdf_tool
     config_path = vendor/'teleop/marvin_teleop/config.json'
     config = json.loads(config_path.read_text())
     model_path = app_root/'public/tianji-model.json'
@@ -27,6 +30,9 @@ def sync_frames(app_root):
             origin = node.find('origin')
             for field in ('xyz', 'rpy'):
                 joint[field] = [float(value) for value in origin.get(field, '0 0 0').split()]
+        # The startup consistency check also reads the exported TCP matrix.
+        tool, name = parse_tool_frame(resolve_urdf_tool(source, config_path.parent))
+        model['coordinate_mapping']['control_points'][side] = dict(name=name, flange_to_tcp=tool.tolist())
     model_path.write_text(json.dumps(model, separators=(',', ':'))+'\n')
 
 

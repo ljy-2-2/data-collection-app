@@ -4523,5 +4523,14 @@
       52
     ],
     "travel_basis": "CAD first pad contact + configured opening; display calibration, gear ratio not measured"
+  },
+  "flange_replacement": {
+    "source": "../../../description/flange/motor_adapter.SLDPRT",
+    "source_sha256": "8c896dce3d017ec42ca13ba689b99afe7cb810477b957ba2ac077dd9197664d5",
+    "mesh": "motor_adapter.stl",
+    "replaces": "part_53.stl",
+    "triangles": 4536,
+    "mount_yaw_rad": 3.141592653589793,
+    "note": "Original parts metadata retained as provenance; active flange is this replacement."
   }
 }
