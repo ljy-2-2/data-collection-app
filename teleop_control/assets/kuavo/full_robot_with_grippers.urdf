@@ -1575,7 +1575,7 @@
     <mimic joint="kuavo_tool_gripper_drive_L" multiplier="-0.47241285325705773" offset="0" />
   </joint>
   <joint name="kuavo_tool_grasp_center_fixed_L" type="fixed">
-    <origin xyz="0 0 0.142225549599" rpy="0 -1.57079632679 -0.785398163397" />
+    <origin xyz="0 0 0.142225549599" rpy="3.14159265359 -1.57079632679 -0.785398163397" />
     <parent link="kuavo_tool_gripper_L" />
     <child link="kuavo_tool_grasp_center_L" />
   </joint>
@@ -1613,7 +1613,7 @@
     <mimic joint="kuavo_tool_gripper_drive_R" multiplier="-0.39341326845333224" offset="0" />
   </joint>
   <joint name="kuavo_tool_grasp_center_fixed_R" type="fixed">
-    <origin xyz="0 0 0.142225549599" rpy="0 -1.57079632679 -0.785398163397" />
+    <origin xyz="0 0 0.142225549599" rpy="3.14159265359 -1.57079632679 -0.785398163397" />
     <parent link="kuavo_tool_gripper_R" />
     <child link="kuavo_tool_grasp_center_R" />
   </joint>

@@ -102,6 +102,9 @@ UMI 设备确认和采集监控页面的每路相机画面下方提供独立亮�
 - 「检查设备」仍可在遥操作和采集停止后释放旧预览，再请求一次控制器已校验的故障重连。正常相机热插拔允许重新枚举当前设备；控制器必须确认采集已清理、设备无占用、机器人实时任务和配置未改变。xHCI 错误、USB 复位失败及未知内核日志不按普通热插拔处理。重连不执行 USB 复位、SSH 或服务重启；只有真实新帧到达才显示视频正常，失败采集仍保留失败状态。
 - 「相机参数」确认后立即关闭弹窗，在后台一次提交所有修改：正常结束预览并等待冷却后，再连接控制器、读回及写入参数，最后只恢复一次预览。控制器串行处理 TLS 连接，预览未结束前禁止另开状态/设置查询，否则会握手超时。亮度仍使用硬件接口，只改亮度不提交分辨率；多路修改任一路失败会尝试回滚本批次已写入的参数，回滚失败明确报错，未知 USB 故障保留。应用期间不自动重连，取消和未修改确认不操作硬件。此流程修改仅需重启 App 加载，不需要更新控制器服务。
 - 遥操作 TCP 为每只夹爪两侧固定转轴所在平面与电机轴线的交点，沿法兰 +Z 方向距安装面中心约 142.226 mm；不随夹指开合变化。左右臂分别使用 URDF 的 `grasp_center_L/R`，控制与显示同步。该位置为 CAD 名义值，更新后须重启 App 加载。
+- 2026-11-12：左右手 TCP 的 +Y、+Z 同时反向（绕 TCP 自身 +X 旋转 180°）；原点与 +X 不变。两侧 `grasp_center_fixed_L/R` 均使用 `rpy=[π,-π/2,-π/4]`，夹爪安装与实体外观不变。通过 `查看TCP仿真.sh` 查看模型原点 O、TCP 原点 P 及各自的正方向箭头。
+- PICO 原生追踪输入采用 +X 右、+Y 上、+Z 后（前方为 −Z），位置单位米、四元数顺序 xyzw。当前 Unity 客户端直接发送 PXR 原生预测位姿，不能套用 Unity 场景的 +Z 前约定。头显水平基准与追踪基准对齐时，映射为机器人世界 `(X,Y,Z)=(-z,-x,y)`；其它朝向先按首次接管的头显水平朝向转换。手柄局部轴随手柄姿态旋转，不能把它与固定追踪轴或 TCP 轴等同。OpenXR 基准定义见 https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_REFERENCE_SPACE_TYPE_LOCAL.html 。此处核对的是代码与协议，未替代当前设备实测。
+- 遥操接管锚点、目标位姿、FK、IK 和记录使用同一 URDF TCP。仅重定义 TCP 朝向时，目标与工具同时右乘 `diag(1,-1,-1,1)`，逆解后实际法兰目标保持一致；不额外反转 PICO 的 Y/Z 输入。`tests/test_tianji_tcp_reframe.py` 覆盖左右手、两种头显朝向、六向平移及三轴正反旋转，并比较修正前后的关节指令。
 - 模型来自原 `dual_arm_with_grippers.urdf` 和 CAD 网格，包含底座、固定件、双臂和夹爪；支持旋转/缩放。机械臂显示反馈角度，无遥测时显示零点参考；没有夹爪反馈时开度仅示意。
 - 相机区域按控制器实际发现的已连接相机生成；`usb-1 / usb-2 / usb-4` 分别标注主相机、右腕部相机、左腕部相机，不改变身份。支持 `stream_camera_selection` 的服务按选中设备连续取流，缺少主相机时直接接收两路腕部视频，不逐帧重开 USB，也不串行等待 2 秒快照冷却。原生 MJPEG 配置为 1024×768、30 fps，实际帧率取决于相机与 USB 链路；Qt 在后台解码并只保留最新显示帧。旧服务保留明确标注的“逐路刷新”兼容模式。同步 Episode 格式仍要求三路完整，双路预览不会冒充三路录制。
 - 升级控制器连续视频接口：退出桌面软件，在本机终端运行 `python3 scripts/update_tianji_camera_stream.py`，SSH 密码只在终端输入。脚本核对服务源码哈希、原生文件、相机空闲状态，备份并编译受限 UVC 读取程序，仅更新并重启 `fusion-camera`，审计失败自动回滚。未知相机故障会阻止升级；USB 无首帧/丢包需要检查实际连接。服务保留快照失败详情，取流仍要求真实图像及正常审计收尾。
@@ -461,7 +464,7 @@ bash scripts/push_github.sh "本次修改说明"
 
 带法兰、夹爪的乐聚 URDF 为 `teleop_control/assets/kuavo/full_robot_with_grippers.urdf`，配套 OBJ 网格位于同目录的 `gripper_model_meshes/`，均随 App 保存，不依赖桌面原文件或 ROS 的外部模型包。构建显示模型或运行 `scripts/kuavo_visual_tools.py` 时同步更新 URDF 和网格。URDF 保留原双臂关节安装变换、轴和限位，增加法兰固定关节、夹爪驱动及 mimic 关节，当前安装角度与 App 一致。该文件用于可视化和运动学装配，未加入未经实测的夹爪质量、惯量或碰撞体；实机控制仍使用原 `full_robot.urdf`。标准 URDF 不保存当前关节位置，App 的半开夹爪显示值记录在 `visual-manifest.json` 的 `assembly_urdf.default_joint_positions` 中。
 
-乐聚装配 URDF 已加入 `kuavo_tool_grasp_center_L/R` 两个固定 TCP 坐标系，分别挂在左右 `kuavo_tool_gripper_L/R` 下。构建时直接读取天机 `marvin_left/right_with_gripper.urdf` 中的 `grasp_center_fixed_L/R` 定义：夹爪局部 `xyz=[0,0,0.142225549599]` m、`rpy=[0,-π/2,-π/4]` rad。该名义点为电机轴线与双侧夹指固定转轴平面的交点，不随夹指开合变化；它随乐聚法兰和夹爪实际配置的安装变换运动，不是实物标定结果，也未自动改变遥操作控制 TCP。来源及哈希记录在 `visual-manifest.json` 的 `assembly_urdf.tcp_frames` 中。
+乐聚装配 URDF 已加入 `kuavo_tool_grasp_center_L/R` 两个固定 TCP 坐标系，分别挂在左右 `kuavo_tool_gripper_L/R` 下。构建时直接读取天机 `marvin_left/right_with_gripper.urdf` 中的 `grasp_center_fixed_L/R` 定义：夹爪局部 `xyz=[0,0,0.142225549599]` m、`rpy=[π,-π/2,-π/4]` rad（随天机 2026-11-12 的 Y/Z 反向同步）。该名义点为电机轴线与双侧夹指固定转轴平面的交点，不随夹指开合变化；它随乐聚法兰和夹爪实际配置的安装变换运动，不是实物标定结果，也未自动改变遥操作控制 TCP。来源及哈希记录在 `visual-manifest.json` 的 `assembly_urdf.tcp_frames` 中。
 
 天机使用说明图片为 App 内 `public/tianji-usage-guide.png`，复制自桌面的“VR控制器按键操作指南.png”；智元沿用原遥操作说明，UMI 保留原说明，乐聚图片仍留空。共用说明浮层缩为原宽度约 2/3（Qt 上限 600 px，网页 480 px），保留图片比例并限制视口高度，增加标题分隔线、圆角边框、阴影及底部分隔线。
 

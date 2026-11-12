@@ -428,8 +428,10 @@ class Controller:
             model.reset_pose_tracking()
             a.stationary_hold = False
             a.stationary_hand = None
-        hand0, flange0 = a.anchor
-        target = relative_target(hand, hand0, flange0, a.basis, self.cfg["scale"])
+        # fk() and the target both use the URDF-selected TCP, including its
+        # orientation. Do not apply a second axis flip to native XR input.
+        hand0, tcp0 = a.anchor
+        target = relative_target(hand, hand0, tcp0, a.basis, self.cfg["scale"])
         a.target_clamped = False
         a.target_pose = target.copy()
         desired = model.pose_tracking_ik(
@@ -451,7 +453,7 @@ class Controller:
             joint_limit_reserve_deg=self.cfg["joint_limit_reserve_deg"],
             joint_limit_escape_speed_deg_s=self.cfg["joint_limit_escape_speed_deg_s"],
         )
-        actual_flange = model.fk(q[side])
+        actual_tcp = model.fk(q[side])
         a.ik_detail = f"连续局部逆解（{model.control_point_name}）"
         a.elbow_distance_deg = abs(float(q[side][3]) - model.elbow_singularity_deg)
         a.jacobian_sigma_min = getattr(model, "last_jacobian_sigma_min", None)
@@ -465,9 +467,9 @@ class Controller:
         a.shoulder_motion_weight = getattr(model, "last_shoulder_motion_weight", None)
         a.limit_assist = getattr(model, "last_limit_assist", False)
         a.joint_limit_margin_deg = getattr(model, "last_joint_limit_margin_deg", None)
-        position_error = np.linalg.norm(target[:3, 3] - actual_flange[:3, 3])
+        position_error = np.linalg.norm(target[:3, 3] - actual_tcp[:3, 3])
         a.position_error_m = float(position_error)
-        a.rotation_error_rad = angle(target[:3, :3] @ actual_flange[:3, :3].T)
+        a.rotation_error_rad = angle(target[:3, :3] @ actual_tcp[:3, :3].T)
         a.reason = (
             "本侧方向受伸直姿态或限位约束，可换方向小幅移动或松开重新定位"
             if position_error > 0.005 and np.max(np.abs(desired - a.commanded)) < 1e-5

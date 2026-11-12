@@ -56,6 +56,12 @@ def angle(r):
 
 
 def relative_target(hand, hand0, tcp0, basis, scale):
+    """Map spatial XR increments onto the current URDF TCP anchor.
+
+    A fixed TCP reframe D obeys target(tcp0 @ D) = target(tcp0) @ D
+    when D changes orientation only. IK removes the same reframed tool,
+    preserving physical flange motion; do not flip the XR axes again.
+    """
     out = tcp0.copy()
     out[:3, 3] += scale * basis @ (hand[:3, 3] - hand0[:3, 3])
     # Conjugation expresses the spatial rotation in the robot world basis.

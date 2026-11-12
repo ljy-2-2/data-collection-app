@@ -52,12 +52,27 @@ class URDFToolTests(unittest.TestCase):
             mount_yaw=-np.pi/2 if side=='left' else np.pi
             mount=next(joint for joint in cad['joints'] if joint['name']==f'gripper_mount_{letter}')
             self.assertAlmostEqual(mount['rpy'][2],mount_yaw)
-            expected=transform([0,0,0],[0,0,mount_yaw])@transform([0,0,.142225549599],[0,-np.pi/2,-np.pi/4])
+            expected=transform([0,0,0],[0,0,mount_yaw])@transform([0,0,.142225549599],[np.pi,-np.pi/2,-np.pi/4])
             np.testing.assert_allclose(T,expected,atol=1e-12)
             np.testing.assert_allclose(T[:3,3],[0,0,.142225549599],atol=1e-12)
             exported=cad['coordinate_mapping']['control_points'][side]
             self.assertEqual(exported['name'],name)
             np.testing.assert_allclose(exported['flange_to_tcp'],T,atol=1e-12)
+    def test_both_tcp_frames_reverse_y_z_without_moving_origin_or_x(self):
+        config_path=VENDOR/'teleop/marvin_teleop/config.json'
+        config=json.loads(config_path.read_text())
+        previous=transform([0,0,.142225549599],[0,-np.pi/2,-np.pi/4])
+        for side,letter in [('left','L'),('right','R')]:
+            with self.subTest(side=side):
+                tree=ET.parse(config_path.parent/config['tool_tcp'][side]['urdf'])
+                node=tree.find(f"joint[@name='grasp_center_fixed_{letter}']/origin")
+                current=transform(np.fromstring(node.get('xyz'),sep=' '),
+                                  np.fromstring(node.get('rpy'),sep=' '))
+                np.testing.assert_allclose(current[:3,3],previous[:3,3],atol=1e-12)
+                np.testing.assert_allclose(current[:3,0],previous[:3,0],atol=1e-12)
+                np.testing.assert_allclose(current[:3,1:3],-previous[:3,1:3],atol=1e-12)
+                np.testing.assert_allclose(np.cross(current[:3,0],current[:3,1]),current[:3,2],atol=1e-12)
+                self.assertAlmostEqual(np.linalg.det(current[:3,:3]),1.)
     def test_tcp_is_on_motor_axis_and_both_jaw_pivot_plane(self):
         config_path=VENDOR/'teleop/marvin_teleop/config.json'
         config=json.loads(config_path.read_text())

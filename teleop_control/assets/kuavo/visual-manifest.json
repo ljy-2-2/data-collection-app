@@ -244,7 +244,7 @@
   "display_triangles": 337141,
   "assembly_urdf": {
     "path": "teleop_control/assets/kuavo/full_robot_with_grippers.urdf",
-    "sha256": "ba780b08dcb4776118ca15a882927ac0f342493cf38d9bf535a1c5c6e61672f5",
+    "sha256": "0ad27fb315d655da9dd2f7c4028e51751daacb64a3335cc7ba04f5b134fce075",
     "purpose": "visual_and_kinematic_only",
     "meshes": {
       "mesh_000.obj": "817cce8ef1892dac0c362daf5b27a1eb0b3e57b33dfd2f7cef150f0524a423eb",
@@ -394,12 +394,12 @@
           0.142225549599
         ],
         "rpy_rad": [
-          0.0,
+          3.141592653589793,
           -1.5707963267948966,
           -0.7853981633974483
         ],
         "source": "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
-        "sha256": "aa5ab707a2d0c9360f3408c5fd9f7b091ec8a47a154d1e7c7158f4487f42cc23",
+        "sha256": "8ce7b324aadbe4db9c624b07d59dcad9d1e37748ffc201c8fae580723656c05c",
         "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
       },
       "right": {
@@ -411,12 +411,12 @@
           0.142225549599
         ],
         "rpy_rad": [
-          0.0,
+          3.141592653589793,
           -1.5707963267948966,
           -0.7853981633974483
         ],
         "source": "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf",
-        "sha256": "15fba6e22edd8537974002d9fc4b695a23dfd943dfb764e598e6fcad83d942c9",
+        "sha256": "d851a017d132dbcb842a0de48c28edb0514899bfcc3e8b9d930ba6bf3c54d221",
         "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
       }
     },
@@ -425,8 +425,8 @@
       "kuavo_tool_gripper_drive_R": 0.6460681315327688
     }
   },
-  "display_sha256": "7a66dd3823c2652bc50fcbdc6142a6f0c356ceffc09197e4802a7df895494858",
-  "display_bytes": 30279756,
+  "display_sha256": "9bd55e7914cb0b79b901cb744f968d6c9ec2d63c5cae2dfedc303bf0865708ba",
+  "display_bytes": 30279812,
   "tool_attachment": {
     "status": "provisional_holes_aligned",
     "tcp_frames": {
@@ -439,12 +439,12 @@
           0.142225549599
         ],
         "rpy_rad": [
-          0.0,
+          3.141592653589793,
           -1.5707963267948966,
           -0.7853981633974483
         ],
         "source": "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
-        "sha256": "aa5ab707a2d0c9360f3408c5fd9f7b091ec8a47a154d1e7c7158f4487f42cc23",
+        "sha256": "8ce7b324aadbe4db9c624b07d59dcad9d1e37748ffc201c8fae580723656c05c",
         "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
       },
       "right": {
@@ -456,18 +456,18 @@
           0.142225549599
         ],
         "rpy_rad": [
-          0.0,
+          3.141592653589793,
           -1.5707963267948966,
           -0.7853981633974483
         ],
         "source": "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf",
-        "sha256": "15fba6e22edd8537974002d9fc4b695a23dfd943dfb764e598e6fcad83d942c9",
+        "sha256": "d851a017d132dbcb842a0de48c28edb0514899bfcc3e8b9d930ba6bf3c54d221",
         "definition": "Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration."
       }
     },
     "config": "teleop_control/assets/kuavo/gripper_mounts.json",
     "config_sha256": "49b26e2de16d0c9add9e09e6b8de2863e334b83d015fb0815ed624331384c909",
-    "tianji_source_sha256": "e0d78efbb73105e7be2afa9807f1d5712bb5366969f37f2d9ec923399744288a",
+    "tianji_source_sha256": "83fcdfb1c8c6e06ca33c1adad4ff30d91049d9c000c1b051942eb0b369d9fd20",
     "flange_mesh_sha256": "989723f90f00c3f21b4562d0bba74a4d8f1ae48f317ea3420d08f921f503e876",
     "excluded_tianji_adapters": [
       "m54",

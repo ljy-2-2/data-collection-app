@@ -29,7 +29,7 @@ class TcpViewer(QObject):
         self.scene = RobotScene(ROOT)
         self.selection = 'left'
         self.opening = .65
-        self.yaw, self.pitch, self.zoom = -.65, .18, 1.
+        self.yaw, self.pitch, self.zoom = .15, .30, 1.
         self.revision_value = 0
         self.transforms = {}
         # Read actual control definitions; reject a stale display export.
@@ -108,17 +108,23 @@ class TcpViewer(QObject):
             if self.selection not in ('all', side): continue
             p = self.tcp_frames[side][:3, 3]
             result.append(dict(label=('左' if side == 'left' else '右') + ' P · 遥操作中心',
-                               position=QVector3D(*p.tolist()), color='#168cff'))
+                               position=QVector3D(*p.tolist()), color='#168cff', labelRight=True))
+            origin = self.transforms[f'gripper_{letter}'][:3, 3]
+            result.append(dict(label=('左' if side == 'left' else '右') + ' O · 夹爪模型原点 / 法兰中心',
+                               position=QVector3D(*origin.tolist()), color='#ffcc72', labelRight=False))
         return result
     @Property('QVariantList', notify=changed)
-    def axisLabels(self):
+    def axes(self):
         result = []
-        for side in ('left', 'right'):
+        for side, letter in [('left', 'L'), ('right', 'R')]:
             if self.selection not in ('all', side): continue
-            frame = self.tcp_frames[side]
-            for axis, color in enumerate(('#f06a6a', '#5cd28a', '#6eaaff')):
-                position = frame[:3, 3] + frame[:3, axis] * .04
-                result.append(dict(label='XYZ'[axis], color=color, position=QVector3D(*position.tolist())))
+            for name, frame in [('TCP', self.tcp_frames[side]),
+                                ('O', self.transforms[f'gripper_{letter}'])]:
+                for axis, color in enumerate(('#ff7373', '#5cde95', '#79b5ff')):
+                    position = frame[:3, 3] + frame[:3, axis] * .055
+                    result.append(dict(label=f'{name} +{"XYZ"[axis]}', frame=name, color=color,
+                                       origin=QVector3D(*frame[:3, 3].tolist()),
+                                       position=QVector3D(*position.tolist())))
         return result
     @Property(str, notify=changed)
     def controlDescription(self):
@@ -144,9 +150,6 @@ class TcpViewer(QObject):
                 axis = frame[:3, :3] @ np.asarray(j['axis'])
                 center = frame[:3, 3]
                 segments.append((center - axis * .036, center + axis * .036, '#40d3a3'))
-            frame = self.tcp_frames[side]
-            for axis, color in enumerate(('#f06a6a', '#5cd28a', '#6eaaff')):
-                segments.append((frame[:3, 3], frame[:3, 3] + frame[:3, axis] * .035, color))
             for a, b, color in segments:
                 vector = b-a
                 result.append(dict(position=QVector3D(*((a+b)/2).tolist()),
@@ -188,7 +191,7 @@ class TcpViewer(QObject):
     @Slot(float)
     def changeZoom(self, factor): self.zoom = max(.4, min(4., self.zoom*factor)); self.update()
     @Slot()
-    def reset(self): self.yaw, self.pitch, self.zoom = -.65, .18, 1.; self.update()
+    def reset(self): self.yaw, self.pitch, self.zoom = .15, .30, 1.; self.update()
 
 
 def main():
