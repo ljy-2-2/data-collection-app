@@ -9,6 +9,9 @@ Card {
     property bool live: false
     property bool locked: false
     property var s: backend.state
+    property var builtinPoses: root.tianji ? (s.builtinPoses || []) : []
+    property var availablePoses: builtinPoses.concat(s.poses)
+    property bool protectedPose: s.selectedPose === "zero" || builtinPoses.some(p=>p.id===s.selectedPose)
     width: parent.width
     height: body.height+heading.height+24
     Heading {id: heading;width: parent.width;height: 47;title: "手动控制"}
@@ -24,7 +27,7 @@ Card {
         Rectangle {width: parent.width;height: toolbar.height+14;radius: 10;color: Theme.muted;border.color: Theme.line
             Flow {id: toolbar;x: 9;y: 7;width: parent.width-18;spacing: 5
                 Txt {text: "姿态配置";height: 34;width: Math.max(65,parent.width-445);font.weight: Font.DemiBold}
-                Select {id: poses;objectName: "pose-selector";width: 210;model: {let p=s.poses.map(x=>({id:x.id,label:x.name}));if(root.tianji)p.unshift({id:"zero",label:"零点（默认）"});if(!p.length)p=[{id:"",label:"暂无配置"}];return p}
+                Select {id: poses;objectName: "pose-selector";width: 210;model: {let p=root.availablePoses.map(x=>({id:x.id,label:x.name}));if(root.tianji)p.unshift({id:"zero",label:"零点（默认）"});if(!p.length)p=[{id:"",label:"暂无配置"}];return p}
                     textRole: "label";valueRole: "id";currentIndex: Math.max(0,model.findIndex(p=>p.id===s.selectedPose));enabled: !root.locked || root.canRecover;onActivated: backend.setValue("selectedPose",model[currentIndex].id)}
                 Btn {
                     objectName: "restore-selected-pose"
@@ -37,7 +40,7 @@ Card {
                     onClicked: {if(stopMode)backend.teleop("stop");else {confirm.action="pose";confirm.open()}}
                 }
                 Btn {objectName: "save-current-pose";text: "保存当前姿态";enabled: !root.locked && (!root.tianji || root.live);onClicked: {poseName.text="";nameDialog.open()}}
-                Btn {objectName: "delete-selected-pose";text: "删除";ghost: true;danger: true;enabled: !root.locked && s.selectedPose!=="zero" && !!s.selectedPose;onClicked: {confirm.action="delete";confirm.open()}}
+                Btn {objectName: "delete-selected-pose";text: "删除";ghost: true;danger: true;enabled: !root.locked && !root.protectedPose && !!s.selectedPose;onClicked: {confirm.action="delete";confirm.open()}}
             }
         }
         GridLayout {width: parent.width;columns: app.width<620 ? 1 : root.tianji ? 2 : 3;columnSpacing: 9;rowSpacing: 9
@@ -102,7 +105,7 @@ Card {
         background: Rectangle {color: Theme.surface;radius: 12;border.color: Theme.line}
         Overlay.modal: Rectangle {color: "#52000000"}
         contentItem: ColumnLayout {spacing: 18
-            Txt {Layout.fillWidth: true;property string poseLabel: (s.poses.find(p=>p.id===s.selectedPose)||{}).name||"";text: confirm.action==="delete"?"删除姿态「"+poseLabel+"」？":root.tianji && s.selectedPose==="zero" ? "将清除已解除的故障并逐臂低速回零。请先释放硬件急停，确认整条回零路径无障碍物。" : "将机械臂移动到「"+poseLabel+"」，请确认运动范围内无人和障碍物。";wrapMode: Text.Wrap;elide: Text.ElideNone}
+            Txt {Layout.fillWidth: true;property string poseLabel: (root.availablePoses.find(p=>p.id===s.selectedPose)||{}).name||"";text: confirm.action==="delete"?"删除姿态「"+poseLabel+"」？":root.tianji && s.selectedPose==="zero" ? "将清除已解除的故障并逐臂低速回零。请先释放硬件急停，确认整条回零路径无障碍物。" : "将机械臂移动到「"+poseLabel+"」，请确认运动范围内无人和障碍物。";wrapMode: Text.Wrap;elide: Text.ElideNone}
             RowLayout {Layout.alignment: Qt.AlignRight
                 Btn {text: "取消";onClicked: confirm.close()}
                 Btn {objectName: "pose-confirm-accept";text: "确认";primary: true;onClicked: {if(confirm.action==="delete")backend.deletePose();else backend.restorePose();confirm.close()}}

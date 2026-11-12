@@ -86,6 +86,27 @@ class ManualControlsTest(unittest.TestCase):
         self.bridge.load_poses()
         self.assertFalse(self.bridge.state["poses"])
 
+    def test_builtin_work_pose_survives_missing_corrupt_and_spoofed_records(self):
+        expected = dict(left=[90,-90,-90,-105,135,0,0], right=[-90,-90,90,-105,-135,0,0])
+        preset = self.bridge.state['builtinPoses'][0]
+        self.assertEqual(preset['targets'], expected)
+        self.bridge.setValue('selectedPose', preset['id'])
+        self.bridge.deletePose()
+        self.assertFalse(self.bridge.pose_path().exists())
+        for content in ('invalid json', json.dumps([dict(id=preset['id'],name='override',targets=dict(left=[0]*7,right=[0]*7))])):
+            self.bridge.pose_path().write_text(content)
+            self.bridge.load_poses()
+            self.assertEqual(self.bridge.state['builtinPoses'][0]['targets'], expected)
+            self.assertEqual(self.bridge.state['poses'], [])
+            self.bridge.deletePose()
+            self.assertEqual(self.bridge.pose_path().read_text(), content)
+        self.bridge.restorePose()
+        self.assertEqual(self.calls[-1][2], dict(kind='pose', mode='dual', targets=expected))
+        self.bridge.savePose('自定义姿态')
+        self.assertEqual(len(json.loads(self.bridge.pose_path().read_text())), 1)
+        self.bridge.load_poses()
+        self.assertEqual(self.bridge.state['builtinPoses'][0]['targets'], expected)
+
     def test_pose_selector_confirmation_stop_and_responsive_layout(self):
         self.bridge.savePose("工作姿态")
         pose = self.bridge.state["poses"][0]
@@ -129,6 +150,18 @@ ApplicationWindow {
 
         try:
             QTest.qWait(150)
+            self.bridge.setValue('selectedPose', 'tianji-work')
+            QTest.qWait(100)
+            self.assertEqual(item('pose-selector').property('currentText'), '工作姿态（内置）')
+            self.assertFalse(item('delete-selected-pose').property('enabled'))
+            click('restore-selected-pose')
+            self.assertFalse(self.calls)
+            click('pose-confirm-accept')
+            self.assertEqual(self.calls[-1][2]['targets']['left'], [90,-90,-90,-105,135,0,0])
+            self.assertEqual(self.calls[-1][2]['targets']['right'], [-90,-90,90,-105,-135,0,0])
+            self.calls.clear()
+            self.bridge.setValue('selectedPose', pose['id'])
+            QTest.qWait(100)
             click("restore-selected-pose")
             self.assertFalse(self.calls, "Opening the confirmation must not move the robot")
             click("pose-confirm-accept")

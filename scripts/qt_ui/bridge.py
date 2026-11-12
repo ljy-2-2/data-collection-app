@@ -11,6 +11,7 @@ import uuid
 from urllib.parse import quote
 from .grippers import endpoints, closure, parameter_defaults
 from .umi_telemetry import UmiTelemetry
+from .poses import builtin_poses, protected_pose
 from teleop_control import camera_devices
 from collection_modes import ROBOT_NAMES, robot_keys
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, QSettings
@@ -59,7 +60,7 @@ def initial_state():
         preview=dict(available=False,joint_positions={},cameras=[]),
         umi=dict(state='idle',monitor={},log_tail=[],monitor_connected=False,recording=False),
         encoders={},encoderHistory=dict(left=[],right=[]),minima={},cameraRoles={},cameraLive={},
-        checkedProfile='', umiPedalMessage='', preferences={},uploadTarget={},storagePath='',poses=[],selectedPose='zero',theme='system')
+        checkedProfile='', umiPedalMessage='', preferences={},uploadTarget={},storagePath='',poses=[],builtinPoses=[],selectedPose='zero',theme='system')
 
 
 class Bridge(QObject):
@@ -787,14 +788,15 @@ class Bridge(QObject):
         valid=[]
         for pose in values if isinstance(values,list) else []:
             if not isinstance(pose,dict) or not isinstance(pose.get('id'),str) or not isinstance(pose.get('name'),str):continue
-            if pose['id']=='zero':continue
+            if protected_pose(self._state['robot'], pose['id']):continue
             targets=pose.get('targets',{})
             vectors=[targets.get(side,[]) for side in ('left','right')] if self._state['robot']=='tianji' else [list(targets.values())]
             if self._state['robot']=='tianji' and any(len(v)!=7 for v in vectors):continue
             if all(isinstance(x,(int,float)) and math.isfinite(x) for v in vectors for x in v):valid.append(pose)
-        self.update(poses=valid)
+        self.update(poses=valid, builtinPoses=builtin_poses(self._state['robot']))
 
     def persist_poses(self,poses):
+        poses=[p for p in poses if not protected_pose(self._state['robot'],p['id'])]
         path=self.pose_path();temp=path.with_suffix('.tmp')
         try:
             temp.write_text(json.dumps(poses,ensure_ascii=False));temp.replace(path)
@@ -816,7 +818,7 @@ class Bridge(QObject):
     @Slot()
     def deletePose(self):
         selected=self._state['selectedPose']
-        if selected=='zero':return
+        if protected_pose(self._state['robot'],selected):return
         if self.persist_poses([p for p in self._state['poses'] if p['id']!=selected]):
             self.update(selectedPose='zero' if self._state['robot']=='tianji' else '')
 
@@ -826,7 +828,7 @@ class Bridge(QObject):
             if self.can_recover_zero():self.action('move','/tianji/move',dict(kind='zero',mode='dual'))
             return
         if not self.can_move():return
-        s=self._state;pose=next((p for p in s['poses'] if p['id']==s['selectedPose']),None)
+        s=self._state;pose=next((p for p in [*builtin_poses(s['robot']),*s['poses']] if p['id']==s['selectedPose']),None)
         if s['robot']=='tianji':
             if s['selectedPose']=='zero':self.action('move','/tianji/move',dict(kind='zero',mode='dual'))
             elif pose:self.action('move','/tianji/move',dict(kind='pose',mode='dual',targets=pose['targets']))
