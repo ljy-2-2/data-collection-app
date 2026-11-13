@@ -94,6 +94,12 @@ def main() -> None:
             shutil.copytree(ROOT / name, app / name, ignore=ignore_private, symlinks=True)
         for name in ("start-app.sh", "package.json", ".env.example"):
             shutil.copy2(ROOT / name, app / name)
+        source_hashes = {
+            str(path.relative_to(app)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(app.rglob("*")) if path.is_file()
+        }
+        (package / "source-sha256.json").write_text(
+            json.dumps(source_hashes, ensure_ascii=False, indent=2) + "\n")
         # RK3588 binaries are not executable on an amd64 recipient.
         core = app / "umi_collection/vendor/galaxis/galaxis-core/galaxis-core/galaxis_core"
         shutil.rmtree(core / "native", ignore_errors=True)
@@ -107,6 +113,12 @@ def main() -> None:
         payload = yaml.safe_load(compose.read_text())
         payload["services"]["config-init"]["network_mode"] = "none"
         compose.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False))
+        app_hashes = {
+            str(path.relative_to(app)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(app.rglob("*")) if path.is_file()
+        }
+        (package / "app-sha256.json").write_text(
+            json.dumps(app_hashes, ensure_ascii=False, indent=2) + "\n")
         print(f"Copying verified private runtime ({count} amd64 ELF files)", flush=True)
         shutil.copytree(base / "runtime", package / "runtime", symlinks=True,
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))

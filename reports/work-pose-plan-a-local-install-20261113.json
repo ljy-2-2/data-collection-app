@@ -1,0 +1,35 @@
+{
+  "update_id": "tianji-work-pose-plan-a-20261113",
+  "package": "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261112.local.d4ffb974",
+  "workspace": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261112.local.d4ffb974",
+  "files": [
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261112.local.d4ffb974/app/scripts/qt_ui/poses.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261112.local.d4ffb974/scripts/qt_ui/poses.py",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261112.local.d4ffb974/app-sha256.json",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261112.local.d4ffb974/source-sha256.json",
+    "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261112.local.d4ffb974/package-build.json"
+  ],
+  "targets": {
+    "left": [
+      90,
+      -90,
+      -90,
+      -130,
+      108.881721,
+      -41.641143,
+      -62.763687
+    ],
+    "right": [
+      -90,
+      -90,
+      90,
+      -130,
+      -108.881721,
+      -41.641143,
+      62.763687
+    ]
+  },
+  "status": "installed",
+  "backup": "/home/ljy/.local/share/xiaokai-lab-data-collection/updates/before-tianji-work-pose-plan-a-20261113-20261113T100231952310Z",
+  "pose_sha256": "2e300cf63a6efe928e728e3d1ffb778d0ba6f623a794fc218519f0ad15351127"
+}

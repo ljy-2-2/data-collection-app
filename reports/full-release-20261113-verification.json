@@ -1,0 +1,29 @@
+{
+  "build_id": "0.1.0+20261113.full.amd64.standalone",
+  "source_files_verified": 1743,
+  "app_files_verified": 1743,
+  "umi_image_id": "sha256:0b3c94ebcb2c2d91c3b04b26236b97786258bdca3ff35382ca67561a981d909a",
+  "hand_xacro_sha256": "0d341871321bba95cd52e51710eb3ad9c50c09219f4fa042ddb758d5a40dbb04",
+  "replay_hand_matches": true,
+  "work_pose_targets": {
+    "left": [
+      90,
+      -90,
+      -90,
+      -130,
+      108.881721,
+      -41.641143,
+      -62.763687
+    ],
+    "right": [
+      -90,
+      -90,
+      90,
+      -130,
+      -108.881721,
+      -41.641143,
+      62.763687
+    ]
+  },
+  "status": "verified"
+}

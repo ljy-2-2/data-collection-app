@@ -87,7 +87,8 @@ class ManualControlsTest(unittest.TestCase):
         self.assertFalse(self.bridge.state["poses"])
 
     def test_builtin_work_pose_survives_missing_corrupt_and_spoofed_records(self):
-        expected = dict(left=[90,-90,-90,-105,135,0,0], right=[-90,-90,90,-105,-135,0,0])
+        expected = dict(left=[90,-90,-90,-130,108.881721,-41.641143,-62.763687],
+                        right=[-90,-90,90,-130,-108.881721,-41.641143,62.763687])
         preset = self.bridge.state['builtinPoses'][0]
         self.assertEqual(preset['targets'], expected)
         self.bridge.setValue('selectedPose', preset['id'])
@@ -157,8 +158,8 @@ ApplicationWindow {
             click('restore-selected-pose')
             self.assertFalse(self.calls)
             click('pose-confirm-accept')
-            self.assertEqual(self.calls[-1][2]['targets']['left'], [90,-90,-90,-105,135,0,0])
-            self.assertEqual(self.calls[-1][2]['targets']['right'], [-90,-90,90,-105,-135,0,0])
+            self.assertEqual(self.calls[-1][2]['targets']['left'], [90,-90,-90,-130,108.881721,-41.641143,-62.763687])
+            self.assertEqual(self.calls[-1][2]['targets']['right'], [-90,-90,90,-130,-108.881721,-41.641143,62.763687])
             self.calls.clear()
             self.bridge.setValue('selectedPose', pose['id'])
             QTest.qWait(100)

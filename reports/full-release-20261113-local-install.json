@@ -1,0 +1,30 @@
+{
+  "build_id": "0.1.0+20261113.full.amd64.standalone",
+  "package": "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261113.full.amd64.standalone",
+  "workspace": "/home/ljy/.local/share/xiaokai-lab-data-collection/workspaces/0.1.0+20261113.full.amd64.standalone",
+  "previous_package": "/home/ljy/.local/share/xiaokai-lab-data-collection/versions/0.1.0+20261112.local.d4ffb974",
+  "launcher": "/home/ljy/.local/bin/xiaokai-lab-data-collection",
+  "backup": "/home/ljy/.local/share/xiaokai-lab-data-collection/updates/before-0.1.0+20261113.full.amd64.standalone-20261113T101524026381Z",
+  "application_files": 1743,
+  "preserved_state_sha256": {
+    "teleop_control/runtime/tianji/sdk.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "teleop_control/runtime/tianji/parameters.json": "9711c595c6bdccf9b5138d26f6264da04d8f6ef5adde6c5359701f42136e5951",
+    "teleop_control/runtime/tianji/save-queue/config.json": "67a8c89d4b67034d031b1c8aa4348a0315e18e4a12172e2ae2f143f230634b77",
+    "teleop_control/runtime/tianji/save-queue/status.json": "7e36fb498203a9475a7bbd858c800d5b72d9178f1d0bed17cdd520e4b9bc1379",
+    "teleop_control/runtime/tianji/save-queue/worker.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "teleop_control/runtime/tianji/save-queue/worker.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "teleop_control/vendor/tianji/teleop/logs/roboticsservice.log": "3f9860c274fe7186883d7b21ce87cd1ad93d6de25b06643177e484c410ad7bef"
+  },
+  "config_unchanged": true,
+  "status": "installed_and_verified",
+  "installed_files_verified": 1743,
+  "workspace_files_verified": 1743,
+  "old_empty_save_service": "xiaokai-tianji-save-1ef66fc4957e.service (backed up and disabled)",
+  "isolated_install_ui_shutdown_smoke": "passed (Ubuntu 22.04)",
+  "desktop_ui_smoke": "passed: login, Tianji/G2, poses, UMI, camera/encoder mock flows, themes, resizing; 125 CAD visuals",
+  "targeted_tests": {
+    "passed": 106,
+    "skipped": 1,
+    "note": "Xacro test dependency unavailable in host test environment; current hand Xacro separately expanded successfully in new UMI image."
+  }
+}
