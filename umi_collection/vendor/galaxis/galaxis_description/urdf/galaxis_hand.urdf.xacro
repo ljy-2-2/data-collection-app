@@ -1,34 +1,47 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="galaxis_hands">
   <!-- Collection-only kinematics: metres/radians, X forward, Y left, Z up.
-       Gear-axis spacing is measured as 33 mm; other values await calibration.
-       See docs/galaxis_hand_mirror_analysis_zh.md for calibration instructions.
+       Mechanical reference: 总设计（共享）/手持组装.SLDASM, configuration Défaut.
+       Gear spacing, camera geometry and camera mounting transform are read from
+       this saved original assembly, not the later Windows camera design.
+       See the vendor/galaxis docs:
+       galaxis_hand_mirror_analysis_zh.md and galaxis_hand_cad_measurements.json.
        Visual/collision geometry is omitted; all recorded TF frames are retained. -->
-  <!-- Half the measured 33 mm axis spacing. Root lies midway between axes
-       on a chosen common Z=0 datum plane; the physical datum must be recorded. -->
+  <!-- Half the CAD-measured 33 mm axis spacing. Root is midway between axes
+       at the thickness mid-plane of the 7 mm gears; +Z points to the upper case. -->
   <xacro:property name="finger_offset_y" value="0.0165"/>
-  <!-- Right finger contact point relative to its axis at q=0 (signed Y). -->
+  <!-- UNCALIBRATED nominal right-finger contact point at encoder q=0 (signed Y).
+       Retained: CAD does not identify this contact landmark or encoder zero.
+       Do not use the unequal saved CAD finger angles as closed-zero offsets. -->
   <xacro:property name="finger_tip_offset_x" value="0.09145"/>
   <xacro:property name="finger_tip_offset_y" value="0.0"/>
   <xacro:property name="finger_tip_offset_z" value="0.0"/>
 
-  <!-- Identical root -> camera transform on both hands; no camera mirroring. -->
-  <xacro:property name="camera_x" value="0.02182"/>
+  <!-- Original saved CAD lens-front centre at camera-local (0,0,25.5) mm,
+       a mechanical reference, not a calibrated
+       optical centre. Camera link uses +X forward, +Y left, +Z up (not optical
+       +Z forward). Positive pitch tips +X down. The centred, unrolled camera
+       is invariant under the hands' XZ reflection: both poses are identical. -->
+  <xacro:property name="camera_x" value="0.027181633778"/>
   <xacro:property name="camera_y" value="0.0"/>
-  <xacro:property name="camera_z" value="0.06"/>
+  <xacro:property name="camera_z" value="0.061854719162"/>
   <xacro:property name="camera_roll" value="0.0"/>
-  <xacro:property name="camera_pitch" value="0.0"/>
+  <xacro:property name="camera_pitch" value="0.6981317007977318"/>
   <xacro:property name="camera_yaw" value="0.0"/>
-  <!-- Right-hand root -> PICO tracking reference, NOT the controller shell.
+  <!-- User-designated PICO centre: H33 Quest reference transferred by rigid
+       grip alignment (bottom datum, fitted grip axis and section direction;
+       no scaling). See pico_center_reference in galaxis_hand_cad_measurements.json.
+       This replaces the H18.2 trigger-rim origin; +X retains the previous
+       Aim direction, forward and UP 45 degrees, rather than Quest orientation.
        Edit only this right-hand reference; the left mount mirrors it across XZ:
        xyz=(x,-y,z), rpy=(-roll,pitch,-yaw). Both frames remain right-handed.
-       Forward-facing convention: PICO tracking axes aligned with hand_root.
-       Verify tracking-frame alignment against the physical controller. -->
-  <xacro:property name="mount_x" value="-0.07"/>
-  <xacro:property name="mount_y" value="-0.0309"/>
-  <xacro:property name="mount_z" value="0.0525"/>
+       A ray does not determine roll: retain roll=0, with +Y pointing hand-left.
+       SDK-reference equivalence is user-specified, not independently calibrated. -->
+  <xacro:property name="mount_x" value="-0.05734"/>
+  <xacro:property name="mount_y" value="-0.0285"/>
+  <xacro:property name="mount_z" value="0.06362"/>
   <xacro:property name="mount_roll" value="0.0"/>
-  <xacro:property name="mount_pitch" value="-0.7854"/>
+  <xacro:property name="mount_pitch" value="-0.7853981633974483"/>
   <xacro:property name="mount_yaw" value="0.0"/>
 
   <!-- JointState q is the SINGLE finger angle in radians. The full opening

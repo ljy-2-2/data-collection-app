@@ -27,6 +27,8 @@ test_data/
 *.h5
 *.csv
 *.json
+# Versioned CAD measurement evidence used by the hand-kinematics tests.
+!docs/galaxis_hand_cad_measurements.json
 
 # IDE settings
 .idea/

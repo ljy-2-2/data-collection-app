@@ -1,158 +1,113 @@
-# Galaxis 夹爪左右镜像与主动轴分析
+## 当前 Pico 中心更新（H33，2026-11-13）
 
-分析对象：[`galaxis_hand.urdf.xacro`](../galaxis_description/urdf/galaxis_hand.urdf.xacro)。本文只根据该 Xacro 与它引用的 STL 网格判断，未假设真实硬件装配方向与 URDF 一定完全一致。
+按用户确认，将 Quest 与 Pico 的握柄底端、握持段轴线和截面方向刚性对齐，不缩放；把 YUBI Quest 参考点映射为 Pico 中心。当前右手相对 hand_root 的位置为 **(-57.343691324, -28.548886962, 63.620999191) mm**，左手仅镜像 Y。URDF 的 mount_x/y/z 使用米；RPY 保持 **(0, -45°, 0)**，沿用原 Aim 方向，不采用 Quest 的方向。
 
-![左右夹爪、主动轴与手柄安装示意](images/galaxis_hand_mirror_diagram.svg)
+此位置取代下文历史记录中的扳机边框射线起点。历史 `pico_ray_reference` 保留作为方向依据；新点的构造记录在测量 JSON 的 `pico_center_reference`，它是用户定义的几何对应点，未经 SDK 实物标定。本次更新本地源码，没有部署到采集电脑。
 
-## 结论先说
+# 手持夹爪：原版 CAD 对照与左右镜像
 
-1. **单只夹爪内部，两根手指是镜像开合的；但只有局部 `right_finger_joint` 是主动关节。** `left_finger_joint` 是它的 mimic 从动关节，角度永远取反。
-2. **左右两只夹爪的局部运动学定义完全一样，并没有为左手把主动关节改成 `left_finger_joint`。** 所以“右手的主动轴在右边”时，左手仍由名为 `left_right_finger_joint` 的那根局部 right finger 驱动。
-3. **左右 controller 相对各自夹爪 root 的安装是镜像的。** 它们的相对 `y` 坐标相反，yaw 也一正一负。
-4. **但该文件并未固定两只夹爪在 `pico_origin` 中的全局位姿。** `pico_origin_to_left/right` 都是 `floating` joint，实际左右手的全局位置和朝向由运行时状态提供，不能仅凭本 Xacro 算出左右主动轴的绝对世界坐标。
+2026-11-13 更新。对应 [galaxis_hand.urdf.xacro](../galaxis_description/urdf/galaxis_hand.urdf.xacro)。本次按用户确认，采用 `总设计（共享）/手持组装.SLDASM` 的原版装配，**不采用后续低头 15° 的相机杆版本**。
 
-这里最容易混淆的是“右边”有两种含义：
+## 本次原版数据更新
 
-- **夹爪局部右侧**：每个 `*_hand_root` 自己的坐标系里，`right_finger_joint` 位于 `y=-20 mm`；
-- **手柄相对夹爪的左右**：`left_mount_joint` / `right_mount_joint` 将 controller 以镜像姿态挂到各自的 `hand_root`。
+仅从原版保存的装配变换和原版镜头取点 `(0,0,25.5)` mm 更新 Xacro 参数精度；未替换原版 CAD 文件，未采用新相机的 23 mm 取点，未使用 Windows 改版装配。
 
-因此，左手不是“把驱动轴换到局部左指”；而是“同样驱动局部右指，并使用一套单独导出的左手网格”。至于整只手在世界坐标里的姿态，需要查看运行时发布的 floating joint 位姿。
-
-## 1. Xacro 实际生成了什么
-
-文件只定义了一个宏：
-
-```xml
-<xacro:macro name="galaxis_hand" params="hand_prefix">
-  ...
-</xacro:macro>
-```
-
-随后用不同前缀调用两次：
-
-```xml
-<xacro:galaxis_hand hand_prefix="right"/>
-<xacro:galaxis_hand hand_prefix="left"/>
-```
-
-所以生成的结构对应如下：
-
-| 右手实例 | 左手实例 | 角色 |
+| 参数 | 修改前（m / rad） | 修改后（m / rad） |
 | --- | --- | --- |
-| `right_hand_root` | `left_hand_root` | 各自夹爪根坐标系 |
-| `right_right_finger_joint` | `left_right_finger_joint` | **主动关节** |
-| `right_left_finger_joint` | `left_left_finger_joint` | mimic 从动关节 |
-| `right_hand_cam_link` | `left_hand_cam_link` | 手部相机安装 link |
+| `camera_x` | 0.02718 | 0.027181633778 |
+| `camera_z` | 0.06185 | 0.061854719162 |
+| `camera_pitch` | 0.698 | 0.6981317007977318（低头40°） |
 
-名字中的 `left/right` 需按层次读：第一个是“哪只手”，第二个是“该手局部哪根手指”。例如 `left_right_finger_joint` 的意思是“左手的局部右指关节”，不是右手的关节。
+`camera_y`、roll、yaw、Pico 安装参数、轴距、指尖参数及关节关系均保留。下面记录此前已经核对的原版基准，不能将历史修改表视为本次新增修改。
 
-## 2. 单只夹爪：主动轴在哪边、另一指如何跟随
+## 原版基准（此前核对结果）
 
-### 主动指
+单位：位置 mm，角度 °；Xacro 内仍使用 m、rad。
 
-宏中主动关节为：
+| 项目 | 修改前 | 修改后 | 依据 |
+| --- | --- | --- | --- |
+| 相机 X | 21.82 | 27.181634 | 原版装配中镜头前端中心 |
+| 相机 Y | 0 | 0（不变） | 位于夹爪中心平面 |
+| 相机 Z | 60 | 61.854719 | 相对齿轮厚度中面 |
+| 相机俯仰 | 0 | +40（低头） | 镜头轴与夹爪前向的夹角 |
+| 相机 roll / yaw | 0 / 0 | 0 / 0（不变） | 无侧倾、无偏航 |
+| 根原点说明 | 未指定的共同 Z=0 平面 | 两齿轮轴连线中点、7 mm 齿轮厚度中面 | CAD 齿轮轴和厚度 |
+| 两轴中心距 | 33 | 33（核对通过） | 两个齿轮实例轴线 |
+| 右手 Pico X | -70 | -38.315113 | 用户指定扳机椭圆侧边射线起点 |
+| 右手 Pico Y | -30.9 | -19.177571 | 同上；左手取反 |
+| 右手 Pico Z | 52.5 | 80.555974 | 同上 |
+| Pico 俯仰 | -0.7854 rad | -π/4 rad（向上 45°） | 原射线随控制器转换到原版装配 |
 
-```xml
-<joint name="${hand_prefix}_right_finger_joint" type="revolute">
-  <origin xyz="0 -0.020 0" rpy="0 0 0"/>
-  <axis xyz="0 0 -1"/>
-  <limit lower="0.00" upper="0.66" .../>
-</joint>
-```
+补充了测量来源、坐标约定及未标定项说明。关节名称、link 名称、主动/从动关系、Pico 数据接收与坐标转换代码、编码器配置均未改动。Pico 静态安装外参已按用户指定射线更新，因此运行时由跟踪位姿推算的手根位置也会随之改变。未增加外观网格或碰撞体。此次仅更新源码，没有部署到采集电脑，也没有修改 Windows CAD 文件。
 
-也就是说，以 `hand_root` 为参考：
+## 根坐标与相机取点
 
-- 枢轴位置是 **`(x=0, y=-20 mm, z=0)`**；
-- 关节轴是局部 **`-Z`**；
-- `q_right` 的有效范围为 **0 到 0.66 rad**；
-- 注释直接写明它“由 encoder 直接驱动”。
+`hand_root`：+X 朝夹取前方，+Y 朝左，+Z 朝上壳体。根原点位于两齿轮轴中间，并处于齿轮厚度中面。关节轴心分别为 `(0, ±16.5, 0)` mm。
 
-### 从动指
+测量读取 SolidWorks 文件内部保存的 `COMPINSTANCETREE` 实例变换和 `FaceTessellations` 网格缓存；块长度及 CRC 经校验。没有重新求解装配约束。源文件 SHA256、原始变换、局部包围盒及推导基准保存在 [测量记录](galaxis_hand_cad_measurements.json)。
 
-另一根手指位于相反一侧：
+原版两个齿轮在各自零件坐标中的轴向都是 +X，厚度为 7 mm，故局部中心取 `(3.5, 0, 0)` mm。将它们变换到装配坐标后取中点，以轴连线构造左右方向，再与齿轮轴向构造夹爪前向。
 
-```xml
-<joint name="${hand_prefix}_left_finger_joint" type="revolute">
-  <origin xyz="0 0.020 0" rpy="0 0 0"/>
-  <axis xyz="0 0 -1"/>
-  <limit lower="-0.66" upper="0.00" .../>
-  <mimic joint="${hand_prefix}_right_finger_joint" multiplier="-1" offset="0"/>
-</joint>
-```
-
-因此精确关系为：
+相机零件的局部镜头轴为 +Z，镜头最前端为 Z=25.5 mm；取该端面中心 `(0, 0, 25.5)` mm，经装配坐标转换到 `hand_root`：
 
 ```text
-q_left_finger = − q_right_finger
+位置 = (27.181633778, 0, 61.854719162) mm
+前向 = (0.766044443119, 0, -0.642787609687)
+RPY  = (0, 40°, 0)
 ```
 
-当主动指从 `0` 转到 `+0.66 rad`，从动指从 `0` 转到 `-0.66 rad`。两关节都声明为 `axis=(0,0,-1)`，但由于一根在 `y=-20 mm`、另一根在 `y=+20 mm`，再叠加负的 mimic multiplier，夹爪表现为对称开合。
+`*_hand_cam_link` 继续采用机身坐标约定：+X 向前、+Y 向左、+Z 向上，**不是 +Z 向前的图像 optical frame**。这里的原点是 CAD 镜头前端中心，是机械参考值；真实成像投影中心通常位于镜头内部，仍需相机外参标定。
 
-## 3. 左手的主动轴究竟在哪里
+## 左右手镜像
 
-从此 Xacro 可确定局部位置；不能确定世界坐标位置。
+这份装配中完整夹爪机构使用右手上壳体。旁边还保存有独立摆放的左右 Controller 等零件，不能把这些游离零件的位置当作第二只完整夹爪或 Pico 跟踪原点。按照用户要求，由右手机构在各自根坐标下构造左手镜像。
 
-### 3.1 在左手自己的 `left_hand_root` 坐标系中
-
-**和右手一模一样**：主动关节仍是 `left_right_finger_joint`，位于局部 `(0,-20 mm,0)`。左手的 `left_left_finger_joint` 位于 `(0,+20 mm,0)`，并从动。
-
-因此，若你把左手单独拿出来、严格沿它自己的 `+x/+y/+z` 看，主动轴仍在其局部 “right finger” 一边；Xacro 没有为左手交换主动/从动角色。
-
-### 3.2 在 `pico_origin` / 世界坐标中：本文件无法确定
-
-文件中把两只 root 都通过 floating joint 挂到 `pico_origin`：
-
-```xml
-<joint name="pico_origin_to_left" type="floating">  ... <child link="left_hand_root"/>  </joint>
-<joint name="pico_origin_to_right" type="floating"> ... <child link="right_hand_root"/> </joint>
-```
-
-`floating` joint 有 6 个自由度。XML 里的零 origin 只是初始定义，并不把手固定在某个世界位置；运行时必须由 TF/robot state 发布这两个 joint 的平移和旋转。因此：
-
-- 可确定：左手主动轴相对 `left_hand_root` 位于 `(0,-20 mm,0)`，轴向为局部 `-Z`；
-- 不可确定：左手主动轴在 `pico_origin` 或 RViz 世界坐标中究竟在 `+Y`、`-Y`、内侧还是外侧；
-- 若要验证真实装配，需要查看运行时 `/tf` 或 `/joint_states`，或者查提供这两个 floating joint pose 的上游程序。
-
-## 4. 手柄/控制器的放置是否一样
-
-是的，`pico_right_controller` 和 `pico_left_controller` 正是分别作为两只夹爪 root 的子 link 安装；它们的安装变换就是 `right_mount_joint` 与 `left_mount_joint`。注意方向是 **`hand_root → controller`**，不是 `pico_origin → hand_root`。
-
-从代码看：
-
-```xml
-right_mount_joint: xyz=(-0.063, -0.0305, 0.0525), rpy=(0,-45°,-45°)
-left_mount_joint:  xyz=(-0.063, +0.0305, 0.0525), rpy=(0,-45°,+45°)
-```
-
-因此它们相对各自 hand root 的放置具有：
-
-- 相同的前后距离 `x=-63 mm`；
-- 相同的高度 `z=52.5 mm`；
-- 左右相反的横向位置 `y=±30.5 mm`；
-- 相同的俯仰 `pitch=-45°`；
-- 左右相反的偏航 `yaw=∓45°`。
-
-这是一套标准的左右镜像放置，而非两个手柄使用完全相同、不翻转的姿态。它不能单独说明左右 hand root 本身在世界里的相对姿态。
-
-## 5. 网格文件给出的补充证据
-
-宏虽然复用，但视觉/碰撞网格按手和手指分别引用：
+对于位置和姿态，XZ 平面镜像关系为：
 
 ```text
-hand_right_right_finger_link.STL   hand_right_left_finger_link.STL
-hand_left_right_finger_link.STL    hand_left_left_finger_link.STL
+S = diag(1, -1, 1)
+p_left = S p_right
+R_left = S R_right S
 ```
 
-这说明 CAD 网格本身存在左右手版本，不能把“宏相同”误读为两只夹爪使用同一个、未经镜像的 STL。四个网格的三角面数与包围盒也不完全相同，进一步表明它们是独立导出的左右件，而不是同一文件的重复引用。
+这样两个坐标系都保持右手系；不能只对旋转矩阵左乘一次 S。相应 RPY 镜像为 `(-roll, pitch, -yaw)`。
 
-## 6. 最终判断与控制建议
+| 设备 | 主动关节 | 主动轴 | 从动关节 | 从动角度 |
+| --- | --- | --- | --- | --- |
+| 右手 | `right_right_finger_joint` | -Z | `right_left_finger_joint` | -q |
+| 左手 | `left_left_finger_joint` | +Z | `left_right_finger_joint` | -q |
 
-| 问题 | 判断 |
-| --- | --- |
-| 单只夹爪两指是否镜像？ | 是。枢轴 `y=±20 mm`，从动角度等于主动角度的相反数。 |
-| 左右两只夹爪是否在系统中镜像？ | **仅凭该文件无法断言。** 两个 `hand_root` 是 floating；可确认的是 controller 相对各自 root 镜像。 |
-| 左手是否把主动关节换到了 `left_left_finger_joint`？ | **否。** 左手主动关节仍是 `left_right_finger_joint`。 |
-| 左手主动轴在系统全局里在哪一侧？ | 该 Xacro 无法确定；需要运行时 floating joint 的 TF pose。 |
-| 控制时应单独给两个手指发相反命令吗？ | 通常不应。只驱动每只手的 `*_right_finger_joint`；另一指由 URDF mimic 自动关联。具体硬件控制器是否也实现该耦合，仍需核对驱动层。 |
+主动 q 是**单指角度**，q 增大时张开；全开口角为 2q，不可将全开口角直接输入单指关节。仍采用 continuous joint，不在此运动学文件中推断硬件限位。
 
-最后一项尤为重要：URDF 的 `<mimic>` 主要表达运动学/可视化/规划约束，并不必然意味着真实电机固件会自动执行从动指。若真实硬件是单编码器机械联动，则只给主动轴命令是正确的；若硬件有两个独立执行器，则驱动代码也必须显式应用 `q_left=-q_right`。
+Pico 安装位置按 `(x,-y,z)` 镜像，姿态按 `(-roll,pitch,-yaw)` 镜像。当前相机处于中心面，roll/yaw 均为零，因此镜像后的左右相机相对位姿相同；低头 40° 不变。这不意味着把摄像头画面左右翻转。
+
+两个 `pico_origin_to_*` 仍是 floating joint；本文件不指定两只手的世界摆放位置。
+
+## Pico 射线参考点
+
+用户进一步明确：Pico 跟踪位置采用之前指定的扳机椭圆边框侧边射线，记录为 `Pico射线标记_H18_20261105` 的 H18.2 `TRIGGER_SIDE_R`。它不是最早误选的扳机上沿点。
+
+该点在右手控制器模型局部坐标中为 `(37.735320381,118.282977621,53.882318617)` mm。通过原版 `上壳体加外套右手-1@手持组装` 中嵌入控制器的安装变换，转换到此次的根坐标；选点与原版嵌入控制器表面的匹配误差约为 0.000002 mm。不能采用远离夹爪、独立摆放的 `Controller-3` 的单位变换。
+
+以前仿真里，该射线在水平面内与夹爪前向成 45°。控制器在那版与此次原版装配中的安装姿态不同；**把同一根控制器局部射线转换到此次原版，得到向上 45°**，无需另选方向。
+
+```text
+右手参考位置 = (-38.315112670, -19.177571213, 80.555974222) mm
+左手参考位置 = (-38.315112670, +19.177571213, 80.555974222) mm
+两手射线方向 = (√0.5, 0, √0.5)
+两手参考 RPY = (0, -π/4, 0) rad
+```
+
+参考系 +X 沿射线。单条射线不能确定绕自身轴线的滚转，这里保留原来的 roll=0 约定，+Y 指向夹爪左侧。上述参考点与 SDK 跟踪原点的对应关系按用户定义采用，并非本次独立进行的跟踪外参标定。完整选点、两版变换及表面匹配依据均记录在测量 JSON 中。
+
+## 保留但尚未标定的参数
+
+- **指尖/接触点偏置**仍为各自轴心前方 91.45 mm、横向及高度偏置 0。这是旧模型的名义值，不能称为本次 CAD 核验值。CAD 没有命名该接触取点，且左右夹指保存在不对称的开合姿态；将网格最远点或保存姿态直接当作闭合零位会改变编码器含义。
+- **Pico 参考定义**已采用用户指定的射线起点和朝向，不再保留旧位置估计值；绕射线的 roll=0 仍是坐标约定。
+- **相机真实投影中心**仍需标定；本次只确定原版机械镜头位置与朝向。
+
+此次完成原版机械相机位姿、轴距/基准核对，以及用户指定 Pico 射线到原版装配的坐标转换，不宣称已经完成整套手眼和指尖外参标定。真实左右手的打印、装配误差也需在实物上分别验证。
+
+## 验证
+
+`tests/test_umi_hand_cad_kinematics.py` 展开真实 Xacro，校验齿轮中面、相机实例变换重建、低头方向、Pico 射线起点及向上 45° 方向重建、选点位于原版表面、左右镜像矩阵、开合方向、完整 TF 树和编码器主动关节配置。测量记录可在不依赖 SolidWorks 的情况下重算。

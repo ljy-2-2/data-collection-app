@@ -1,0 +1,605 @@
+{
+  "source_file": "总设计（共享）/手持组装.SLDASM",
+  "source_sha256": "9f9a7b719e7ac8157c29713a6ef0d6796e692c5cdccf9fb33c2eaf58913e1556",
+  "configuration": "Défaut",
+  "method": "CRC-validated saved SolidWorks block streams: COMPINSTANCETREE transforms and FaceTessellations cache. No mate solving or CAD rebuild.",
+  "units": "m, rad",
+  "root_definition": "Midpoint of both gear axes at the 7 mm gear mid-plane; +X forward along housing, +Y left, +Z toward upper housing.",
+  "gear_instances": [
+    {
+      "name": "spur gear_gb-3@手持组装",
+      "transform": [
+        [
+          4.773959005888173e-15,
+          -0.8782249731909987,
+          0.4782477354506447,
+          0.05894256630171792
+        ],
+        [
+          0.7660444431189795,
+          -0.3074117187083165,
+          -0.5645121312844672,
+          1.047395925882623
+        ],
+        [
+          0.6427876096865375,
+          0.3663590201762046,
+          0.6727593605212778,
+          -1.244789078766588
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "local_bounds_m": [
+        [
+          0.0,
+          -0.017870521172881126,
+          -0.017995327711105347
+        ],
+        [
+          0.007000000216066837,
+          0.017870521172881126,
+          0.017995327711105347
+        ]
+      ]
+    },
+    {
+      "name": "spur gear_gb-4@手持组装",
+      "transform": [
+        [
+          4.773959005888173e-15,
+          -0.8782249731909987,
+          0.4782477354506447,
+          0.02594256630171791
+        ],
+        [
+          0.7660444431189795,
+          -0.3074117187083165,
+          -0.5645121312844672,
+          1.047395925882699
+        ],
+        [
+          0.6427876096865375,
+          0.3663590201762046,
+          0.6727593605212778,
+          -1.244789078766678
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "local_bounds_m": [
+        [
+          0.0,
+          -0.017870521172881126,
+          -0.017995327711105347
+        ],
+        [
+          0.007000000216066837,
+          0.017870521172881126,
+          0.017995327711105347
+        ]
+      ]
+    }
+  ],
+  "gear_local_center_m": [
+    0.0035,
+    0,
+    0
+  ],
+  "assembly_from_hand_root": [
+    [
+      3.566718381759985e-12,
+      -1.0,
+      4.773959005888173e-15,
+      0.04244256630171793
+    ],
+    [
+      0.6427876096865375,
+      2.3011895419503237e-12,
+      0.7660444431189795,
+      1.0500770814335776
+    ],
+    [
+      -0.7660444431189795,
+      -2.7250928786253837e-12,
+      0.6427876096865375,
+      -1.24253932213273
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "camera_instance": {
+    "name": "摄像头-1@手持组装",
+    "transform": [
+      [
+        -1.0,
+        2.297863324663143e-12,
+        2.734304610845791e-12,
+        0.0424425663017489
+      ],
+      [
+        2.297863324663125e-12,
+        1.0,
+        -3.689575260938514e-15,
+        1.114932562731973
+      ],
+      [
+        -2.734304610845799e-12,
+        -3.689575273260854e-15,
+        -1.0,
+        -1.198102214564905
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "local_bounds_m": [
+      [
+        -0.01899999938905239,
+        -0.01899999938905239,
+        0.0
+      ],
+      [
+        0.01899999938905239,
+        0.01899999938905239,
+        0.025499999523162842
+      ]
+    ]
+  },
+  "camera_reference_local_m": [
+    0,
+    0,
+    0.0255
+  ],
+  "camera_reference_definition": "Nominal centre of the frontmost modelled lens face, NOT a calibrated optical principal point.",
+  "camera_forward_local": [
+    0,
+    0,
+    1
+  ],
+  "camera_position_m": [
+    0.027181633777786495,
+    0.0,
+    0.06185471916234182
+  ],
+  "camera_rpy_rad": [
+    0.0,
+    0.6981317007977331,
+    0.0
+  ],
+  "camera_forward_root": [
+    0.7660444431189772,
+    -5.108456026380408e-15,
+    -0.6427876096865404
+  ],
+  "gear_axis_spacing_m": 0.033000000000000015,
+  "handedness": "Complete mechanism is the right-hand assembly. Left hand is its XZ-plane mirror per user instruction; detached Controller and Controller(left) instances are not tracking-reference frames.",
+  "preserved_uncalibrated": {
+    "finger_tip_offset_m": [
+      0.09145,
+      0,
+      0
+    ]
+  },
+  "limitations": [
+    "Saved fingers have unequal opening poses; these are not encoder closed-zero calibration.",
+    "Finger-tip contact landmark is not named in the CAD; previous nominal offset retained.",
+    "CAD lens face is only a mechanical estimate of camera origin; optical calibration is still needed.",
+    "Pico reference follows the user-selected trigger ray; roll=0 is retained as the frame convention, not inferred from the ray. SDK reference equivalence is user-specified, not independently calibrated."
+  ],
+  "pico_ray_reference": {
+    "definition": "User-designated tracking reference: previously selected trigger oval rim SIDE point and the same attached ray, transformed into the original assembly.",
+    "historical_marker_file": "夹爪重绘工作区/Pico射线标记_H18_20261105/仿真/manifest.json",
+    "historical_marker_sha256": "c303f61e29cdd0d96009d23dc1c14eed7ca6b7c55e951e9306088783788b36e8",
+    "historical_marker_id": "pico_R",
+    "historical_from_controller": [
+      [
+        -6.096761769665471e-13,
+        -0.7660444431189811,
+        -0.6427876096865359,
+        83.25201665632898
+      ],
+      [
+        9.71144489065621e-14,
+        0.6427876096865358,
+        -0.766044443118981,
+        -77.2489271490145
+      ],
+      [
+        1.0,
+        -5.294630119459154e-13,
+        -3.174983085437144e-13,
+        -0.6497931993353148
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "historical_direction": [
+      -0.7071067811865475,
+      0.7071067811865475,
+      0
+    ],
+    "point_controller_local_m": [
+      0.03773532038104041,
+      0.11828297762140193,
+      0.0538823186173898
+    ],
+    "direction_controller_local": [
+      4.997764444339595e-13,
+      0.9961946980917451,
+      -0.08715574274766275
+    ],
+    "original_mounted_controller_instance": "上壳体加外套右手-1@手持组装",
+    "assembly_from_mounted_controller": [
+      [
+        1.0,
+        2.300621336354273e-12,
+        -2.734672390817468e-12,
+        0.02388481713354099
+      ],
+      [
+        -2.300621336354273e-12,
+        1.0,
+        -9.985609055558144e-29,
+        0.9688750805370163
+      ],
+      [
+        2.734672390817468e-12,
+        9.985609055558144e-29,
+        1.0,
+        -1.215290179485632
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "registration": "The selected controller point matches the embedded controller in the original upper-case local coordinates. Do not use detached Controller-3 at assembly identity.",
+    "nearest_original_triangle_local_m": [
+      [
+        0.037799958139657974,
+        0.11834199726581573,
+        0.053825996816158295
+      ],
+      [
+        0.03761395439505577,
+        0.11828400939702988,
+        0.05385800078511238
+      ],
+      [
+        0.037799958139657974,
+        0.11825599521398544,
+        0.053926002234220505
+      ]
+    ],
+    "surface_match_error_m": 1.9284390971733623e-09,
+    "right_position_m": [
+      -0.03831511267004784,
+      -0.019177571213124515,
+      0.08055597422206462
+    ],
+    "right_direction_root": [
+      0.7071067811865491,
+      -5.045591723086844e-13,
+      0.707106781186546
+    ],
+    "right_rpy_rad": [
+      0.0,
+      -0.7853981633974483,
+      0.0
+    ],
+    "roll_convention": "Ray defines +X. Retain roll=0; +Y is hand-left. Roll about a ray is not determined by a ray alone.",
+    "left_reflection": "position S p; orientation S R S with S=diag(1,-1,1)",
+    "status": "User-specified reference, not independently measured SDK optical/tracking calibration."
+  },
+  "previous_pico_estimate": {
+    "pico_right_tracking_xyz_m": [
+      -0.07,
+      -0.0309,
+      0.0525
+    ],
+    "pico_right_tracking_rpy_rad": [
+      0,
+      -0.7854,
+      0
+    ]
+  },
+  "pico_center_reference": {
+    "definition": "USER-DEFINED Quest-to-Pico geometric reference; NOT SDK calibration",
+    "method": "Rigid alignment without scaling: grip bottom plane, fitted grip axis, median major section direction. Front sign follows original hand +X.",
+    "limitations": [
+      "Quest STEP vs Xacro version mismatch remains from Y30 registration.",
+      "Different controller shapes do not define a unique correspondence; bottom/axis/section convention is explicit.",
+      "Sensitivity values describe geometric construction only, not physical tracking accuracy."
+    ],
+    "quest": {
+      "section_centers_mm": [
+        [
+          -66.40198512650734,
+          -24.39783923369083,
+          -37.24491500854492
+        ],
+        [
+          -66.61119661699605,
+          -24.321026108697897,
+          -33.49491500854492
+        ],
+        [
+          -66.77437380884402,
+          -24.179411409019092,
+          -29.744915008544922
+        ],
+        [
+          -66.88699739418546,
+          -24.00744292086878,
+          -25.994915008544922
+        ],
+        [
+          -66.98330247180691,
+          -23.768569375533456,
+          -22.244915008544922
+        ],
+        [
+          -67.0402779464308,
+          -23.500305790022345,
+          -18.494915008544922
+        ],
+        [
+          -67.14424746897575,
+          -23.180626491132305,
+          -14.744915008544922
+        ],
+        [
+          -67.22761480792194,
+          -22.8496223795734,
+          -10.994915008544922
+        ],
+        [
+          -67.29887492552037,
+          -22.4992994696435,
+          -7.244915008544922
+        ]
+      ],
+      "height_range_above_lowest_z_mm": [
+        12,
+        42
+      ],
+      "axis_fit_max_residual_mm": 0.22917618823930966,
+      "grip_frame_in_root_mm": [
+        [
+          0.8795325122285805,
+          0.4750105420219565,
+          -0.028063230407223548,
+          -66.1703314580645
+        ],
+        [
+          -0.4726228130686886,
+          0.8789127359444601,
+          0.06434344692090342,
+          -25.37527594542395
+        ],
+        [
+          0.05522894621411193,
+          -0.043328830616931754,
+          0.9975331452826256,
+          -49.243566127890375
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "pico": {
+      "section_centers_mm": [
+        [
+          -74.94999090978918,
+          -28.17163555128764,
+          -24.81380844116211
+        ],
+        [
+          -74.27617965194973,
+          -28.362425395853553,
+          -21.06380844116211
+        ],
+        [
+          -73.59361583235835,
+          -28.587711389792066,
+          -17.31380844116211
+        ],
+        [
+          -72.96101101437317,
+          -28.814848271926817,
+          -13.56380844116211
+        ],
+        [
+          -72.40752331879223,
+          -29.045852939728473,
+          -9.81380844116211
+        ],
+        [
+          -71.86918245562259,
+          -29.283378653976666,
+          -6.063808441162109
+        ],
+        [
+          -71.37745613974683,
+          -29.52519059045705,
+          -2.3138084411621094
+        ],
+        [
+          -70.92042542776262,
+          -29.77416471485852,
+          1.4361915588378906
+        ],
+        [
+          -70.5015257624195,
+          -30.030158192531676,
+          5.186191558837891
+        ]
+      ],
+      "height_range_above_lowest_z_mm": [
+        12,
+        42
+      ],
+      "axis_fit_max_residual_mm": 0.1881705088683748,
+      "grip_frame_in_root_mm": [
+        [
+          0.9873103143048347,
+          0.06130043280432834,
+          0.14649436919312114,
+          -76.54048290772678
+        ],
+        [
+          -0.05276076016375609,
+          0.9967123553972214,
+          -0.0614880702694895,
+          -27.386885279180134
+        ],
+        [
+          -0.1497819930907286,
+          0.05297865170542844,
+          0.9872986463118664,
+          -36.777372279337776
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "pico_root_from_quest_root_mm": [
+      [
+        0.8933787676662577,
+        -0.4033216943394616,
+        0.19800502104306467,
+        -17.909239674904597
+      ],
+      [
+        0.4287696261265654,
+        0.8970027677344022,
+        -0.10743669013939203,
+        18.456070000393744
+      ],
+      [
+        -0.13427950399969418,
+        0.18088019668268918,
+        0.9742953193224465,
+        6.904969322012725
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "quest_reference_in_yubi_root_mm": [
+      -63.0,
+      -16.0,
+      52.5
+    ],
+    "right_pico_center_mm": [
+      -57.343691323686556,
+      -28.548886961648392,
+      63.62099919149887
+    ],
+    "left_pico_center_mm": [
+      -57.343691323686556,
+      28.548886961648392,
+      63.62099919149887
+    ],
+    "aim_direction_retained": [
+      0.7071067811865476,
+      0,
+      0.7071067811865476
+    ],
+    "fit_interval_sensitivity": [
+      {
+        "interval_mm": [
+          10,
+          40
+        ],
+        "point_mm": [
+          -57.12128472505211,
+          -27.965324952918706,
+          63.5677237137658
+        ],
+        "distance_from_selected_mm": 0.6267755496798338
+      },
+      {
+        "interval_mm": [
+          14,
+          44
+        ],
+        "point_mm": [
+          -57.815837178979486,
+          -28.984568806017194,
+          63.72286072013776
+        ],
+        "distance_from_selected_mm": 0.6504737882494143
+      },
+      {
+        "interval_mm": [
+          12,
+          47
+        ],
+        "point_mm": [
+          -57.821179397305166,
+          -29.093696041166275,
+          63.72038650697479
+        ],
+        "distance_from_selected_mm": 0.7312247479746864
+      }
+    ],
+    "source_files": [
+      {
+        "path": "/home/ljy/桌面/galaxis/yubi-hw/yubi_hand.urdf.xacro",
+        "sha256": "697cac4f8187b0d3eca8a47ab67f54eea88cb986402f96888d5e59799d3bac62"
+      },
+      {
+        "path": "/home/ljy/桌面/galaxis/夹爪重绘工作区/YUBI原版坐标审阅_Y30_20261113/仿真/meshes/cad_R_34.stl",
+        "sha256": "d837f6077921b5767f2f3f6a62689ae8ed12ea997a962b78bbf37fdc520df2e3"
+      },
+      {
+        "path": "/home/ljy/桌面/galaxis/夹爪重绘工作区/电机夹指连接与螺母槽_M12_20261105/final_viewer_meshes/RH_HAND_002_5db60b88e142.stl",
+        "sha256": "5db60b88e1423df018a9695c2ea125eb0eadea2b92037440b328778a1a4cd445"
+      },
+      {
+        "path": "/home/ljy/桌面/galaxis/data-collection-app/umi_collection/vendor/galaxis/docs/galaxis_hand_cad_measurements.json",
+        "sha256": "4e6111a274b1a0698db2accf2d4f3b3e6c818c734f4a9fd7735555d62e5dba6f"
+      }
+    ],
+    "quest_visual_registration_mm": [
+      -16,
+      0,
+      0
+    ],
+    "pico_source_registration": "Original assembly_from_hand_root inverse times original mounted controller transform; see source measurement JSON"
+  }
+}
