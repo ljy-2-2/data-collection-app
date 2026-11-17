@@ -10,7 +10,7 @@
        See docs/windows_end_effector_measurements.json for transforms and hashes. -->
   <xacro:include filename="galaxis_hand_visuals.xacro"/>
   <xacro:property name="finger_offset_y" value="0.019875"/>
-  <xacro:property name="finger_tip_offset_x" value="0.09145"/>
+  <xacro:property name="finger_tip_offset_x" value="0.13694"/>
   <xacro:property name="finger_tip_offset_y" value="0.0"/>
   <xacro:property name="finger_tip_offset_z" value="0.0"/>
   <xacro:property name="camera_x" value="-0.0246864861758"/>
