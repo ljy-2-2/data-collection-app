@@ -67,3 +67,20 @@ def test_unknown_workspace_edits_are_not_discarded(release):
         install(*release)
     assert launcher.read_bytes() == before
     assert not (data / 'versions/2.new').exists()
+
+
+def test_already_merged_operator_fix_is_accepted(release):
+    _, _, data, _, _ = release
+    (data / 'workspaces/1.old/scripts/main.py').write_text('2.new')
+    result = install(*release)
+    assert (Path(result['workspace']) / 'scripts/main.py').read_text() == '2.new'
+
+
+def test_camera_selection_survives_release_switch(release):
+    _, _, data, _, _ = release
+    relative = Path('umi_collection/vendor/galaxis/runtime-camera-selection/roles.json')
+    path = data / 'workspaces/1.old' / relative
+    path.parent.mkdir(parents=True)
+    path.write_text('{"left": "/dev/video4"}')
+    result = install(*release)
+    assert (Path(result['workspace']) / relative).read_bytes() == path.read_bytes()

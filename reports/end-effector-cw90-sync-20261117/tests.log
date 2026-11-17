@@ -1,0 +1,13 @@
+.................................................................... [ 54%]
+........................................................                 [100%]
+124 passed, 4 subtests passed in 14.53s
+[FxRobot - LOADMvCfg]
+TYPE=[1017 1017]
+[FxRobot - FX_Robot_Init_Type]
+[FxRobot - FX_Robot_Init_Kine]
+[FxRobot - FX_Init_Robot_Kine_Pilot_CCS]
+EG:DH[0]=[0.000000 0.000000 174.500000 0.000000]
+[FxRobot - FX_Robot_Kine_Piolt]
+[FxRobot - FX_Robot_Init_Lmt]
+[FxRobot - FX_Init_Robot_Lmt_CCS]
+EG:PNVA[0]=[170.000000 -170.000000 180.000000 450.000000 ]

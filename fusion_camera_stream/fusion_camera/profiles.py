@@ -18,6 +18,8 @@ def valid_profile(profile):
                 and profile.get('source_width') == size[0] * 2 and profile.get('source_height') == size[1]
                 and profile['fps'] in ZED_LEFT_MODES.get(size, ())
                 and profile.get('encoding') == 'controller_jpeg')
+    if profile.get('format') == 'mjpeg' and size == (1280, 720):
+        return profile['fps'] == 60
     return profile['fps'] == 30 and size in LEGACY_SIZES.get(profile.get('format'), ())
 
 

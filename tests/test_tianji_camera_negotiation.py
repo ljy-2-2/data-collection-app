@@ -26,6 +26,10 @@ int main(void) {
         assert(!profile_interval_matches(&p, ceil+1));
         assert(!profile_interval_matches(&p, floor*2));
     }
+    Profile wrist = {0,60};
+    assert(profile_interval_matches(&wrist, 166666));
+    assert(profile_interval_matches(&wrist, 166667));
+    assert(!profile_interval_matches(&wrist, 333333));
     Profile legacy = {0,0};
     assert(profile_interval_matches(&legacy, 333333));
     assert(!profile_interval_matches(&legacy, 333334));

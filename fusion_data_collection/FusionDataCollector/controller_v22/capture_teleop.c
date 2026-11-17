@@ -45,6 +45,7 @@ typedef struct {
 } Profile;
 static const Profile mjpeg_profile = {"mjpeg", "FJM1", 1024, 768, UVC_FRAME_FORMAT_MJPEG, 0, 2U*1024U*1024U, 0, 0};
 static const Profile yuyv_profile = {"yuyv", "FJY1", 640, 480, UVC_FRAME_FORMAT_YUYV, 640U*480U*2U, 640U*480U*2U, 0, 0};
+static const Profile mjpeg_720_60 = {"mjpeg-1280x720-60", "FJM1", 1280, 720, UVC_FRAME_FORMAT_MJPEG, 0, 4U*1024U*1024U, 0, 60};
 static const Profile mjpeg_1280 = {"mjpeg-1280x1024", "FJM1", 1280, 1024, UVC_FRAME_FORMAT_MJPEG, 0, 4U*1024U*1024U, 0, 0};
 static const Profile mjpeg_1920 = {"mjpeg-1920x1080", "FJM1", 1920, 1080, UVC_FRAME_FORMAT_MJPEG, 0, MAX_FRAME, 0, 0};
 static const Profile yuyv_320 = {"yuyv-320x240", "FJY1", 320, 240, UVC_FRAME_FORMAT_YUYV, 320U*240U*2U, 320U*240U*2U, 0, 0};
@@ -63,10 +64,10 @@ static const Profile zed_profiles[] = {
 static unsigned profile_fps(const Profile *p) { return p->fps ? p->fps : 30; }
 static int profile_interval_matches(const Profile *p, uint32_t interval) {
     unsigned fps = profile_fps(p);
-    /* ZED descriptors truncate the 100 ns period, while probe readback can
+    /* Explicit-rate descriptors truncate the 100 ns period, while probe readback can
      * round it up (15 fps: 666666 -> 666667). Accept only these two integers. */
     return interval == 10000000U / fps ||
-        (p->source_width && interval == (10000000U + fps - 1U) / fps);
+        (p->fps && interval == (10000000U + fps - 1U) / fps);
 }
 static void copy_left_yuyv(unsigned char *dst, const unsigned char *src,
                            unsigned width, unsigned source_width, unsigned height) {
@@ -80,6 +81,7 @@ static const Profile *find_profile(const char *name) {
         if (!strcmp(name, zed_profiles[i].name)) return &zed_profiles[i];
     if (!strcmp(name, "mjpeg")) return &mjpeg_profile;
     if (!strcmp(name, "yuyv")) return &yuyv_profile;
+    if (!strcmp(name, "mjpeg-1280x720-60")) return &mjpeg_720_60;
     if (!strcmp(name, "mjpeg-1280x1024")) return &mjpeg_1280;
     if (!strcmp(name, "mjpeg-1920x1080")) return &mjpeg_1920;
     if (!strcmp(name, "yuyv-320x240")) return &yuyv_320;
@@ -514,15 +516,41 @@ static int write_part(const void *bytes, size_t length, uint64_t deadline) {
     }
     return 0;
 }
-/* Two independent encoders use ordinary nice-19 scheduling on CPUs 0 and 2.
- * USB/TLS remain on CPU 3; realtime CPU 1 and robot affinity are unchanged.
- * Queue slots remain owned until the sender consumes them in source order. */
-static void *encode_zed_frames(void *cpu_number) {
-    cpu_set_t cpu;
-    CPU_ZERO(&cpu); CPU_SET((intptr_t)cpu_number, &cpu);
-    if (pthread_setaffinity_np(pthread_self(), sizeof(cpu), &cpu)) {
-        fail("Cannot set ZED encoder CPU affinity"); return NULL;
+/* Camera threads share the non-realtime CPUs rather than competing on a
+ * fixed worker pair while another core is idle. USB events use nice 10;
+ * encoding and pipe/TLS output retain inherited ordinary nice 19.
+ * No SCHED_FIFO/RR changes and no use of robot realtime CPU 1. */
+static void camera_cpu_mask(cpu_set_t *cpus) {
+    CPU_ZERO(cpus);
+    CPU_SET(0, cpus); CPU_SET(2, cpus); CPU_SET(3, cpus);
+}
+static int set_camera_thread_affinity(void) {
+    cpu_set_t wanted, actual;
+    camera_cpu_mask(&wanted);
+    if (pthread_setaffinity_np(pthread_self(), sizeof(wanted), &wanted) ||
+        pthread_getaffinity_np(pthread_self(), sizeof(actual), &actual) ||
+        !CPU_EQUAL(&wanted, &actual)) {
+        fail("Cannot apply camera thread CPU affinity"); return 0;
     }
+    return 1;
+}
+/* Called once inside libuvc's own event thread; nice is per-thread on Linux. */
+int fusion_uvc_event_thread_start(void) {
+    int priority;
+    if (!set_camera_thread_affinity()) return 0;
+    if (setpriority(PRIO_PROCESS, 0, 10)) {
+        fail("Cannot apply USB event thread priority"); return 0;
+    }
+    errno = 0; priority = getpriority(PRIO_PROCESS, 0);
+    if (errno || priority != 10) {
+        fail("Cannot verify USB event thread priority"); return 0;
+    }
+    return 1;
+}
+/* Queue slots remain owned until the sender consumes them in source order. */
+static void *encode_zed_frames(void *unused) {
+    (void)unused;
+    if (!set_camera_thread_affinity()) return NULL;
     for (;;) {
         Frame *frame = NULL;
         Queue *q = &queues[0];
@@ -560,6 +588,7 @@ static Frame *take_latest_encoded(Queue *q) {
 static void *send_frames(void *unused) {
     unsigned next = 0;
     (void)unused;
+    if (!set_camera_thread_affinity()) return NULL;
     while (1) {
         unsigned i, selected = CAMERAS;
         Frame *frame;
@@ -769,6 +798,10 @@ static int self_test(void) {
     FILE *file = fmemopen((void *)text, strlen(text), "r");
     unsigned i;
     int pipefd[2], saved_stdout;
+    cpu_set_t camera_cpus;
+    camera_cpu_mask(&camera_cpus);
+    REQUIRE(CPU_COUNT(&camera_cpus) == 3 && !CPU_ISSET(1, &camera_cpus));
+    REQUIRE(CPU_ISSET(0, &camera_cpus) && CPU_ISSET(2, &camera_cpus) && CPU_ISSET(3, &camera_cpus));
     REQUIRE(duration_active(0, 3600*NS));
     REQUIRE(duration_active(7200, 3600*NS));
     REQUIRE(duration_active(600, 599*NS));
@@ -1076,12 +1109,14 @@ int main(int argc, char **argv) {
         if (!queues[i].frame[j].data) { fail("Cannot allocate bounded frame queues"); goto cleanup; }
         memset(queues[i].frame[j].data, 0, camera_profiles[i]->capacity);
     }
+    /* libuvc's event thread inherits this mask at creation. */
+    if (!set_camera_thread_affinity()) goto cleanup;
     if (uvc_init(&context, NULL) < 0) { fail("Cannot initialize UVC context"); goto cleanup; }
     if (pthread_create(&sender, &attr, send_frames, NULL)) { fail("Cannot create sender thread"); goto cleanup; }
     sender_started = 1;
     if ((camera_mask & 1) && camera_profiles[0]->source_width) {
         for (intptr_t encoder = 0; encoder < 2; ++encoder) {
-            if (pthread_create(&encoders[encoder], &attr, encode_zed_frames, (void *)(encoder*2))) {
+            if (pthread_create(&encoders[encoder], &attr, encode_zed_frames, NULL)) {
                 fail("Cannot create bounded ZED encoder workers"); goto cleanup;
             }
             ++encoders_started;

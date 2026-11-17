@@ -82,6 +82,38 @@ def test_collection_readiness_accepts_delayed_real_feedback():
     assert readiness(row) == '夹爪反馈报告故障：motor fault'
 
 
+@pytest.mark.parametrize('side', ['left', 'right'])
+@pytest.mark.parametrize('info', [
+    {}, {'frame': 0}, {'frame': 0, 'initialized': False},
+    {'frame': 10, 'initialized': False}, {'initialized': True},
+    {'frame': None, 'initialized': True}, {'frame': -1, 'initialized': True},
+])
+def test_collection_rejects_uninitialized_or_missing_joint_feedback(side, info):
+    row = feedback(1)
+    row['joint_feedback'][side] = info
+    assert readiness(row) == side + ' 尚未收到关节反馈'
+
+
+def test_active_collection_survives_counter_wrap_but_stops_on_feedback_loss(tmp_path):
+    collection = TianjiCollection(SimpleNamespace(), tmp_path)
+    collection.armed = True
+    collection.job = Mock(is_alive=Mock(return_value=True))
+    collection.episode = Mock(stopping=threading.Event())
+    # Recorded sequence from the 2026-11-11 interruption. Both lanes wrap.
+    for sequence, serial in enumerate((999979, 999990, 0, 10, 20), start=1):
+        row = feedback(sequence)
+        for info in row['joint_feedback'].values():
+            info.update(frame=serial, initialized=True)
+        collection.accept(row)
+        collection.episode.stop.assert_not_called()
+    assert collection.episode.submit.call_count == 5
+    row = feedback(6)
+    row['joint_feedback']['left'] = {'frame': 0, 'initialized': False}
+    collection.accept(row)
+    collection.episode.stop.assert_called_once_with(
+        'feedback_not_ready', 'left 尚未收到关节反馈')
+
+
 def test_manual_stop_reaches_camera_without_waiting_for_another_frame(tmp_path):
     from FusionDataCollector.collector import Episode
     started, stopped = threading.Event(), threading.Event()

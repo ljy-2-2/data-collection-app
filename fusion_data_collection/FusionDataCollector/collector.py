@@ -253,7 +253,13 @@ def readiness(row, now_ns=None, required_sides=SIDES):
         if len(q) != 7 or not all(math.isfinite(v) for v in q):
             return side + ' 缺少 7 个关节反馈'
         joint_info = row.get('joint_feedback', {}).get(side, {})
-        if joint_info.get('frame', 0) == 0:
+        # The SDK counter wraps at 1,000,000. Only the robot reader can
+        # distinguish a wrapped zero from its initial, zero-filled cache.
+        # Older publishers remain supported for nonzero frames.
+        frame = joint_info.get('frame')
+        if (type(frame) is not int or frame < 0
+                or joint_info.get('initialized') is False
+                or (frame == 0 and joint_info.get('initialized') is not True)):
             return side + ' 尚未收到关节反馈'
         if side not in required_sides:
             continue

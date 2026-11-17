@@ -32,9 +32,6 @@ Column {
         visible: !!text
         text: ((root.status.upload_queue||{}).last_interruption||{}).message||""
         color: Theme.inkMuted;font.pixelSize: 11;wrapMode: Text.Wrap;elide: Text.ElideNone}
-    Txt {objectName: "umiSavedQuality";width: parent.width
-        visible: !!text;text: (root.status.upload_queue||{}).quality_message||""
-        color: Theme.inkMuted;font.pixelSize: 11;wrapMode: Text.Wrap;elide: Text.ElideNone}
     Txt {visible: backend.rawOnly;width: parent.width;text: "仅本地保存 · MP4 视频与采集信号 · 保存位置："+(s.storagePath||"正在读取")
         font.pixelSize: 11;color: Theme.inkSoft;wrapMode: Text.Wrap;elide: Text.ElideNone}
     Setup {visible: s.umiStep===1;width: parent.width;umi: true}

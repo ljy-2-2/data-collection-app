@@ -1,6 +1,7 @@
 """Bounded authenticated TLS stream; Python 2.7; no robot commands or writes."""
 from __future__ import print_function
 import collections
+import ctypes
 import itertools
 import fcntl
 import functools
@@ -21,6 +22,43 @@ from camera_audit import dmesg_fingerprint, audit_changed
 
 HEADER = struct.Struct('<4sIIQIIIII')
 MAX_FRAME = 6*1024*1024
+
+def thread_affinity(mask=None):
+    """Linux calling-thread affinity, including on the controller's Python 2.7.
+
+    pid=0 changes only this thread, never a robot process or the USB IRQ.
+    Byte masks avoid depending on the host's 32/64-bit unsigned-long layout.
+    """
+    size = 128
+    cpu_set = (ctypes.c_ubyte * size)()
+    libc = ctypes.CDLL(None, use_errno=True)
+    if mask is None:
+        operation = libc.sched_getaffinity
+    else:
+        if len(mask) != size or not any(mask):
+            raise ValueError('Invalid camera sender CPU mask')
+        for index, value in enumerate(mask):
+            cpu_set[index] = value
+        operation = libc.sched_setaffinity
+    operation.argtypes = [ctypes.c_int, ctypes.c_size_t, ctypes.c_void_p]
+    operation.restype = ctypes.c_int
+    if operation(0, size, ctypes.byref(cpu_set)) != 0:
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number))
+    return tuple(cpu_set)
+
+
+def move_stream_sender():
+    previous = thread_affinity()
+    target = (13,) + (0,)*127  # Share CPUs 0/2/3; CPU 1 is robot realtime.
+    try:
+        thread_affinity(target)
+        if thread_affinity() != target:
+            raise RuntimeError('Camera sender CPU mask was restricted')
+    except Exception:
+        thread_affinity(previous)
+        raise
+    return previous
 
 def stream_profile(manifest, mode):
     """Use an explicit native format; never silently substitute compressed frames."""
@@ -455,6 +493,7 @@ def run(service, sock, request, api):
     native_failed = False
     cleanup_timed_out = False
     native_termination = None
+    sender_affinity = None
     try:
         with open(manifest_path) as f: manifest = json.load(f)
         profile = stream_profile(manifest, mode)
@@ -518,6 +557,10 @@ def run(service, sock, request, api):
                     (384 if any(p.get('source_width') for p in profiles.values()) else 256)*1024*1024),
                 close_fds=True)
             api.ACTIVE = process
+            if mode == 'teleop_observation':
+                # The native reader applies its own mask. Share the non-realtime
+                # CPUs for TLS/JSON/pipe draining instead of pinning all work to 3.
+                sender_affinity = move_stream_sender()
             fd = process.stdout.fileno()
             fcntl.fcntl(fd,fcntl.F_SETFL,fcntl.fcntl(fd,fcntl.F_GETFL)|os.O_NONBLOCK)
             buf = b''
@@ -685,6 +728,12 @@ def run(service, sock, request, api):
                 if task.is_alive():
                     error = 'Recording checkpoint audit did not finish'
                     service.fault = error
+        if sender_affinity is not None:
+            try:
+                thread_affinity(sender_affinity)
+            except Exception as exc:
+                error = 'Cannot restore camera sender CPU affinity: '+str(exc)
+                service.fault = error
         if errors is not None:
             diagnostics = read_native_diagnostics(errors)
             errors.close()

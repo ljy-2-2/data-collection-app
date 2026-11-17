@@ -1,0 +1,345 @@
+ M AGENTS.md
+ M public/kuavo-model.json
+ M public/tianji-model.json
+ D reports/full-release-20261113-local-install.json
+ D reports/full-release-20261113-verification.json
+ D reports/work-pose-plan-a-local-install-20261113.json
+ M scripts/build_umi_runtime.py
+ M scripts/kuavo_visual_tools.py
+ M scripts/qt_ui/qml/Umi.qml
+ M teleop_control/assets/kuavo/full_robot_with_grippers.urdf
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_030.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_031.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_032.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_033.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_034.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_035.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_036.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_037.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_038.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_039.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_040.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_041.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_042.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_043.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_044.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_045.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_046.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_047.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_048.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_049.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_050.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_051.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_052.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_053.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_054.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_055.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_056.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_057.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_058.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_059.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_060.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_061.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_062.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_063.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_064.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_065.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_066.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_067.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_068.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_069.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_070.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_071.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_072.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_073.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_074.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_075.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_076.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_077.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_078.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_079.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_080.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_081.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_082.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_083.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_084.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_085.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_086.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_087.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_088.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_089.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_090.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_091.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_092.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_093.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_094.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_095.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_096.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_097.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_098.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_099.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_100.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_101.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_102.obj
+ M teleop_control/assets/kuavo/gripper_model_meshes/mesh_103.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_104.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_105.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_106.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_107.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_108.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_109.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_110.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_111.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_112.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_113.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_114.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_115.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_116.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_117.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_118.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_119.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_120.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_121.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_122.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_123.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_124.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_125.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_126.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_127.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_128.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_129.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_130.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_131.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_132.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_133.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_134.obj
+ D teleop_control/assets/kuavo/gripper_model_meshes/mesh_135.obj
+ M teleop_control/assets/kuavo/visual-manifest.json
+ M teleop_control/src/teleop_control/umi.py
+ M teleop_control/src/teleop_control/umi_queue.py
+ M "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/manifest.json"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_00.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_01.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_02.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_03.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_04.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_05.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_06.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_07.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_08.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_09.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_10.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_11.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_12.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_13.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_14.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_15.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_16.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_17.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_18.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_19.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_20.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_21.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_22.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_23.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_24.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_25.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_26.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_27.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_28.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_29.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_30.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_31.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_32.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_33.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_34.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_35.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_36.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_37.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_38.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_39.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_40.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_41.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_42.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_43.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_44.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_45.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_46.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_47.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_48.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_49.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_50.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_51.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_52.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_53.stl"
+ M "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf"
+ M "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/manifest.json"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_00.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_01.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_02.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_03.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_04.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_05.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_06.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_07.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_08.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_09.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_10.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_11.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_12.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_13.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_14.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_15.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_16.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_17.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_18.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_19.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_20.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_21.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_22.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_23.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_24.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_25.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_26.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_27.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_28.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_29.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_30.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_31.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_32.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_33.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_34.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_35.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_36.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_37.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_38.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_39.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_40.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_41.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_42.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_43.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_44.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_45.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_46.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_47.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_48.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_49.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_50.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_51.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_52.stl"
+ D "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/part_53.stl"
+ M "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf"
+ M tests/test_kuavo_visual_model.py
+ M tests/test_tianji_urdf_tcp.py
+ M tests/test_umi_hand_cad_kinematics.py
+ M umi_collection/vendor/galaxis/.gitignore
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_left_left_finger_link.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_left_left_finger_link_col.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_left_right_finger_link.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_left_right_finger_link_col.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_right_left_finger_link.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_right_left_finger_link_col.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_right_right_finger_link.STL
+ D umi_collection/vendor/galaxis/galaxis_description/meshes/hand_right_right_finger_link_col.STL
+ D umi_collection/vendor/galaxis/galaxis_description/rviz/galaxis_display.rviz
+ M umi_collection/vendor/galaxis/galaxis_description/urdf/galaxis_hand.urdf.xacro
+ M umi_collection/vendor/galaxis/tools/galaxis_collection.py
+?? reports/end-effector-cw90-sync-20261117/
+?? scripts/cad_saved_mesh.py
+?? scripts/import_windows_end_effector.py
+?? scripts/update_end_effector_models.py
+?? teleop_control/src/teleop_control/umi_monitor.py
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_00.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_01.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_02.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_03.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_04.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_05.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_06.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_07.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_08.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_09.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_10.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_10_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_11.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_11_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_12.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_13.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_13_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_14.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_15.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_16.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_16_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_17.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_17_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_18.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_19.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_20.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_20_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_21.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_22.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_23.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_23_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_24.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_25.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_26.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_27.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_28.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_29.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_30.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_31.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_32.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_33.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_34.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_35.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_36.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_37.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_00.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_01.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_02.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_03.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_04.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_05.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_06.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_07.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_08.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_09.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_10.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_10_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_11.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_11_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_12.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_13.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_13_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_14.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_15.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_16.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_16_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_17.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_17_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_18.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_19.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_20.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_20_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_21.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_22.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_23.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_23_collision.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_24.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_25.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_26.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_27.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_28.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_29.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_30.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_31.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_32.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_33.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_34.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_35.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_36.stl"
+?? "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/meshes/gripper/windows_37.stl"
+?? tests/test_windows_end_effector_assets.py
+?? umi_collection/vendor/galaxis/docs/windows_end_effector_measurements.json
+?? umi_collection/vendor/galaxis/galaxis_description/meshes/windows/
+?? umi_collection/vendor/galaxis/galaxis_description/urdf/galaxis_hand_visuals.xacro

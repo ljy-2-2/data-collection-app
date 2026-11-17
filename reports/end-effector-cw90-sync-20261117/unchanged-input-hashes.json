@@ -1,0 +1,5 @@
+{
+  "umi_collection/vendor/galaxis/galaxis_description/urdf/galaxis_hand.urdf.xacro": "c3bbb0f4a0032b99cd8c4246a054127724c4e33be0817d3608a22ff8a3831c64",
+  "scripts/qt_ui/poses.py": "2e300cf63a6efe928e728e3d1ffb778d0ba6f623a794fc218519f0ad15351127",
+  "teleop_control/vendor/tianji/teleop/marvin_teleop/config.json": "18bec7e817c3d9465ecb0c033021abb3f3e6a517f281a850a2716079144fb001"
+}

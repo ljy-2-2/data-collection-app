@@ -1,0 +1,32 @@
+{
+  "revision": "flange_cw90_20261117",
+  "scope": "source_update_only",
+  "tests": "124 passed, 4 subtests passed",
+  "deployed": false,
+  "files": {
+    "public/tianji-model.json": {
+      "sha256": "2830aef16ae62da50f27155c99fb3f5ce4a88bf2c3fa70a3be51951a4088ad4e",
+      "previous_sha256": "8d743f3db836675818c87392501623f6c20a97fdfd102dc0510b1bba9c7d0085"
+    },
+    "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf": {
+      "sha256": "6545e61894dcf98fc679a91ff3cb8cd4bb2dece6d4dcbd90cf90ff036c50b75e",
+      "previous_sha256": "a2b1c0c2e44472e3c95a084d4d2cfe6c3d2f1ce00ea4ec03dcca5134fd1f3161"
+    },
+    "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf": {
+      "sha256": "ff3204393ff2e50893a878859e9620af8c980a5b6f1c12e4d2d2e90f2688084c",
+      "previous_sha256": "be7f40f24ecd54d96ef05dcf850f5b0769e19ef563b95309a4339feeff64289a"
+    },
+    "scripts/update_end_effector_models.py": {
+      "sha256": "c9e88f564cf202d4412d3f85248b99201a48c05504daad2ca0545959a7b26702",
+      "previous_sha256": "c8a7a0c2c0a24a533e0b55fe8de3114e42c07b84b7b047ebb8cdffdd97538931"
+    },
+    "tests/test_tianji_urdf_tcp.py": {
+      "sha256": "f2f25033408690f912f7540cd124916d287aadae63ebd477032621a06324195c",
+      "previous_sha256": "1db154ffc5e2c9c5ffc4efb714bd442339abf09ac12881141045b1af262d3c2f"
+    },
+    "tests/test_tianji_work_pose.py": {
+      "sha256": "7effc2c9d57dd692355eeb85e6813cd71fbe13383026a5f1ffc8d5625cf00ced",
+      "previous_sha256": "71f2ad19ebc66167357dad2c24025ffb4550bdbcf1e14917ec6dcd26ab22c978"
+    }
+  }
+}

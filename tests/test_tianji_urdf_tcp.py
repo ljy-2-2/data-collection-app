@@ -5,6 +5,8 @@ import numpy as np
 import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 VENDOR=ROOT/'teleop_control/vendor/tianji'
+CAD=json.loads((ROOT/'umi_collection/vendor/galaxis/docs/windows_end_effector_measurements.json').read_text())['assemblies']['motor']
+CAD_TCP=np.linalg.inv(CAD['assembly_from_flange'])@CAD['assembly_from_root']
 sys.path.insert(0,str(VENDOR/'teleop'))
 from marvin_teleop.tool_frame import resolve_urdf_tool,parse_tool_frame,validate_tool_config
 from marvin_teleop.configuration import configuration
@@ -48,31 +50,66 @@ class URDFToolTests(unittest.TestCase):
                 j=next(j for j in cad['joints'] if j['name']==joint)
                 expected=expected@transform(j['xyz'],j['rpy'])
             np.testing.assert_allclose(T,expected,atol=1e-12)
-            # New flange alignment, including the confirmed extra left -90°.
-            mount_yaw=-np.pi/2 if side=='left' else np.pi
+            # Confirmed 2026-11-17: clockwise 90° from wrist toward fingertips.
+            mount_yaw=0. if side=='left' else -np.pi/2
             mount=next(joint for joint in cad['joints'] if joint['name']==f'gripper_mount_{letter}')
             self.assertAlmostEqual(mount['rpy'][2],mount_yaw)
-            expected=transform([0,0,0],[0,0,mount_yaw])@transform([0,0,.142225549599],[np.pi,-np.pi/2,-np.pi/4])
+            expected=transform([0,0,0],[0,0,mount_yaw])@CAD_TCP
             np.testing.assert_allclose(T,expected,atol=1e-12)
-            np.testing.assert_allclose(T[:3,3],[0,0,.142225549599],atol=1e-12)
+            np.testing.assert_allclose(T[:3,3],expected[:3,3],atol=1e-10)
             exported=cad['coordinate_mapping']['control_points'][side]
             self.assertEqual(exported['name'],name)
             np.testing.assert_allclose(exported['flange_to_tcp'],T,atol=1e-12)
-    def test_both_tcp_frames_reverse_y_z_without_moving_origin_or_x(self):
+    def test_both_tcp_frames_match_native_datum_and_are_right_handed(self):
         config_path=VENDOR/'teleop/marvin_teleop/config.json'
         config=json.loads(config_path.read_text())
-        previous=transform([0,0,.142225549599],[0,-np.pi/2,-np.pi/4])
         for side,letter in [('left','L'),('right','R')]:
             with self.subTest(side=side):
                 tree=ET.parse(config_path.parent/config['tool_tcp'][side]['urdf'])
                 node=tree.find(f"joint[@name='grasp_center_fixed_{letter}']/origin")
                 current=transform(np.fromstring(node.get('xyz'),sep=' '),
                                   np.fromstring(node.get('rpy'),sep=' '))
-                np.testing.assert_allclose(current[:3,3],previous[:3,3],atol=1e-12)
-                np.testing.assert_allclose(current[:3,0],previous[:3,0],atol=1e-12)
-                np.testing.assert_allclose(current[:3,1:3],-previous[:3,1:3],atol=1e-12)
+                np.testing.assert_allclose(current,CAD_TCP,atol=1e-10)
                 np.testing.assert_allclose(np.cross(current[:3,0],current[:3,1]),current[:3,2],atol=1e-12)
                 self.assertAlmostEqual(np.linalg.det(current[:3,:3]),1.)
+    def test_confirmed_clockwise_mount_is_relative_to_original_flange(self):
+        cad=json.loads((ROOT/'public/tianji-model.json').read_text())
+        metadata=cad['replay_mount_override']
+        self.assertEqual(metadata['rotation_about_flange_z_deg'],90.)
+        # Looking along flange +Z, this right-handed +90° is clockwise.
+        delta=np.array([[0,-1,0,0],[1,0,0,0],[0,0,1,0],[0,0,0,1]],float)
+        for side,letter in [('left','L'),('right','R')]:
+            original=metadata['baseline_mounts'][side]
+            baseline=transform(original['xyz'],original['rpy'])
+            joint=next(j for j in cad['joints'] if j['name']==f'gripper_mount_{letter}')
+            current=transform(joint['xyz'],joint['rpy'])
+            np.testing.assert_allclose(current,delta@baseline,atol=1e-12)
+            np.testing.assert_allclose(cad['coordinate_mapping']['control_points'][side]['flange_to_tcp'],
+                                       delta@baseline@CAD_TCP,atol=1e-10)
+
+    def test_reexport_keeps_confirmed_mount_and_does_not_accumulate_rotation(self):
+        import shutil
+        sys.path.insert(0,str(ROOT/'scripts'))
+        from sync_gripper_frames import sync_frames
+        cad=json.loads((ROOT/'public/tianji-model.json').read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            files=[Path('public/tianji-model.json'),
+                   Path('teleop_control/vendor/tianji/teleop/marvin_teleop/config.json')]
+            files += [p.relative_to(ROOT) for p in VENDOR.glob('*/urdf/marvin_*_with_gripper.urdf')]
+            for relative in files:
+                (root/relative).parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(ROOT/relative,root/relative)
+            urdfs={p:(root/p).read_bytes() for p in files if p.suffix=='.urdf'}
+            for _ in range(2):
+                sync_frames(root)
+                exported=json.loads((root/'public/tianji-model.json').read_text())
+                self.assertEqual(exported['joints'],cad['joints'])
+                self.assertEqual(exported['replay_mount_override'],cad['replay_mount_override'])
+                for side in ('left','right'):
+                    np.testing.assert_allclose(exported['coordinate_mapping']['control_points'][side]['flange_to_tcp'],
+                                               cad['coordinate_mapping']['control_points'][side]['flange_to_tcp'],atol=1e-12)
+                for path,raw in urdfs.items():self.assertEqual((root/path).read_bytes(),raw)
     def test_tcp_is_on_motor_axis_and_both_jaw_pivot_plane(self):
         config_path=VENDOR/'teleop/marvin_teleop/config.json'
         config=json.loads(config_path.read_text())
@@ -96,7 +133,7 @@ class URDFToolTests(unittest.TestCase):
             normal/=np.linalg.norm(normal)
             self.assertLess(abs(normal@(pose[:3,3]-a[:3,3])),1e-12)
             np.testing.assert_allclose(np.cross(pose[:3,3]-drive[:3,3],axis),0,atol=1e-12)
-            self.assertGreater(pose[2,3],drive[2,3])
+            self.assertAlmostEqual(np.linalg.norm(a[:3,3]-b[:3,3]),.03975,places=10)
     def test_changing_urdf_origin_changes_loaded_tool_without_json_edits(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'arm.urdf';self.write(p)

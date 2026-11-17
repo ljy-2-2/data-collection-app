@@ -20,6 +20,7 @@ from . import camera_devices
 from .camera_brightness import read_brightness, set_brightness
 from .camera_resolution import read_modes, choose_mode, ros_parameters, usb_connection_info
 from .umi_preview import PREVIEW_FPS, PREVIEW_QUALITY, preview_size
+from .umi_monitor import require_free_monitor_port
 from .models import (
     UmiDeviceConfigureRequest,
     UmiStartRequest,
@@ -1708,6 +1709,7 @@ class UmiManager:
                 raise RuntimeError("UMI 采集服务正在退出，请稍候")
             if self._process is not None and self._process.poll() is None:
                 raise RuntimeError("UMI 采集会话已在运行")
+        require_free_monitor_port(self.monitor_url)
         if not self.check(request.collection_profile).monitor.get("device_check", {}).get("ready"):
             raise RuntimeError("硬件检测未通过，请返回设备检测并确认相机、编码器和 PICO")
         minima = _read_encoder_minima(request.collection_profile)

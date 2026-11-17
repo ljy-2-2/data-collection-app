@@ -148,6 +148,7 @@ class Robot:
             self.feedback_status[side] = {
                 "channel": channel,
                 "frame": serial,
+                "initialized": self.frames[side] is not None,
                 "unchanged_s": round(now - self.changed[side], 4),
                 "state": dict(state),
             }

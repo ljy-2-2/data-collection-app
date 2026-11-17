@@ -90,7 +90,9 @@ def attach_tools(model, root=ROOT):
         tcp_frames[side]=dict(link=tcp_name,parent=joint['parent'],xyz_m=joint['xyz'],rpy_rad=joint['rpy'],
                              source=str(tcp_source.relative_to(root)),sha256=hashlib.sha256(tcp_source.read_bytes()).hexdigest(),
                              definition='Nominal fixed motor-axis / jaw-pivot-plane intersection; not physical TCP calibration.')
-    metadata = dict(status='provisional_holes_aligned',
+    metadata = dict(status='provisional_windows_native_pose',
+        end_effector_revision=source.get('end_effector_revision'),
+        mounting_note='Configured flange mounts retained; current Windows CAD determines the body and jaw orientation. Real installation requires confirmation.',
         tcp_frames=tcp_frames,
         config='teleop_control/assets/kuavo/gripper_mounts.json',
         config_sha256=hashlib.sha256(config_bytes).hexdigest(),

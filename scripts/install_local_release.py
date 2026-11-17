@@ -64,9 +64,13 @@ def install(package, current, data, launcher, config):
             previous = current / 'app' / relative
             if previous.is_file() and digest(path) == digest(previous):
                 continue
+            reconciled = package / 'app' / relative
+            if reconciled.is_file() and digest(path) == digest(reconciled):
+                # The operator's fix has already been merged into this release.
+                continue
             # Only mutable state is migrated. Unexpected local source edits
             # must be reconciled explicitly, never silently lost or reused.
-            if not any(part in {'runtime', '_runtime', 'local', 'logs'} for part in relative.parts):
+            if not any(part in {'runtime', '_runtime', 'runtime-camera-selection', 'local', 'logs'} for part in relative.parts):
                 raise ValueError(f'Unexpected local modification: {relative}')
             state[str(relative)] = digest(path)
         config_before = {str(p.relative_to(config)): digest(p)

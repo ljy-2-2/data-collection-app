@@ -40,8 +40,11 @@ class WorkPoseTests(unittest.TestCase):
                 tcp = arm.fk(q)
                 expected = rotation([0,1,0],np.pi/4) @ arm.fk(PREVIOUS[side])[:3,:3]
                 np.testing.assert_allclose(tcp[:3,:3],expected,atol=1e-7)
-                self.assertAlmostEqual(np.degrees(np.arcsin(tcp[2,0])),-30.,places=5)
-                self.assertAlmostEqual((display@tcp)[2,3]-min(floors),.9853437334,places=6)
+                # Accepted Windows-native tool datum and 2026-11-17 clockwise
+                # mounting: keep the approved arm angles, update derived TCP
+                # geometry (the native tool X differs slightly from flange Z).
+                self.assertAlmostEqual(np.degrees(np.arcsin(tcp[2,0])),-30.0499511,places=5)
+                self.assertAlmostEqual((display@tcp)[2,3]-min(floors),.9855937334,places=6)
                 faces,bounds = arm.joint_halfspaces(margin=0)
                 self.assertGreater(np.min((bounds-faces@q)/np.linalg.norm(faces,axis=1)),3.)
 

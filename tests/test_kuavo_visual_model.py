@@ -1,5 +1,6 @@
 """Official display meshes, unchanged kinematics and two independent renderers."""
 import hashlib
+import pytest
 import json
 import os
 from pathlib import Path
@@ -32,7 +33,8 @@ def test_visual_assets_match_control_urdf_and_have_bounded_simplification():
         assert source['retained_components'] >= 2
         assert source['selected_triangles'] < source['source_triangles']
     assert not any('pitch_noHand' in name for name in model['meshes'])
-    assert manifest['display_bytes']<35_000_000
+    # Detailed current pads, housing and camera are retained within a fixed budget.
+    assert manifest['display_bytes']<80_000_000
     assert 275_000 <= model['tool_attachment']['body_display_triangles'] <= 300_000
     assert manifest['display_triangles']==sum(len(model['meshes'][v['mesh']]['faces']) for l in model['links'] for v in l['visuals'])
     assert all(v['bounds_change_m']<.005 for v in manifest['files'].values())
@@ -87,7 +89,7 @@ from qt_ui.visuals import KuavoScene,RobotScene,transform,rotation
 app=QGuiApplication([])
 expected=json.loads(Path(__import__('sys').argv[1]).read_text())
 k=KuavoScene(Path.cwd());t=RobotScene(Path.cwd())
-assert k.cameraPosition.x()>0 and t.cameraPosition.x()>0
+assert k.cameraPosition.x()>0 and t.cameraPosition.x()<0
 initial={name:part.matrix.copy() for name,part in k.by_link}
 k.update_pose({'telemetry':{'joints':{'zarm_l1_joint':-.6,'zarm_l4_joint':-.8}}})
 for name,part in k.by_link:
@@ -137,11 +139,12 @@ for name,part in t.by_link:
     matrix=np.array(expected['tianji'].get(name,np.eye(4).reshape(-1).tolist())).reshape(4,4)@transform(part.visual['xyz'],part.visual['rpy'])
     # Gripper links use their original calibration defaults; compare only arm links.
     if name in ('stand','Link1_L','Link2_L','Link3_L','Link1_R'):assert np.allclose(part.matrix,matrix)
-assert len(k.parts)==137
+assert len(k.parts)==sum(len(link['visuals']) for link in json.loads(Path('public/kuavo-model.json').read_text())['links'])
 for scene in (t,k):
     scene.changeZoom(100);assert scene.zoom==4.4
     scene.changeZoom(.00001);assert scene.zoom==.5
-    scene.resetView();assert scene.zoom==scene.default_zoom and scene.cameraPosition.x()>0
+    scene.resetView();assert scene.zoom==scene.default_zoom
+    assert k.cameraPosition.x()>0 and t.cameraPosition.x()<0
 '''
     env={**os.environ,'QT_QPA_PLATFORM':'offscreen','QT_QUICK_BACKEND':'software',
          'PYTHONPATH':str(ROOT/'scripts')+os.pathsep+os.environ.get('PYTHONPATH','')}
@@ -175,12 +178,16 @@ def test_provisional_tool_mounts_align_holes_and_omit_tianji_adapters():
         holes=[np.array([x,y,.0527,1]) for x,y in [(0,.019),(.019,0),(0,-.019),(-.019,0)]]
         flange_points=np.array([matrix@p for p in holes])
         for p in holes:assert np.min(np.linalg.norm(flange_points-(grip_matrix@p),axis=1))<1e-9
-        # Jaw pivot separation must run from left arm to right arm (-base Y)
-        # at the zero pose, rather than along the robot's fore/aft X axis.
+        # Preserve the configured mounting clocking and use the jaw axis
+        # relation in the latest Windows assembly (the old CAD differs).
+        cad=json.loads((ROOT/'umi_collection/vendor/galaxis/docs/windows_end_effector_measurements.json').read_text())['assemblies']['motor']
+        raw=np.array(cad['jaw_pivots_assembly_m']['right'])-cad['jaw_pivots_assembly_m']['left']
+        expected=grip_matrix[:3,:3]@np.linalg.inv(cad['assembly_from_flange'])[:3,:3]@raw
         pivot_a=np.array(joints['kuavo_tool_gripper_jaw_1_'+letter]['xyz'])
         pivot_b=np.array(joints['kuavo_tool_gripper_jaw_17_'+letter]['xyz'])
         separation=grip_matrix[:3,:3]@(pivot_b-pivot_a)
-        assert np.allclose(separation/np.linalg.norm(separation),[0,-1,0],atol=2e-5)
+        np.testing.assert_allclose(separation,expected,atol=1e-10)
+        assert np.linalg.norm(separation)==pytest.approx(.03975,abs=1e-10)
         drive=joints['kuavo_tool_gripper_drive_'+letter]
         assert model['display_joint_defaults'][drive['name']]==.5*float(drive['limit']['upper'])
     rebuilt=deepcopy(model)
@@ -257,4 +264,4 @@ def test_kuavo_tcp_frames_reuse_authoritative_tianji_urdf():
         assert actual['child']==metadata['link']
         for field in ('xyz','rpy'):
             assert actual[field]==[float(v) for v in src.find('origin').get(field).split()]
-        assert actual['xyz']==[0,0,.142225549599]
+        assert abs(actual['xyz'][2]-.141725549598)<1e-9

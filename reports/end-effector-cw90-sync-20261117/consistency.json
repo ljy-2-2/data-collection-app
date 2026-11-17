@@ -1,0 +1,10 @@
+{
+  "source_replay_models_identical": true,
+  "replay_resync_does_not_double_rotate": true,
+  "pico_mount_and_work_angles_unchanged": true,
+  "assets": {
+    "public/tianji-model.json": "2830aef16ae62da50f27155c99fb3f5ce4a88bf2c3fa70a3be51951a4088ad4e",
+    "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf": "6545e61894dcf98fc679a91ff3cb8cd4bb2dece6d4dcbd90cf90ff036c50b75e",
+    "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf": "ff3204393ff2e50893a878859e9620af8c980a5b6f1c12e4d2d2e90f2688084c"
+  }
+}

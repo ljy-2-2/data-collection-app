@@ -738,6 +738,14 @@ def compose_command(compose_file: Path, *arguments: str) -> list[str]:
 def legacy_robotics_service_pids(proc_root: Path = Path("/proc")) -> list[int]:
     """Find only the retired PC bridge by its exact executable path."""
     executables = {str(LEGACY_ROBOTICS_SERVICE)}
+    # A user-level upgrade can leave the previous package's XR bridge alive.
+    # Recognize exact application-owned runtime paths across those releases;
+    # never kill arbitrary processes merely named RoboticsServiceProcess.
+    installed = Path('/opt/xiaokai-lab-data-collection/runtime/robot/xr/RoboticsServiceProcess')
+    executables.update((str(installed), str(installed.resolve())))
+    versions = Path.home() / '.local/share/xiaokai-lab-data-collection/versions'
+    for previous in versions.glob('*/runtime/robot/xr/RoboticsServiceProcess'):
+        executables.update((str(previous), str(previous.resolve())))
     configured = os.environ.get("TELEOP_XR_SERVICE") or os.environ.get("TELEOP_XR_LAUNCHER")
     if configured:
         executables.add(str(Path(configured).expanduser().resolve().parent / "RoboticsServiceProcess"))

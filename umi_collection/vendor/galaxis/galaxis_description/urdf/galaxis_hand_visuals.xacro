@@ -1,0 +1,819 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="windows_hand_visuals" params="hand_prefix role">
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_00">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_00.stl" />
+        </geometry>
+        <material name="windows_right_00">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_01">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_01.stl" />
+        </geometry>
+        <material name="windows_right_01">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_02">
+        <origin xyz="0.00955 -1.11022302463e-16 -0.0123" rpy="-1.78427008856 1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_02.stl" />
+        </geometry>
+        <material name="windows_right_02">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_03">
+        <origin xyz="-0.077248927149 -0.0832520166563 -0.00614979319934" rpy="-0.698131700798 -1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_03.stl" />
+        </geometry>
+        <material name="windows_right_03">
+          <color rgba="0.25 0.27 0.3 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_04">
+        <origin xyz="0.0195499999999 0.00750000000007 -0.0178774796638" rpy="-1.57079632679 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_04.stl" />
+        </geometry>
+        <material name="windows_right_04">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_05">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_05.stl" />
+        </geometry>
+        <material name="windows_right_05">
+          <color rgba="0.18 0.19 0.2 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_06">
+        <origin xyz="-4.16333634234e-15 -0.019875 0.0354861625613" rpy="-3.14159265359 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_06.stl" />
+        </geometry>
+        <material name="windows_right_06">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'right_finger'}">
+      <visual name="windows_right_07">
+        <origin xyz="1.1838698808e-16 -4.14041630409e-15 0.023" rpy="1.57079632679 0 0.355002644472" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_07.stl" />
+        </geometry>
+        <material name="windows_right_07">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_08">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_08.stl" />
+        </geometry>
+        <material name="windows_right_08">
+          <color rgba="0.92 0.6 0.2 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'left_finger'}">
+      <visual name="windows_right_09">
+        <origin xyz="-0.00269477403499 -0.0196914656108 -0.0055" rpy="0 0 -1.70680134321" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_09.stl" />
+        </geometry>
+        <material name="windows_right_09">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'right_finger'}">
+      <visual name="windows_right_10">
+        <origin xyz="-0.00269477403499 0.0196914656108 -0.0055" rpy="0 0 -1.43479131038" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_10.stl" />
+        </geometry>
+        <material name="windows_right_10">
+          <color rgba="0.25 0.26 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'left_finger'}">
+      <visual name="windows_right_11">
+        <origin xyz="-0.00269477403499 -0.0196914656108 -0.0055" rpy="0 0 -1.70680134321" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_11.stl" />
+        </geometry>
+        <material name="windows_right_11">
+          <color rgba="0.25 0.26 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'right_finger'}">
+      <visual name="windows_right_12">
+        <origin xyz="-0.00269477403499 0.0196914656108 -0.0055" rpy="0 0 -1.43479131038" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_12.stl" />
+        </geometry>
+        <material name="windows_right_12">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'right_finger'}">
+      <visual name="windows_right_13">
+        <origin xyz="-5.2795360133e-16 -4.33041964864e-15 0.025" rpy="0 0 -2.28901915609" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_13.stl" />
+        </geometry>
+        <material name="windows_right_13">
+          <color rgba="0.83 0.62 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_14">
+        <origin xyz="-0.0481114322462 0.014 0.102152994027" rpy="-0.261799387799 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_14.stl" />
+        </geometry>
+        <material name="windows_right_14">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_15">
+        <origin xyz="-0.0408644989833 0.014 0.129198917163" rpy="-0.261799387799 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_14.stl" />
+        </geometry>
+        <material name="windows_right_15">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_16">
+        <origin xyz="-0.0465659509241 -0.014 0.101738883554" rpy="0.491952211342 0.99089423827 1.99222542081" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_14.stl" />
+        </geometry>
+        <material name="windows_right_16">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_17">
+        <origin xyz="-0.0408644989833 -0.014 0.129198917163" rpy="-0.261799387799 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_14.stl" />
+        </geometry>
+        <material name="windows_right_17">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_18">
+        <origin xyz="0.02 0 -0.0048" rpy="-1.57079632679 0 2.87979326579" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_18.stl" />
+        </geometry>
+        <material name="windows_right_18">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_19">
+        <origin xyz="-0.0195 0.04 -0.00700000000001" rpy="1.57079632679 0 -0.785398163394" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_18.stl" />
+        </geometry>
+        <material name="windows_right_19">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_20">
+        <origin xyz="-0.0195 -0.04 -0.00700000000001" rpy="1.57079632679 0 -1.30899693899" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_18.stl" />
+        </geometry>
+        <material name="windows_right_20">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_21">
+        <origin xyz="0.00955 -2.8449465006e-16 -0.0408774796638" rpy="1.57079632679 0 -0.818817878967" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_21.stl" />
+        </geometry>
+        <material name="windows_right_21">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_22">
+        <origin xyz="-0.0505262468119 0.014 0.102800041639" rpy="2.84433892208 -0.487179694082 -1.4283635423" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_22.stl" />
+        </geometry>
+        <material name="windows_right_22">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_23">
+        <origin xyz="-0.043279313549 -0.014 0.129845964775" rpy="2.80873310322 0.65654060598 -1.77876766767" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_22.stl" />
+        </geometry>
+        <material name="windows_right_23">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_24">
+        <origin xyz="-0.043279313549 0.014 0.129845964775" rpy="2.83710115304 -0.529059096268 -1.4134908629" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_22.stl" />
+        </geometry>
+        <material name="windows_right_24">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_25">
+        <origin xyz="-0.0505262468119 -0.014 0.102800041639" rpy="0.262966574627 0.0931618976336 1.59583406765" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_22.stl" />
+        </geometry>
+        <material name="windows_right_25">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_26">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_26.stl" />
+        </geometry>
+        <material name="windows_right_26">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'camera'}">
+      <visual name="windows_right_27">
+        <origin xyz="-0.023 9.62964972194e-35 0" rpy="1.57079632679 0 1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_27.stl" />
+        </geometry>
+        <material name="windows_right_27">
+          <color rgba="0.22 0.24 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_28">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_28.stl" />
+        </geometry>
+        <material name="windows_right_28">
+          <color rgba="0.92 0.6 0.2 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_29">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_29.stl" />
+        </geometry>
+        <material name="windows_right_29">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_30">
+        <origin xyz="-4.4408920985e-16 0.019875 0.0127861626112" rpy="1.87479183788 1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_30.stl" />
+        </geometry>
+        <material name="windows_right_30">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_31">
+        <origin xyz="-1.33226762955e-15 -0.019875 -0.012" rpy="-1.82810602121 1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_30.stl" />
+        </geometry>
+        <material name="windows_right_31">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_32">
+        <origin xyz="-1.11022302463e-15 -0.019875 0.0127861626112" rpy="2.27636042317 1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_30.stl" />
+        </geometry>
+        <material name="windows_right_32">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_33">
+        <origin xyz="-6.66133814775e-16 0.019875 -0.012" rpy="-0.423460128811 -1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_30.stl" />
+        </geometry>
+        <material name="windows_right_33">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_34">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_34.stl" />
+        </geometry>
+        <material name="windows_right_34">
+          <color rgba="0.32 0.33 0.35 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_35">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_35.stl" />
+        </geometry>
+        <material name="windows_right_35">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'right' and role == 'root'}">
+      <visual name="windows_right_36">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/right_36.stl" />
+        </geometry>
+        <material name="windows_right_36">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_00">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_00.stl" />
+        </geometry>
+        <material name="windows_left_00">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_01">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_01.stl" />
+        </geometry>
+        <material name="windows_left_01">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_02">
+        <origin xyz="0.00955 1.11022302463e-16 -0.0123" rpy="1.35732256503 -1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_02.stl" />
+        </geometry>
+        <material name="windows_left_02">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_03">
+        <origin xyz="-0.077248927149 0.0832520166563 -0.00614979319934" rpy="2.44346095279 1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_03.stl" />
+        </geometry>
+        <material name="windows_left_03">
+          <color rgba="0.25 0.27 0.3 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_04">
+        <origin xyz="0.0195499999999 -0.00750000000007 -0.0178774796638" rpy="-1.57079632679 0 -1.5707963268" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_04.stl" />
+        </geometry>
+        <material name="windows_left_04">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_05">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_05.stl" />
+        </geometry>
+        <material name="windows_left_05">
+          <color rgba="0.18 0.19 0.2 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_06">
+        <origin xyz="-4.16333634234e-15 0.019875 0.0354861625613" rpy="-3.14159265359 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_06.stl" />
+        </geometry>
+        <material name="windows_left_06">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'left_finger'}">
+      <visual name="windows_left_07">
+        <origin xyz="1.1838698808e-16 4.14041630409e-15 0.023" rpy="1.57079632679 0 2.78659000912" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_07.stl" />
+        </geometry>
+        <material name="windows_left_07">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_08">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_08.stl" />
+        </geometry>
+        <material name="windows_left_08">
+          <color rgba="0.92 0.6 0.2 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'right_finger'}">
+      <visual name="windows_left_09">
+        <origin xyz="-0.00269477403499 0.0196914656108 -0.0055" rpy="0 0 -1.43479131038" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_09.stl" />
+        </geometry>
+        <material name="windows_left_09">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'left_finger'}">
+      <visual name="windows_left_10">
+        <origin xyz="-0.00269477403499 -0.0196914656108 -0.0055" rpy="0 0 -1.70680134321" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_10.stl" />
+        </geometry>
+        <material name="windows_left_10">
+          <color rgba="0.25 0.26 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'right_finger'}">
+      <visual name="windows_left_11">
+        <origin xyz="-0.00269477403499 0.0196914656108 -0.0055" rpy="0 0 -1.43479131038" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_11.stl" />
+        </geometry>
+        <material name="windows_left_11">
+          <color rgba="0.25 0.26 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'left_finger'}">
+      <visual name="windows_left_12">
+        <origin xyz="-0.00269477403499 -0.0196914656108 -0.0055" rpy="0 0 -1.70680134321" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_12.stl" />
+        </geometry>
+        <material name="windows_left_12">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'left_finger'}">
+      <visual name="windows_left_13">
+        <origin xyz="-5.2795360133e-16 4.33041964864e-15 0.025" rpy="0 0 -0.852573497499" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_13.stl" />
+        </geometry>
+        <material name="windows_left_13">
+          <color rgba="0.83 0.62 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_14">
+        <origin xyz="-0.0481114322462 -0.014 0.102152994027" rpy="-0.261799387799 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_14.stl" />
+        </geometry>
+        <material name="windows_left_14">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_15">
+        <origin xyz="-0.0408644989833 -0.014 0.129198917163" rpy="-0.261799387799 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_14.stl" />
+        </geometry>
+        <material name="windows_left_15">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_16">
+        <origin xyz="-0.0465659509241 0.014 0.101738883554" rpy="0.491952211342 -0.99089423827 1.14936723278" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_14.stl" />
+        </geometry>
+        <material name="windows_left_16">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_17">
+        <origin xyz="-0.0408644989833 0.014 0.129198917163" rpy="-0.261799387799 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_14.stl" />
+        </geometry>
+        <material name="windows_left_17">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_18">
+        <origin xyz="0.02 0 -0.0048" rpy="-1.57079632679 0 0.261799387799" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_18.stl" />
+        </geometry>
+        <material name="windows_left_18">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_19">
+        <origin xyz="-0.0195 -0.04 -0.00700000000001" rpy="1.57079632679 0 -2.3561944902" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_18.stl" />
+        </geometry>
+        <material name="windows_left_19">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_20">
+        <origin xyz="-0.0195 0.04 -0.00700000000001" rpy="1.57079632679 0 -1.8325957146" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_18.stl" />
+        </geometry>
+        <material name="windows_left_20">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_21">
+        <origin xyz="0.00955 2.8449465006e-16 -0.0408774796638" rpy="1.57079632679 0 -2.32277477462" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_21.stl" />
+        </geometry>
+        <material name="windows_left_21">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_22">
+        <origin xyz="-0.0505262468119 -0.014 0.102800041639" rpy="2.84433892208 0.487179694082 -1.71322911129" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_22.stl" />
+        </geometry>
+        <material name="windows_left_22">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_23">
+        <origin xyz="-0.043279313549 0.014 0.129845964775" rpy="2.80873310322 -0.65654060598 -1.36282498592" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_22.stl" />
+        </geometry>
+        <material name="windows_left_23">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_24">
+        <origin xyz="-0.043279313549 -0.014 0.129845964775" rpy="2.83710115304 0.529059096268 -1.72810179069" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_22.stl" />
+        </geometry>
+        <material name="windows_left_24">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_25">
+        <origin xyz="-0.0505262468119 0.014 0.102800041639" rpy="0.262966574627 -0.0931618976336 1.54575858594" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_22.stl" />
+        </geometry>
+        <material name="windows_left_25">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_26">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_26.stl" />
+        </geometry>
+        <material name="windows_left_26">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'camera'}">
+      <visual name="windows_left_27">
+        <origin xyz="-0.023 -4.81482486097e-35 0" rpy="1.57079632679 0 1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_27.stl" />
+        </geometry>
+        <material name="windows_left_27">
+          <color rgba="0.22 0.24 0.28 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_28">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_28.stl" />
+        </geometry>
+        <material name="windows_left_28">
+          <color rgba="0.92 0.6 0.2 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_29">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_29.stl" />
+        </geometry>
+        <material name="windows_left_29">
+          <color rgba="0.35 0.57 0.73 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_30">
+        <origin xyz="-4.4408920985e-16 -0.019875 0.0127861626112" rpy="-1.26680081571 -1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_30.stl" />
+        </geometry>
+        <material name="windows_left_30">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_31">
+        <origin xyz="-1.33226762955e-15 0.019875 -0.012" rpy="1.31348663238 -1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_30.stl" />
+        </geometry>
+        <material name="windows_left_31">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_32">
+        <origin xyz="-1.11022302463e-15 0.019875 0.0127861626112" rpy="-0.865232230417 -1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_30.stl" />
+        </geometry>
+        <material name="windows_left_32">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_33">
+        <origin xyz="-6.66133814775e-16 -0.019875 -0.012" rpy="2.71813252478 1.57079632679 0" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_30.stl" />
+        </geometry>
+        <material name="windows_left_33">
+          <color rgba="0.64 0.67 0.71 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_34">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_34.stl" />
+        </geometry>
+        <material name="windows_left_34">
+          <color rgba="0.32 0.33 0.35 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_35">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_35.stl" />
+        </geometry>
+        <material name="windows_left_35">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${hand_prefix == 'left' and role == 'root'}">
+      <visual name="windows_left_36">
+        <origin xyz="0 0 -0.0055" rpy="0 0 -1.57079632679" />
+        <geometry>
+          <mesh filename="package://galaxis_description/meshes/windows/left_36.stl" />
+        </geometry>
+        <material name="windows_left_36">
+          <color rgba="0.65 0.66 0.68 1" />
+        </material>
+      </visual>
+    </xacro:if>
+  </xacro:macro>
+</robot>

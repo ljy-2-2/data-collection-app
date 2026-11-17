@@ -24,9 +24,12 @@ if(BUILD_TESTING)
 endif()
 
 install(
-  DIRECTORY meshes rviz urdf
+  DIRECTORY meshes urdf
   DESTINATION share/${PROJECT_NAME}
 )
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rviz")
+  install(DIRECTORY rviz DESTINATION share/${PROJECT_NAME})
+endif()
 
 ament_package()

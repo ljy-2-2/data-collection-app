@@ -427,3 +427,23 @@ def test_serial_tls_stream_reproduces_old_timeout_and_batch_api_stops_it_first(r
     finally:
         preview.close();stopped.set();listener.close()
         receiver.join(timeout=3);server.join(timeout=3)
+
+
+@pytest.mark.parametrize('interval,offered', [(166666, True), (333333, False), (83263, False)])
+def test_wrist_720p60_requires_advertised_period(interval, offered):
+    from fusion_camera.profiles import valid_profile, source_metadata
+    modes = protocol.parse_capabilities(descriptor(1280, 720, interval))['modes']
+    assert ('mjpeg-1280x720-60' in modes) is offered
+    profile = protocol.PROFILES['mjpeg-1280x720-60']
+    assert valid_profile(profile)
+    assert source_metadata(profile)['fps'] == 60
+    assert not valid_profile(dict(profile, fps=30))
+    assert not valid_profile(dict(profile, width=1920, height=1080))
+
+
+@pytest.mark.parametrize('camera', ['usb_2', 'usb_4'])
+def test_wrist_720p60_settings_survive_preview_verification(rig, camera):
+    result = rig.controls.request(camera, mode_id='mjpeg-1280x720-60')
+    selected = result['resolution']['selected']
+    assert (selected['width'], selected['height'], selected['fps']) == (1280, 720, 60)
+    assert rig.manager.camera_frame_metadata[camera]['fps'] == 60

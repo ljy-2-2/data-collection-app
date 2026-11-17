@@ -85,6 +85,11 @@ YUV stream from a UVC device such as a standard webcam.
  */
 void *_uvc_handle_events(void *arg) {
   uvc_context_t *ctx = (uvc_context_t *) arg;
+#ifdef FUSION_FRAME_COMPLETION_HOOK
+  /* The passive camera helper configures only this event thread. */
+  extern int fusion_uvc_event_thread_start(void);
+  if (!fusion_uvc_event_thread_start()) return NULL;
+#endif
 
   while (!ctx->kill_handler_thread)
     libusb_handle_events_completed(ctx->usb_ctx, &ctx->kill_handler_thread);

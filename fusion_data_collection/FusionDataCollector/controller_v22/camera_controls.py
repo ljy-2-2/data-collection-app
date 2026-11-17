@@ -14,6 +14,7 @@ import tempfile
 
 PROFILES = {
     'mjpeg': dict(format='mjpeg', width=1024, height=768, fps=30),
+    'mjpeg-1280x720-60': dict(format='mjpeg', width=1280, height=720, fps=60),
     'mjpeg-1280x1024': dict(format='mjpeg', width=1280, height=1024, fps=30),
     'mjpeg-1920x1080': dict(format='mjpeg', width=1920, height=1080, fps=30),
     'yuyv': dict(format='yuyv', width=640, height=480, fps=30),

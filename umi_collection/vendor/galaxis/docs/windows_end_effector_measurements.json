@@ -1,0 +1,1601 @@
+{
+  "units": "m/rad",
+  "source_files": [
+    {
+      "file": "手持版/右手/手持夹爪_右手.SLDASM",
+      "length": 37600939,
+      "sha256": "a74332f323029e9da8daaa92dc5cfc85c51f48153b81a03dc43feeaf20924e2f"
+    },
+    {
+      "file": "手持版/右手/零件/手持_相机杆-通用.SLDPRT",
+      "length": 154793,
+      "sha256": "611ba635c7a9aa7169519220d4dc5d0913fe5b46aec539d8e5502030fe6a65ef"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_GB锥头铆钉_4x20.SLDPRT",
+      "length": 88501,
+      "sha256": "f163d2188c185cb552cf22d80e1c86e46a84ce9cd3fbe3d7526d3dd09716f1b9"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_M3x10后侧锁紧螺钉.SLDPRT",
+      "length": 67815,
+      "sha256": "8ab6239943acae3806cc0c3df7e0936e673bc064e746c3037be636d6a618c217"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_M3x10固定环锁紧螺钉.SLDPRT",
+      "length": 67761,
+      "sha256": "3c2f46810a75323db751a882143ab892feb40c0bf0779cddba59f52449952b2e"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_M3后侧嵌入螺母.SLDPRT",
+      "length": 61766,
+      "sha256": "4c952d04a98d3f55c5d7ce1dae1112354b585e5afa156b8da4a6666975b6dcc1"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_M3固定环嵌入螺母.SLDPRT",
+      "length": 62019,
+      "sha256": "00ab130c21844833c36ed0068dcc17a2ee97e53c1d35f0dec6c4429a175b609c"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_Pico控制器.SLDPRT",
+      "length": 71460485,
+      "sha256": "a8d771ef43aa6a225326d1797f9f5d053f2e60e5be9818363bf86634c3620499"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_上壳体.SLDPRT",
+      "length": 641091,
+      "sha256": "b5059cef65092b017903fc05bce6d5e696d7074ba42096dc847f88320bf846a1"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_下壳体.SLDPRT",
+      "length": 568829,
+      "sha256": "6d26b3c5e582ed99fcdb58da8f305c54aab808426914e8aa2a29275d1c715ef0"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_下壳体前沿TPU95A光滑护套.SLDPRT",
+      "length": 359479,
+      "sha256": "4a17c1626dd34da480f4e3048e92a8e3f6bd1499b4a018f2f8f0bee525bfdbbb"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_外套2.SLDPRT",
+      "length": 335480,
+      "sha256": "0495f5e4176ca23c8ca4256b320b3104349e0907e9749119ff898e408b3bed6d"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_夹指齿轮A.SLDPRT",
+      "length": 1265426,
+      "sha256": "0831da5056b52a3183b4e75c63370b45fdcb29eebb32dc1b21d2e7326fb8aa13"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_夹指齿轮B.SLDPRT",
+      "length": 809433,
+      "sha256": "fac55e4bb48e6e1bff48a1ea8ff274c9ed766489bbe16c9e055c5ecc6dc8efe5"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_把手.SLDPRT",
+      "length": 61556,
+      "sha256": "c56cf25df63eef0d3acb9b4f31871194fd4d88da375fe5a86b498d478338a56f"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_把手垫.SLDPRT",
+      "length": 87665,
+      "sha256": "1bf1165e38ddbeb30e39a91748279cf746c8e55dd468adbdd32ffcb4bfe78922"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_摄像头.SLDPRT",
+      "length": 146129,
+      "sha256": "4c37a829dc2f8ce7530b48049c8b596eab328af6f50a4f2cf7888bab2258061f"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_杆1.SLDPRT",
+      "length": 232480,
+      "sha256": "7d64f27a0e2a6a34305d44a3e8697058220b63fdfe84ba3e55162a2d37d5baf3"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_磁编码器盖子.SLDPRT",
+      "length": 64198,
+      "sha256": "3e382903f175ca48d9f6a53c89f1baf1248dc672938171bcbf829150c2f1f402"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_磁铁.SLDPRT",
+      "length": 51999,
+      "sha256": "c922889ca885d94794b22ac8e5eb89c4b8e04a8f4d1af3a19a6dbed93f510bb1"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_脚垫.SLDPRT",
+      "length": 3717412,
+      "sha256": "7ef0a5417d8fda70cff9c770664a49684286d0cd7add13ef78603a8da08ac0c2"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_脚垫_对侧.SLDPRT",
+      "length": 3708036,
+      "sha256": "9c2b593ba16e9e60c8a529b0b28785a2fd42f8e5f1f767c334c7fef60fb09d30"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_螺丝M2-6.SLDPRT",
+      "length": 65473,
+      "sha256": "ee5ca1c84314c3fdf6146f14a35d5198c13adb7667a9b8cfc6ec0fdae3977a43"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_螺母M2.SLDPRT",
+      "length": 71249,
+      "sha256": "c1ff9524a2f5d6b9a2b941fab1f078bb88ec49ef10595b01c5696e16b4d642f6"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_螺母M3.SLDPRT",
+      "length": 71465,
+      "sha256": "8e465c406c862a54766907b21f04b600e7371bb43d05c3026f31be23147219a3"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_螺母M4.SLDPRT",
+      "length": 72183,
+      "sha256": "b52f1ab50fb108702ccfb7175f1d6beef7cf2798849399efafb4c47a5c75fe2b"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_轴承.SLDPRT",
+      "length": 300941,
+      "sha256": "400ebc715694f9ddabc370d433a49045beb17d50c3cadcad016070afc7ddb77d"
+    },
+    {
+      "file": "手持版/右手/零件/手持右_连接(磁铁-杆).SLDPRT",
+      "length": 162988,
+      "sha256": "0ec3accde3214f2981d77a540d8c5f923807aea705881d1d1a19bb09b127de54"
+    },
+    {
+      "file": "手持版/左手/手持夹爪_左手.SLDASM",
+      "length": 37626494,
+      "sha256": "532b53359f3d24a4d1c14804cc39e9970eba88824bb63a4bc29c46d18eb9938e"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_GB锥头铆钉_4x20.SLDPRT",
+      "length": 97924,
+      "sha256": "dd8d879afef873b91864f0ba9c4fc978231b14d2f90af2f90ef717927bc17153"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_M3x10后侧锁紧螺钉.SLDPRT",
+      "length": 66980,
+      "sha256": "a7ee95544b1d3b5829daf6aa5d907096d27f42cb70ce44e6de62238545107b32"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_M3x10固定环锁紧螺钉.SLDPRT",
+      "length": 67660,
+      "sha256": "efe2e9c5e7b56c476937676ae20ebedbb5d3350ec8ea16c6b1f88ede9aff472f"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_M3后侧嵌入螺母.SLDPRT",
+      "length": 61292,
+      "sha256": "5ae1a4a323f8ee85ce394122a688309e4ef68dc8072a2ff6313af0674f0ea9a0"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_M3固定环嵌入螺母.SLDPRT",
+      "length": 61739,
+      "sha256": "9fed83075314175437bcc9675e3df307e860e3c4ac04ecfe41c360956b228471"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_Pico控制器.SLDPRT",
+      "length": 71571836,
+      "sha256": "961dc7975a7a28b0a12c02056cfeabfd54ba5d7420d20b46248de23af9d339c4"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_上壳体.SLDPRT",
+      "length": 641607,
+      "sha256": "b7e5a7e28f97cea8b33db63751176aeb10ae8fd1b4a77026c2d05c373d84b3ad"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_下壳体.SLDPRT",
+      "length": 359092,
+      "sha256": "c8a82bee42b832a61973c158501ce035f70bd4cd4c32da31b9a719097da9a4d5"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_下壳体前沿TPU95A光滑护套.SLDPRT",
+      "length": 350222,
+      "sha256": "cb07ad77355aa87e165d3d9e0a3bbf349390562ff21fe7f10348215313079eea"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_外套2.SLDPRT",
+      "length": 338320,
+      "sha256": "cacb392cc5a8958112901e113425ad361427068b37f5de15c569a7084ef73d7f"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_夹指齿轮A.SLDPRT",
+      "length": 806088,
+      "sha256": "5b4dbf15896daddb159c6a2471e146d4a2f0bf96b8375170bc8daed79583b66a"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_夹指齿轮B.SLDPRT",
+      "length": 809571,
+      "sha256": "4616fee3f0e80c25e741d4fbd7769eb8fa37303887179644760f0f4371b413f6"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_把手.SLDPRT",
+      "length": 60556,
+      "sha256": "b3c73b5936f68cda18fbfb3654242d7537fe4119b626a8f561bf14760adad39f"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_把手垫.SLDPRT",
+      "length": 86702,
+      "sha256": "4289652a22c32f41aa45a630f70c3769c5122af73dddd0fbf4e496e4bbced9b5"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_摄像头.SLDPRT",
+      "length": 145807,
+      "sha256": "eded5ef6da5f55667895d37da447fd000023394f3684c8512d585c123e913721"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_杆1.SLDPRT",
+      "length": 166028,
+      "sha256": "2a9c45906c73d60fb206a0f660d7c8aba4d86a4e1a11b3e3173fa71cdbee4d68"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_磁编码器盖子.SLDPRT",
+      "length": 62568,
+      "sha256": "12cd8da3613a822df30d44f49370009286df939a3d64e290cec973b71d7b86fc"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_磁铁.SLDPRT",
+      "length": 51939,
+      "sha256": "c0fb6548f695125d77b06575ab836365274fe2329640c73a2a97689ce814212c"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_脚垫.SLDPRT",
+      "length": 3708815,
+      "sha256": "3e4d3790896a7e95af283bb6704f93277a93863cbe26d7f7e88d5e646cd16143"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_脚垫_对侧.SLDPRT",
+      "length": 3714724,
+      "sha256": "ac90cb5d72b6da5ca2d6c5284acedd6e1592f573e8436155ae68d0d9dffe9a1d"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_螺丝M2-6.SLDPRT",
+      "length": 65204,
+      "sha256": "57e475bd0e0eb4363b8419687fd62f1fb049d3c82b6be7b7fdc569ef8533f39d"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_螺母M2.SLDPRT",
+      "length": 71090,
+      "sha256": "f57e9e99f9f86f0eaf7b531e387810ca2cbf0a975a25ad5f5b1c27638d2cf945"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_螺母M3.SLDPRT",
+      "length": 71769,
+      "sha256": "a201bc4e2336e2f31178c6c228bc6537d14e322942199e7bc131eea6a874e542"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_螺母M4.SLDPRT",
+      "length": 71564,
+      "sha256": "c43885df1e0192a151c7e5b93015941f9215e167babb5690e9ad9a3b02a88427"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_轴承.SLDPRT",
+      "length": 328453,
+      "sha256": "144d40d1280f69b3dd5648a156bbf50f16066ebbb5d08d9bd04eadc2c1a12c69"
+    },
+    {
+      "file": "手持版/左手/零件/手持左_连接(磁铁-杆).SLDPRT",
+      "length": 135966,
+      "sha256": "601cb8854163f0997e0cda4d29d48f74425c79de0f2767bcfa2ea947f34bc7cc"
+    },
+    {
+      "file": "电机版/电机夹爪.SLDASM",
+      "length": 15908956,
+      "sha256": "40d6b49c92dc4b0f8391eb116785d843a8b56efbaa3789451eaa3bb878616560"
+    },
+    {
+      "file": "电机版/零件/电机_M2x10内六角螺栓_采购示意_省略螺纹.SLDPRT",
+      "length": 71897,
+      "sha256": "389e6fe8b9cf6bb416cbed18dd8ae881a8aa1e8509ffba6c235cc01ea52623c9"
+    },
+    {
+      "file": "电机版/零件/电机_M2六角螺母_采购示意_省略螺纹.SLDPRT",
+      "length": 61463,
+      "sha256": "6c78a17a97071cc11fed575fbb6d7e704f6a870141b1149021edf96afc43b311"
+    },
+    {
+      "file": "电机版/零件/电机_M3x20内六角螺栓_采购示意_省略螺纹.SLDPRT",
+      "length": 72671,
+      "sha256": "538835309a69d00b9dcccc9a32cecd7e4e2464a31dccdf5574656a252db06fbc"
+    },
+    {
+      "file": "电机版/零件/电机_M3六角螺母_采购示意_省略螺纹.SLDPRT",
+      "length": 61062,
+      "sha256": "e0b3a0be733019f1acfa80614460d8e6e30e018d0c9f406f28979dc1bac56037"
+    },
+    {
+      "file": "电机版/零件/电机_上壳体.SLDPRT",
+      "length": 1131850,
+      "sha256": "d56cd938f00d13ebe4b9d02ebfdc5c86039192ec8071ed8f5db524cc873ceaa7"
+    },
+    {
+      "file": "电机版/零件/电机_下壳体.SLDPRT",
+      "length": 722838,
+      "sha256": "f0704def62e333fddba255b95e3bb282379598c994445d8a51853d38c70695d4"
+    },
+    {
+      "file": "电机版/零件/电机_中央齿轮轴.SLDPRT",
+      "length": 1087638,
+      "sha256": "119f79d14bc1cda4fc674c6899edff1f2461a0648b29e73ff62c631187ec64f4"
+    },
+    {
+      "file": "电机版/零件/电机_前连接M3x14螺栓_采购参考.SLDPRT",
+      "length": 70456,
+      "sha256": "05b869243f4e315694a36f01e83add468df14499251c9cae80d77cdf836349d5"
+    },
+    {
+      "file": "电机版/零件/电机_天机电机连接法兰.SLDPRT",
+      "length": 184787,
+      "sha256": "8c896dce3d017ec42ca13ba689b99afe7cb810477b957ba2ac077dd9197664d5"
+    },
+    {
+      "file": "电机版/零件/电机_夹指齿轮A.SLDPRT",
+      "length": 1785949,
+      "sha256": "c77cf2094757f0080d09897653c5a8f48cc0f327ddcc636e4325843cee524264"
+    },
+    {
+      "file": "电机版/零件/电机_夹指齿轮B.SLDPRT",
+      "length": 1810136,
+      "sha256": "3e140cbb880695f25f5916fdf96f30283caa718a970f455858b8baab26dd3a06"
+    },
+    {
+      "file": "电机版/零件/电机_左右贯穿杆.SLDPRT",
+      "length": 78294,
+      "sha256": "9436d62ac0117f6b6eb444a2bfa64526597d004ae3ec9c3a51e068559e1d77e9"
+    },
+    {
+      "file": "电机版/零件/电机_摄像头.SLDPRT",
+      "length": 145389,
+      "sha256": "55788564603bf4d515a4cdaf8572d07b407a72ba7bdf1c77c3f5ff2d86dfc276"
+    },
+    {
+      "file": "电机版/零件/电机_杆1.SLDPRT",
+      "length": 262676,
+      "sha256": "e06bbbe3800befd7fa352da98c716047408bec5f223dd16370d1dff2b9e95222"
+    },
+    {
+      "file": "电机版/零件/电机_电机外壳1.SLDPRT",
+      "length": 245522,
+      "sha256": "2e07d6442dff42a127d8f607ee6b4ad02ada39c8d5a257da6abf56c2f410abaa"
+    },
+    {
+      "file": "电机版/零件/电机_相机M2x6螺钉.SLDPRT",
+      "length": 65245,
+      "sha256": "575e8568a0ccd14d0476d48ee8b2caa91a00d4f7c5255b3f986ce04378da1e93"
+    },
+    {
+      "file": "电机版/零件/电机_相机M2螺母.SLDPRT",
+      "length": 72168,
+      "sha256": "e95e9c8536609685481b9fe4058628c8ed74ac77c9fa3f36b3e4dd36f827095e"
+    },
+    {
+      "file": "电机版/零件/电机_脚垫.SLDPRT",
+      "length": 4130710,
+      "sha256": "2020ffcb1fc2b227bfe046e71aebd777893457c07dec809420e1781b64210a1c"
+    },
+    {
+      "file": "电机版/零件/电机_螺母M3.SLDPRT",
+      "length": 71632,
+      "sha256": "6e3c5a1e80fedea57571c1e2d1e22896ca68b139b811bcba458246e77cf9b55f"
+    },
+    {
+      "file": "电机版/零件/电机_贯穿杆2.SLDPRT",
+      "length": 128212,
+      "sha256": "5da9ac783132a482a550092a7a06e4494341b0556af1bcdd3a66c4f1d8f11710"
+    },
+    {
+      "file": "电机版/零件/电机_轴承.SLDPRT",
+      "length": 300560,
+      "sha256": "b23be469dde61cda5f7da918f149e43ca8f0cb49ca0198bf9b75b0740f1fd207"
+    },
+    {
+      "file": "电机版/零件/电机_采购参考.SLDPRT",
+      "length": 12774207,
+      "sha256": "f2c9041086cc28764b78a5df584ea7a28e53858c7c47d1da85d0a05d6896a14f"
+    }
+  ],
+  "source": "Windows Desktop/end_effector",
+  "old_mount_in_original_root": [
+    [
+      0.7071067811865475,
+      -0.0,
+      -0.7071067811865476,
+      -0.05734
+    ],
+    [
+      0.0,
+      1.0,
+      -0.0,
+      -0.0285
+    ],
+    [
+      0.7071067811865476,
+      0.0,
+      0.7071067811865475,
+      0.06362
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "pico_local_reference": [
+    [
+      -4.782727874724862e-15,
+      -1.0,
+      5.078719860142469e-15,
+      0.047057749167916024
+    ],
+    [
+      0.9961946980917452,
+      5.682055960506338e-16,
+      0.08715574274766039,
+      0.09308030682840741
+    ],
+    [
+      -0.08715574274766044,
+      9.579512192084211e-15,
+      0.9961946980917452,
+      0.057569993449550515
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "pico_definition": "Previously user-confirmed Quest-mapped point and attached frame, carried with current Pico component. Not SDK calibration.",
+  "old_properties": {
+    "finger_offset_y": 0.0165,
+    "finger_tip_offset_x": 0.09145,
+    "finger_tip_offset_y": 0.0,
+    "finger_tip_offset_z": 0.0,
+    "camera_x": 0.027181633778,
+    "camera_y": 0.0,
+    "camera_z": 0.061854719162,
+    "camera_roll": 0.0,
+    "camera_pitch": 0.6981317007977318,
+    "camera_yaw": 0.0,
+    "mount_x": -0.05734,
+    "mount_y": -0.0285,
+    "mount_z": 0.06362,
+    "mount_roll": 0.0,
+    "mount_pitch": -0.7853981633974483,
+    "mount_yaw": 0.0
+  },
+  "assemblies": {
+    "right": {
+      "file": "手持版/右手/手持夹爪_右手.SLDASM",
+      "sha256": "a74332f323029e9da8daaa92dc5cfc85c51f48153b81a03dc43feeaf20924e2f",
+      "assembly_from_root": [
+        [
+          0.0,
+          -1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0055000000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_component_transform": [
+        [
+          -1.0,
+          -7.029644297013411e-33,
+          -5.661330510433364e-18,
+          1.972564670015349e-20
+        ],
+        [
+          -7.365260208132836e-18,
+          0.2588190451025208,
+          0.9659258262890682,
+          -0.04690278018048406
+        ],
+        [
+          -2.884920870888039e-18,
+          0.9659258262890684,
+          -0.2588190451025209,
+          0.1218230032074437
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_reference_local_m": [
+        0,
+        0,
+        0.023
+      ],
+      "camera_pose": [
+        [
+          0.9659258262890682,
+          -7.365260208132836e-18,
+          0.2588190451025208,
+          -0.024686486175835496
+        ],
+        [
+          5.661330510433364e-18,
+          1.0,
+          7.029644297013411e-33,
+          1.1048495503981387e-19
+        ],
+        [
+          -0.2588190451025209,
+          -2.884920870888039e-18,
+          0.9659258262890684,
+          0.11037016517008572
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_xyz_m": [
+        -0.024686486175835496,
+        1.1048495503981387e-19,
+        0.11037016517008572
+      ],
+      "camera_rpy_rad": [
+        0.0,
+        0.2617993877991498,
+        0.0
+      ],
+      "jaw_pivots_assembly_m": {
+        "left": [
+          -0.019875,
+          0.0,
+          0.0055000000000000005
+        ],
+        "right": [
+          0.019875,
+          0.0,
+          0.0055000000000000005
+        ]
+      },
+      "shaft_spacing_m": 0.03975,
+      "pico_component_transform": [
+        [
+          -6.096761769665471e-13,
+          -0.7660444431189811,
+          -0.6427876096865359,
+          0.08325201665632898
+        ],
+        [
+          9.71144489065621e-14,
+          0.6427876096865358,
+          -0.766044443118981,
+          -0.0772489271490145
+        ],
+        [
+          1.0,
+          -5.294630119459154e-13,
+          -3.174983085437144e-13,
+          -0.0006497931993353148
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "pico_pose": [
+        [
+          0.7071067811865458,
+          -1.0408754547220284e-13,
+          -0.7071067811865491,
+          -0.061519232786312904
+        ],
+        [
+          0.7071067811865491,
+          -6.030833144832305e-13,
+          0.7071067811865459,
+          0.025056913632517067
+        ],
+        [
+          -5.045591723086789e-13,
+          -1.0,
+          -3.573571538277625e-13,
+          0.040907955968513154
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "pico_xyz_m": [
+        -0.061519232786312904,
+        0.025056913632517067,
+        0.040907955968513154
+      ],
+      "pico_rpy_rad": [
+        -1.57079632679525,
+        0.0,
+        0.785398163397452
+      ],
+      "pad_contact_angle_from_native_rad": 0.13600501641182894,
+      "jaw_zero_definition": "Visual closed reference: first TPU contact at symmetry plane; not measured actuator calibration."
+    },
+    "left": {
+      "file": "手持版/左手/手持夹爪_左手.SLDASM",
+      "sha256": "532b53359f3d24a4d1c14804cc39e9970eba88824bb63a4bc29c46d18eb9938e",
+      "assembly_from_root": [
+        [
+          0.0,
+          -1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0055000000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_component_transform": [
+        [
+          -1.0,
+          7.029644297013411e-33,
+          5.661330510433364e-18,
+          -1.972564670015346e-20
+        ],
+        [
+          7.365260208132836e-18,
+          0.2588190451025208,
+          0.9659258262890682,
+          -0.04690278018048407
+        ],
+        [
+          2.884920870888039e-18,
+          0.9659258262890684,
+          -0.2588190451025209,
+          0.1218230032074437
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_reference_local_m": [
+        0,
+        0,
+        0.023
+      ],
+      "camera_pose": [
+        [
+          0.9659258262890682,
+          7.365260208132836e-18,
+          0.2588190451025208,
+          -0.024686486175835503
+        ],
+        [
+          -5.661330510433364e-18,
+          1.0,
+          -7.029644297013411e-33,
+          -1.104849550398139e-19
+        ],
+        [
+          -0.2588190451025209,
+          2.884920870888039e-18,
+          0.9659258262890684,
+          0.11037016517008572
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_xyz_m": [
+        -0.024686486175835503,
+        -1.104849550398139e-19,
+        0.11037016517008572
+      ],
+      "camera_rpy_rad": [
+        0.0,
+        0.2617993877991498,
+        0.0
+      ],
+      "jaw_pivots_assembly_m": {
+        "right": [
+          0.019875,
+          0.0,
+          0.0055000000000000005
+        ],
+        "left": [
+          -0.019875,
+          0.0,
+          0.0055000000000000005
+        ]
+      },
+      "shaft_spacing_m": 0.03975,
+      "pico_component_transform": [
+        [
+          -6.096761769665471e-13,
+          0.7660444431189811,
+          0.6427876096865359,
+          -0.08325201665632898
+        ],
+        [
+          -9.71144489065621e-14,
+          0.6427876096865358,
+          -0.766044443118981,
+          -0.0772489271490145
+        ],
+        [
+          -1.0,
+          -5.294630119459154e-13,
+          -3.174983085437144e-13,
+          -0.0006497931993353148
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "pico_pose": [
+        [
+          0.7071067811865458,
+          1.0408754547220284e-13,
+          -0.7071067811865491,
+          -0.061519232786312904
+        ],
+        [
+          -0.7071067811865491,
+          -6.030833144832305e-13,
+          -0.7071067811865459,
+          -0.025056913632517067
+        ],
+        [
+          -5.045591723086789e-13,
+          1.0,
+          -3.573571538277625e-13,
+          0.040907955968513154
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "pico_xyz_m": [
+        -0.061519232786312904,
+        -0.025056913632517067,
+        0.040907955968513154
+      ],
+      "pico_rpy_rad": [
+        1.5707963267952507,
+        0.0,
+        -0.785398163397452
+      ],
+      "pad_contact_angle_from_native_rad": 0.13600501641182894,
+      "jaw_zero_definition": "Visual closed reference: first TPU contact at symmetry plane; not measured actuator calibration."
+    },
+    "motor": {
+      "file": "电机版/电机夹爪.SLDASM",
+      "sha256": "40d6b49c92dc4b0f8391eb116785d843a8b56efbaa3789451eaa3bb878616560",
+      "assembly_from_root": [
+        [
+          0.0,
+          -1.0,
+          0.0,
+          9.258675850725654e-16
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.019253831203578157
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_component_transform": [
+        [
+          -1.0,
+          -7.029644297013411e-33,
+          -5.661330510433364e-18,
+          1.972564670015392e-20
+        ],
+        [
+          -7.365260208132836e-18,
+          0.2588190451025208,
+          0.9659258262890682,
+          -0.04690278018048408
+        ],
+        [
+          -2.884920870888039e-18,
+          0.9659258262890684,
+          -0.2588190451025209,
+          0.1355768344110219
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_reference_local_m": [
+        0,
+        0,
+        0.023
+      ],
+      "camera_pose": [
+        [
+          0.9659258262890682,
+          -7.365260208132836e-18,
+          0.2588190451025208,
+          -0.02468648617583551
+        ],
+        [
+          5.661330510433364e-18,
+          1.0,
+          7.029644297013411e-33,
+          9.259780700276053e-16
+        ],
+        [
+          -0.2588190451025209,
+          -2.884920870888039e-18,
+          0.9659258262890684,
+          0.11037016517008576
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "camera_xyz_m": [
+        -0.02468648617583551,
+        9.259780700276053e-16,
+        0.11037016517008576
+      ],
+      "camera_rpy_rad": [
+        0.0,
+        0.2617993877991498,
+        0.0
+      ],
+      "jaw_pivots_assembly_m": {
+        "left": [
+          -0.019875,
+          0.0,
+          0.019253831203578157
+        ],
+        "right": [
+          0.019875,
+          0.0,
+          0.019253831203578157
+        ]
+      },
+      "shaft_spacing_m": 0.03975,
+      "assembly_from_flange": [
+        [
+          0.6750655498504494,
+          -0.7377577538766438,
+          1.270880971366806e-11,
+          -1.23395738071963e-12
+        ],
+        [
+          0.0006438150126374825,
+          0.0005891057680291259,
+          0.9999996192282394,
+          -0.1417254956333667
+        ],
+        [
+          -0.7377574729593323,
+          -0.6750652928045431,
+          0.0008726645268501096,
+          0.01913015234442835
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "flange_from_root": [
+        [
+          0.0006438150126374845,
+          -0.6750655498504494,
+          -0.7377574729593323,
+          1.1024167689832609e-14
+        ],
+        [
+          0.0005891057680290709,
+          0.7377577538766438,
+          -0.6750652928045433,
+          7.776522481517389e-13
+        ],
+        [
+          0.9999996192282392,
+          -1.270885173589023e-11,
+          0.0008726645268501452,
+          0.14172554959845327
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "flange_file": "电机版/零件/电机_天机电机连接法兰.SLDPRT",
+      "pad_contact_angle_from_native_rad": 0.14271280859747848,
+      "jaw_zero_definition": "Visual closed reference: first TPU contact at symmetry plane; not measured actuator calibration."
+    }
+  },
+  "new_hand_properties": {
+    "finger_offset_y": 0.019875,
+    "camera_x": -0.024686486175835496,
+    "camera_y": 1.1048495503981387e-19,
+    "camera_z": 0.11037016517008572,
+    "camera_roll": 0.0,
+    "camera_pitch": 0.2617993877991498,
+    "camera_yaw": 0.0,
+    "mount_x": -0.061519232786312904,
+    "mount_y": 0.025056913632517067,
+    "mount_z": 0.040907955968513154,
+    "mount_roll": -1.57079632679525,
+    "mount_pitch": 0.0,
+    "mount_yaw": 0.785398163397452
+  },
+  "updated_motor_urdfs": [
+    "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
+    "teleop_control/vendor/tianji/Marvin M6-S-R-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_right_with_gripper.urdf"
+  ],
+  "notes": [
+    "No real robot command issued.",
+    "Motor endpoints and encoder zero unchanged.",
+    "Pico and camera frames are mechanical/user-defined, not measured tracking/optical calibration.",
+    "Saved native tessellation used; no feature rebuild."
+  ],
+  "hand_visual_parts": [
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_M3固定环嵌入螺母-1",
+      "visual": "windows_right_00",
+      "mesh": "right_00.stl",
+      "native_sha256": "00ab130c21844833c36ed0068dcc17a2ee97e53c1d35f0dec6c4429a175b609c"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_M3x10固定环锁紧螺钉-1",
+      "visual": "windows_right_01",
+      "mesh": "right_01.stl",
+      "native_sha256": "3c2f46810a75323db751a882143ab892feb40c0bf0779cddba59f52449952b2e"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_GB锥头铆钉_4x20-1",
+      "visual": "windows_right_02",
+      "mesh": "right_02.stl",
+      "native_sha256": "f163d2188c185cb552cf22d80e1c86e46a84ce9cd3fbe3d7526d3dd09716f1b9"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_Pico控制器-1",
+      "visual": "windows_right_03",
+      "mesh": "right_03.stl",
+      "native_sha256": "a8d771ef43aa6a225326d1797f9f5d053f2e60e5be9818363bf86634c3620499"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_把手-1",
+      "visual": "windows_right_04",
+      "mesh": "right_04.stl",
+      "native_sha256": "c56cf25df63eef0d3acb9b4f31871194fd4d88da375fe5a86b498d478338a56f"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_把手垫-1",
+      "visual": "windows_right_05",
+      "mesh": "right_05.stl",
+      "native_sha256": "1bf1165e38ddbeb30e39a91748279cf746c8e55dd468adbdd32ffcb4bfe78922"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_磁编码器盖子-1",
+      "visual": "windows_right_06",
+      "mesh": "right_06.stl",
+      "native_sha256": "3e382903f175ca48d9f6a53c89f1baf1248dc672938171bcbf829150c2f1f402"
+    },
+    {
+      "hand": "right",
+      "role": "right_finger",
+      "name": "手持右_磁铁-1",
+      "visual": "windows_right_07",
+      "mesh": "right_07.stl",
+      "native_sha256": "c922889ca885d94794b22ac8e5eb89c4b8e04a8f4d1af3a19a6dbed93f510bb1"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持_相机杆-通用-1",
+      "visual": "windows_right_08",
+      "mesh": "right_08.stl",
+      "native_sha256": "611ba635c7a9aa7169519220d4dc5d0913fe5b46aec539d8e5502030fe6a65ef"
+    },
+    {
+      "hand": "right",
+      "role": "left_finger",
+      "name": "手持右_夹指齿轮A-1",
+      "visual": "windows_right_09",
+      "mesh": "right_09.stl",
+      "native_sha256": "0831da5056b52a3183b4e75c63370b45fdcb29eebb32dc1b21d2e7326fb8aa13"
+    },
+    {
+      "hand": "right",
+      "role": "right_finger",
+      "name": "手持右_脚垫-1",
+      "visual": "windows_right_10",
+      "mesh": "right_10.stl",
+      "native_sha256": "7ef0a5417d8fda70cff9c770664a49684286d0cd7add13ef78603a8da08ac0c2"
+    },
+    {
+      "hand": "right",
+      "role": "left_finger",
+      "name": "手持右_脚垫_对侧-2",
+      "visual": "windows_right_11",
+      "mesh": "right_11.stl",
+      "native_sha256": "9c2b593ba16e9e60c8a529b0b28785a2fd42f8e5f1f767c334c7fef60fb09d30"
+    },
+    {
+      "hand": "right",
+      "role": "right_finger",
+      "name": "手持右_夹指齿轮B-1",
+      "visual": "windows_right_12",
+      "mesh": "right_12.stl",
+      "native_sha256": "fac55e4bb48e6e1bff48a1ea8ff274c9ed766489bbe16c9e055c5ecc6dc8efe5"
+    },
+    {
+      "hand": "right",
+      "role": "right_finger",
+      "name": "手持右_连接(磁铁-杆)-1",
+      "visual": "windows_right_13",
+      "mesh": "right_13.stl",
+      "native_sha256": "0ec3accde3214f2981d77a540d8c5f923807aea705881d1d1a19bb09b127de54"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M2-1",
+      "visual": "windows_right_14",
+      "mesh": "right_14.stl",
+      "native_sha256": "c1ff9524a2f5d6b9a2b941fab1f078bb88ec49ef10595b01c5696e16b4d642f6"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M2-2",
+      "visual": "windows_right_15",
+      "mesh": "right_14.stl",
+      "native_sha256": "c1ff9524a2f5d6b9a2b941fab1f078bb88ec49ef10595b01c5696e16b4d642f6"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M2-3",
+      "visual": "windows_right_16",
+      "mesh": "right_14.stl",
+      "native_sha256": "c1ff9524a2f5d6b9a2b941fab1f078bb88ec49ef10595b01c5696e16b4d642f6"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M2-4",
+      "visual": "windows_right_17",
+      "mesh": "right_14.stl",
+      "native_sha256": "c1ff9524a2f5d6b9a2b941fab1f078bb88ec49ef10595b01c5696e16b4d642f6"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M3-1",
+      "visual": "windows_right_18",
+      "mesh": "right_18.stl",
+      "native_sha256": "8e465c406c862a54766907b21f04b600e7371bb43d05c3026f31be23147219a3"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M3-2",
+      "visual": "windows_right_19",
+      "mesh": "right_18.stl",
+      "native_sha256": "8e465c406c862a54766907b21f04b600e7371bb43d05c3026f31be23147219a3"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M3-3",
+      "visual": "windows_right_20",
+      "mesh": "right_18.stl",
+      "native_sha256": "8e465c406c862a54766907b21f04b600e7371bb43d05c3026f31be23147219a3"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺母M4-1",
+      "visual": "windows_right_21",
+      "mesh": "right_21.stl",
+      "native_sha256": "b52f1ab50fb108702ccfb7175f1d6beef7cf2798849399efafb4c47a5c75fe2b"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺丝M2-6-1",
+      "visual": "windows_right_22",
+      "mesh": "right_22.stl",
+      "native_sha256": "ee5ca1c84314c3fdf6146f14a35d5198c13adb7667a9b8cfc6ec0fdae3977a43"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺丝M2-6-2",
+      "visual": "windows_right_23",
+      "mesh": "right_22.stl",
+      "native_sha256": "ee5ca1c84314c3fdf6146f14a35d5198c13adb7667a9b8cfc6ec0fdae3977a43"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺丝M2-6-3",
+      "visual": "windows_right_24",
+      "mesh": "right_22.stl",
+      "native_sha256": "ee5ca1c84314c3fdf6146f14a35d5198c13adb7667a9b8cfc6ec0fdae3977a43"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_螺丝M2-6-4",
+      "visual": "windows_right_25",
+      "mesh": "right_22.stl",
+      "native_sha256": "ee5ca1c84314c3fdf6146f14a35d5198c13adb7667a9b8cfc6ec0fdae3977a43"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_上壳体-1",
+      "visual": "windows_right_26",
+      "mesh": "right_26.stl",
+      "native_sha256": "b5059cef65092b017903fc05bce6d5e696d7074ba42096dc847f88320bf846a1"
+    },
+    {
+      "hand": "right",
+      "role": "camera",
+      "name": "手持右_摄像头-1",
+      "visual": "windows_right_27",
+      "mesh": "right_27.stl",
+      "native_sha256": "4c37a829dc2f8ce7530b48049c8b596eab328af6f50a4f2cf7888bab2258061f"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_外套2-1",
+      "visual": "windows_right_28",
+      "mesh": "right_28.stl",
+      "native_sha256": "0495f5e4176ca23c8ca4256b320b3104349e0907e9749119ff898e408b3bed6d"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_下壳体-1",
+      "visual": "windows_right_29",
+      "mesh": "right_29.stl",
+      "native_sha256": "6d26b3c5e582ed99fcdb58da8f305c54aab808426914e8aa2a29275d1c715ef0"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_轴承-1",
+      "visual": "windows_right_30",
+      "mesh": "right_30.stl",
+      "native_sha256": "400ebc715694f9ddabc370d433a49045beb17d50c3cadcad016070afc7ddb77d"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_轴承-2",
+      "visual": "windows_right_31",
+      "mesh": "right_30.stl",
+      "native_sha256": "400ebc715694f9ddabc370d433a49045beb17d50c3cadcad016070afc7ddb77d"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_轴承-3",
+      "visual": "windows_right_32",
+      "mesh": "right_30.stl",
+      "native_sha256": "400ebc715694f9ddabc370d433a49045beb17d50c3cadcad016070afc7ddb77d"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_轴承-4",
+      "visual": "windows_right_33",
+      "mesh": "right_30.stl",
+      "native_sha256": "400ebc715694f9ddabc370d433a49045beb17d50c3cadcad016070afc7ddb77d"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_下壳体前沿TPU95A光滑护套-1",
+      "visual": "windows_right_34",
+      "mesh": "right_34.stl",
+      "native_sha256": "4a17c1626dd34da480f4e3048e92a8e3f6bd1499b4a018f2f8f0bee525bfdbbb"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_M3后侧嵌入螺母-1",
+      "visual": "windows_right_35",
+      "mesh": "right_35.stl",
+      "native_sha256": "4c952d04a98d3f55c5d7ce1dae1112354b585e5afa156b8da4a6666975b6dcc1"
+    },
+    {
+      "hand": "right",
+      "role": "root",
+      "name": "手持右_M3x10后侧锁紧螺钉-1",
+      "visual": "windows_right_36",
+      "mesh": "right_36.stl",
+      "native_sha256": "8ab6239943acae3806cc0c3df7e0936e673bc064e746c3037be636d6a618c217"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_M3固定环嵌入螺母-1",
+      "visual": "windows_left_00",
+      "mesh": "left_00.stl",
+      "native_sha256": "9fed83075314175437bcc9675e3df307e860e3c4ac04ecfe41c360956b228471"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_M3x10固定环锁紧螺钉-1",
+      "visual": "windows_left_01",
+      "mesh": "left_01.stl",
+      "native_sha256": "efe2e9c5e7b56c476937676ae20ebedbb5d3350ec8ea16c6b1f88ede9aff472f"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_GB锥头铆钉_4x20-1",
+      "visual": "windows_left_02",
+      "mesh": "left_02.stl",
+      "native_sha256": "dd8d879afef873b91864f0ba9c4fc978231b14d2f90af2f90ef717927bc17153"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_Pico控制器-1",
+      "visual": "windows_left_03",
+      "mesh": "left_03.stl",
+      "native_sha256": "961dc7975a7a28b0a12c02056cfeabfd54ba5d7420d20b46248de23af9d339c4"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_把手-1",
+      "visual": "windows_left_04",
+      "mesh": "left_04.stl",
+      "native_sha256": "b3c73b5936f68cda18fbfb3654242d7537fe4119b626a8f561bf14760adad39f"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_把手垫-1",
+      "visual": "windows_left_05",
+      "mesh": "left_05.stl",
+      "native_sha256": "4289652a22c32f41aa45a630f70c3769c5122af73dddd0fbf4e496e4bbced9b5"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_磁编码器盖子-1",
+      "visual": "windows_left_06",
+      "mesh": "left_06.stl",
+      "native_sha256": "12cd8da3613a822df30d44f49370009286df939a3d64e290cec973b71d7b86fc"
+    },
+    {
+      "hand": "left",
+      "role": "left_finger",
+      "name": "手持左_磁铁-1",
+      "visual": "windows_left_07",
+      "mesh": "left_07.stl",
+      "native_sha256": "c0fb6548f695125d77b06575ab836365274fe2329640c73a2a97689ce814212c"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_杆1-1",
+      "visual": "windows_left_08",
+      "mesh": "left_08.stl",
+      "native_sha256": "2a9c45906c73d60fb206a0f660d7c8aba4d86a4e1a11b3e3173fa71cdbee4d68"
+    },
+    {
+      "hand": "left",
+      "role": "right_finger",
+      "name": "手持左_夹指齿轮A-1",
+      "visual": "windows_left_09",
+      "mesh": "left_09.stl",
+      "native_sha256": "5b4dbf15896daddb159c6a2471e146d4a2f0bf96b8375170bc8daed79583b66a"
+    },
+    {
+      "hand": "left",
+      "role": "left_finger",
+      "name": "手持左_脚垫-1",
+      "visual": "windows_left_10",
+      "mesh": "left_10.stl",
+      "native_sha256": "3e4d3790896a7e95af283bb6704f93277a93863cbe26d7f7e88d5e646cd16143"
+    },
+    {
+      "hand": "left",
+      "role": "right_finger",
+      "name": "手持左_脚垫_对侧-2",
+      "visual": "windows_left_11",
+      "mesh": "left_11.stl",
+      "native_sha256": "ac90cb5d72b6da5ca2d6c5284acedd6e1592f573e8436155ae68d0d9dffe9a1d"
+    },
+    {
+      "hand": "left",
+      "role": "left_finger",
+      "name": "手持左_夹指齿轮B-1",
+      "visual": "windows_left_12",
+      "mesh": "left_12.stl",
+      "native_sha256": "4616fee3f0e80c25e741d4fbd7769eb8fa37303887179644760f0f4371b413f6"
+    },
+    {
+      "hand": "left",
+      "role": "left_finger",
+      "name": "手持左_连接(磁铁-杆)-1",
+      "visual": "windows_left_13",
+      "mesh": "left_13.stl",
+      "native_sha256": "601cb8854163f0997e0cda4d29d48f74425c79de0f2767bcfa2ea947f34bc7cc"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M2-1",
+      "visual": "windows_left_14",
+      "mesh": "left_14.stl",
+      "native_sha256": "f57e9e99f9f86f0eaf7b531e387810ca2cbf0a975a25ad5f5b1c27638d2cf945"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M2-2",
+      "visual": "windows_left_15",
+      "mesh": "left_14.stl",
+      "native_sha256": "f57e9e99f9f86f0eaf7b531e387810ca2cbf0a975a25ad5f5b1c27638d2cf945"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M2-3",
+      "visual": "windows_left_16",
+      "mesh": "left_14.stl",
+      "native_sha256": "f57e9e99f9f86f0eaf7b531e387810ca2cbf0a975a25ad5f5b1c27638d2cf945"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M2-4",
+      "visual": "windows_left_17",
+      "mesh": "left_14.stl",
+      "native_sha256": "f57e9e99f9f86f0eaf7b531e387810ca2cbf0a975a25ad5f5b1c27638d2cf945"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M3-1",
+      "visual": "windows_left_18",
+      "mesh": "left_18.stl",
+      "native_sha256": "a201bc4e2336e2f31178c6c228bc6537d14e322942199e7bc131eea6a874e542"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M3-2",
+      "visual": "windows_left_19",
+      "mesh": "left_18.stl",
+      "native_sha256": "a201bc4e2336e2f31178c6c228bc6537d14e322942199e7bc131eea6a874e542"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M3-3",
+      "visual": "windows_left_20",
+      "mesh": "left_18.stl",
+      "native_sha256": "a201bc4e2336e2f31178c6c228bc6537d14e322942199e7bc131eea6a874e542"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺母M4-1",
+      "visual": "windows_left_21",
+      "mesh": "left_21.stl",
+      "native_sha256": "c43885df1e0192a151c7e5b93015941f9215e167babb5690e9ad9a3b02a88427"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺丝M2-6-1",
+      "visual": "windows_left_22",
+      "mesh": "left_22.stl",
+      "native_sha256": "57e475bd0e0eb4363b8419687fd62f1fb049d3c82b6be7b7fdc569ef8533f39d"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺丝M2-6-2",
+      "visual": "windows_left_23",
+      "mesh": "left_22.stl",
+      "native_sha256": "57e475bd0e0eb4363b8419687fd62f1fb049d3c82b6be7b7fdc569ef8533f39d"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺丝M2-6-3",
+      "visual": "windows_left_24",
+      "mesh": "left_22.stl",
+      "native_sha256": "57e475bd0e0eb4363b8419687fd62f1fb049d3c82b6be7b7fdc569ef8533f39d"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_螺丝M2-6-4",
+      "visual": "windows_left_25",
+      "mesh": "left_22.stl",
+      "native_sha256": "57e475bd0e0eb4363b8419687fd62f1fb049d3c82b6be7b7fdc569ef8533f39d"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_上壳体-1",
+      "visual": "windows_left_26",
+      "mesh": "left_26.stl",
+      "native_sha256": "b7e5a7e28f97cea8b33db63751176aeb10ae8fd1b4a77026c2d05c373d84b3ad"
+    },
+    {
+      "hand": "left",
+      "role": "camera",
+      "name": "手持左_摄像头-1",
+      "visual": "windows_left_27",
+      "mesh": "left_27.stl",
+      "native_sha256": "eded5ef6da5f55667895d37da447fd000023394f3684c8512d585c123e913721"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_外套2-1",
+      "visual": "windows_left_28",
+      "mesh": "left_28.stl",
+      "native_sha256": "cacb392cc5a8958112901e113425ad361427068b37f5de15c569a7084ef73d7f"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_下壳体-1",
+      "visual": "windows_left_29",
+      "mesh": "left_29.stl",
+      "native_sha256": "c8a82bee42b832a61973c158501ce035f70bd4cd4c32da31b9a719097da9a4d5"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_轴承-1",
+      "visual": "windows_left_30",
+      "mesh": "left_30.stl",
+      "native_sha256": "144d40d1280f69b3dd5648a156bbf50f16066ebbb5d08d9bd04eadc2c1a12c69"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_轴承-2",
+      "visual": "windows_left_31",
+      "mesh": "left_30.stl",
+      "native_sha256": "144d40d1280f69b3dd5648a156bbf50f16066ebbb5d08d9bd04eadc2c1a12c69"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_轴承-3",
+      "visual": "windows_left_32",
+      "mesh": "left_30.stl",
+      "native_sha256": "144d40d1280f69b3dd5648a156bbf50f16066ebbb5d08d9bd04eadc2c1a12c69"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_轴承-4",
+      "visual": "windows_left_33",
+      "mesh": "left_30.stl",
+      "native_sha256": "144d40d1280f69b3dd5648a156bbf50f16066ebbb5d08d9bd04eadc2c1a12c69"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_下壳体前沿TPU95A光滑护套-1",
+      "visual": "windows_left_34",
+      "mesh": "left_34.stl",
+      "native_sha256": "cb07ad77355aa87e165d3d9e0a3bbf349390562ff21fe7f10348215313079eea"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_M3后侧嵌入螺母-1",
+      "visual": "windows_left_35",
+      "mesh": "left_35.stl",
+      "native_sha256": "5ae1a4a323f8ee85ce394122a688309e4ef68dc8072a2ff6313af0674f0ea9a0"
+    },
+    {
+      "hand": "left",
+      "role": "root",
+      "name": "手持左_M3x10后侧锁紧螺钉-1",
+      "visual": "windows_left_36",
+      "mesh": "left_36.stl",
+      "native_sha256": "a7ee95544b1d3b5829daf6aa5d907096d27f42cb70ce44e6de62238545107b32"
+    }
+  ]
+}

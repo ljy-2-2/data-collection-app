@@ -100,6 +100,7 @@ def test_feedback_counter_wrap_keeps_enabled_arms_running(session, monkeypatch):
         robot.read()
         assert robot.frames == dict(left=serial, right=serial)
         assert robot.changed == dict(left=now, right=now)
+        assert all(info['initialized'] is True for info in robot.feedback_status.values())
         assert robot.enabled_sides == {'left', 'right'}
     session.api.set_state.assert_not_called()
     session.api.send_cmd.assert_not_called()
@@ -113,8 +114,10 @@ def test_initial_zero_cache_is_not_ready(session, allow_faults):
         with pytest.raises(ValueError, match='robot UDP feedback not advancing'):
             session.robot.read(allow_faults=allow_faults)
         assert session.robot.frames == dict(left=None, right=None)
+        assert all(info['initialized'] is False for info in session.robot.feedback_status.values())
     session.feedback.serial = 10
     session.robot.read(allow_faults=allow_faults)
+    assert all(info['initialized'] is True for info in session.robot.feedback_status.values())
 
 
 @pytest.mark.parametrize('serial', [0, 999990])

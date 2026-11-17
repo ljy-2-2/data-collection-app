@@ -66,7 +66,7 @@ def queue_summary(data_root, destination=None, *, raw_only=False):
             if interruption or warnings:
                 result['needs_review'] += 1
             if warnings and not result['quality_message']:
-                result['quality_message'] = '质量提示：' + '；'.join(dict.fromkeys(str(x) for x in warnings))[:700]
+                result['quality_message'] = '历史数据质量提示（不影响当前采集）：' + '；'.join(dict.fromkeys(str(x) for x in warnings))[:700]
             if raw_only:
                 result['saved'] += 1
                 continue

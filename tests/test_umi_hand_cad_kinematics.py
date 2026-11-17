@@ -1,4 +1,4 @@
-"""Original saved CAD geometry and the existing mirrored recording contract."""
+"""Current Windows CAD transforms and the mirrored recording contract."""
 import json
 import math
 from pathlib import Path
@@ -13,6 +13,7 @@ GALAXIS = Path(__file__).resolve().parents[1] / "umi_collection/vendor/galaxis"
 SOURCE = GALAXIS / "galaxis_description/urdf/galaxis_hand.urdf.xacro"
 AUDIT = json.loads((GALAXIS / "docs/galaxis_hand_cad_measurements.json").read_text())
 
+CURRENT = json.loads((GALAXIS / "docs/windows_end_effector_measurements.json").read_text())
 
 @pytest.fixture(scope="module")
 def model():
@@ -32,36 +33,23 @@ def rotation(rpy):
 
 
 def test_camera_reconstructed_from_saved_assembly(model):
-    # Reconstruct the datum from raw CAD instance transforms, not Xacro values.
-    gears = [np.array(g["transform"]) for g in AUDIT["gear_instances"]]
-    centre = np.r_[AUDIT["gear_local_center_m"], 1]
-    points = [(g @ centre)[:3] for g in gears]
-    root = np.eye(4)
-    root[:3, 3] = (points[0] + points[1]) / 2
-    z = gears[0][:3, 0]
-    y = points[1] - points[0]
-    assert np.linalg.norm(y) == pytest.approx(.033, abs=1e-10)
-    y /= np.linalg.norm(y)
-    root[:3, :3] = np.column_stack((np.cross(y, z), y, z))
-    np.testing.assert_allclose(root, AUDIT["assembly_from_hand_root"], atol=1e-12)
-    np.testing.assert_allclose(root[:3, :3].T @ root[:3, :3], np.eye(3), atol=1e-10)
-    for g in AUDIT["gear_instances"]:
-        assert g["local_bounds_m"][0][0] == pytest.approx(0, abs=1e-10)
-        assert g["local_bounds_m"][1][0] == pytest.approx(.007, abs=1e-9)
-    camera = np.linalg.inv(root) @ AUDIT["camera_instance"]["transform"]
-    expected_position = (camera @ np.r_[AUDIT["camera_reference_local_m"], 1])[:3]
-    expected_forward = camera[:3, :3] @ AUDIT["camera_forward_local"]
     for hand in ("left", "right"):
+        data = CURRENT["assemblies"][hand]
+        root = np.array(data["assembly_from_root"])
+        np.testing.assert_allclose(root[:3, :3], [[0,-1,0],[1,0,0],[0,0,1]], atol=1e-12)
+        assert root[2,3] == pytest.approx(.0055, abs=1e-9)
+        camera = np.linalg.inv(root) @ data["camera_component_transform"]
+        expected = (camera @ np.r_[data["camera_reference_local_m"], 1])[:3]
         origin = model.find(f"joint[@name='{hand}_camera_joint']/origin")
-        np.testing.assert_allclose(vector(origin, "xyz"), expected_position, atol=1e-9)
+        np.testing.assert_allclose(vector(origin, "xyz"), expected, atol=1e-10)
         rpy = vector(origin, "rpy")
-        assert rpy[1] == pytest.approx(math.radians(40), abs=1e-10)
-        np.testing.assert_allclose(rotation(rpy)[:, 0], expected_forward, atol=1e-10)
-        assert (rotation(rpy) @ [1, 0, 0])[2] < 0  # Downward, not upward.
-    for gear in points:
-        local = np.linalg.inv(root) @ np.r_[gear, 1]
-        np.testing.assert_allclose(local[[0, 2]], [0, 0], atol=1e-10)
-        assert abs(local[1]) == pytest.approx(.0165, abs=1e-10)
+        assert rpy[1] == pytest.approx(math.radians(15), abs=1e-10)
+        np.testing.assert_allclose(rotation(rpy), camera[:3,[2,0,1]], atol=1e-10)
+        for side, point in data["jaw_pivots_assembly_m"].items():
+            joint = model.find(f"joint[@name='{hand}_{side}_finger_joint']/origin")
+            np.testing.assert_allclose(vector(joint,"xyz"),
+                (np.linalg.inv(root) @ np.r_[point,1])[:3], atol=1e-10)
+            assert abs(vector(joint,"xyz")[1]) == pytest.approx(.019875, abs=1e-10)
 
 
 @pytest.mark.parametrize("joint", ["camera", "mount"])
@@ -124,35 +112,31 @@ def test_tree_and_encoder_joint_contract(model):
             else:
                 assert j.find("mimic").get("joint") == f"{hand}_{hand}_finger_joint"
                 assert float(j.find("mimic").get("multiplier")) == -1
-    assert model.find(".//visual") is None
+    visuals = model.findall(".//visual")
+    assert len(visuals) > 60
+    for visual in visuals:
+        mesh = visual.find("geometry/mesh").get("filename")
+        assert mesh.startswith("package://galaxis_description/meshes/windows/")
+        path = GALAXIS / mesh.removeprefix("package://")
+        assert path.is_file() and path.stat().st_size > 84
     assert model.find(".//collision") is None
 
 
-def test_pico_center_uses_quest_grip_alignment_and_retains_aim_direction(model):
-    center = AUDIT["pico_center_reference"]
-    quest_grip = np.array(center["quest"]["grip_frame_in_root_mm"])
-    pico_grip = np.array(center["pico"]["grip_frame_in_root_mm"])
-    transfer = pico_grip @ np.linalg.inv(quest_grip)
-    np.testing.assert_allclose(transfer[:3, :3].T @ transfer[:3, :3], np.eye(3), atol=1e-12)
-    assert np.linalg.det(transfer[:3, :3]) == pytest.approx(1)
-    expected_position = (transfer @ np.r_[center["quest_reference_in_yubi_root_mm"], 1])[:3] / 1000
-    ray = AUDIT["pico_ray_reference"]
-    root_from_controller = np.linalg.inv(AUDIT["assembly_from_hand_root"]) @ ray["assembly_from_mounted_controller"]
-    old_rotation = np.array(ray["historical_from_controller"])[:3, :3]
-    expected_direction = root_from_controller[:3, :3] @ old_rotation.T @ ray["historical_direction"]
-    pico = model.find("joint[@name='right_mount_joint']/origin")
-    np.testing.assert_allclose(vector(pico, "xyz"), expected_position, atol=1e-10)
-    np.testing.assert_allclose(rotation(vector(pico, "rpy"))[:, 0], expected_direction, atol=1e-10)
-    np.testing.assert_allclose(expected_direction, [2**-.5, 0, 2**-.5], atol=1e-10)
-    assert vector(pico, "rpy")[1] == pytest.approx(-math.pi / 4, abs=1e-12)
-    # The landmark is on the original mounted controller, not a detached model.
-    triangle = np.array(ray["nearest_original_triangle_local_m"])
-    point = np.array(ray["point_controller_local_m"])
-    ab, ac = triangle[1] - triangle[0], triangle[2] - triangle[0]
-    uv, *_ = np.linalg.lstsq(np.column_stack((ab, ac)), point - triangle[0], rcond=None)
-    projected = triangle[0] + uv[0]*ab + uv[1]*ac
-    assert np.linalg.norm(point - projected) < 1e-8
-    assert min(uv) >= 0 and uv.sum() <= 1
+def test_pico_reference_moves_rigidly_with_its_controller(model):
+    old_root_from_controller = np.linalg.inv(AUDIT["assembly_from_hand_root"]) @ AUDIT["pico_ray_reference"]["assembly_from_mounted_controller"]
+    props = CURRENT["old_properties"]
+    old_mount = np.eye(4)
+    old_mount[:3,3] = [props["mount_"+s] for s in "xyz"]
+    old_mount[:3,:3] = rotation([props["mount_"+s] for s in ("roll","pitch","yaw")])
+    # Preserve the physical user-selected point in part coordinates. Merely
+    # copying its old hand-root coordinates would fail this check.
+    local = np.linalg.inv(old_root_from_controller) @ old_mount
+    np.testing.assert_allclose(local, CURRENT["pico_local_reference"], atol=1e-12)
+    right = CURRENT["assemblies"]["right"]
+    expected = np.linalg.inv(right["assembly_from_root"]) @ right["pico_component_transform"] @ local
+    origin = model.find("joint[@name='right_mount_joint']/origin")
+    np.testing.assert_allclose(vector(origin,"xyz"),expected[:3,3],atol=1e-10)
+    np.testing.assert_allclose(rotation(vector(origin,"rpy")),expected[:3,:3],atol=1e-10)
 
 
 def test_unidentified_contact_landmark_is_not_replaced_by_cad_origin(model):
