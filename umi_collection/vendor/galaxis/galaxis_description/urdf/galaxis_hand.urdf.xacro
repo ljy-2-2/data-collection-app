@@ -6,12 +6,13 @@
        Camera frame = measured lens-front mechanical reference (not calibrated
        optical centre). Pico is the user-confirmed physical point/frame carried
        with its new mounting; it is not an independently calibrated SDK origin.
-       Finger tip offsets remain the previous uncalibrated contact landmark.
+       Finger tip = nominal closed TPU contact at the gear mid-plane (2026-11-17).
+       This is a CAD reference, not physical contact/encoder calibration.
        See docs/windows_end_effector_measurements.json for transforms and hashes. -->
   <xacro:include filename="galaxis_hand_visuals.xacro"/>
   <xacro:property name="finger_offset_y" value="0.019875"/>
   <xacro:property name="finger_tip_offset_x" value="0.13694"/>
-  <xacro:property name="finger_tip_offset_y" value="0.0"/>
+  <xacro:property name="finger_tip_offset_y" value="0.019875"/>
   <xacro:property name="finger_tip_offset_z" value="0.0"/>
   <xacro:property name="camera_x" value="-0.0246864861758"/>
   <xacro:property name="camera_y" value="1.1048495504e-19"/>

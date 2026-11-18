@@ -992,7 +992,10 @@
     "mount_z": 0.040907955968513154,
     "mount_roll": -1.57079632679525,
     "mount_pitch": 0.0,
-    "mount_yaw": 0.785398163397452
+    "mount_yaw": 0.785398163397452,
+    "finger_tip_offset_x": 0.13694,
+    "finger_tip_offset_y": 0.019875,
+    "finger_tip_offset_z": 0.0
   },
   "updated_motor_urdfs": [
     "teleop_control/vendor/tianji/Marvin M6-S-L-CCS-696-V4.0 urdf (FUSION)/urdf/marvin_left_with_gripper.urdf",
@@ -1597,5 +1600,37 @@
       "mesh": "left_36.stl",
       "native_sha256": "a7ee95544b1d3b5829daf6aa5d907096d27f42cb70ce44e6de62238545107b32"
     }
-  ]
+  ],
+  "finger_tip_reference": {
+    "date": "2026-11-17",
+    "definition": "Nominal closed TPU pad contact at the gear mid-plane; not physical or encoder calibration.",
+    "parameters_m": {
+      "finger_tip_offset_x": 0.13694,
+      "finger_tip_offset_y": 0.019875,
+      "finger_tip_offset_z": 0.0
+    },
+    "closed_position_in_hand_root_m": [
+      0.13694,
+      0.0,
+      0.0
+    ],
+    "native_right_pad_midplane_contact_mm": [
+      136.93791482579277,
+      0.0,
+      0.0
+    ],
+    "native_left_pad_midplane_contact_mm": [
+      136.93920228710408,
+      0.005121667860475548,
+      0.0
+    ],
+    "method": "Native saved pad meshes transformed to the current closed reference, intersected with root Z=0; use their inward contact edges. X rounded to 0.01 mm; inward Y equals half the 39.75 mm shaft spacing.",
+    "model_revision": "windows_native_20261116",
+    "legacy_uncalibrated_parameters_m": [
+      0.09145,
+      0.0,
+      0.0
+    ],
+    "recheck_when_geometry_changes": true
+  }
 }

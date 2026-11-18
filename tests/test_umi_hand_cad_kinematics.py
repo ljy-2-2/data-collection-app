@@ -139,7 +139,37 @@ def test_pico_reference_moves_rigidly_with_its_controller(model):
     np.testing.assert_allclose(rotation(vector(origin,"rpy")),expected[:3,:3],atol=1e-10)
 
 
-def test_unidentified_contact_landmark_is_not_replaced_by_cad_origin(model):
-    preserved = AUDIT["preserved_uncalibrated"]
-    contact = model.find("joint[@name='right_right_finger_tip_joint']/origin")
-    np.testing.assert_allclose(vector(contact, "xyz"), preserved["finger_tip_offset_m"])
+def test_nominal_contact_points_meet_at_closed_midplane(model):
+    for hand in ("left", "right"):
+        for side in ("left", "right"):
+            np.testing.assert_allclose(tip(model, hand, side, 0),
+                                       [.13694, 0, 0], atol=1e-10)
+
+
+def test_contact_landmarks_follow_the_closed_pad_geometry(model):
+    # Intersect the actual installed TPU triangles with the gear mid-plane.
+    # This catches stale offsets even when their metadata agrees with them.
+    dtype = np.dtype([("normal", "<f4", (3,)), ("vertices", "<f4", (3, 3)),
+                      ("attribute", "<u2")])
+    for part in CURRENT["hand_visual_parts"]:
+        if "脚垫" not in part["name"]:
+            continue
+        hand, side = part["hand"], part["role"].split("_")[0]
+        visual = model.find(f".//visual[@name='{part['visual']}']")
+        mesh = GALAXIS / "galaxis_description/meshes/windows" / part["mesh"]
+        raw = mesh.read_bytes()
+        triangles = np.frombuffer(raw, dtype=dtype, count=int.from_bytes(raw[80:84], "little"),
+                                  offset=84)["vertices"].astype(float)
+        origin = visual.find("origin")
+        triangles = triangles @ rotation(vector(origin, "rpy")).T + vector(origin, "xyz")
+        joint = model.find(f"joint[@name='{hand}_{side}_finger_joint']/origin")
+        triangles += vector(joint, "xyz")
+        sections = []
+        for i in range(3):
+            a, b = triangles[:, i], triangles[:, (i + 1) % 3]
+            mask = (a[:, 2] * b[:, 2] <= 0) & (np.abs(a[:, 2] - b[:, 2]) > 1e-12)
+            a, b = a[mask], b[mask]
+            sections.append(a + (-a[:, 2] / (b[:, 2] - a[:, 2]))[:, None] * (b - a))
+        points = np.concatenate(sections)
+        contact = points[np.argmin((1 if side == "left" else -1) * points[:, 1])]
+        assert np.linalg.norm(tip(model, hand, side, 0) - contact) < .0003

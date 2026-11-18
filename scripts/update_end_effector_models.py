@@ -177,7 +177,8 @@ def update_hand(models,meshes,report):
        Camera frame = measured lens-front mechanical reference (not calibrated
        optical centre). Pico is the user-confirmed physical point/frame carried
        with its new mounting; it is not an independently calibrated SDK origin.
-       Finger tip offsets remain the previous uncalibrated contact landmark.
+       Finger tip = nominal closed TPU contact at the gear mid-plane (2026-11-17).
+       This is a CAD reference, not physical contact/encoder calibration.
        See docs/windows_end_effector_measurements.json for transforms and hashes. -->
   <xacro:include filename="galaxis_hand_visuals.xacro"/>
 '''
