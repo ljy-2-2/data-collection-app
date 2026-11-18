@@ -404,6 +404,35 @@ class PicoListenerReadinessTest(unittest.TestCase):
 
 
 class LegacyBridgePathTest(unittest.TestCase):
+    def test_old_user_releases_match_without_selecting_unrelated_same_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            versions = home / '.local/share/xiaokai-lab-data-collection/versions'
+            old = versions / 'previous/runtime/robot/xr/RoboticsServiceProcess'
+            old.parent.mkdir(parents=True)
+            old.touch()
+            alias = versions / 'current/runtime/robot/xr/RoboticsServiceProcess'
+            alias.parent.mkdir(parents=True)
+            alias.symlink_to(old)
+            proc = home / 'proc'
+            targets = {
+                11001: str(old),
+                11002: str(old) + ' (deleted)',
+                11003: str(alias),
+                11004: str(home / 'unrelated/RoboticsServiceProcess'),
+                11005: str(old) + '-other',
+                11006: '/opt/xiaokai-lab-data-collection/runtime/robot/xr/RoboticsServiceProcess',
+                gc.os.getpid(): str(old),
+            }
+            for pid, executable in targets.items():
+                entry = proc / str(pid)
+                entry.mkdir(parents=True)
+                (entry / 'exe').symlink_to(executable)
+            with patch.object(Path, 'home', return_value=home), patch.dict(gc.os.environ, {
+                'TELEOP_XR_SERVICE': '', 'TELEOP_XR_LAUNCHER': '',
+            }), patch.object(gc.os, 'kill', side_effect=AssertionError('read-only lookup')):
+                self.assertEqual(gc.legacy_robotics_service_pids(proc), [11001, 11002, 11003, 11006])
+
     def test_env_selected_packaged_bridge_is_matched_by_exact_resolved_executable(self):
         for variable in ("TELEOP_XR_SERVICE", "TELEOP_XR_LAUNCHER"):
             with self.subTest(variable=variable), tempfile.TemporaryDirectory() as tmp:

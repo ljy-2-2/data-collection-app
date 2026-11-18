@@ -28,10 +28,10 @@ FIELDS = [
     dict(key='right_gripper_speed',label='右夹爪速度',unit='rad/s',min=.01,max=100,step=.1),
     dict(key='left_gripper_accel',label='左夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
     dict(key='right_gripper_accel',label='右夹爪加速度',unit='rad/s²',min=.1,max=200,step=1),
-    dict(key='left_gripper_open_rad',label='左夹爪打开角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
-    dict(key='right_gripper_open_rad',label='右夹爪打开角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
-    dict(key='left_gripper_closed_rad',label='左夹爪关闭角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
-    dict(key='right_gripper_closed_rad',label='右夹爪关闭角度',unit='rad',min=-3.121592,max=3.121592,step=.01),
+    dict(key='left_gripper_open_rad',label='左夹爪打开角度',unit='rad',min=-math.tau,max=math.tau,step=.01),
+    dict(key='right_gripper_open_rad',label='右夹爪打开角度',unit='rad',min=-math.tau,max=math.tau,step=.01),
+    dict(key='left_gripper_closed_rad',label='左夹爪关闭角度',unit='rad',min=-math.tau,max=math.tau,step=.01),
+    dict(key='right_gripper_closed_rad',label='右夹爪关闭角度',unit='rad',min=-math.tau,max=math.tau,step=.01),
 ]
 _PARAMETER_DEFAULTS = parameter_defaults()
 for field in FIELDS:

@@ -191,8 +191,8 @@ def test_endpoint_save_updates_file_worker_and_reload(gripper_file, tmp_path, mo
     original = json.loads(gripper_file.read_text())
     manager = tianji.TianjiManager(MockController())
     selected = TianjiParameters(left_gripper_speed=10, right_gripper_speed=10,
-                               left_gripper_open_rad=-.75, left_gripper_closed_rad=.95,
-                               right_gripper_open_rad=.25, right_gripper_closed_rad=1.6)
+                               left_gripper_open_rad=1.89, left_gripper_closed_rad=3.151,
+                               right_gripper_open_rad=-1.89, right_gripper_closed_rad=-3.151)
     manager.save_parameters(selected)
     updated = json.loads(gripper_file.read_text())
     expected = json.loads(json.dumps(original))
@@ -213,8 +213,8 @@ def test_endpoint_save_updates_file_worker_and_reload(gripper_file, tmp_path, mo
 
 
 @pytest.mark.parametrize('key', calibration.GRIPPER_ENDPOINTS)
-@pytest.mark.parametrize('value', [float('nan'), float('inf'), -calibration.GRIPPER_ANGLE_LIMIT,
-                                   calibration.GRIPPER_ANGLE_LIMIT])
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), -calibration.GRIPPER_ANGLE_LIMIT - .01,
+                                   calibration.GRIPPER_ANGLE_LIMIT + .01])
 def test_invalid_endpoint_rejected(gripper_file, key, value):
     with pytest.raises(ValueError):
         TianjiParameters(**{key: value})

@@ -255,7 +255,7 @@ def inspect(robot, config):
             if m.get("commissioned") is not True:
                 issues.append("本侧行程与夹持电流尚未完成标定")
             if max(abs(lo), abs(hi)) >= math.pi - 0.02:
-                issues.append("标定超出上电单圈安全范围，不能直接跨断电复用")
+                report.setdefault("warnings", []).append("标定靠近或超出上电单圈边界；断电后请确认同一开度的位置反馈一致")
             if "max_current_a" in m:
                 try:
                     p.update(d.read_current_limit(s))

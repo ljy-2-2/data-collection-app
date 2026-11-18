@@ -14,7 +14,7 @@ GRIPPER_PARAMETERS = ('left_gripper_speed', 'right_gripper_speed',
                       'left_gripper_accel', 'right_gripper_accel')
 GRIPPER_ENDPOINTS = tuple(f'{side}_gripper_{endpoint}_rad'
                           for side in ('left', 'right') for endpoint in ('open', 'closed'))
-GRIPPER_ANGLE_LIMIT = math.pi - .02
+GRIPPER_ANGLE_LIMIT = math.tau
 
 
 def gripper_parameter_defaults() -> dict[str, float]:
@@ -51,8 +51,10 @@ def validate_gripper_endpoints(values: dict) -> None:
         opened = values[f'{side}_gripper_open_rad']
         closed = values[f'{side}_gripper_closed_rad']
         if any(type(value) not in (float, int) or not math.isfinite(value)
-               or abs(value) >= GRIPPER_ANGLE_LIMIT for value in (opened, closed)):
-            raise ValueError(f'{side} 夹爪角度必须在启动单圈范围内')
+               or abs(value) > GRIPPER_ANGLE_LIMIT for value in (opened, closed)):
+            raise ValueError(f'{side} 夹爪端点必须是 [-2π, 2π] 内的有限弧度值')
+        if abs(closed - opened) + 2 * .001 >= math.tau:
+            raise ValueError(f'{side} 夹爪行程含反馈容差必须小于一整圈')
         margin = motors.get(side, {}).get('travel_margin_rad', .02)
         if not math.isfinite(margin) or margin < .002 or abs(closed - opened) < .01 or abs(closed - opened) <= 2 * margin:
             raise ValueError(f'{side} 夹爪开闭行程必须大于两倍安全余量且不少于 0.01 rad')

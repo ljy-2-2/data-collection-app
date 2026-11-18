@@ -16,10 +16,10 @@ class TianjiParameters(BaseModel):
     right_gripper_speed: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_speed'), ge=0.01, le=100)
     left_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_accel'), ge=0.1, le=200)
     right_gripper_accel: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_accel'), ge=0.1, le=200)
-    left_gripper_open_rad: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_open_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
-    left_gripper_closed_rad: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_closed_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
-    right_gripper_open_rad: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_open_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
-    right_gripper_closed_rad: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_closed_rad'), gt=-GRIPPER_ANGLE_LIMIT, lt=GRIPPER_ANGLE_LIMIT)
+    left_gripper_open_rad: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_open_rad'), ge=-GRIPPER_ANGLE_LIMIT, le=GRIPPER_ANGLE_LIMIT)
+    left_gripper_closed_rad: float = Field(default_factory=partial(gripper_parameter_default, 'left_gripper_closed_rad'), ge=-GRIPPER_ANGLE_LIMIT, le=GRIPPER_ANGLE_LIMIT)
+    right_gripper_open_rad: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_open_rad'), ge=-GRIPPER_ANGLE_LIMIT, le=GRIPPER_ANGLE_LIMIT)
+    right_gripper_closed_rad: float = Field(default_factory=partial(gripper_parameter_default, 'right_gripper_closed_rad'), ge=-GRIPPER_ANGLE_LIMIT, le=GRIPPER_ANGLE_LIMIT)
 
     @model_validator(mode="after")
     def validate_endpoints(self):

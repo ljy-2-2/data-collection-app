@@ -72,8 +72,6 @@ def load(path, live=False):
         ids.add(m["motor_id"])
         replies.add(m["master_id"])
         ranges = {
-            # Offline inspection accepts legacy coordinates; live mode below
-            # requires travel inside the documented cold-start single turn.
             # Driver.preflight independently enforces the measured PMAX.
             "open_rad": (-2 * math.pi, 2 * math.pi),
             "closed_rad": (-2 * math.pi, 2 * math.pi),
@@ -101,8 +99,6 @@ def load(path, live=False):
                 raise ValueError(f"{side}: max_current_a must be in (0, 2.5] A")
             if m["control_mode"] != 4:
                 raise ValueError(f"{side}: max_current_a requires force-position mode 4")
-        if live and max(abs(m["open_rad"]), abs(m["closed_rad"])) >= math.pi - 0.02:
-            raise ValueError(f"{side}: travel must remain inside startup single-turn [-pi, pi]; recheck calibration")
         if live and m.get("commissioned") is not True:
             raise ValueError(
                 f"{side}: calibrate travel/current and set commissioned=true first"
@@ -116,6 +112,8 @@ def load(path, live=False):
 def travel_bounds(motor):
     """Inset command range; measured calibration endpoints remain unchanged."""
     lo, hi = sorted((motor["open_rad"], motor["closed_rad"]))
+    if hi - lo + 2 * 0.001 >= math.tau:
+        raise ValueError("gripper: travel including feedback tolerance must be shorter than one revolution")
     margin = motor.get("travel_margin_rad", 0.02)
     if not math.isfinite(margin) or margin < 0.002 or 2 * margin >= hi - lo:
         raise ValueError("gripper: travel margin must be >=0.002 and less than half travel")

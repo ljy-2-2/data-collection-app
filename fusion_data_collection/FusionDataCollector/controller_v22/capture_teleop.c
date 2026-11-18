@@ -802,6 +802,12 @@ static int self_test(void) {
     camera_cpu_mask(&camera_cpus);
     REQUIRE(CPU_COUNT(&camera_cpus) == 3 && !CPU_ISSET(1, &camera_cpus));
     REQUIRE(CPU_ISSET(0, &camera_cpus) && CPU_ISSET(2, &camera_cpus) && CPU_ISSET(3, &camera_cpus));
+    REQUIRE(find_profile("mjpeg-1280x720-60") == &mjpeg_720_60);
+    REQUIRE(mjpeg_720_60.width == 1280 && mjpeg_720_60.height == 720);
+    REQUIRE(profile_fps(&mjpeg_720_60) == 60);
+    REQUIRE(profile_interval_matches(&mjpeg_720_60, 166666));
+    REQUIRE(profile_interval_matches(&mjpeg_720_60, 166667));
+    REQUIRE(!profile_interval_matches(&mjpeg_720_60, 333333));
     REQUIRE(duration_active(0, 3600*NS));
     REQUIRE(duration_active(7200, 3600*NS));
     REQUIRE(duration_active(600, 599*NS));

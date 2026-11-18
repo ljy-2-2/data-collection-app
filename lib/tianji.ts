@@ -76,10 +76,10 @@ export const TIANJI_FIELDS: {
   },
   { key: 'left_gripper_accel', label: '左夹爪加速度', unit: 'rad/s²', min: 0.1, max: 200, step: 1 },
   { key: 'right_gripper_accel', label: '右夹爪加速度', unit: 'rad/s²', min: 0.1, max: 200, step: 1 },
-  { key: 'left_gripper_open_rad', label: '左夹爪打开角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
-  { key: 'left_gripper_closed_rad', label: '左夹爪关闭角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
-  { key: 'right_gripper_open_rad', label: '右夹爪打开角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
-  { key: 'right_gripper_closed_rad', label: '右夹爪关闭角度', unit: 'rad', min: -3.121592, max: 3.121592, step: 0.01 },
+  { key: 'left_gripper_open_rad', label: '左夹爪打开角度', unit: 'rad', min: -2 * Math.PI, max: 2 * Math.PI, step: 0.01 },
+  { key: 'left_gripper_closed_rad', label: '左夹爪关闭角度', unit: 'rad', min: -2 * Math.PI, max: 2 * Math.PI, step: 0.01 },
+  { key: 'right_gripper_open_rad', label: '右夹爪打开角度', unit: 'rad', min: -2 * Math.PI, max: 2 * Math.PI, step: 0.01 },
+  { key: 'right_gripper_closed_rad', label: '右夹爪关闭角度', unit: 'rad', min: -2 * Math.PI, max: 2 * Math.PI, step: 0.01 },
 ];
 export function validTianjiParameters(p: TianjiParameters) {
   return TIANJI_FIELDS.every(
